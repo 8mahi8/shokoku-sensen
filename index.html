@@ -30,7 +30,14 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #rate{font-size:10px;color:#a4bacc}#remaining{font-size:10px;color:#b6d2d6}
 #collection{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
 #collectionTitle{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;color:#b8d0d7}
-#cards{flex:1;min-height:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:7px}
+#cards{flex:1;min-height:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.card.permanent{border-color:#6ecbb3;box-shadow:inset 0 0 0 1px #61a9994a}
+.card.permanent::after{content:"固定";position:absolute;right:5px;top:31px;background:#21554d;color:#c9fbde;border-radius:4px;font-size:9px;font-weight:900;padding:1px 4px}
+.card.spell{border-color:#c19d6d;background:linear-gradient(135deg,#56435d,#342a43)}
+.card.spell .cardCost{background:#aa674a;border-color:#f2c095}
+.cardSpell{font-size:9px;background:#e6b5812c;color:#ffd79c;padding:1px 4px;border-radius:4px}
+#nextCard{font-size:10px;color:#efcf9b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:800}
+#fieldHint{max-width:min(70%,520px)}
 .card{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:2px;min-width:0;border-radius:10px;border:1px solid #648c99;border-bottom:3px solid #416b7b;background:linear-gradient(145deg,#28505b,#193440);padding:6px 7px;overflow:hidden;text-align:left}
 .card.selected{border-color:#ffe28f;background:linear-gradient(145deg,#466555,#254d51);box-shadow:inset 0 0 0 1px #f5d584}
 .card.unavailable{filter:saturate(.6);opacity:.58}
@@ -109,7 +116,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="remaining">基本歩兵は何度でも召喚可</div>
 </div>
 <div id="collection">
-<div id="collectionTitle"><span>カードを選択 → 戦場をタップ、またはドラッグ</span><span>全8兵種 · オリジナルキャラアート</span></div>
+<div id="collectionTitle"><span>基本歩兵は固定｜4枚の手札を使うと次のカードへ</span><span id="nextCard">次：範囲砲撃</span></div>
 <div id="cards"></div>
 </div>
 </footer>
@@ -130,7 +137,8 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <p id="dialogText">城ドラを参考に再設計した、横長1画面の陣取りカード戦略。まずはBOT戦で試そう。</p>
 <div id="rules">
 ・<strong>最初の10秒間</strong>は準備フェーズ。配置した部隊は動かず、資源も回復しません。<br>
-・8種類のキャラからいつでも選択。基本歩兵は無制限、他は召喚回数に上限があります。<br>
+・<strong>基本歩兵はいつでも召喚可能</strong>。ほかの7兵種と2種類のスペルは4枚手札で循環します。カードを使うと次のカードに交代。<br>
+・<strong>範囲砲撃（4）</strong>：約1.3秒後に敵兵へ範囲攻撃。<strong>防護結界（3）</strong>：約5秒間、範囲内の味方へのダメージを45％軽減。各3回まで、開戦後に使用可能。<br>
 ・前哨基地は占領可能ユニットが最後の一撃で獲得。最も奥の自軍基地で<strong>召喚ラインが全域に前進</strong>。<br>
 ・序盤は資源の回復が遅く、終盤ほど加速します。<br>
 ・敵首都を破壊すると勝利。時間切れは首都HP割合で決着。
