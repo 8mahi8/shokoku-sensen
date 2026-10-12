@@ -60,7 +60,7 @@ function deploy(team,id,x,y){
   const px=limit(x+(team===1?-9:9)*i,30,W-30);
   const py=limit(y+dy,46,H-45);
   S.units.push({uid:++S.uid,key:id,team,x:px,y:py,anchorX:px,anchorY:py,homeY:py,
-   hp:d.hp,max:d.hp,attack:rand(0,.65),facing:team===1?0:Math.PI,flash:0,
+   hp:d.hp,max:d.hp,attack:rand(0,.65),facing:team===1?0:Math.PI,flash:0,attackAnim:0,walkPhase:rand(0,6.28),walking:false,
    drift:rand(0,Math.PI*2)});
  }
  if(team===1){S.selected=null;buildCards();updateHUD();}
@@ -121,6 +121,8 @@ function moveToward(u,x,y,dt){
  u.x=limit(u.x+dx/distance*amt,28,W-28);
  u.y=limit(u.y+dy/distance*amt,43,H-43);
  u.facing=Math.atan2(dy,dx);
+ u.walking=amt>.03;
+ if(u.walking)u.walkPhase+=amt*.31;
 }
 function attackUnit(target,value,attacker){
  const att=CLASSES[attacker.key],def=CLASSES[target.key];
@@ -132,6 +134,7 @@ function attackUnit(target,value,attacker){
 function fire(u,target){
  const d=CLASSES[u.key],ref=target.ref;
  u.attack=d.cool;
+ u.attackAnim=.34;
  S.effects.push({x:target.x,y:target.y,t:.23,max:.23,team:u.team,r:d.splash||16});
  if(target.kind==="fort"){
   if(!d.capture||ref.owner===u.team)return;
@@ -159,6 +162,7 @@ function unitStep(dt){
   if(u.hp<=0)continue;
   const d=CLASSES[u.key];
   u.attack=Math.max(0,u.attack-dt);u.flash=Math.max(0,u.flash-dt);
+  u.attackAnim=Math.max(0,(u.attackAnim||0)-dt);u.walking=false;
   const foe=nearbyEnemy(u),fort=getFort(u);
   if(d.behavior==="guard"){
    if(foe){
@@ -332,6 +336,7 @@ function drawFort(f){
  ctx.restore();
 }
 function drawUnit(u){
+ if(window.KokokuArt){window.KokokuArt.drawUnit(ctx,u,S.clock);return;}
  const d=CLASSES[u.key],col=TEAM[u.team],isAir=!!d.flying;
  const bob=isAir?18+Math.sin(S.clock*4+u.drift)*4:3;
  ctx.save();
@@ -412,10 +417,12 @@ function buildCards(){
   if(!available)button.classList.add("depleted");
   if(S.energy[1]+1e-6<d.cost)button.classList.add("unavailable");
   const left=Number.isFinite(S.left[1][id])?"残 "+S.left[1][id]:"∞";
-  button.innerHTML='<div class="cardTop"><span class="cardCost">'+d.cost+'</span><span class="cardGlyph">'+d.glyph+'</span></div>'+
+  button.innerHTML='<div class="cardTop"><span class="cardCost">'+d.cost+'</span><span class="cardQuantity">×'+d.qty+'</span></div>'+
+   '<canvas class="cardPortrait" width="128" height="72" aria-hidden="true"></canvas>'+
    '<div class="cardName">'+d.name+'</div>'+
    '<div class="cardBottom"><span class="cardLeft">'+left+'</span>'+
-   (d.capture?'<span class="cardCapture">占領可</span>':'<span>戦闘</span>')+'</div>';
+   (d.capture?'<span class="cardCapture">⚑ 占領可</span>':'<span>戦闘</span>')+'</div>';
+  if(window.KokokuArt)window.KokokuArt.drawPortrait(button.querySelector("canvas"),id,1);
   button.addEventListener("pointerdown",e=>cardDown(e,id));
   cards.append(button);
  }
