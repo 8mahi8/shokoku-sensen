@@ -60,7 +60,7 @@ function initialize(){
  state.hands=[null,makeDeck(),makeDeck()];
  state.posts=[{x:165,y:490,owner:0,hp:POSTHP},{x:495,y:790,owner:0,hp:POSTHP},{x:495,y:1130,owner:0,hp:POSTHP},{x:825,y:1430,owner:0,hp:POSTHP}];
  state.capitals=[{x:495,y:1800,team:1,hp:CAPHP,max:CAPHP,cool:0},{x:495,y:120,team:2,hp:CAPHP,max:CAPHP,cool:0}];
- state.botDelay=state.difficulty==="easy"?9:1.1;state.cameraY=1415;state.uiTimer=0;state.noticeTime=0;
+ state.botDelay=state.difficulty==="easy"?15:1.1;state.cameraY=1415;state.uiTimer=0;state.noticeTime=0;
  $("modal").classList.add("hidden");$("pause").textContent="Ⅱ 停止";
  $("begin").textContent="BOT戦を始める";
  displayCards();updateHud();message("前哨基地を占領して、召喚ラインを押し上げよう！");
@@ -230,7 +230,7 @@ function capitalStep(dt){
 function botStep(dt){
  state.botDelay-=dt;if(state.botDelay>0)return;
  const team=2,pile=state.hands[team],usable=pile.hand.map((id,index)=>({id,index,d:C[id]})).filter(c=>c.d.cost<=state.energy[team]);
- state.botDelay=(state.difficulty==="easy"?random(2.6,3.8):random(1.4,2.4))/diffRate();
+ state.botDelay=(state.difficulty==="easy"?random(5,7):random(1.4,2.4))/diffRate();
  if(!usable.length)return;
  const ownPosts=postsOwned(2).length;
  const firstClaim=state.posts.find(p=>p.owner!==2&&p.y<850);
