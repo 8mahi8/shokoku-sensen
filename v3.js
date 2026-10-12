@@ -427,10 +427,33 @@ function buildCards(){
   cards.append(button);
  }
 }
+let galleryResume="menu";
+function buildGallery(){
+ const group=$("galleryCards");group.replaceChildren();
+ for(const id of IDS){
+  const d=CLASSES[id],tile=document.createElement("div");tile.className="galleryTile";
+  tile.innerHTML='<canvas width="240" height="150" aria-label="'+d.name+'のデザイン"></canvas>'+
+   '<div class="galleryName">'+d.name+'</div>'+
+   '<div class="galleryDetails"><span class="galleryRole">'+(d.capture?"⚑ 占領可能":"✦ 戦闘専門")+'</span> · コスト '+d.cost+' · '+d.qty+'体召喚</div>'+
+   '<div class="galleryDetails">'+d.note+'</div>';
+  group.append(tile);
+  if(window.KokokuArt)window.KokokuArt.drawPortrait(tile.querySelector("canvas"),id,1);
+ }
+}
+function openGallery(){
+ if(S.phase==="gallery")return;
+ galleryResume=S.phase;S.phase="gallery";
+ $("galleryOverlay").classList.remove("hidden");
+ $("galleryClose").focus();
+}
+function closeGallery(){
+ if(S.phase!=="gallery")return;
+ S.phase=galleryResume;$("galleryOverlay").classList.add("hidden");
+}
 function updateHUD(){
  if(!S.capitals.length)return;
  $("clock").textContent=S.phase==="prep"?numTime(S.prep):numTime(S.seconds);
- $("phaseLabel").textContent=S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊";
+ $("phaseLabel").textContent=S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊";
  $("blueText").textContent=Math.ceil(capital(1).hp)+" / "+START_HP;
  $("redText").textContent=Math.ceil(capital(2).hp)+" / "+START_HP;
  $("blueBar").style.width=100*capital(1).hp/START_HP+"%";
@@ -499,7 +522,7 @@ function resumeButton(){
  else if(S.phase==="paused"){S.phase="battle";$("pause").textContent="Ⅱ 停止";}
 }
 function start(){
- resetWorld();fit();buildCards();
+ resetWorld();fit();buildCards();buildGallery();
  window.addEventListener("resize",fit);
  document.addEventListener("pointermove",onGlobalMove);
  document.addEventListener("pointerup",onGlobalUp);
@@ -509,6 +532,9 @@ function start(){
  area.addEventListener("pointerup",arenaUp);
  area.addEventListener("pointercancel",()=>S.pointer=null);
  $("pause").addEventListener("click",resumeButton);
+ $("galleryButton").addEventListener("click",openGallery);
+ $("galleryFromMenu").addEventListener("click",openGallery);
+ $("galleryClose").addEventListener("click",closeGallery);
  $("speed").addEventListener("click",()=>{
   const options=[.85,.65,1];S.speed=options[(options.indexOf(S.speed)+1)%options.length];
   $("speed").textContent="速度 "+S.speed.toFixed(2)+"×";
@@ -524,6 +550,7 @@ function start(){
  });
  document.addEventListener("contextmenu",e=>e.preventDefault());
  window.addEventListener("keydown",e=>{
+  if(e.code==="Escape"&&S.phase==="gallery"){e.preventDefault();closeGallery();return;}
   if(e.code==="Space"){e.preventDefault();resumeButton();}
   if(/^[1-8]$/.test(e.key)&&(S.phase==="prep"||S.phase==="battle")){
    S.selected=IDS[Number(e.key)-1];buildCards();
