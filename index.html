@@ -69,7 +69,7 @@ button{font:inherit;cursor:pointer;color:inherit;touch-action:manipulation;-webk
 <div class="baseBox"><div class="stats">自軍首都 <span id="blueHpText">1800 / 1800</span></div><div class="hpTrack"><div class="hpFill" id="blueHp"></div></div></div>
 <div id="clockwrap"><div id="clock">05:00</div><div id="period">前哨基地戦</div></div>
 <div class="baseBox"><div class="stats">敵首都 <span id="redHpText">1800 / 1800</span></div><div class="hpTrack"><div class="hpFill red" id="redHp"></div></div></div>
-<button class="iconbtn" id="pause">Ⅱ 停止</button>
+<button class="iconbtn" id="speedBtn">速度 0.75×</button><button class="iconbtn" id="pause">Ⅱ 停止</button>
 </header>
 <section id="arena">
 <canvas id="battle" aria-label="小国戦線の戦場"></canvas>
@@ -108,8 +108,8 @@ button{font:inherit;cursor:pointer;color:inherit;touch-action:manipulation;-webk
 ・地上／飛行、進撃／迎撃、キャラ相性が重要<br>
 ・相手の首都を破壊すれば勝利。時間切れは首都HP割合で判定
 </div>
-<div id="difficulty"><button data-diff="easy">やさしい</button><button data-diff="normal" class="active">ふつう</button><button data-diff="hard">むずかしい</button></div>
-<button id="begin">BOT戦を始める</button>
+<div id="difficulty"><button data-diff="easy" class="active">練習BOT</button><button data-diff="normal">ふつう</button><button data-diff="hard">むずかしい</button></div>
+<p style="margin:0 0 9px;font-size:11px;color:#a9c7d3">最初はゆっくり練習。上部の「速度」ボタンで調整できるよ。</p><button id="begin">BOT戦を始める</button>
 </div></div>
 <script src="./v2.js"></script>
 </body></html>
