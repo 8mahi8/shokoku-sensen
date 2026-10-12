@@ -55,6 +55,26 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #difficulties button{background:#1b3946;border:1px solid #668895;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:800}
 #difficulties button.active{border-color:#f6d891;background:#4e5441;color:#ffe6a0}
 #start{border:0;border-radius:10px;padding:13px 20px;background:linear-gradient(100deg,#f2da93,#dfa973);font-size:16px;font-weight:950;color:#243237;width:100%}
+
+/* Full-size character collection; responsive for landscape iPad. */
+#galleryOverlay{position:fixed;inset:0;background:#06151ceF;z-index:40;display:flex;align-items:center;justify-content:center;padding:13px;touch-action:pan-y}
+#galleryOverlay.hidden{display:none}
+#galleryPanel{width:min(1080px,100%);max-height:95dvh;overflow:auto;overscroll-behavior:contain;background:linear-gradient(140deg,#1b3946,#0c2734);border:1px solid #6f9ca9;border-radius:17px;padding:15px;box-shadow:0 20px 75px #000b}
+#galleryHead{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;margin-bottom:10px}
+#galleryHead h2{margin:2px 0 4px;font-size:20px;letter-spacing:.08em}
+#galleryHead small{font-size:9px;color:#e7cc86;font-weight:800;letter-spacing:.1em}
+#galleryHead p{font-size:11px;color:#aac4ca;margin:0;line-height:1.5}
+#galleryClose{flex:none}
+#galleryCards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.galleryTile{border:1px solid #6a8f994f;background:#142d3ce0;border-radius:11px;padding:8px;overflow:hidden}
+.galleryTile canvas{display:block;width:100%;height:auto;aspect-ratio:128/80;border-radius:8px;background:#204252}
+.galleryName{margin-top:6px;font-size:12px;font-weight:950}
+.galleryDetails{font-size:10px;color:#b8d0da;margin-top:3px;line-height:1.5}
+.galleryRole{color:#ebd18f}
+.galleryLink{display:block;margin:9px auto 0;border:0;background:none;color:#a6e1ef;font-size:12px;font-weight:800;padding:8px}
+.galleryLink:hover{text-decoration:underline}
+@media(max-width:700px){#galleryCards{grid-template-columns:repeat(2,minmax(0,1fr))}#galleryPanel{max-height:93dvh}#galleryHead h2{font-size:16px}#galleryHead p{font-size:10px}}
+@media(max-height:480px){#galleryPanel{max-height:97dvh;padding:10px}.galleryTile{padding:5px}#galleryHead p{display:none}#galleryHead{margin-bottom:6px}}
 @media(max-width:1120px){
 #header{height:50px;padding:4px 7px;gap:6px}#logo{min-width:100px}#logo b{font-size:13px}#logo small{font-size:7px}.base .line{font-size:10px}.base .line span{font-size:9px}#clockbox{min-width:67px}#clock{font-size:19px}#phaseLabel{font-size:9px}.topButton{font-size:10px;padding:7px 8px}
 #bottom{height:136px;padding:7px 8px;gap:7px}#resource{width:95px}#resourceNumber{font-size:22px}#cards{gap:4px}.card{padding:4px 5px;border-radius:8px}.cardCost{width:21px;height:21px;font-size:11px}.cardPortrait{max-height:64px}.cardName{font-size:10px}.cardBottom{font-size:8px}#collectionTitle{font-size:10px}
@@ -72,7 +92,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div class="base"><div class="line">自軍首都 <span id="blueText">3400 / 3400</span></div><div class="bar"><div class="fill" id="blueBar"></div></div></div>
 <div id="clockbox"><div id="clock">05:00</div><div id="phaseLabel">待機中</div></div>
 <div class="base"><div class="line">敵軍首都 <span id="redText">3400 / 3400</span></div><div class="bar"><div class="fill enemy" id="redBar"></div></div></div>
-<div id="headerButtons"><button class="topButton" id="speed">速度 0.85×</button><button class="topButton" id="pause">Ⅱ 停止</button></div>
+<div id="headerButtons"><button class="topButton" id="galleryButton" aria-label="部隊図鑑を開く">✧ 図鑑</button><button class="topButton" id="speed">速度 0.85×</button><button class="topButton" id="pause">Ⅱ 停止</button></div>
 </header>
 <main id="fieldArea">
 <canvas id="field" aria-label="横長の戦場。タップして部隊を召喚できます。"></canvas>
@@ -95,6 +115,16 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 </footer>
 </div>
 <div id="dragging"><span id="dragGlyph">♟</span><small id="dragName">歩兵</small></div>
+
+<div id="galleryOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
+ <div id="galleryPanel">
+  <div id="galleryHead">
+   <div><small>CHARACTER COLLECTION / ORIGINAL 2D ART</small><h2 id="galleryTitle">小国戦線｜部隊図鑑</h2><p>装備・シルエット・攻撃方法で描き分けた、8種類の近未来ファンタジー兵士。図鑑を開いている間、対戦は一時停止します。</p></div>
+   <button id="galleryClose" class="topButton" aria-label="図鑑を閉じて対戦に戻る">✕ 戻る</button>
+  </div>
+  <div id="galleryCards"></div>
+ </div>
+</div>
 <div id="overlay"><div id="dialog">
 <h1 id="dialogTitle">小国戦線 III</h1>
 <p id="dialogText">城ドラを参考に再設計した、横長1画面の陣取りカード戦略。まずはBOT戦で試そう。</p>
@@ -107,6 +137,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 </div>
 <div id="difficulties"><button class="active" data-level="easy">練習</button><button data-level="normal">ふつう</button><button data-level="hard">むずかしい</button></div>
 <button id="start">BOT戦を始める</button>
+<button id="galleryFromMenu" class="galleryLink">✧ 先に8体のキャラクターデザインを見る</button>
 </div></div>
 <script src="./v3-art.js?v=1"></script>
 <script src="./v3.js?v=2"></script>
