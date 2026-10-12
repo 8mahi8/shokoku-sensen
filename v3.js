@@ -16,6 +16,27 @@ const CLASSES={
  tank:{name:"魔導重戦車",glyph:"▰",cost:6,limit:3,qty:1,hp:755,damage:49,cool:2.0,range:108,vision:149,speed:15,r:25,behavior:"normal",capture:0,hitAir:false,armored:true,splash:24,note:"高耐久・重装"}
 };
 const IDS=Object.keys(CLASSES);
+const SPELLS={
+ barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:115,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
+ ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"}
+};
+const CATALOG={...CLASSES,...SPELLS};
+const DECK_IDS=["scout","engineer","archer","suppress","barrage","guardian","ward","drone","tank"];
+const HAND_SIZE=4;
+const isSpell=id=>Object.prototype.hasOwnProperty.call(SPELLS,id);
+const hasCard=(team,id)=>id==="infantry"||S.hand[team].includes(id);
+const availableCard=(team,id)=>S.left[team][id]>0&&hasCard(team,id);
+function advanceHand(team,id){
+ if(id==="infantry")return;
+ const hand=S.hand[team],idx=hand.indexOf(id);
+ if(idx<0)return;
+ hand.splice(idx,1);
+ if(S.left[team][id]>0)S.queue[team].push(id);
+ while(hand.length<HAND_SIZE&&S.queue[team].length){
+  const next=S.queue[team].shift();
+  if(S.left[team][next]>0)hand.push(next);
+ }
+}
 const TEAM={1:BLUE,2:RED};
 const limit=(v,min,max)=>Math.max(min,Math.min(max,v));
 const rand=(min,max)=>min+(max-min)*Math.random();
@@ -23,13 +44,17 @@ const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
 const S={phase:"menu",difficulty:"easy",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
  energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],
- uid:0,botThink:0,selected:null,drag:null,pointer:null,view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
+ uid:0,botThink:0,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;
  S.energy=[0,8,8];S.units=[];S.effects=[];S.selected=null;S.drag=null;S.pointer=null;
- S.left=[null,{},{}];
- for(const t of [1,2])for(const id of IDS)S.left[t][id]=CLASSES[id].limit;
+ S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
+ for(const team of [1,2]){
+  for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
+  S.hand[team]=DECK_IDS.slice(0,HAND_SIZE);
+  S.queue[team]=DECK_IDS.slice(HAND_SIZE);
+ }
  S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP,attack:0},
              {team:2,x:1206,y:328,hp:START_HP,max:START_HP,attack:0}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
@@ -47,14 +72,31 @@ function canPlace(team,x,y){
  return team===1?x<=border(1):x>=border(2);
 }
 function canPay(team,id){
- return (S.phase==="prep"||S.phase==="battle")&&CLASSES[id]&&S.energy[team]+1e-6>=CLASSES[id].cost&&S.left[team][id]>0;
+ const d=CATALOG[id];
+ if(!d||!availableCard(team,id))return false;
+ if(S.phase!=="battle"&&!(S.phase==="prep"&&!isSpell(id)))return false;
+ return S.energy[team]+1e-6>=d.cost;
+}
+function validTarget(team,id,x,y){
+ if(!Number.isFinite(x)||!Number.isFinite(y))return false;
+ if(isSpell(id))return S.phase==="battle"&&x>=30&&x<=W-30&&y>=40&&y<=H-35;
+ return canPlace(team,x,y);
+}
+function cardFailure(team,id){
+ if(!CATALOG[id])return "カードを選択してね";
+ if(!hasCard(team,id))return "このカードは今の手札にないよ";
+ if(S.left[team][id]<=0)return "召喚回数・使用回数が残っていないよ";
+ if(isSpell(id)&&S.phase==="prep")return "スペルは開戦後に使えるよ";
+ if(!canPay(team,id))return "エネルギーが足りない";
+ return isSpell(id)?"戦場内を指定してね":"青い召喚範囲に置いてね";
 }
 function deploy(team,id,x,y){
- if(!canPay(team,id)||!canPlace(team,x,y))return false;
+ if(!CLASSES[id]||!canPay(team,id)||!canPlace(team,x,y))return false;
  const d=CLASSES[id], count=S.units.filter(u=>u.team===team&&u.hp>0).length;
  if(count+d.qty>65){if(team===1)notice("部隊が多すぎる。少し減るまで待とう");return false;}
  S.energy[team]=Math.max(0,S.energy[team]-d.cost);
  if(Number.isFinite(S.left[team][id]))S.left[team][id]--;
+ advanceHand(team,id);
  for(let i=0;i<d.qty;i++){
   const dy=(i-(d.qty-1)/2)*27;
   const px=limit(x+(team===1?-9:9)*i,30,W-30);
@@ -79,6 +121,45 @@ function begin(){
  deploy(2,"infantry",1085,190);
  deploy(2,"archer",1090,425);
  buildCards();updateHUD();
+}
+function castSpell(team,id,x,y){
+ if(!isSpell(id)||!canPay(team,id)||!validTarget(team,id,x,y))return false;
+ const d=SPELLS[id];
+ S.energy[team]=Math.max(0,S.energy[team]-d.cost);
+ S.left[team][id]--;
+ advanceHand(team,id);
+ if(id==="barrage")S.spells.incoming.push({team,x,y,r:d.radius,time:d.delay,total:d.delay});
+ else S.spells.zones.push({team,x,y,r:d.radius,time:d.duration,total:d.duration});
+ if(team===1){S.selected=null;buildCards();updateHUD();}
+ return true;
+}
+function playCard(team,id,x,y){
+ return isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
+}
+function shieldMultiplier(team,x,y){
+ return S.spells.zones.some(z=>z.team===team&&z.time>0&&Math.hypot(z.x-x,z.y-y)<=z.r)?SPELLS.ward.mult:1;
+}
+function hitUnit(u,power){
+ if(u.hp<=0)return;
+ u.hp-=power*shieldMultiplier(u.team,u.x,u.y);
+ u.flash=.15;
+}
+function spellStep(dt){
+ for(const shot of S.spells.incoming){
+  shot.time-=dt;
+  if(shot.time<=0){
+   let hits=0;
+   for(const u of S.units){
+    if(u.hp<=0||u.team===shot.team)continue;
+    if(Math.hypot(u.x-shot.x,u.y-shot.y)<shot.r){hitUnit(u,SPELLS.barrage.damage);hits++;}
+   }
+   S.effects.push({x:shot.x,y:shot.y,t:.52,max:.52,team:shot.team,r:shot.r});
+   if(shot.team===1&&hits>=3)notice("範囲砲撃が敵兵"+hits+"体に命中！");
+  }
+ }
+ S.spells.incoming=S.spells.incoming.filter(x=>x.time>0);
+ for(const zone of S.spells.zones)zone.time-=dt;
+ S.spells.zones=S.spells.zones.filter(x=>x.time>0);
 }
 function getFort(u){
  const d=CLASSES[u.key];if(!d.capture)return null;
@@ -129,7 +210,7 @@ function attackUnit(target,value,attacker){
  let power=value;
  if(def.armored&&!att.antiArmor)power*=.78;
  if(def.armored&&att.antiArmor)power*=att.antiArmor;
- target.hp-=power;target.flash=.15;
+ hitUnit(target,power);
 }
 function fire(u,target){
  const d=CLASSES[u.key],ref=target.ref;
@@ -202,7 +283,7 @@ function baseStep(dt){
   const foes=S.units.filter(u=>u.team!==c.team&&dist(c,u)<160);
   if(!foes.length)continue;
   foes.sort((a,b)=>dist(c,a)-dist(c,b));
-  const target=foes[0];target.hp-=33;target.flash=.2;c.attack=1.6;
+  const target=foes[0];hitUnit(target,33);c.attack=1.6;
   S.effects.push({x:target.x,y:target.y,t:.24,max:.24,team:c.team,r:21});
  }
 }
@@ -213,6 +294,19 @@ function rate(){
  return .7;
 }
 function botAction(){
+ const allies=S.units.filter(u=>u.team===2&&u.hp>0);
+ const enemies=S.units.filter(u=>u.team===1&&u.hp>0);
+ // The BOT shares the player's card hand, costs, and charge limits.
+ if(canPay(2,"barrage")&&enemies.length){
+  const best=enemies.map(t=>({target:t,hits:enemies.filter(u=>dist(t,u)<SPELLS.barrage.radius).length}))
+   .sort((a,b)=>b.hits-a.hits)[0];
+  if(best.hits>=2&&Math.random()<.75){castSpell(2,"barrage",best.target.x,best.target.y);return;}
+ }
+ if(canPay(2,"ward")&&allies.length){
+  const best=allies.map(t=>({target:t,hits:allies.filter(u=>dist(t,u)<SPELLS.ward.radius).length,
+   threatened:enemies.some(u=>dist(t,u)<150)})).filter(x=>x.threatened).sort((a,b)=>b.hits-a.hits)[0];
+  if(best&&best.hits>=2&&Math.random()<.7){castSpell(2,"ward",best.target.x,best.target.y);return;}
+ }
  const affordable=IDS.filter(id=>canPay(2,id));
  if(!affordable.length)return;
  const owned=S.forts.filter(f=>f.owner===2).length;
@@ -258,7 +352,7 @@ function tick(dt){
  if(S.phase!=="battle")return;
  S.elapsed+=dt;S.seconds-=dt;
  for(const team of [1,2])S.energy[team]=Math.min(10,S.energy[team]+dt*rate()*(team===2&&S.difficulty==="easy"?.82:1));
- botStep(dt);unitStep(dt);baseStep(dt);
+ botStep(dt);unitStep(dt);baseStep(dt);spellStep(dt);
  for(const fx of S.effects)fx.t-=dt;
  S.effects=S.effects.filter(f=>f.t>0);
  if(S.phase==="battle"&&S.seconds<=0)finishTime();
