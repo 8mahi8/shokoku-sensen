@@ -11,7 +11,8 @@ const PALETTES={
 };
 const UNIT_COLORS={
  infantry:["#4d99b8","#294c75"],scout:["#efcc79","#346e89"],engineer:["#d7a963","#3b6574"],archer:["#a784dc","#435d8f"],
- suppress:["#e8a16a","#5b5c83"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"]
+ suppress:["#e8a16a","#5b5c83"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"],
+ barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"]
 };
 function path(g,points,fill,stroke=INK,lineWidth=2.4){
  g.beginPath();points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();
@@ -224,6 +225,30 @@ function drawUnit(g,u,clock){
  }
 }
 function TEAMFILL(team){return team===2?"#ff879b":"#7ddcf6";}
+function paintSpell(g,key,team,w,h){
+ const cx=w*.52,cy=h*.52;
+ g.save();g.translate(cx,cy);g.lineCap="round";
+ if(key==="barrage"){
+  for(let i=2;i>=0;i--){
+   const radius=8+i*14;
+   oval(g,0,4,radius,radius*.64,i===0?"#f7d3a7":"#ffa64a18",i===0?"#fcf0d5":i===1?"#f8b16466":"#eeb27748",2.5);
+  }
+  path(g,[[-48,-29],[-12,-13],[-5,3],[-26,-3]],"#f3a85d","#fff0bb",2);
+  path(g,[[-35,-34],[-10,-15],[10,-5],[15,8],[1,17],[-15,14],[-20,-4]],"#ef864e","#572c43",2.8);
+  path(g,[[-19,-19],[6,-9],[20,2],[20,12],[7,20],[-8,12],[-10,-4]],"#ffc373","#fff0bf",2);
+  crystal(g,12,7,10,"#fff2bb");
+ }else{
+  g.strokeStyle="#aefafa";g.lineWidth=3;
+  oval(g,0,0,39,26,"#4de8dd25","#77fff3aa",2.4);
+  path(g,[[0,-29],[25,-15],[22,11],[0,29],[-22,11],[-25,-15]],"#62e5dc44","#d6ffff",3.3);
+  path(g,[[0,-19],[16,-10],[15,8],[0,20],[-15,8],[-16,-10]],"#6bdcff78","#eafcf9",1.5);
+  crystal(g,0,0,12,"#edfff7");
+  for(let i=0;i<5;i++){
+   const a=i*TAU/5;oval(g,Math.cos(a)*38,Math.sin(a)*25,2.5,2.5,"#b5ffff",null);
+  }
+ }
+ g.restore();
+}
 function drawPortrait(canvas,key,team=1){
  if(!canvas||!canvas.getContext)return;
  const g=canvas.getContext("2d");if(!g)return;
@@ -237,11 +262,14 @@ function drawPortrait(canvas,key,team=1){
  g.strokeStyle="#ffffff3b";g.lineWidth=2;
  g.beginPath();g.arc(w*.54,h*.48,34,0,TAU);g.stroke();
  g.fillStyle="#071f3140";g.beginPath();g.ellipse(w*.54,h*.86,32,8,0,0,TAU);g.fill();
- g.save();g.translate(w*.51,h*.97);
- const artScale=Math.min(w/128,h/72)*.78;
- g.scale(artScale,artScale);
- paint(g,key,team,0,{uid:1,flash:0,walking:false});
- g.restore();
+ if(key==="barrage"||key==="ward")paintSpell(g,key,team,w,h);
+ else{
+  g.save();g.translate(w*.51,h*.97);
+  const artScale=Math.min(w/128,h/72)*.78;
+  g.scale(artScale,artScale);
+  paint(g,key,team,0,{uid:1,flash:0,walking:false});
+  g.restore();
+ }
  g.fillStyle="#ffffff35";round(g,8,8,3,16,1,g.fillStyle,null);
  g.restore();
 }
