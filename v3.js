@@ -21,7 +21,7 @@ const SPELLS={
  ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"}
 };
 const CATALOG={...CLASSES,...SPELLS};
-const DECK_IDS=["scout","engineer","archer","suppress","barrage","guardian","ward","drone","tank"];
+const DECK_IDS=["scout","engineer","archer","barrage","suppress","guardian","ward","drone","tank"];
 const HAND_SIZE=4;
 const isSpell=id=>Object.prototype.hasOwnProperty.call(SPELLS,id);
 const hasCard=(team,id)=>id==="infantry"||S.hand[team].includes(id);
