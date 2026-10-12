@@ -7,6 +7,9 @@ const canvas=$("battle"), g=canvas.getContext("2d");
 const mini=$("map"), mg=mini.getContext("2d");
 const area=$("arena"), cardHolder=$("cards");
 const W=990,H=1920,LANES=[165,495,825],CAPHP=1800,POSTHP=8;
+// Base gameplay pace. Camera movement and touch input stay instant.
+const PACE={move:.52,attackInterval:1.45,damage:.86,baseAttackInterval:1.55,baseDamage:29};
+const MATCH_SECONDS=420, FINAL_SURGE_SECONDS=120;
 const BLUE="#74d4ff",RED="#ff8294",NEUTRAL="#e9d199",INK="#e1f3ed";
 const C={
  infantry:{name:"歩兵分隊",icon:"♟",cost:3,count:4,hp:92,dmg:14,speed:86,range:43,rate:.92,sight:170,r:10,mode:"normal",target:"ground",capture:true,note:"占領・4体",armor:false},
@@ -19,7 +22,7 @@ const C={
  tank:{name:"魔導重戦車",icon:"▰",cost:6,count:1,hp:665,dmg:53,speed:60,range:128,rate:1.55,sight:213,r:23,mode:"normal",target:"ground",splash:33,capture:false,note:"重装甲・突破",armor:true}
 };
 const ids=Object.keys(C);
-const state={playing:false,paused:false,over:false,seconds:300,tick:0,difficulty:"easy",speed:.75,
+const state={playing:false,paused:false,over:false,seconds:MATCH_SECONDS,tick:0,difficulty:"easy",speed:.75,
  energy:[0,7,4],hands:[null,null,null],units:[],posts:[],capitals:[],shots:[],uid:0,
  cameraY:1430,scale:1,selected:null,drag:null,pan:null,noticeTime:0,botDelay:1.8,
  viewW:0,viewH:0,pxRatio:1,uiTimer:0,lastTick:0};
@@ -55,7 +58,7 @@ function makeDeck(){
  return {hand:deck.slice(0,4),queue:deck.slice(4)};
 }
 function initialize(){
- state.playing=true;state.paused=false;state.over=false;state.seconds=300;state.tick=0;state.lastTick=0;
+ state.playing=true;state.paused=false;state.over=false;state.seconds=MATCH_SECONDS;state.tick=0;state.lastTick=0;
  state.energy=[0,7,4];state.units=[];state.uid=0;state.shots=[];state.selected=null;state.drag=null;
  state.hands=[null,makeDeck(),makeDeck()];
  state.posts=[{x:165,y:490,owner:0,hp:POSTHP},{x:495,y:790,owner:0,hp:POSTHP},{x:495,y:1130,owner:0,hp:POSTHP},{x:825,y:1430,owner:0,hp:POSTHP}];
@@ -131,7 +134,7 @@ function closestEnemy(u){
 function approach(u,x,y,dt,factor=1){
  const dx=x-u.x,dy=y-u.y,dd=Math.hypot(dx,dy);
  if(dd<.4)return;
- const amount=Math.min(dd,C[u.key].speed*dt*factor);
+ const amount=Math.min(dd,C[u.key].speed*PACE.move*dt*factor);
  u.x=clamp(u.x+dx/dd*amount,18,W-18);
  u.y=clamp(u.y+dy/dd*amount,25,H-25);
  u.facing=Math.atan2(dy,dx);
@@ -140,12 +143,12 @@ function hitUnit(v,value,attacker){
  const a=C[attacker.key],b=C[v.key];
  const mitigation=b.armor&&!a.antiArmor?(a.dmg<=21?.72:.86):1;
  const armorBonus=b.armor&&a.antiArmor?a.antiArmor:1;
- const final=Math.max(1,value*mitigation*armorBonus);
+ const final=Math.max(1,value*PACE.damage*mitigation*armorBonus);
  v.hp-=final;v.hitFlash=.13;
 }
 function strike(u,target){
  const d=C[u.key],obj=target.ref;
- u.atk=d.rate;
+ u.atk=d.rate*PACE.attackInterval;
  if(target.kind==="post"){
   if(!d.capture||obj.owner===u.team)return;
   obj.hp=Math.max(0,obj.hp-1);
@@ -158,7 +161,7 @@ function strike(u,target){
   return;
  }
  if(target.kind==="capital"){
-  obj.hp-=d.dmg;obj.hp=Math.max(0,obj.hp);
+  obj.hp-=d.dmg*PACE.damage;obj.hp=Math.max(0,obj.hp);
   state.shots.push({x:obj.x,y:obj.y,life:.22,max:.22,r:40,team:u.team});
   if(obj.hp<=0)finish(u.team===1?"win":"lose","首都が破壊された！");
   return;
@@ -221,7 +224,7 @@ function capitalStep(dt){
   const targets=state.units.filter(u=>u.team!==c.team&&u.hp>0&&distance(u,c)<205);
   if(!targets.length)continue;
   targets.sort((a,b)=>distance(a,c)-distance(b,c));
-  targets[0].hp-=39;targets[0].hitFlash=.2;c.cool=1.05;
+  targets[0].hp-=PACE.baseDamage;targets[0].hitFlash=.2;c.cool=PACE.baseAttackInterval;
   state.shots.push({x:targets[0].x,y:targets[0].y,life:.22,max:.22,r:21,team:c.team});
  }
  for(const s of state.shots)s.life-=dt;
@@ -276,7 +279,7 @@ function finish(outcome,reason){
 function step(dt){
  if(!state.playing||state.paused||state.over)return;
  state.seconds-=dt;state.tick+=dt;
- const regen=state.difficulty==="easy"?(state.seconds<=90?1.4:.7):(state.seconds<=90?2:1);
+ const regen=state.difficulty==="easy"?(state.seconds<=FINAL_SURGE_SECONDS?1.0:.5):(state.seconds<=FINAL_SURGE_SECONDS?1.3:.65);
  for(const team of [1,2])state.energy[team]=Math.min(10,state.energy[team]+dt*regen*(team===2?diffRate():1));
  botStep(dt);unitsStep(dt);capitalStep(dt);
  if(!state.over&&state.seconds<=0)endByClock();
@@ -447,13 +450,13 @@ function displayCards(){
 }
 function updateHud(){
  $("clock").textContent=time(state.seconds);
- $("period").textContent=state.seconds<=90?"エネルギー2倍":state.difficulty==="easy"?"練習BOT｜ゆっくり":"前哨基地戦";
+ $("period").textContent=state.seconds<=FINAL_SURGE_SECONDS?"エネルギー2倍":state.difficulty==="easy"?"練習BOT｜ゆっくり":"前哨基地戦";
  const cBlue=base(1),cRed=base(2);
  if(cBlue){$("blueHp").style.width=100*clamp(cBlue.hp/CAPHP,0,1)+"%";$("blueHpText").textContent=Math.ceil(Math.max(0,cBlue.hp))+" / "+CAPHP;}
  if(cRed){$("redHp").style.width=100*clamp(cRed.hp/CAPHP,0,1)+"%";$("redHpText").textContent=Math.ceil(Math.max(0,cRed.hp))+" / "+CAPHP;}
  $("energyNum").innerHTML=Math.floor(state.energy[1])+' <span style="font-size:12px;color:#ad97b5">/ 10</span>';
  $("energyFill").style.width=100*state.energy[1]/10+"%";
- $("energyNote").textContent="毎秒 +"+(state.difficulty==="easy"?(state.seconds<=90?"1.4":"0.7"):(state.seconds<=90?"2.0":"1.0"));
+ $("energyNote").textContent="毎秒 +"+(state.difficulty==="easy"?(state.seconds<=FINAL_SURGE_SECONDS?"1.0":"0.5"):(state.seconds<=FINAL_SURGE_SECONDS?"1.3":"0.65"));
  if(state.hands[1]){
   [...cardHolder.children].forEach((el,index)=>{const id=state.hands[1].hand[index];if(id){el.classList.toggle("cant",C[id].cost>state.energy[1]);el.classList.toggle("selected",state.selected===index);}});
  }
@@ -533,7 +536,7 @@ function setup(){
  $("home").addEventListener("click",()=>{state.cameraY=1600;limitCamera();});
  $("center").addEventListener("click",()=>{state.cameraY=960;limitCamera();});
  $("speedBtn").addEventListener("click",()=>{
-  const modes=[.75,1,1.25];const i=modes.indexOf(state.speed);
+  const modes=[.75,1,.5];const i=modes.indexOf(state.speed);
   state.speed=modes[(i+1)%modes.length];
   $("speedBtn").textContent="速度 "+state.speed.toFixed(2)+"×";
   message(state.speed<1?"ゆっくりモード":"戦闘速度 "+state.speed.toFixed(2)+"×");
