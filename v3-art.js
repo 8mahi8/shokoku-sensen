@@ -213,11 +213,11 @@ function drawUnit(g,u,clock){
  g.save();g.translate(u.x,u.y);
  oval(g,2,4,flying?23:Math.max(14,((u.key==="engineer"||u.key==="guardian"||u.key==="tank")?29:19)),flying?6:8,"#0a222a80",null);
  if(u.key==="scout"&&u.walking){g.globalAlpha=.45;oval(g,-28,2,10,3,"#c9dfc5",null);g.globalAlpha=1;}
- g.translate(0,-bob);paint(g,u.key,u.team,clock,u);
+ g.translate(0,-bob);g.scale(.82,.82);paint(g,u.key,u.team,clock,u);
  if(flying){g.save();g.strokeStyle="#a1effa66";g.lineWidth=1.5;g.setLineDash([3,4]);g.beginPath();g.moveTo(0,-8);g.lineTo(0,16);g.stroke();g.restore();}
  g.restore();
  if(u.hp<u.max){
-  const y=u.y-(u.key==="guardian"?100: u.key==="archer"?92: u.key==="scout"?87: u.key==="engineer"?86: u.key==="drone"?bob+65: u.key==="tank"?73:77);
+  const y=u.y-(u.key==="guardian"?83: u.key==="archer"?77: u.key==="scout"?75: u.key==="engineer"?73: u.key==="drone"?bob+62: u.key==="tank"?68:67);
   const ratio=Math.max(0,Math.min(1,u.hp/u.max));
   round(g,u.x-21,y,42,6,3,"#132d36",null);
   round(g,u.x-20,y+1,40*ratio,4,2,TEAMFILL(u.team),null);
@@ -237,7 +237,7 @@ function drawPortrait(canvas,key,team=1){
  g.strokeStyle="#ffffff3b";g.lineWidth=2;
  g.beginPath();g.arc(w*.54,h*.48,34,0,TAU);g.stroke();
  g.fillStyle="#071f3140";g.beginPath();g.ellipse(w*.54,h*.86,32,8,0,0,TAU);g.fill();
- g.save();g.translate(w*.51,h*.93);g.scale(.99,.99);
+ g.save();g.translate(w*.51,h*.97);g.scale(.78,.78);
  paint(g,key,team,0,{uid:1,flash:0,walking:false});
  g.restore();
  g.fillStyle="#ffffff35";round(g,8,8,3,16,1,g.fillStyle,null);
