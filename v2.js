@@ -60,7 +60,7 @@ function initialize(){
  state.hands=[null,makeDeck(),makeDeck()];
  state.posts=[{x:165,y:490,owner:0,hp:POSTHP},{x:495,y:790,owner:0,hp:POSTHP},{x:495,y:1130,owner:0,hp:POSTHP},{x:825,y:1430,owner:0,hp:POSTHP}];
  state.capitals=[{x:495,y:1800,team:1,hp:CAPHP,max:CAPHP,cool:0},{x:495,y:120,team:2,hp:CAPHP,max:CAPHP,cool:0}];
- state.botDelay=state.difficulty==="easy"?7:1.1;state.cameraY=1415;state.uiTimer=0;state.noticeTime=0;
+ state.botDelay=state.difficulty==="easy"?9:1.1;state.cameraY=1415;state.uiTimer=0;state.noticeTime=0;
  $("modal").classList.add("hidden");$("pause").textContent="Ⅱ 停止";
  $("begin").textContent="BOT戦を始める";
  displayCards();updateHud();message("前哨基地を占領して、召喚ラインを押し上げよう！");
@@ -276,7 +276,7 @@ function finish(outcome,reason){
 function step(dt){
  if(!state.playing||state.paused||state.over)return;
  state.seconds-=dt;state.tick+=dt;
- const regen=state.seconds<=90?2:1;
+ const regen=state.difficulty==="easy"?(state.seconds<=90?1.4:.7):(state.seconds<=90?2:1);
  for(const team of [1,2])state.energy[team]=Math.min(10,state.energy[team]+dt*regen*(team===2?diffRate():1));
  botStep(dt);unitsStep(dt);capitalStep(dt);
  if(!state.over&&state.seconds<=0)endByClock();
@@ -447,13 +447,13 @@ function displayCards(){
 }
 function updateHud(){
  $("clock").textContent=time(state.seconds);
- $("period").textContent=state.seconds<=90?"エネルギー2倍":"前哨基地戦";
+ $("period").textContent=state.seconds<=90?"エネルギー2倍":state.difficulty==="easy"?"練習BOT｜ゆっくり":"前哨基地戦";
  const cBlue=base(1),cRed=base(2);
  if(cBlue){$("blueHp").style.width=100*clamp(cBlue.hp/CAPHP,0,1)+"%";$("blueHpText").textContent=Math.ceil(Math.max(0,cBlue.hp))+" / "+CAPHP;}
  if(cRed){$("redHp").style.width=100*clamp(cRed.hp/CAPHP,0,1)+"%";$("redHpText").textContent=Math.ceil(Math.max(0,cRed.hp))+" / "+CAPHP;}
  $("energyNum").innerHTML=Math.floor(state.energy[1])+' <span style="font-size:12px;color:#ad97b5">/ 10</span>';
  $("energyFill").style.width=100*state.energy[1]/10+"%";
- $("energyNote").textContent="毎秒 +"+(state.seconds<=90?"2.0":"1.0");
+ $("energyNote").textContent="毎秒 +"+(state.difficulty==="easy"?(state.seconds<=90?"1.4":"0.7"):(state.seconds<=90?"2.0":"1.0"));
  if(state.hands[1]){
   [...cardHolder.children].forEach((el,index)=>{const id=state.hands[1].hand[index];if(id){el.classList.toggle("cant",C[id].cost>state.energy[1]);el.classList.toggle("selected",state.selected===index);}});
  }
