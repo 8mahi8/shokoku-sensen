@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#101a28">
+<title>小国戦線 | BOT戦 α1</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1825;--panel:#17283a;--line:#375168;--text:#e7f2fb;--muted:#9fb8c9;--cyan:#70d6f8;--amber:#ffda83}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;touch-action:none;user-select:none}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+button:disabled{opacity:.32;cursor:default}
+#game{height:100dvh;display:flex;flex-direction:column;min-height:0}
+#header{height:46px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:9px;padding:4px 10px;border-bottom:1px solid #375168;background:#122234;z-index:4}
+.brand{font-weight:950;font-size:15px;white-space:nowrap;color:#cce9f8;letter-spacing:.035em}
+.meta{font-size:12px;color:#b0c8d6;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center}
+.meta strong{font-variant-numeric:tabular-nums;color:#fff}
+#field{position:relative;flex:1;min-height:0;overflow:hidden;background:#244439;touch-action:none}
+#world{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#viewButtons{position:absolute;right:9px;top:9px;display:flex;flex-direction:column;gap:6px;z-index:3}
+.utility{border:1px solid #62829a;border-radius:9px;background:#13283cdd;min-height:36px;min-width:43px;padding:6px 10px;font-size:13px;font-weight:800}
+#minimap{position:absolute;left:10px;top:10px;width:107px;height:164px;touch-action:none;border:2px solid #86a6ad;border-radius:9px;box-shadow:0 3px 12px #07121e77;background:#20392d;z-index:3}
+#notice{position:absolute;left:50%;top:15px;transform:translateX(-50%);max-width:min(62vw,550px);padding:8px 14px;background:#0d2034ee;border:1px solid #577b8a;border-radius:10px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .2s;text-align:center;z-index:3}
+#notice.active{opacity:1}
+#hint{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);max-width:92%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:6px 13px;background:#102031d9;border-radius:8px;font-size:11px;color:#bcd6df;pointer-events:none}
+#bottom{height:125px;flex:none;display:flex;gap:8px;padding:7px 9px calc(7px + env(safe-area-inset-bottom));border-top:1px solid #405a70;background:#101e2e;z-index:4;min-height:0}
+#resources{flex:0 0 124px;display:flex;flex-direction:column;justify-content:center;gap:7px;border-right:1px solid #3a5064;padding-right:8px}
+#resources b{font-size:21px;color:var(--amber);font-variant-numeric:tabular-nums}
+#resources small{font-size:11px;color:#9adfbe}
+#tabsPanel{flex:1;display:flex;flex-direction:column;min-width:0;gap:5px}
+#tabs{display:flex;gap:5px}
+.tab{border:1px solid #3e5b71;border-radius:6px;background:#203347;padding:4px 13px;font-size:11px;font-weight:800}
+.tab.active{background:#2b5874;border-color:#6acff1;color:#f1fbff}
+#actions{flex:1;display:flex;gap:6px;overflow-x:auto;min-height:0;scrollbar-width:thin}
+.action{flex:0 0 100px;text-align:left;border:1px solid #49687d;border-radius:9px;background:#1c3349;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;min-height:60px;gap:2px}
+.action.active{border-color:#f4d58a;box-shadow:inset 0 0 0 1px #f4d58a;background:#344e58}
+.action .name{font-size:12px;font-weight:900;white-space:nowrap}
+.action .desc{font-size:10px;color:#a3baca}
+.action .cost{font-size:11px;color:#f5d48a;font-weight:800}
+#side{width:135px;flex:none;border-left:1px solid #3b5265;padding-left:8px;display:flex;flex-direction:column;gap:6px;justify-content:center}
+#side button{background:#24394b;border:1px solid #567083;border-radius:8px;padding:7px 6px;font-size:11px;font-weight:800}
+#side button.active{background:#31587a;border-color:#6dc7ed}
+#overlay{position:absolute;inset:0;background:#071323d9;z-index:9;display:flex;align-items:center;justify-content:center;padding:16px}
+#overlay.hidden{display:none}
+.dialog{max-width:490px;width:100%;max-height:94%;overflow:auto;border:1px solid #4e7489;border-radius:18px;padding:24px;background:#142738;box-shadow:0 16px 60px #0008;text-align:center}
+.dialog h1{margin:0 0 8px;font-size:27px;letter-spacing:.04em}
+.dialog p{color:#adc5d0;line-height:1.7;font-size:13px}
+.primary{background:#e3b868;color:#192735;border:0;border-radius:10px;padding:12px 28px;font-weight:950;font-size:15px}
+.instructions{padding:12px;border-radius:10px;background:#203648;color:#c2d7e1;font-size:12px;line-height:1.7;margin:15px 0;text-align:left}
+@media(max-width:700px){#header{height:37px;padding:3px 6px}.brand{font-size:12px}.meta{font-size:10px;gap:5px}#bottom{height:101px;padding:5px}#resources{flex-basis:76px}#resources b{font-size:16px}#resources small{font-size:9px}#side{width:74px}#side button{font-size:10px;padding:5px}.action{flex-basis:84px;padding:4px}.tab{padding:3px 7px}#minimap{width:76px;height:120px}}
+</style>
+</head>
+<body>
+<div id="game">
+<header id="header">
+<div class="brand">小国戦線 <span style="font-size:10px;color:#7fc4d6">BOT α1</span></div>
+<div class="meta"><span>自軍砦 <strong id="blueForts">2/2</strong></span><span><strong id="clock">06:00</strong></span><span>敵軍砦 <strong id="redForts">2/2</strong></span></div>
+<button class="utility" id="pause">一時停止</button>
+</header>
+<section id="field">
+<canvas id="world" aria-label="戦場"></canvas>
+<canvas id="minimap" width="100" height="155" aria-label="ミニマップ"></canvas>
+<div id="viewButtons"><button class="utility" id="home">基地へ</button><button class="utility" id="zoomIn">＋</button><button class="utility" id="zoomOut">－</button></div>
+<div id="notice"></div>
+<div id="hint">下のカードを選択し、自軍領土をタップして召喚</div>
+</section>
+<footer id="bottom">
+<div id="resources"><div>資源 <b id="money">8</b></div><small id="income">＋1.2/秒</small><small id="selection">歩兵を選択中</small></div>
+<div id="tabsPanel">
+<div id="tabs"><button class="tab active" data-tab="units">部隊召喚</button><button class="tab" data-tab="buildings">建築</button><button class="tab" data-tab="orders">作戦命令</button></div>
+<div id="actions"></div>
+</div>
+<div id="side"><button id="orderAll" class="active">全方面</button><button id="orderLeft">左方面</button><button id="orderCenter">中央方面</button><button id="orderRight">右方面</button></div>
+</footer>
+</div>
+<div id="overlay">
+<div class="dialog">
+<h1 id="dialogTitle">小国戦線</h1>
+<p id="dialogText">近未来の国家戦略バトル。領土を奪い、施設で軍隊を強化し、敵の首都を攻め落とそう。</p>
+<div class="instructions" id="instructions">・兵士は資源を使って直接召喚。自動で戦う<br>・領土は味方だけで一定時間維持すると占領<br>・発電所で資源回復、軍事施設で兵種を一括解放<br>・画面ドラッグでカメラ移動、ミニマップでジャンプ<br>・今回はBOT戦専用。オンライン通信は未実装</div>
+<button class="primary" id="start">BOT戦を始める</button>
+</div>
+</div>
+<script src="./game.js"></script>
+</body>
+</html>
