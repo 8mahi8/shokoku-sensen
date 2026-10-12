@@ -491,7 +491,7 @@ function globalPointerUp(e){
  state.drag=null;$("dragGhost").style.display="none";updateHud();
 }
 function arenaDown(e){
- if(!state.playing||state.paused||state.drag)return;
+ if(!state.playing||state.paused||state.drag||!(e.target===canvas||e.target===area))return;
  const rect=area.getBoundingClientRect();state.pan={id:e.pointerId,y:e.clientY,x:e.clientX,initialY:state.cameraY,moved:false,preview:screenToWorld(e.clientX-rect.left,e.clientY-rect.top)};
  area.setPointerCapture?.(e.pointerId);
 }
