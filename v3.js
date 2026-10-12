@@ -3,7 +3,7 @@
 (() => {
 const $=id=>document.getElementById(id);
 const cv=$("field"),ctx=cv.getContext("2d"),area=$("fieldArea"),cards=$("cards");
-const W=1280,H=660,START_HP=2600,POST_HP=10,MATCH=300,PREP=10;
+const W=1280,H=660,START_HP=3400,POST_HP=12,MATCH=300,PREP=10;
 const BLUE="#80d9f5",RED="#ff889a",GOLD="#f3da91";
 const CLASSES={
  infantry:{name:"基本歩兵",glyph:"♟",cost:2,limit:Infinity,qty:2,hp:125,damage:17,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,armored:false,note:"占領・無制限"},
@@ -140,7 +140,7 @@ function fire(u,target){
    notice(u.team===1?"前哨基地を確保！ 召喚ラインが前進":"敵が前哨基地を占領！");
   }
  }else if(target.kind==="capital"){
-  ref.hp=Math.max(0,ref.hp-d.damage);
+  ref.hp=Math.max(0,ref.hp-d.damage*.45);
   if(ref.hp===0)end(u.team===1?"win":"lose","首都が破壊された！");
  }else if(target.kind==="unit"){
   if(ref.hp<=0)return;
