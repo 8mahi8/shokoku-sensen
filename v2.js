@@ -6,7 +6,7 @@ const $ = id => document.getElementById(id);
 const canvas=$("battle"), g=canvas.getContext("2d");
 const mini=$("map"), mg=mini.getContext("2d");
 const area=$("arena"), cardHolder=$("cards");
-const W=990,H=1920,LANES=[165,495,825],CAPHP=1800,POSTHP=8;
+const W=990,H=1920,LANES=[165,495,825],CAPHP=4500,POSTHP=14;
 // Base gameplay pace. Camera movement and touch input stay instant.
 const PACE={move:.52,attackInterval:1.45,damage:.86,baseAttackInterval:1.55,baseDamage:29};
 const MATCH_SECONDS=420, FINAL_SURGE_SECONDS=120;
@@ -536,7 +536,7 @@ function setup(){
  $("home").addEventListener("click",()=>{state.cameraY=1600;limitCamera();});
  $("center").addEventListener("click",()=>{state.cameraY=960;limitCamera();});
  $("speedBtn").addEventListener("click",()=>{
-  const modes=[.75,1,.5];const i=modes.indexOf(state.speed);
+  const modes=[.75,.5,1];const i=modes.indexOf(state.speed);
   state.speed=modes[(i+1)%modes.length];
   $("speedBtn").textContent="速度 "+state.speed.toFixed(2)+"×";
   message(state.speed<1?"ゆっくりモード":"戦闘速度 "+state.speed.toFixed(2)+"×");
