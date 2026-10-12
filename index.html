@@ -37,7 +37,10 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 .card.depleted{filter:grayscale(.8);opacity:.47}
 .cardTop{display:flex;align-items:center;justify-content:space-between;gap:3px}
 .cardCost{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#8054b3;border:2px solid #dcb4ff;font-size:12px;font-weight:900;flex:none}
-.cardGlyph{font-size:23px;font-weight:900;color:#f4dfa0}
+.cardQuantity{font-size:10px;font-weight:900;color:#ecddb0;background:#09202e73;border-radius:5px;padding:2px 4px}
+.cardPortrait{display:block;flex:1;width:100%;height:10px;max-height:76px;min-height:0;object-fit:fill;border-radius:7px;pointer-events:none}
+.card:hover{border-color:#b4dfe5}
+.card:active{transform:translateY(1px)}
 .cardName{font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cardBottom{display:flex;justify-content:space-between;align-items:center;gap:3px;font-size:9px;color:#b6d1d6}
 .cardCapture{font-size:9px;background:#b5a05c35;color:#f0d89b;padding:1px 3px;border-radius:4px}
@@ -54,10 +57,10 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #start{border:0;border-radius:10px;padding:13px 20px;background:linear-gradient(100deg,#f2da93,#dfa973);font-size:16px;font-weight:950;color:#243237;width:100%}
 @media(max-width:1120px){
 #header{height:50px;padding:4px 7px;gap:6px}#logo{min-width:100px}#logo b{font-size:13px}#logo small{font-size:7px}.base .line{font-size:10px}.base .line span{font-size:9px}#clockbox{min-width:67px}#clock{font-size:19px}#phaseLabel{font-size:9px}.topButton{font-size:10px;padding:7px 8px}
-#bottom{height:136px;padding:7px 8px;gap:7px}#resource{width:95px}#resourceNumber{font-size:22px}#cards{gap:4px}.card{padding:4px 5px;border-radius:8px}.cardCost{width:21px;height:21px;font-size:11px}.cardGlyph{font-size:19px}.cardName{font-size:10px}.cardBottom{font-size:8px}#collectionTitle{font-size:10px}
+#bottom{height:136px;padding:7px 8px;gap:7px}#resource{width:95px}#resourceNumber{font-size:22px}#cards{gap:4px}.card{padding:4px 5px;border-radius:8px}.cardCost{width:21px;height:21px;font-size:11px}.cardPortrait{max-height:64px}.cardName{font-size:10px}.cardBottom{font-size:8px}#collectionTitle{font-size:10px}
 }
 @media(max-width:710px){
-#logo{min-width:64px}#logo b{font-size:11px}#logo small{display:none}.base{min-width:60px}#header{gap:4px}#headerButtons{gap:3px}.topButton{padding:6px 5px;font-size:9px}#bottom{height:119px;padding:5px;gap:4px}#resource{width:65px}#resourceTitle,#rate,#remaining{font-size:8px}#resourceNumber{font-size:17px}#cards{gap:3px}.cardGlyph{font-size:13px}.cardName{font-size:9px}.cardCost{width:18px;height:18px;font-size:9px}.cardBottom{font-size:7px}.cardCapture{font-size:7px;padding:0 1px}
+#logo{min-width:64px}#logo b{font-size:11px}#logo small{display:none}.base{min-width:60px}#header{gap:4px}#headerButtons{gap:3px}.topButton{padding:6px 5px;font-size:9px}#bottom{height:119px;padding:5px;gap:4px}#resource{width:65px}#resourceTitle,#rate,#remaining{font-size:8px}#resourceNumber{font-size:17px}#cards{gap:3px}.cardPortrait{max-height:49px}.cardQuantity{font-size:8px}.cardName{font-size:9px}.cardCost{width:18px;height:18px;font-size:9px}.cardBottom{font-size:7px}.cardCapture{font-size:7px;padding:0 1px}
 }
 @media(max-height:485px){#header{height:40px}#bottom{height:105px}#dialog{padding:14px}#dialog h1{font-size:20px}#dialog p{font-size:11px}#rules{font-size:10px;margin:8px 0;padding:8px}#difficulties{margin:7px 0}}
 </style>
@@ -86,7 +89,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="remaining">基本歩兵は何度でも召喚可</div>
 </div>
 <div id="collection">
-<div id="collectionTitle"><span>カードを選択 → 戦場をタップ、またはドラッグ</span><span>固定8種類 · 補充待ちなし</span></div>
+<div id="collectionTitle"><span>カードを選択 → 戦場をタップ、またはドラッグ</span><span>全8兵種 · オリジナルキャラアート</span></div>
 <div id="cards"></div>
 </div>
 </footer>
@@ -105,5 +108,6 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="difficulties"><button class="active" data-level="easy">練習</button><button data-level="normal">ふつう</button><button data-level="hard">むずかしい</button></div>
 <button id="start">BOT戦を始める</button>
 </div></div>
-<script src="./v3.js"></script>
+<script src="./v3-art.js?v=1"></script>
+<script src="./v3.js?v=2"></script>
 </body></html>
