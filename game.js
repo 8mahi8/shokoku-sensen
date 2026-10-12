@@ -191,7 +191,7 @@
    if(b.hp<=0)continue;
    if(b.progress<1){
     b.progress=Math.min(1,b.progress+dt/b.sec);
-    if(b.progress===1&&b.team===1)notify(buildDef[b.type].name+"完成！");
+    if(b.progress===1&&b.team===1){notify(buildDef[b.type].name+"完成！");renderActions();}
     continue;
    }
    if(b.type!=="fort"&&b.type!=="capital"&&b.type!=="turret")continue;
@@ -356,7 +356,7 @@
   const c=state.camera,s=viewSize();return {x:(x-s.w/2)/c.zoom+c.x,y:(y-s.h/2)/c.zoom+c.y};
  }
  function roundRect(ctx,x,y,w,h,r){
-  ctx.beginPath();ctx.roundRect(x,y,w,h,r);
+  r=Math.min(r,Math.max(0,w/2),Math.max(0,h/2));ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
  }
  function visible(u){
   if(u.team===1)return true;
