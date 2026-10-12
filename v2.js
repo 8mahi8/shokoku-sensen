@@ -19,8 +19,8 @@ const C={
  tank:{name:"魔導重戦車",icon:"▰",cost:6,count:1,hp:665,dmg:53,speed:60,range:128,rate:1.55,sight:213,r:23,mode:"normal",target:"ground",splash:33,capture:false,note:"重装甲・突破",armor:true}
 };
 const ids=Object.keys(C);
-const state={playing:false,paused:false,over:false,seconds:300,tick:0,difficulty:"normal",
- energy:[0,5,5],hands:[null,null,null],units:[],posts:[],capitals:[],shots:[],uid:0,
+const state={playing:false,paused:false,over:false,seconds:300,tick:0,difficulty:"easy",speed:.75,
+ energy:[0,7,4],hands:[null,null,null],units:[],posts:[],capitals:[],shots:[],uid:0,
  cameraY:1430,scale:1,selected:null,drag:null,pan:null,noticeTime:0,botDelay:1.8,
  viewW:0,viewH:0,pxRatio:1,uiTimer:0,lastTick:0};
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
@@ -29,7 +29,7 @@ const side=t=>t===1?BLUE:t===2?RED:NEUTRAL;
 const laneOf=x=>clamp(Math.floor(x/(W/3)),0,2);
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const time=n=>{n=Math.max(0,Math.ceil(n));return String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0")};
-const diffRate=()=>state.difficulty==="easy"?.8:state.difficulty==="hard"?1.2:1;
+const diffRate=()=>state.difficulty==="easy"?.55:state.difficulty==="hard"?1.2:1;
 const base=(team)=>state.capitals.find(c=>c.team===team);
 const postsOwned=(team)=>state.posts.filter(p=>p.owner===team);
 const summonLine=(team)=>{
@@ -56,11 +56,11 @@ function makeDeck(){
 }
 function initialize(){
  state.playing=true;state.paused=false;state.over=false;state.seconds=300;state.tick=0;state.lastTick=0;
- state.energy=[0,5,5];state.units=[];state.uid=0;state.shots=[];state.selected=null;state.drag=null;
+ state.energy=[0,7,4];state.units=[];state.uid=0;state.shots=[];state.selected=null;state.drag=null;
  state.hands=[null,makeDeck(),makeDeck()];
  state.posts=[{x:165,y:490,owner:0,hp:POSTHP},{x:495,y:790,owner:0,hp:POSTHP},{x:495,y:1130,owner:0,hp:POSTHP},{x:825,y:1430,owner:0,hp:POSTHP}];
  state.capitals=[{x:495,y:1800,team:1,hp:CAPHP,max:CAPHP,cool:0},{x:495,y:120,team:2,hp:CAPHP,max:CAPHP,cool:0}];
- state.botDelay=1.1;state.cameraY=1415;state.uiTimer=0;state.noticeTime=0;
+ state.botDelay=state.difficulty==="easy"?7:1.1;state.cameraY=1415;state.uiTimer=0;state.noticeTime=0;
  $("modal").classList.add("hidden");$("pause").textContent="Ⅱ 停止";
  $("begin").textContent="BOT戦を始める";
  displayCards();updateHud();message("前哨基地を占領して、召喚ラインを押し上げよう！");
@@ -230,7 +230,7 @@ function capitalStep(dt){
 function botStep(dt){
  state.botDelay-=dt;if(state.botDelay>0)return;
  const team=2,pile=state.hands[team],usable=pile.hand.map((id,index)=>({id,index,d:C[id]})).filter(c=>c.d.cost<=state.energy[team]);
- state.botDelay=random(1.4,2.4)/diffRate();
+ state.botDelay=(state.difficulty==="easy"?random(2.6,3.8):random(1.4,2.4))/diffRate();
  if(!usable.length)return;
  const ownPosts=postsOwned(2).length;
  const firstClaim=state.posts.find(p=>p.owner!==2&&p.y<850);
@@ -244,7 +244,7 @@ function botStep(dt){
  let lane=Math.floor(random(0,3));
  const unitsBlue=state.units.filter(u=>u.team===1);
  const danger=[0,0,0];for(const u of unitsBlue){if(u.y<970)danger[laneOf(u.x)]+=C[u.key].cost;}
- if(Math.max(...danger)>6&&Math.random()<.65)lane=danger.indexOf(Math.max(...danger));
+ if(Math.max(...danger)>6&&Math.random()<(state.difficulty==="easy"?.3:.65))lane=danger.indexOf(Math.max(...danger));
  else if(choose.d.capture&&firstClaim&&Math.random()<.7)lane=laneOf(firstClaim.x);
  else if(choose.d.mode==="objective"){
   const targets=state.posts.filter(p=>p.owner!==2).sort((a,b)=>a.y-b.y);
@@ -532,6 +532,12 @@ function setup(){
  mini.addEventListener("pointerdown",e=>{e.preventDefault();e.stopPropagation();mapJump(e);});
  $("home").addEventListener("click",()=>{state.cameraY=1600;limitCamera();});
  $("center").addEventListener("click",()=>{state.cameraY=960;limitCamera();});
+ $("speedBtn").addEventListener("click",()=>{
+  const modes=[.75,1,1.25];const i=modes.indexOf(state.speed);
+  state.speed=modes[(i+1)%modes.length];
+  $("speedBtn").textContent="速度 "+state.speed.toFixed(2)+"×";
+  message(state.speed<1?"ゆっくりモード":"戦闘速度 "+state.speed.toFixed(2)+"×");
+ });
  $("pause").addEventListener("click",()=>{
   if(!state.playing)return;
   state.paused=!state.paused;$("pause").textContent=state.paused?"▶ 再開":"Ⅱ 停止";
@@ -551,7 +557,7 @@ function setup(){
  let previous=performance.now(),acc=0;
  function frame(now){
   const elapsed=Math.min(.1,(now-previous)/1000);previous=now;acc+=elapsed;
-  let loops=0;while(acc>=1/30&&loops<4){step(1/30);acc-=1/30;loops++;}
+  let loops=0;while(acc>=1/30&&loops<4){step(1/30*state.speed);acc-=1/30;loops++;}
   if(loops===4)acc=0;
   drawBattle();drawMinimap();
   state.uiTimer+=elapsed;
