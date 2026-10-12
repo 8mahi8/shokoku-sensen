@@ -470,23 +470,46 @@ function drawUnit(u){
  }
  if(isAir){ctx.strokeStyle="#d6eae560";ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(u.x,u.y-bob+5);ctx.lineTo(u.x,u.y);ctx.stroke();ctx.setLineDash([]);}
 }
+function drawSpellFields(){
+ for(const zone of S.spells.zones){
+  ctx.save();
+  ctx.fillStyle=zone.team===1?"#73ddff1b":"#ff91b81c";
+  ctx.strokeStyle=zone.team===1?"#92e9ffaf":"#f8b2c0af";
+  ctx.lineWidth=3;ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.strokeStyle="#e9fdff5a";ctx.setLineDash([8,11]);ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r*.82,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.fillStyle="#f0fdff";
+  ctx.fillText("防護結界 "+Math.ceil(zone.time)+"秒",zone.x,zone.y-zone.r-13);
+  ctx.restore();
+ }
+ for(const shot of S.spells.incoming){
+  const remaining=Math.max(0,shot.time/shot.total);
+  ctx.save();
+  ctx.strokeStyle=shot.team===1?"#ffd184":"#ff8197";ctx.fillStyle=shot.team===1?"#ffbc6426":"#ff71882b";
+  ctx.lineWidth=4;ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r*(1-remaining*.65),0,Math.PI*2);
+  ctx.strokeStyle=shot.team===1?"#ffeac0":"#ffdbdd";ctx.lineWidth=3;ctx.stroke();
+  ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.fillStyle="#fff0db";
+  ctx.fillText("砲撃予告",shot.x,shot.y-shot.r-13);ctx.restore();
+ }
+}
 function drawPreview(){
  const item=S.drag&&S.drag.active?S.drag.id:S.selected;
  if(!item)return;
  const p=S.drag&&S.drag.active?point(S.drag.x,S.drag.y):(S.pointer&&S.pointer.pos);
  if(!p)return;
- const legal=canPay(1,item)&&canPlace(1,p.x,p.y);
+ const legal=canPay(1,item)&&validTarget(1,item,p.x,p.y);
+ const radius=isSpell(item)?SPELLS[item].radius:39;
  ctx.strokeStyle=legal?"#9deaff":"#ff9aa3";ctx.fillStyle=legal?"#7bdfff34":"#ff788a39";ctx.lineWidth=3;
- ctx.beginPath();ctx.arc(p.x,p.y,39,0,Math.PI*2);ctx.fill();ctx.stroke();
+ ctx.beginPath();ctx.arc(p.x,p.y,radius,0,Math.PI*2);ctx.fill();ctx.stroke();
  ctx.font="bold 13px system-ui";ctx.textAlign="center";ctx.fillStyle="#fff";
- ctx.fillText(legal?"召喚可能":"ここには置けない",p.x,p.y-52);
+ ctx.fillText(legal?(isSpell(item)?SPELLS[item].name:"召喚可能"):"使用不可",p.x,p.y-radius-13);
 }
 function draw(){
  const v=S.view,d=v.dpr;
  ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,v.w,v.h);
  ctx.fillStyle="#0d2426";ctx.fillRect(0,0,v.w,v.h);
  ctx.save();ctx.translate(v.ox,v.oy);ctx.scale(v.s,v.s);
- terrain();
+ terrain();drawSpellFields();
  const objects=[];
  for(const c of S.capitals)objects.push({y:c.y-10,draw:()=>drawCapital(c)});
  for(const p of S.forts)objects.push({y:p.y+20,draw:()=>drawFort(p)});
@@ -502,25 +525,30 @@ function draw(){
 }
 function buildCards(){
  cards.replaceChildren();
- for(const id of IDS){
-  const d=CLASSES[id],available=S.left[1][id]>0;
+ for(const id of ["infantry",...S.hand[1]]){
+  const d=CATALOG[id],available=S.left[1][id]>0,spell=isSpell(id);
   const button=document.createElement("button");
-  button.type="button";button.className="card";
-  button.dataset.id=id;button.setAttribute("aria-label",d.name+" コスト"+d.cost);
+  button.type="button";button.className="card"+(id==="infantry"?" permanent":"")+(spell?" spell":"");
+  button.dataset.id=id;
+  button.setAttribute("aria-label",d.name+" コスト"+d.cost+(spell?" スペル":""));
   if(S.selected===id)button.classList.add("selected");
   if(!available)button.classList.add("depleted");
-  if(S.energy[1]+1e-6<d.cost)button.classList.add("unavailable");
+  if(!canPay(1,id))button.classList.add("unavailable");
   const left=Number.isFinite(S.left[1][id])?"残 "+S.left[1][id]:"∞";
-  button.innerHTML='<div class="cardTop"><span class="cardCost">'+d.cost+'</span><span class="cardQuantity">×'+d.qty+'</span></div>'+
+  button.innerHTML='<div class="cardTop"><span class="cardCost">'+d.cost+'</span><span class="cardQuantity">'+
+   (spell?"魔法":id==="infantry"?"常時":"×"+d.qty)+'</span></div>'+
    '<canvas class="cardPortrait" width="128" height="72" aria-hidden="true"></canvas>'+
    '<div class="cardName">'+d.name+'</div>'+
    '<div class="cardBottom"><span class="cardLeft">'+left+'</span>'+
-   (d.capture?'<span class="cardCapture">⚑ 占領可</span>':'<span>戦闘</span>')+'</div>';
+   (spell?'<span class="cardSpell">スペル</span>':d.capture?'<span class="cardCapture">⚑ 占領可</span>':'<span>戦闘</span>')+'</div>';
   if(window.KokokuArt)window.KokokuArt.drawPortrait(button.querySelector("canvas"),id,1);
   button.addEventListener("pointerdown",e=>cardDown(e,id));
   cards.append(button);
  }
+ const next=S.queue[1].find(id=>S.left[1][id]>0);
+ $("nextCard").textContent=next?"次："+CATALOG[next].name:"次：残りなし";
 }
+
 let galleryResume="menu";
 function buildGallery(){
  const group=$("galleryCards");group.replaceChildren();
@@ -560,8 +588,8 @@ function updateHUD(){
  $("remaining").textContent="前哨基地 "+owners+" / 3";
  for(const b of cards.children){
   const id=b.dataset.id;if(!id)continue;
-  const d=CLASSES[id];
-  b.classList.toggle("unavailable",S.energy[1]+1e-6<d.cost);
+  const d=CATALOG[id];
+  b.classList.toggle("unavailable",!canPay(1,id));
   b.classList.toggle("depleted",S.left[1][id]<=0);
   b.classList.toggle("selected",S.selected===id);
  }
@@ -580,7 +608,7 @@ function onGlobalMove(e){
  if(m.active){
   const ghost=$("dragging");ghost.style.display="flex";
   ghost.style.left=e.clientX+"px";ghost.style.top=e.clientY+"px";
-  $("dragGlyph").textContent=CLASSES[m.id].glyph;$("dragName").textContent=CLASSES[m.id].name;
+  $("dragGlyph").textContent=CATALOG[m.id].glyph;$("dragName").textContent=CATALOG[m.id].name;
  }
 }
 function onGlobalUp(e){
@@ -589,7 +617,7 @@ function onGlobalUp(e){
  const inside=e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
  if(m.active&&inside){
   const p=point(e.clientX,e.clientY);
-  if(!deploy(1,m.id,p.x,p.y))notice(!canPay(1,m.id)?"資源不足、または召喚回数を使い切った":"青い召喚エリアに置いてね");
+  if(!playCard(1,m.id,p.x,p.y))notice(cardFailure(1,m.id));
  }else if(!m.active){S.selected=m.id;buildCards();}
  S.drag=null;$("dragging").style.display="none";
 }
@@ -607,7 +635,7 @@ function arenaUp(e){
  const p=point(e.clientX,e.clientY);
  if(S.selected){
   const id=S.selected;
-  if(!deploy(1,id,p.x,p.y))notice(!canPay(1,id)?"資源不足、または召喚回数を使い切った":"青い召喚エリアに置いてね");
+  if(!playCard(1,id,p.x,p.y))notice(cardFailure(1,id));
  }
  S.pointer=null;
 }
@@ -646,8 +674,8 @@ function start(){
  window.addEventListener("keydown",e=>{
   if(e.code==="Escape"&&S.phase==="gallery"){e.preventDefault();closeGallery();return;}
   if(e.code==="Space"){e.preventDefault();resumeButton();}
-  if(/^[1-8]$/.test(e.key)&&(S.phase==="prep"||S.phase==="battle")){
-   S.selected=IDS[Number(e.key)-1];buildCards();
+  if(/^[1-5]$/.test(e.key)&&(S.phase==="prep"||S.phase==="battle")){
+   S.selected=Number(e.key)===1?"infantry":S.hand[1][Number(e.key)-2]||null;buildCards();
   }
  });
  let previous=performance.now(),acc=0;
@@ -659,7 +687,7 @@ function start(){
    if(S.prep<=0){
     S.phase="battle";S.botThink=4;
     $("prepBanner").classList.remove("visible");
-    $("fieldHint").textContent="城を守り、前哨基地を奪おう。自軍の青い範囲に部隊を召喚できる。";
+    $("fieldHint").textContent="キャラは青い範囲に召喚／スペルは戦場のどこでも使用可能。";
     notice("開戦！ 前哨基地を奪って敵首都を目指そう");
    }
   }else if(S.phase==="battle"){
