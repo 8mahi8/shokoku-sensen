@@ -38,7 +38,8 @@ function capital(team){return S.capitals[team-1];}
 function enemy(team){return team===1?2:1;}
 function border(team){
  let edge=team===1?244:1036;
- for(const f of S.forts)if(f.owner===team)edge=team===1?Math.max(edge,f.x-48):Math.min(edge,f.x+48);
+ // Captured forts advance the deploy line slightly BEYOND the fort, in the enemy direction.
+ for(const f of S.forts)if(f.owner===team)edge=team===1?Math.max(edge,f.x+48):Math.min(edge,f.x-48);
  return edge;
 }
 function canPlace(team,x,y){
