@@ -1,87 +1,115 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#101a28">
-<title>小国戦線 | BOT戦 α1</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#081621">
+<title>小国戦線 | FRONTLINE CARD BATTLE</title>
 <style>
-:root{color-scheme:dark;--bg:#0d1825;--panel:#17283a;--line:#375168;--text:#e7f2fb;--muted:#9fb8c9;--cyan:#70d6f8;--amber:#ffda83}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;touch-action:none;user-select:none}
-button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
-button:disabled{opacity:.32;cursor:default}
+:root{color-scheme:dark;--bg:#091720;--panel:#112635;--panel2:#1a3644;--edge:#345667;--ink:#edf7fb;--muted:#a1bdc8;--blue:#6bd0ff;--red:#ff8293;--gold:#f4d991}
+*{box-sizing:border-box}html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+button{font:inherit;cursor:pointer;color:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent}button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #game{height:100dvh;display:flex;flex-direction:column;min-height:0}
-#header{height:46px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:9px;padding:4px 10px;border-bottom:1px solid #375168;background:#122234;z-index:4}
-.brand{font-weight:950;font-size:15px;white-space:nowrap;color:#cce9f8;letter-spacing:.035em}
-.meta{font-size:12px;color:#b0c8d6;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center}
-.meta strong{font-variant-numeric:tabular-nums;color:#fff}
-#field{position:relative;flex:1;min-height:0;overflow:hidden;background:#244439;touch-action:none}
-#world{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
-#viewButtons{position:absolute;right:9px;top:9px;display:flex;flex-direction:column;gap:6px;z-index:3}
-.utility{border:1px solid #62829a;border-radius:9px;background:#13283cdd;min-height:36px;min-width:43px;padding:6px 10px;font-size:13px;font-weight:800}
-#minimap{position:absolute;left:10px;top:10px;width:107px;height:164px;touch-action:none;border:2px solid #86a6ad;border-radius:9px;box-shadow:0 3px 12px #07121e77;background:#20392d;z-index:3}
-#notice{position:absolute;left:50%;top:15px;transform:translateX(-50%);max-width:min(62vw,550px);padding:8px 14px;background:#0d2034ee;border:1px solid #577b8a;border-radius:10px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .2s;text-align:center;z-index:3}
-#notice.active{opacity:1}
-#hint{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);max-width:92%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:6px 13px;background:#102031d9;border-radius:8px;font-size:11px;color:#bcd6df;pointer-events:none}
-#bottom{height:125px;flex:none;display:flex;gap:8px;padding:7px 9px calc(7px + env(safe-area-inset-bottom));border-top:1px solid #405a70;background:#101e2e;z-index:4;min-height:0}
-#resources{flex:0 0 124px;display:flex;flex-direction:column;justify-content:center;gap:7px;border-right:1px solid #3a5064;padding-right:8px}
-#resources b{font-size:21px;color:var(--amber);font-variant-numeric:tabular-nums}
-#resources small{font-size:11px;color:#9adfbe}
-#tabsPanel{flex:1;display:flex;flex-direction:column;min-width:0;gap:5px}
-#tabs{display:flex;gap:5px}
-.tab{border:1px solid #3e5b71;border-radius:6px;background:#203347;padding:4px 13px;font-size:11px;font-weight:800}
-.tab.active{background:#2b5874;border-color:#6acff1;color:#f1fbff}
-#actions{flex:1;display:flex;gap:6px;overflow-x:auto;min-height:0;scrollbar-width:thin}
-.action{flex:0 0 100px;text-align:left;border:1px solid #49687d;border-radius:9px;background:#1c3349;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;min-height:60px;gap:2px}
-.action.active{border-color:#f4d58a;box-shadow:inset 0 0 0 1px #f4d58a;background:#344e58}
-.action .name{font-size:12px;font-weight:900;white-space:nowrap}
-.action .desc{font-size:10px;color:#a3baca}
-.action .cost{font-size:11px;color:#f5d48a;font-weight:800}
-#side{width:135px;flex:none;border-left:1px solid #3b5265;padding-left:8px;display:flex;flex-direction:column;gap:6px;justify-content:center}
-#side button{background:#24394b;border:1px solid #567083;border-radius:8px;padding:7px 6px;font-size:11px;font-weight:800}
-#side button.active{background:#31587a;border-color:#6dc7ed}
-#overlay{position:absolute;inset:0;background:#071323d9;z-index:9;display:flex;align-items:center;justify-content:center;padding:16px}
-#overlay.hidden{display:none}
-.dialog{max-width:490px;width:100%;max-height:94%;overflow:auto;border:1px solid #4e7489;border-radius:18px;padding:24px;background:#142738;box-shadow:0 16px 60px #0008;text-align:center}
-.dialog h1{margin:0 0 8px;font-size:27px;letter-spacing:.04em}
-.dialog p{color:#adc5d0;line-height:1.7;font-size:13px}
-.primary{background:#e3b868;color:#192735;border:0;border-radius:10px;padding:12px 28px;font-weight:950;font-size:15px}
-.instructions{padding:12px;border-radius:10px;background:#203648;color:#c2d7e1;font-size:12px;line-height:1.7;margin:15px 0;text-align:left}
-@media(max-width:700px){#header{height:37px;padding:3px 6px}.brand{font-size:12px}.meta{font-size:10px;gap:5px}#bottom{height:101px;padding:5px}#resources{flex-basis:76px}#resources b{font-size:16px}#resources small{font-size:9px}#side{width:74px}#side button{font-size:10px;padding:5px}.action{flex-basis:84px;padding:4px}.tab{padding:3px 7px}#minimap{width:76px;height:120px}}
+#top{height:61px;flex:none;background:#0d2230;border-bottom:1px solid #365564;display:flex;align-items:center;gap:14px;padding:7px 13px;z-index:3}
+#identity{display:flex;flex-direction:column;gap:1px;min-width:135px}#identity b{font-size:17px;letter-spacing:.07em;color:#d8eef9}#identity small{font-size:9px;letter-spacing:.12em;color:#7eb3c9}
+#clockwrap{margin:auto;text-align:center;min-width:92px}#clock{font-weight:950;font-size:23px;letter-spacing:.04em;font-variant-numeric:tabular-nums}#period{font-size:10px;color:#a9c6d0}
+.baseBox{min-width:150px;flex:1;max-width:310px;display:flex;flex-direction:column;gap:5px}
+.baseBox .stats{display:flex;justify-content:space-between;gap:5px;align-items:center;font-size:12px;font-weight:800}.baseBox .stats span{color:var(--muted);font-size:10px}
+.hpTrack{height:9px;border:1px solid #335263;border-radius:6px;overflow:hidden;background:#07131c}.hpFill{height:100%;width:100%;background:linear-gradient(90deg,#287db0,#89ddff);transition:width .15s}.hpFill.red{background:linear-gradient(90deg,#ab4253,#ff8c9a)}
+.iconbtn{padding:8px 11px;background:#1d3746;border:1px solid #4c7180;border-radius:9px;font-size:12px;font-weight:800;white-space:nowrap}
+#arena{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;background:#172d2f}
+#battle{display:block;width:100%;height:100%;touch-action:none}
+#map{position:absolute;top:11px;left:11px;width:92px;height:157px;border:2px solid #719daa;border-radius:10px;background:#1c3938;touch-action:none;box-shadow:0 4px 18px #03171ba0;z-index:2}
+#tools{position:absolute;right:10px;top:10px;display:flex;gap:6px;z-index:2}
+#tools button{border-radius:9px;background:#102b3ae6;border:1px solid #6c98a7;padding:9px 11px;font-size:11px;font-weight:850}
+#frontAlert{position:absolute;top:9px;left:50%;transform:translateX(-50%);max-width:52%;padding:7px 13px;border:1px solid #6e9caa;background:#0d2532e8;border-radius:9px;text-align:center;font-size:11px;font-weight:700;opacity:0;transition:opacity .15s;pointer-events:none;z-index:3}#frontAlert.on{opacity:1}
+#sideStats{position:absolute;left:10px;bottom:12px;display:flex;gap:4px;z-index:2;pointer-events:none}
+.laneStat{background:#0a2330cc;border:1px solid #547a82;border-radius:7px;padding:5px 8px;font-size:10px;color:#c8e3e9}.laneStat i{display:inline-block;width:7px;height:7px;border-radius:50%;background:#aebdb4;margin-right:5px}.laneStat i.blue{background:var(--blue)}.laneStat i.red{background:var(--red)}
+#footer{height:151px;flex:none;background:linear-gradient(180deg,#122939,#0b1c2b);border-top:1px solid #406174;display:flex;gap:11px;padding:10px 15px calc(10px + env(safe-area-inset-bottom));min-height:0;z-index:4}
+#energybox{width:143px;flex:none;display:flex;flex-direction:column;justify-content:center;gap:6px}
+#energyTitle{color:#c3d3e5;font-size:12px;font-weight:800}
+#energyNum{color:#e6bcff;font-size:27px;font-weight:950;font-variant-numeric:tabular-nums}
+#energyBar{height:13px;background:#09151f;border-radius:10px;border:1px solid #5b526c;overflow:hidden}
+#energyFill{width:50%;height:100%;background:linear-gradient(90deg,#8750c6,#cc9af4);transition:width .15s}
+#energyNote{font-size:10px;color:#a6bdcd}
+#handArea{flex:1;display:flex;flex-direction:column;min-width:0;gap:7px}
+#handCaption{font-size:11px;color:#91b5c5;display:flex;align-items:center;justify-content:space-between;gap:10px}
+#cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;min-height:0;flex:1}
+.card{background:linear-gradient(155deg,#274b5c,#152f41);border:1px solid #6797a5;border-bottom:3px solid #3c6878;border-radius:12px;padding:6px 8px;display:flex;flex-direction:column;justify-content:space-between;gap:2px;position:relative;touch-action:none;min-width:0;box-shadow:0 4px 10px #06111a5c}
+.card:active,.card.selected{border-color:var(--gold);background:linear-gradient(155deg,#3b6070,#20465c)}
+.card.cant{filter:saturate(.52);opacity:.65}
+.cardhead{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.cardCost{display:flex;align-items:center;justify-content:center;background:#8558bb;border:2px solid #e1c5ff;color:white;width:25px;height:25px;border-radius:50%;font-weight:950;font-size:13px;flex:none}
+.cardGlyph{font-size:22px;color:#f0e0aa;line-height:1}
+.cardName{font-weight:900;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cardNote{font-size:9px;color:#a6c6d2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nextbox{width:94px;flex:none;border-left:1px solid #36566a;padding-left:10px;display:flex;flex-direction:column;justify-content:center;gap:5px;align-items:center}
+#nextbox small{font-size:10px;color:#aec7d0}#nextGlyph{font-size:28px;color:#d5c8f9}#nextName{font-size:11px;text-align:center;font-weight:800}
+#tip{font-size:9px;line-height:1.25;text-align:center;color:#83adba}
+#dragGhost{position:fixed;pointer-events:none;z-index:10;display:none;align-items:center;justify-content:center;width:68px;height:68px;border-radius:16px;background:#23485cec;border:2px solid #91d0e7;box-shadow:0 6px 20px #0008;flex-direction:column}
+#dragGhost b{font-size:29px;color:#ffe5a2}#dragGhost small{font-size:9px}
+#modal{position:fixed;inset:0;background:#03121bdc;display:flex;align-items:center;justify-content:center;z-index:20;padding:15px}#modal.hidden{display:none}
+#dialog{width:min(490px,100%);max-height:90dvh;overflow:auto;background:linear-gradient(145deg,#1c3c4a,#0f2436);border:1px solid #76a1ad;box-shadow:0 20px 80px #0008;border-radius:18px;padding:24px;text-align:center}
+#dialog h1{font-size:29px;margin:0 0 6px;letter-spacing:.07em}#dialog p{font-size:13px;line-height:1.75;color:#c0d7e1}
+#dialog .rules{background:#0c2533;border-radius:11px;padding:13px 15px;font-size:12px;line-height:1.85;color:#b7d3df;text-align:left;margin:13px 0}
+#difficulty{display:flex;justify-content:center;gap:8px;margin:15px 0}
+#difficulty button{background:#1b3646;border:1px solid #597f8c;border-radius:8px;padding:9px 13px;font-size:12px;font-weight:800}
+#difficulty button.active{border-color:#e8cc88;background:#42564e;color:#ffeba9}
+#begin{background:linear-gradient(100deg,#f4d486,#e9aa73);color:#20303a;border:none;border-radius:11px;padding:12px 28px;font-size:15px;font-weight:950;width:100%}
+@media(max-width:740px){
+#top{height:47px;gap:6px;padding:4px 7px}#identity{min-width:80px}#identity b{font-size:12px}#identity small{font-size:7px}#clockwrap{min-width:56px}#clock{font-size:16px}#period{font-size:8px}.baseBox{min-width:90px}.baseBox .stats{font-size:10px}.baseBox .stats span{font-size:8px}.iconbtn{font-size:10px;padding:6px}
+#footer{height:116px;padding:5px 7px;gap:5px}#energybox{width:83px}#energyTitle{font-size:10px}#energyNum{font-size:19px}#energyNote{font-size:9px}#handCaption{font-size:9px}#cards{gap:4px}.card{border-radius:9px;padding:4px}.cardCost{width:21px;height:21px;font-size:11px}.cardGlyph{font-size:17px}.cardName{font-size:10px}.cardNote{font-size:8px}#nextbox{width:54px;padding-left:4px}#nextGlyph{font-size:19px}#nextName,#tip{font-size:8px}#map{width:64px;height:113px}
+}
+@media(max-height:500px){#top{height:42px}#footer{height:104px}#dialog{padding:13px}#dialog h1{font-size:21px}#dialog p{font-size:11px}#dialog .rules{font-size:10px;padding:8px}}
 </style>
 </head>
 <body>
 <div id="game">
-<header id="header">
-<div class="brand">小国戦線 <span style="font-size:10px;color:#7fc4d6">BOT α1</span></div>
-<div class="meta"><span>自軍砦 <strong id="blueForts">2/2</strong></span><span><strong id="clock">06:00</strong></span><span>敵軍砦 <strong id="redForts">2/2</strong></span></div>
-<button class="utility" id="pause">一時停止</button>
+<header id="top">
+<div id="identity"><b>小国戦線 <span style="color:#8addff">II</span></b><small>FRONTLINE CARD BATTLE</small></div>
+<div class="baseBox"><div class="stats">自軍首都 <span id="blueHpText">1800 / 1800</span></div><div class="hpTrack"><div class="hpFill" id="blueHp"></div></div></div>
+<div id="clockwrap"><div id="clock">05:00</div><div id="period">前哨基地戦</div></div>
+<div class="baseBox"><div class="stats">敵首都 <span id="redHpText">1800 / 1800</span></div><div class="hpTrack"><div class="hpFill red" id="redHp"></div></div></div>
+<button class="iconbtn" id="pause">Ⅱ 停止</button>
 </header>
-<section id="field">
-<canvas id="world" aria-label="戦場"></canvas>
-<canvas id="minimap" width="100" height="155" aria-label="ミニマップ"></canvas>
-<div id="viewButtons"><button class="utility" id="home">基地へ</button><button class="utility" id="zoomIn">＋</button><button class="utility" id="zoomOut">－</button></div>
-<div id="notice"></div>
-<div id="hint">下のカードを選択し、自軍領土をタップして召喚</div>
-</section>
-<footer id="bottom">
-<div id="resources"><div>資源 <b id="money">8</b></div><small id="income">＋1.2/秒</small><small id="selection">歩兵を選択中</small></div>
-<div id="tabsPanel">
-<div id="tabs"><button class="tab active" data-tab="units">部隊召喚</button><button class="tab" data-tab="buildings">建築</button><button class="tab" data-tab="orders">作戦命令</button></div>
-<div id="actions"></div>
+<section id="arena">
+<canvas id="battle" aria-label="小国戦線の戦場"></canvas>
+<canvas id="map" width="90" height="165" aria-label="ミニマップ。タップでカメラ移動"></canvas>
+<div id="tools"><button id="home">自軍へ</button><button id="center">中央へ</button></div>
+<div id="frontAlert" aria-live="polite"></div>
+<div id="sideStats">
+<div class="laneStat"><i id="leftLight"></i>左</div>
+<div class="laneStat"><i id="middleLight"></i>中央</div>
+<div class="laneStat"><i id="rightLight"></i>右</div>
 </div>
-<div id="side"><button id="orderAll" class="active">全方面</button><button id="orderLeft">左方面</button><button id="orderCenter">中央方面</button><button id="orderRight">右方面</button></div>
+</section>
+<footer id="footer">
+<div id="energybox">
+<div id="energyTitle">魔力エネルギー</div>
+<div id="energyNum">5 <span style="font-size:12px;color:#ad97b5">/ 10</span></div>
+<div id="energyBar"><div id="energyFill"></div></div>
+<div id="energyNote">毎秒 +1.0</div>
+</div>
+<div id="handArea">
+<div id="handCaption"><span>カードを戦場へドラッグ＆ドロップ</span><span id="handStatus">手札 4 枚</span></div>
+<div id="cards"></div>
+</div>
+<div id="nextbox"><small>次のカード</small><div id="nextGlyph">✦</div><div id="nextName">—</div><div id="tip">タップ→戦場タップも可</div></div>
 </footer>
 </div>
-<div id="overlay">
-<div class="dialog">
-<h1 id="dialogTitle">小国戦線</h1>
-<p id="dialogText">近未来の国家戦略バトル。領土を奪い、施設で軍隊を強化し、敵の首都を攻め落とそう。</p>
-<div class="instructions" id="instructions">・兵士は資源を使って直接召喚。自動で戦う<br>・領土は味方だけで一定時間維持すると占領<br>・発電所で資源回復、軍事施設で兵種を一括解放<br>・画面ドラッグでカメラ移動、ミニマップでジャンプ<br>・今回はBOT戦専用。オンライン通信は未実装</div>
-<button class="primary" id="start">BOT戦を始める</button>
+<div id="dragGhost"><b id="ghostGlyph">✦</b><small id="ghostName"></small></div>
+<div id="modal"><div id="dialog">
+<h1 id="dialogTitle">小国戦線 II</h1>
+<p id="dialogText">クラロワ式カード戦闘 × 城ドラ式前哨基地争奪。広い3レーンを舞台に、戦線を押し上げよう。</p>
+<div class="rules" id="rules">
+・8枚デッキから4枚ずつ手札に入る<br>
+・カードをドラッグして青い召喚範囲に配置<br>
+・前哨基地は占領可能ユニットが最後の一撃で獲得<br>
+・最も奥の味方基地によって<strong>全レーンの召喚範囲</strong>が前進<br>
+・地上／飛行、進撃／迎撃、キャラ相性が重要<br>
+・相手の首都を破壊すれば勝利。時間切れは首都HP割合で判定
 </div>
-</div>
-<script src="./game.js"></script>
-</body>
-</html>
+<div id="difficulty"><button data-diff="easy">やさしい</button><button data-diff="normal" class="active">ふつう</button><button data-diff="hard">むずかしい</button></div>
+<button id="begin">BOT戦を始める</button>
+</div></div>
+<script src="./v2.js"></script>
+</body></html>
