@@ -237,7 +237,9 @@ function drawPortrait(canvas,key,team=1){
  g.strokeStyle="#ffffff3b";g.lineWidth=2;
  g.beginPath();g.arc(w*.54,h*.48,34,0,TAU);g.stroke();
  g.fillStyle="#071f3140";g.beginPath();g.ellipse(w*.54,h*.86,32,8,0,0,TAU);g.fill();
- g.save();g.translate(w*.51,h*.97);g.scale(.78,.78);
+ g.save();g.translate(w*.51,h*.97);
+ const artScale=Math.min(w/128,h/72)*.78;
+ g.scale(artScale,artScale);
  paint(g,key,team,0,{uid:1,flash:0,walking:false});
  g.restore();
  g.fillStyle="#ffffff35";round(g,8,8,3,16,1,g.fillStyle,null);
