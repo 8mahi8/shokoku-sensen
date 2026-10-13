@@ -70,7 +70,7 @@ const S={phase:"menu",difficulty:"easy",speed:.85,prep:PREP,seconds:MATCH,elapse
  uid:0,botThink:0,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
- S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;
+ S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botSaveLarge=false;
  S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:300,y:330,tx:300,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
@@ -372,6 +372,24 @@ function botAction(){
   const best=allies.map(t=>({target:t,hits:allies.filter(u=>dist(t,u)<SPELLS.ward.radius).length,
    threatened:enemies.some(u=>dist(t,u)<150)})).filter(x=>x.threatened).sort((a,b)=>b.hits-a.hits)[0];
   if(best&&best.hits>=2&&Math.random()<.7){castSpell(2,"ward",best.target.x,best.target.y);return;}
+ }
+ // The BOT must sometimes save energy for its 7-cost giants, otherwise it
+ // spends each small increment and never showcases large-vs-large tactics.
+ const giantHand=["guardian","tank"].filter(id=>availableCard(2,id));
+ const imminent=enemies.some(u=>u.x>WALL_FACE[2]-165);
+ if(S.botSaveLarge&&(!giantHand.length||(imminent&&S.energy[2]<7)))S.botSaveLarge=false;
+ if(!S.botSaveLarge&&giantHand.length&&S.elapsed>20&&S.energy[2]>=2.5&&!imminent&&Math.random()<.62){
+  S.botSaveLarge=true;
+ }
+ if(S.botSaveLarge){
+  if(S.energy[2]<7)return;
+  const giant=giantHand.includes("tank")&&!imminent?"tank":giantHand[0];
+  const target=enemies.filter(u=>u.x>560).sort((a,b)=>b.x-a.x)[0];
+  const x=limit(border(2)+rand(20,65),38,W-35);
+  const y=target?target.y:rand(190,455);
+  deploy(2,giant,x,limit(y,70,H-70));
+  S.botSaveLarge=false;
+  return;
  }
  const affordable=IDS.filter(id=>canPay(2,id));
  if(!affordable.length)return;
