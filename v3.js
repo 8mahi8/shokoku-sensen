@@ -4,13 +4,15 @@
 const $=id=>document.getElementById(id);
 const cv=$("field"),ctx=cv.getContext("2d"),area=$("fieldArea"),cards=$("cards");
 const W=1280,H=660,START_HP=2800,POST_HP=12,MATCH=300,PREP=10;
+const WALL_TOP=69,WALL_BOTTOM=H-70,WALL_FACE={1:126,2:W-126};
+const WALL_Y=y=>limit(y,WALL_TOP+12,WALL_BOTTOM-12);
 const BLUE="#80d9f5",RED="#ff889a",GOLD="#f3da91";
 const CLASSES={
- infantry:{name:"基本歩兵",glyph:"♟",cost:2,limit:Infinity,qty:2,hp:125,damage:17,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,armored:false,note:"占領・無制限"},
+ infantry:{name:"基本歩兵",glyph:"♟",cost:2,limit:Infinity,qty:2,hp:116,damage:16,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,armored:false,note:"占領・無制限"},
  scout:{name:"偵察ライダー",glyph:"➤",cost:3,limit:5,qty:1,hp:145,damage:16,cool:1.2,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,armored:false,note:"高速・占領"},
  engineer:{name:"重装工兵",glyph:"◆",cost:4,limit:5,qty:1,hp:315,damage:19,cool:1.6,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,armored:true,note:"耐久・占領"},
  archer:{name:"魔導射手",glyph:"✧",cost:3,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,armored:false,note:"遠距離・対空"},
- suppress:{name:"制圧機兵",glyph:"✳",cost:4,limit:6,qty:1,hp:285,damage:40,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:false,armored:true,splash:46,note:"対集団"},
+ suppress:{name:"制圧機兵",glyph:"✳",cost:4,limit:6,qty:1,hp:285,damage:43,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:false,armored:true,splash:70,note:"対集団・広範囲砲撃"},
  guardian:{name:"守護ゴーレム",glyph:"⬡",cost:4,limit:5,qty:1,hp:620,damage:32,cool:1.85,range:44,vision:130,speed:19,r:24,behavior:"guard",capture:0,hitAir:false,armored:true,note:"迎撃・守備"},
  drone:{name:"浮遊ドローン",glyph:"✦",cost:4,limit:5,qty:2,hp:135,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:false,flying:true,armored:false,note:"飛行・突破"},
  tank:{name:"魔導重戦車",glyph:"▰",cost:6,limit:3,qty:1,hp:755,damage:49,cool:2.0,range:108,vision:149,speed:15,r:25,behavior:"normal",capture:0,hitAir:false,armored:true,splash:24,note:"高耐久・重装"}
@@ -43,12 +45,12 @@ const rand=(min,max)=>min+(max-min)*Math.random();
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
 const S={phase:"menu",difficulty:"easy",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
- energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],
+ energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],tickCount:0,
  uid:0,botThink:0,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;
- S.energy=[0,8,8];S.units=[];S.effects=[];S.selected=null;S.drag=null;S.pointer=null;
+ S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  for(const team of [1,2]){
   for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
@@ -61,6 +63,7 @@ function resetWorld(){
 }
 function capital(team){return S.capitals[team-1];}
 function enemy(team){return team===1?2:1;}
+function wallTarget(c,y){return {kind:"capital",ref:c,x:WALL_FACE[c.team],y:WALL_Y(y),r:15};}
 function border(team){
  let edge=team===1?244:1036;
  // Captured forts advance the deploy line slightly BEYOND the fort, in the enemy direction.
@@ -102,10 +105,10 @@ function deploy(team,id,x,y){
   const px=limit(x+(team===1?-9:9)*i,30,W-30);
   const py=limit(y+dy,46,H-45);
   S.units.push({uid:++S.uid,key:id,team,x:px,y:py,anchorX:px,anchorY:py,homeY:py,
-   hp:d.hp,max:d.hp,attack:rand(0,.65),facing:team===1?0:Math.PI,flash:0,attackAnim:0,walkPhase:rand(0,6.28),walking:false,
+   hp:d.hp,max:d.hp,attack:rand(0,.65),facing:team===1?0:Math.PI,flash:0,attackAnim:0,lock:null,walkPhase:rand(0,6.28),walking:false,
    drift:rand(0,Math.PI*2)});
  }
- if(team===1){S.selected=null;buildCards();updateHUD();}
+ if(team===1){S.selected=id==="infantry"?"infantry":null;buildCards();updateHUD();}
  return true;
 }
 function notice(message){
@@ -177,25 +180,46 @@ function getFort(u){
  return options[0];
 }
 function nearbyEnemy(u){
- const d=CLASSES[u.key];
- let choice=null,score=Infinity;
+ const d=CLASSES[u.key],dir=u.team===1?1:-1,guard=d.behavior==="guard";
+ const sight=guard?Math.min(d.vision,165):d.vision;
+ let best=null,score=Infinity;
+ // Keep focus on a viable target instead of switching each frame.
+ const previous=S.units.find(v=>v.uid===u.lock&&v.hp>0&&v.team!==u.team);
+ if(previous&&(!CLASSES[previous.key].flying||d.hitAir)){
+  const dx=dir*(previous.x-u.x),distance=dist(previous,u);
+  if(distance<sight*1.16&&(guard||dx>=-Math.max(d.range+previous.r,35))){
+   if(!guard||Math.hypot(previous.x-u.anchorX,previous.y-u.anchorY)<=180){
+    return {kind:"unit",ref:previous,x:previous.x,y:previous.y,r:CLASSES[previous.key].r};
+   }
+  }
+ }
+ u.lock=null;
  for(const v of S.units){
   if(v.team===u.team||v.hp<=0)continue;
   if(CLASSES[v.key].flying&&!d.hitAir)continue;
-  const range=d.behavior==="guard"?Math.min(d.vision,165):d.vision;
-  const distance=dist(u,v);if(distance>range)continue;
-  if(d.behavior==="guard"&&Math.hypot(v.x-u.anchorX,v.y-u.anchorY)>180)continue;
-  const scored=distance+(d.antiArmor&&CLASSES[v.key].armored?-26:0);
-  if(scored<score){score=scored;choice={kind:"unit",ref:v,x:v.x,y:v.y,r:CLASSES[v.key].r};}
+  const dx=dir*(v.x-u.x),distance=dist(u,v);
+  if(distance>sight)continue;
+  // Progress troops ignore passers-by behind them; close enemies can be fought without pursuit.
+  if(!guard&&dx<-(d.range+CLASSES[v.key].r+5))continue;
+  if(guard&&Math.hypot(v.x-u.anchorX,v.y-u.anchorY)>180)continue;
+  const behindPenalty=!guard&&dx<0?35:0;
+  const groupValue=u.key==="suppress"?Math.min(6,S.units.filter(other=>other.team!==u.team&&other.hp>0&&dist(other,v)<d.splash).length)*24:0;
+  const candidate=distance+behindPenalty+(d.antiArmor&&CLASSES[v.key].armored?-26:0)-groupValue;
+  if(candidate<score){score=candidate;best={kind:"unit",ref:v,x:v.x,y:v.y,r:CLASSES[v.key].r};}
  }
- const c=capital(enemy(u.team));
- if(dist(u,c)<d.vision+66){
-  const s=dist(u,c)-66;
-  if(s<score){score=s;choice={kind:"capital",ref:c,x:c.x,y:c.y,r:64};}
+ const c=capital(enemy(u.team)),wall=wallTarget(c,u.y),wallDistance=Math.hypot(u.x-wall.x,u.y-wall.y);
+ if(wallDistance<d.vision+28){
+  const candidate=wallDistance-20;
+  if(candidate<score){score=candidate;best=wall;}
  }
- return choice;
+ if(best?.kind==="unit")u.lock=best.ref.uid;
+ return best;
 }
+
 function moveToward(u,x,y,dt){
+ const forward=u.team===1?1:-1;
+ // Offensive troops never walk backward after a fast rider passes them.
+ if(CLASSES[u.key].behavior!=="guard")x=forward===1?Math.max(u.x,x):Math.min(u.x,x);
  const dx=x-u.x,dy=y-u.y,distance=Math.hypot(dx,dy);
  if(distance<.05)return;
  const amt=Math.min(distance,CLASSES[u.key].speed*dt);
@@ -269,9 +293,8 @@ function unitStep(dt){
    else moveToward(u,fort.x,fort.y,dt);
    continue;
   }
-  const cap=capital(enemy(u.team)),close=Math.abs(u.x-cap.x)<280;
-  const tx=cap.x,ty=close?cap.y:u.homeY;
-  moveToward(u,tx,ty,dt);
+  const cap=capital(enemy(u.team)),wall=wallTarget(cap,u.homeY);
+  moveToward(u,wall.x,wall.y,dt);
  }
  S.units=S.units.filter(u=>u.hp>0);
 }
@@ -280,11 +303,12 @@ function baseStep(dt){
   if(c.hp<=0)continue;
   c.attack=Math.max(0,c.attack-dt);
   if(c.attack>0)continue;
-  const foes=S.units.filter(u=>u.team!==c.team&&dist(c,u)<160);
+  const foes=S.units.filter(u=>u.team!==c.team&&u.hp>0&&Math.abs(u.x-WALL_FACE[c.team])<130&&u.y>WALL_TOP-35&&u.y<WALL_BOTTOM+35);
   if(!foes.length)continue;
-  foes.sort((a,b)=>dist(c,a)-dist(c,b));
+  foes.sort((a,b)=>Math.abs(a.x-WALL_FACE[c.team])-Math.abs(b.x-WALL_FACE[c.team]));
   const target=foes[0];hitUnit(target,33);c.attack=1.6;
-  S.effects.push({x:target.x,y:target.y,t:.24,max:.24,team:c.team,r:21});
+  S.effects.push({x:target.x,y:target.y,t:.24,max:.24,team:c.team,r:21,type:"wall"});
+  S.projectiles.push({x:WALL_FACE[c.team],y:WALL_Y(target.y)-19,tx:target.x,ty:target.y-24,t:.28,max:.28,team:c.team,kind:"wall"});
  }
 }
 function rate(){
