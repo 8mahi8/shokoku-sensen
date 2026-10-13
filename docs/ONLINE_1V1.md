@@ -1,0 +1,45 @@
+# 小国戦線 III — 1vs1 オンライン対戦導入
+
+このファイルは**学校のiPadで友達と対戦するための運用正本**です。通常のBOT版 (index.html) は変更しません。
+
+## 公開ファイル
+- ブラウザで遊ぶ版: [online.html](../online.html) — https://8mahi8.github.io/shokoku-sensen/online.html
+- Google Sites貼り付け用**単体HTML**: [online-embed.html](../online-embed.html)
+- ルーム管理/通信: [online-net.js](../online-net.js)
+- BOT版から分離したゲーム: [online-game.js](../online-game.js)
+- キャラ原画・描画: [gald-source.html](../gald-source.html), [gald-render.js](../gald-render.js), [v3-art.js](../v3-art.js)
+
+## 学校iPadでの公開方法（BRAWLと同じ方式）
+1. **PC**で [online-embed.html（Raw表示）](https://raw.githubusercontent.com/8mahi8/shokoku-sensen/main/online-embed.html) を開く。
+2. HTMLの全文をコピー。
+3. Google Sites のオンライン対戦用ページで「挿入 → 埋め込む → 埋め込みコード」に貼り付ける。
+4. 埋め込みの縦幅を十分に広くし、公開する。なるべく横向きのiPadで遊ぶ。
+5. 片方が「ルームを作成」、他方が5桁番号で「ルームに参加」。2人とも「準備完了」を押して、ホストが「対戦スタート」。
+6. 準備フェーズ10秒、制限時間5分。両者同じカード、資源と部隊制限。ホスト青軍／ゲスト赤軍。Google Sites上ではPCから埋め込むだけでよく、Driveへの転送は不要。
+
+**注意**: GitHub Pagesのドメインが学校の端末でブロックされる場合は Google Sites 埋め込み版を使う。Google Sitesのiframeのネットワーク制限やFirebase SDKの読み込み制限がある場合、個々の学校の環境で動作確認が必要です。
+
+## 通信方式
+- Firebase Realtime Database: 既存BRAWLの動作実績がある同じプロジェクト（DB URLは online-net.js 内に設定済み）。
+- ルーム領域は **/shokokuRooms1v1/{roomCode}** に限定。BRAWLの `/rooms` と `/rooms2v2` を使用・編集しない。
+- ルーム作成はRTDBトランザクション、重複部屋を避ける。入室は2人限定、後から参加した人が赤軍。
+- それぞれの端末で実時間を独立計算しない。**ホストだけが移動/ダメージ/占領/資源/勝敗を計算し、ゲストはスナップショットを描画する**。
+- ゲストはカード・座標の操作のみ送信。ホストが `canPay` / `validTarget` / `playCard` を使って消費コスト、手札、召喚ラインなどを判定する。
+- ホストは約180msおきに同期。ゲスト側のユニット描画は17０msで画面上だけ補間。勝敗は結果レコードから確定する。
+- FirebaseのJSONがInfinityを格納できないため、無制限歩兵の残数は転送時だけ十分大きな整数へ正規化。権威側の実コスト/ルールは不変。
+- 自動ポーズではなくオンライン対戦は速度固定。画面を閉じた場合、ホストが切断したら試合は進まない。プレイヤーに表示される接続状態を確認。
+- 新しいルームコードは公開情報。DBは認証/専用サーバによる本格的な不正防止ではないため、身内対戦用として扱う。名前や連絡先などの個人情報を書き込まない。
+
+## Firebaseの権限
+このコードは既存のFirebase RTDBを使用するが、`/shokokuRooms1v1` の読書きルールが無ければ **PERMISSION_DENIED** が出る。既存BRAWL用のルールは変更せず、管理者としてFirebaseコンソールで**必要なパスだけ**アクセスルールを設定する必要がある。匿名の一般アクセスを広範囲に開くことは推奨しない。権限ルールが未設定でもUIは表示されるが、ルームを作ることはできない。
+
+## QAと既知の制限
+- 静的JavaScript構文チェック：オンラインゲーム、通信モジュール、Google Sites単体HTMLの全インラインスクリプト。
+- RTDB互換の2クライアント模擬テスト：5桁ルーム作成・参加、両者READY、開始、青赤双方の歩兵召喚、戦場共有、HP同期、ゲストの勝利表示まで確認。
+- **実際のFirebaseクラウドに接続した2端末試験、学校iPad Safari/Google Sites iframe試験は未実施**。リアルタイム通信の実機上の遅延と切断耐性は未保証。
+- Firebase SDKがフィルターでブロックされた場合や、データベースの権限不足がある場合は対処が必要。
+- 単体HTMLは約140KB。Google Sites側のコード貼り付け上限や文字制限に当たる端末ではPCから埋め込み操作を行う。
+- ガルド描画は原画からブラウザ上でキャッシュ作成。Google Sites上では内部srcdocを使用し、これがブロックされた場合は旧ゴーレムのフォールバック描画となる。
+
+## 今後の実機QA
+2端末で READY→準備配置→歩兵/中型→大型召喚→砦の占領→城HP同期→終了をチェック。切断/再接続、学校iPad横向き操作、長時間戦闘の通信量とフレームレートも観測する。未検証なのに「学校iPadで動作済み」と断定しない。
