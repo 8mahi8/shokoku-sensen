@@ -67,12 +67,12 @@ const rand=(min,max)=>min+(max-min)*Math.random();
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
 const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
- energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],tickCount:0,
+ energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
  uid:0,botThink:0,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botSaveLarge=false;
- S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
+ S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:300,y:330,tx:300,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  for(const team of [1,2]){
@@ -128,7 +128,10 @@ function deploy(team,id,x,y){
   const px=limit(x+(team===1?-9:9)*i,30,W-30);
   const py=limit(y+dy,46,H-45);
   S.units.push({uid:++S.uid,key:id,team,x:px,y:py,anchorX:px,anchorY:py,homeY:py,
-   hp:d.hp,max:d.hp,attack:rand(0,.65),facing:team===1?0:Math.PI,flash:0,attackAnim:0,lock:null,walkPhase:rand(0,6.28),walking:false,
+   hp:d.hp,max:d.hp,attack:rand(0,.65),facing:team===1?0:Math.PI,flash:0,
+   attackAnim:0,attackAnimMax:.34,windup:0,hitAt:-100,
+   spawnAt:S.clock,spawnDuration:d.size==="large"?.72:d.size==="medium"?.56:.38,
+   lock:null,walkPhase:rand(0,6.28),walking:false,
    drift:rand(0,Math.PI*2)});
  }
  if(team===2&&d.size==="large"&&S.phase==="battle")notice("敵軍が"+d.name+"を投入！");
@@ -175,6 +178,17 @@ function hitUnit(u,power){
  if(u.hp<=0)return;
  u.hp-=power*shieldMultiplier(u.team,u.x,u.y);
  u.flash=.15;
+ u.hitAt=S.clock;
+ // Store only a short-lived visual echo; removal and battle calculations are unchanged.
+ if(u.hp<=0){
+  const d=CLASSES[u.key],lasting=d.size==="large"?.88:d.size==="medium"?.62:.44;
+  S.deaths.push({key:u.key,team:u.team,x:u.x,y:u.y,uid:u.uid,
+   facing:u.facing,max:u.max,hp:0,t:lasting,maxTime:lasting,
+   walkPhase:u.walkPhase||0,walking:false,flash:0,attackAnim:0,hitAt:-100,
+   spawnAt:-100,drift:u.drift||0});
+  if(S.deaths.length>34)S.deaths.splice(0,S.deaths.length-34);
+  S.effects.push({x:u.x,y:u.y-9,t:.24,max:.24,team:u.team,r:d.size==="large"?35:17,type:"defeat"});
+ }
 }
 function spellStep(dt){
  for(const shot of S.spells.incoming){
@@ -278,7 +292,11 @@ function attackUnit(target,value){
 function fire(u,target){
  const d=CLASSES[u.key],ref=target.ref;
  u.attack=d.cool;
- u.attackAnim=.34;
+ // Pose durations affect artwork only; combat cooldown and hit resolution are unchanged.
+ u.attackAnimMax=u.key==="guardian"?.68:u.key==="tank"?.58:
+  u.key==="sentinel"?.46:u.key==="engineer"?.44:.34;
+ u.attackAnim=u.attackAnimMax;
+ u.windup=0;
  S.effects.push({x:target.x,y:target.y,t:.28,max:.28,team:u.team,r:d.splash||16,type:u.key});
  if(["archer","suppress","drone","tank"].includes(u.key)){
   S.projectiles.push({x:u.x,y:u.y-36,tx:target.x,ty:target.y-(target.kind==="unit"?34:8),
@@ -319,6 +337,10 @@ function unitStep(dt){
   u.attack=Math.max(0,u.attack-dt);u.flash=Math.max(0,u.flash-dt);
   u.attackAnim=Math.max(0,(u.attackAnim||0)-dt);u.walking=false;
   const foe=nearbyEnemy(u),fort=getFort(u);
+  // Readable visual anticipation on the last fraction of an existing cooldown.
+  // It never delays an actual strike or changes target selection.
+  const inReach=foe&&dist(u,foe)<d.range+foe.r+9;
+  u.windup=inReach&&u.attack>0&&u.attack<.32?1-u.attack/.32:0;
   if(d.behavior==="guard"){
    if(foe){
     if(dist(u,foe)<d.range+foe.r){u.facing=Math.atan2(foe.y-u.y,foe.x-u.x);if(u.attack<=0)fire(u,foe);}
@@ -516,6 +538,8 @@ function tick(dt){
  S.elapsed+=dt;S.seconds-=dt;
  for(const team of [1,2])S.energy[team]=Math.min(ENERGY_CAP,S.energy[team]+dt*rate()*(team===2&&S.difficulty==="easy"?.82:1));
  botStep(dt);unitStep(dt);spellStep(dt);
+ for(const fallen of S.deaths)fallen.t-=dt;
+ S.deaths=S.deaths.filter(fallen=>fallen.t>0);
  for(const fx of S.effects)fx.t-=dt;
  S.effects=S.effects.filter(f=>f.t>0);
  for(const shot of S.projectiles)shot.t-=dt;
@@ -743,6 +767,17 @@ function draw(){
  const objects=[];
  for(const p of S.forts)objects.push({y:p.y+20,draw:()=>drawFort(p)});
  for(const u of S.units)objects.push({y:u.y,draw:()=>drawUnit(u)});
+ for(const gone of S.deaths){
+  objects.push({y:gone.y,draw:()=>{
+   if(window.KokokuArt){
+    window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-gone.t/gone.maxTime},S.clock);
+   }else{
+    ctx.save();ctx.globalAlpha=.35*(gone.t/gone.maxTime);
+    ctx.strokeStyle=TEAM[gone.team];ctx.lineWidth=3;ctx.beginPath();
+    ctx.arc(gone.x,gone.y-15,17*(1.2-gone.t/gone.maxTime),0,Math.PI*2);ctx.stroke();ctx.restore();
+   }
+  }});
+ }
  objects.sort((a,b)=>a.y-b.y);
  for(const obj of objects)obj.draw();
  for(const e of S.effects){
