@@ -303,7 +303,10 @@ function updateUI(){
 function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
 function detach(){
  for(const [ref,event,fn] of watchers)ref.off(event,fn);
- watchers=[];disconnectOp?.cancel().catch(()=>{});disconnectOp=null;
+ watchers=[];
+ // Keep the server's onDisconnect cleanup armed until the tab really disconnects.
+ // Cancelling it here would leave stale 'online:true' rooms after a page reload.
+ disconnectOp=null;
 }
 function initFirebase(){
  if(db)return db;
@@ -485,11 +488,19 @@ async function rematch(){
   });
  }catch(e){setError(e)}finally{$("start").disabled=false;}
 }
-function resetLobby(){
- detach();room=null;roomCode="";team=0;host=false;players=null;meta=null;phase="none";result=null;
- onlinePanel(true);$("networkBar").classList.add("hidden");show("新しいルームを作るか、番号を入力して参加してください");
- updateUI();
- // Refresh rather than silently mixing old game state with a new lobby.
+async function resetLobby(){
+ const leaving=room,seat=host?"host":"guest";
+ // Write offline before navigating, and leave onDisconnect armed as a fallback.
+ // Never write another player's seat after their ID has changed.
+ room=null;phase="none";
+ if(leaving&&connected){
+  try{
+   const ref=leaving.child("players/"+seat),current=(await ref.once("value")).val();
+   if(current?.id===clientId)
+    await ref.update({online:false,ready:false,lastSeen:firebase.database.ServerValue.TIMESTAMP});
+  }catch(e){setError(e)}
+ }
+ detach();roomCode="";team=0;host=false;players=null;meta=null;result=null;
  location.reload();
 }
 const api={

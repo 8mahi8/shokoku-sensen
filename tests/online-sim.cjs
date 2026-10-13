@@ -123,6 +123,8 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await new Ref("shokokuRooms1v1/"+code+"/state").set({seq:999,round:1,world:{phase:"battle",units:[{key:"stale"}]}});
  await settle();
  assert.equal(guest.game.received.length,receivedCount,"stale round should be ignored");
+ await guest.api.resetLobby();await settle();
+ assert.equal(read("shokokuRooms1v1/"+code+"/players/guest/online"),false,"explicit leave must mark guest offline");
  assert.ok(writes.every(p=>p.startsWith("shokokuRooms1v1/")),"must never write BRAWL rooms");
  console.log("PASS: two-player create/join, ready/start, commands/snapshot, winner, rematch, stale packet, isolated path");
 })().catch(e=>{console.error(e);process.exitCode=1});
