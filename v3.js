@@ -634,13 +634,49 @@ function buildCards(){
    (spell?'<span class="cardSpell">スペル</span>':d.capture?'<span class="cardCapture">⚑ 占領可</span>':'<span>戦闘</span>')+'</div>';
   if(window.KokokuArt)window.KokokuArt.drawPortrait(button.querySelector("canvas"),id,1);
   button.addEventListener("pointerdown",e=>cardDown(e,id));
+  button.addEventListener("contextmenu",e=>{e.preventDefault();if(S.phase==="prep"||S.phase==="battle")openCardInfo(id);});
   cards.append(button);
  }
  const next=S.queue[1].find(id=>S.left[1][id]>0);
  $("nextCard").textContent=next?"次："+CATALOG[next].name:"次：残りなし";
 }
 
-let galleryResume="menu";
+let galleryResume="menu",infoResume="menu";
+function openCardInfo(id){
+ const d=CATALOG[id];if(!d||S.phase==="inspect")return;
+ infoResume=S.phase;S.phase="inspect";
+ S.drag=null;$("dragging").style.display="none";
+ $("cardInfoName").textContent=d.name;
+ $("cardInfoRole").textContent=isSpell(id)?"スペル":d.capture?"占領可能な兵士":"戦闘専門の兵士";
+ const remaining=Number.isFinite(S.left[1][id])?S.left[1][id]:"無制限";
+ const infos=isSpell(id)?
+   [["消費資源",d.cost],["使用回数",remaining+" 回"],["効果半径",d.radius],["持続・着弾時間",id==="barrage"?d.delay+" 秒":d.duration+" 秒"]]:
+   [["消費資源",d.cost],["残り召喚回数",remaining],["1回の召喚数",d.qty+" 体"],
+    ["HP",d.hp],["攻撃力",d.damage],["射程",d.range],["移動速度",d.speed],
+    ["攻撃間隔",d.cool+" 秒"],["砦占領力",d.capture||"なし"]];
+ $("cardInfoStats").replaceChildren();
+ for(const [label,value] of infos){
+  const row=document.createElement("div");row.className="infoStat";
+  const k=document.createElement("span");k.textContent=label;
+  const v=document.createElement("strong");v.textContent=String(value);
+  row.append(k,v);$("cardInfoStats").append(row);
+ }
+ $("cardInfoNote").textContent=d.note;
+ if(window.KokokuArt)window.KokokuArt.drawPortrait($("cardInfoPortrait"),id,1);
+ $("cardInfoOverlay").classList.remove("hidden");
+ $("cardInfoClose").focus();
+}
+function closeCardInfo(){
+ if(S.phase!=="inspect")return;
+ S.phase=infoResume;$("cardInfoOverlay").classList.add("hidden");
+}
+function inspectHold(now){
+ const m=S.drag;
+ if(m&&!m.active&&!m.infoShown&&now-m.startedAt>=540&&Math.hypot(m.x-m.originX,m.y-m.originY)<12){
+  m.infoShown=true;openCardInfo(m.id);
+ }
+}
+
 function buildGallery(){
  const group=$("galleryCards");group.replaceChildren();
  for(const id of IDS){
@@ -689,7 +725,7 @@ function updateHUD(){
 function cardDown(e,id){
  if(S.phase!=="prep"&&S.phase!=="battle")return;
  e.preventDefault();
- S.drag={pointer:e.pointerId,id,originX:e.clientX,originY:e.clientY,x:e.clientX,y:e.clientY,active:false};
+ S.drag={pointer:e.pointerId,id,originX:e.clientX,originY:e.clientY,x:e.clientX,y:e.clientY,active:false,startedAt:performance.now(),infoShown:false};
 }
 function onGlobalMove(e){
  const m=S.drag;
@@ -709,7 +745,7 @@ function onGlobalUp(e){
  if(m.active&&inside){
   const p=point(e.clientX,e.clientY);
   if(!playCard(1,m.id,p.x,p.y))notice(cardFailure(1,m.id));
- }else if(!m.active){S.selected=m.id;buildCards();}
+ }else if(!m.active){S.selected=S.selected===m.id?null:m.id;buildCards();}
  S.drag=null;$("dragging").style.display="none";
 }
 function arenaDown(e){
@@ -748,6 +784,7 @@ function start(){
  $("galleryButton").addEventListener("click",openGallery);
  $("galleryFromMenu").addEventListener("click",openGallery);
  $("galleryClose").addEventListener("click",closeGallery);
+ $("cardInfoClose").addEventListener("click",closeCardInfo);
  $("speed").addEventListener("click",()=>{
   const options=[.85,.65,1];S.speed=options[(options.indexOf(S.speed)+1)%options.length];
   $("speed").textContent="速度 "+S.speed.toFixed(2)+"×";
@@ -764,6 +801,7 @@ function start(){
  document.addEventListener("contextmenu",e=>e.preventDefault());
  window.addEventListener("keydown",e=>{
   if(e.code==="Escape"&&S.phase==="gallery"){e.preventDefault();closeGallery();return;}
+  if(e.code==="Escape"&&S.phase==="inspect"){e.preventDefault();closeCardInfo();return;}
   if(e.code==="Space"){e.preventDefault();resumeButton();}
   if(/^[1-5]$/.test(e.key)&&(S.phase==="prep"||S.phase==="battle")){
    S.selected=Number(e.key)===1?"infantry":S.hand[1][Number(e.key)-2]||null;buildCards();
@@ -773,6 +811,7 @@ function start(){
  function frame(now){
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   S.clock+=delta;
+  inspectHold(now);
   if(S.phase==="prep"){
    S.prep=Math.max(0,S.prep-delta);
    if(S.prep<=0){
