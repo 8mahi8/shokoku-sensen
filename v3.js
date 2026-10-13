@@ -4,7 +4,24 @@
 const $=id=>document.getElementById(id);
 const cv=$("field"),ctx=cv.getContext("2d"),area=$("fieldArea"),cards=$("cards");
 const W=1280,H=660,START_HP=2800,POST_HP=12,MATCH=300,PREP=10,CASTLE_DAMAGE=1.0;
-const CAMERA_ZOOM=1.52;
+// Separate camera presets for phones, tablets, and desktop, considering orientation.
+const VIEW_PRESETS={
+ phone:{landscape:1.09,portraitWorldWidth:640},
+ tablet:{landscape:1.4,portraitWorldWidth:850},
+ desktop:{landscape:1.5,portraitWorldWidth:800}
+};
+function chooseViewScale(w,h,screenWidth,screenHeight){
+ const short=Math.min(screenWidth,screenHeight),long=Math.max(screenWidth,screenHeight);
+ const kind=short<600&&long<=1050?"phone":short<850&&long<=1350?"tablet":"desktop";
+ const aspect=w/h,profile=VIEW_PRESETS[kind];
+ // Landscape: fill available height/width but reduce phone zoom substantially.
+ // Portrait: favour seeing more of the battlefield width; the unused upper/lower
+ // space is letterboxed instead of cutting off the tactical map.
+ const scale=aspect>=1.14
+  ? Math.max(w/W,h/H)*profile.landscape
+  : Math.min(w/profile.portraitWorldWidth,h/H*1.08);
+ return {kind,orientation:aspect>=1.14?"landscape":"portrait",scale:Math.max(.1,scale)};
+}
 const WALL_TOP=69,WALL_BOTTOM=H-70,WALL_FACE={1:126,2:W-126};
 const WALL_Y=y=>limit(y,WALL_TOP+12,WALL_BOTTOM-12);
 const BLUE="#80d9f5",RED="#ff889a",GOLD="#f3da91";
@@ -52,7 +69,7 @@ const S={phase:"menu",difficulty:"easy",speed:.85,prep:PREP,seconds:MATCH,elapse
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;
  S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
- S.cam={x:415,y:330,tx:415,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
+ S.cam={x:300,y:330,tx:300,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  for(const team of [1,2]){
   for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
@@ -117,7 +134,7 @@ function notice(message){
  const el=$("announcement");el.textContent=message;el.classList.add("visible");S.noticeUntil=performance.now()+2600;
 }
 function begin(){
- resetWorld();S.phase="prep";S.speed=.85;
+ resetWorld();clampCamera();S.phase="prep";S.speed=.85;
  $("speed").textContent="速度 0.85×";$("pause").textContent="Ⅱ 停止";
  $("overlay").classList.add("hidden");
  $("prepBanner").classList.add("visible");
@@ -436,7 +453,8 @@ function fit(){
  cv.width=Math.max(1,Math.round(v.w*v.dpr));cv.height=Math.max(1,Math.round(v.h*v.dpr));
  cv.style.width=v.w+"px";cv.style.height=v.h+"px";
  // Show roughly two thirds of the field horizontally, instead of the entire arena.
- v.s=Math.max(v.w/W,v.h/H)*CAMERA_ZOOM;
+ const view=chooseViewScale(v.w,v.h,window.innerWidth||v.w,window.innerHeight||v.h+150);
+ v.s=view.scale;v.device=view.kind;v.orientation=view.orientation;
  clampCamera();
 }
 function cameraTo(x,y){
