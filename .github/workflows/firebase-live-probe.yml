@@ -1,0 +1,15 @@
+name: One-shot Shokoku Firebase live probe
+on:
+  push:
+    paths:
+      - '.github/workflows/firebase-live-probe.yml'
+  workflow_dispatch:
+jobs:
+  firebase-probe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Safe live RTDB roundtrip
+        run: python3 tests/firebase-live-probe.py
