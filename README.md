@@ -8,6 +8,14 @@
 （学校iPad向けGoogle Sites埋め込み用: [online-embed.html](./online-embed.html)、設置とQA: [docs/ONLINE_1V1.md](./docs/ONLINE_1V1.md)）
 
 
+
+### 2026-10-14 実通信QA
+- [Firebase RTDB実サーバーの一時ルーム作成・読み出し・削除テスト](https://github.com/8mahi8/shokoku-sensen/actions/runs/38442265085)：成功（`/shokokuRooms1v1` のみ操作）。
+- [Chromiumの実ブラウザ2画面でホスト青軍＋ゲスト赤軍を起動し、双方の歩兵召喚が実Firebaseへ同期するE2E](https://github.com/8mahi8/shokoku-sensen/actions/runs/38442603339)：成功。エネルギー・首都・前哨基地もパケット検証。テストルーム削除確認。
+- 対戦終了時の勝敗反転と再戦は [模擬RTDBの2クライアント自動検査](https://github.com/8mahi8/shokoku-sensen/actions/runs/38442796810) で成功。
+- **実学校iPad（Safari）＋Google Sitesの埋込み、5分試合の完全通しプレイは未実施。** テストはChrome系ブラウザでありSafari実機の動作保証ではない。
+- Google Sitesへ貼るコードは `online-ipad.html` のHTML全文。`online-embed.html` も最新版と同期。
+
 ## オンライン版（2026-10-14時点）
 - BOT版v4.2は別ファイルのまま維持。オンラインは `online.html`、単体貼付け版は `online-ipad.html` / `online-embed.html`。
 - ルーム番号5桁、青ホスト／赤ゲスト、両者READY、ホスト権威計算、状態スナップショット、切断表示、再戦を実装。
