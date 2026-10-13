@@ -143,8 +143,13 @@ function begin(){
  $("prepBanner").classList.add("visible");
  $("fieldHint").textContent="開戦準備：資源8で初期配置を決めよう。キャラは動かない。";
  // BOT receives exactly the same initial 8 energy and troop limits.
- deploy(2,"infantry",1085,190);
- deploy(2,"archer",1090,425);
+ if(S.difficulty==="easy"){
+  deploy(2,"infantry",1085,190);deploy(2,"archer",1090,425);
+ }else{
+  deploy(2,"infantry",1060,205);
+  deploy(2,"archer",1082,205);
+  if(S.difficulty==="hard")deploy(2,"engineer",1060,445);
+ }
  buildCards();updateHUD();
 }
 function castSpell(team,id,x,y){
@@ -359,10 +364,58 @@ function rate(){
  if(S.elapsed<270)return .53;
  return .7;
 }
+// Expert heuristics operate within the same hand, economy and placement rules.
+function botExpertAction(){
+ const hard=S.difficulty==="hard";
+ const enemies=S.units.filter(u=>u.team===1&&u.hp>0),allies=S.units.filter(u=>u.team===2&&u.hp>0);
+ const advance=enemies.filter(u=>u.x>520);
+ const urgent=advance.filter(u=>u.x>850);
+ const giants=advance.filter(u=>CLASSES[u.key].size==="large");
+ const air=advance.filter(u=>CLASSES[u.key].flying);
+ const ready=id=>canPay(2,id);
+ const frontline=S.forts.filter(f=>f.owner!==2).sort((a,b)=>b.x-a.x)[0];
+ const flank=urgent.slice().sort((a,b)=>b.x-a.x)[0]||advance.slice().sort((a,b)=>b.x-a.x)[0];
+ const posY=u=>limit((u?.y??frontline?.y??330)+rand(-18,18),70,H-70);
+ const spawn=(id,u,offset=40)=>deploy(2,id,limit(border(2)+offset,45,W-42),posY(u));
+ const clustered=advance.reduce((best,u)=>{
+  const n=advance.filter(v=>dist(u,v)<SPELLS.barrage.radius).length;
+  return n>best.n?{u,n}:best;
+ },{u:null,n:0});
+ if(ready("barrage")&&clustered.u&&clustered.n>=(hard?2:3)){
+  if(castSpell(2,"barrage",clustered.u.x,clustered.u.y))return true;
+ }
+ if(ready("suppress")&&clustered.u&&clustered.n>=3){
+  if(spawn("suppress",clustered.u))return true;
+ }
+ if(air.length&&ready("archer")){
+  if(spawn("archer",air.slice().sort((a,b)=>b.x-a.x)[0],65))return true;
+ }
+ if(giants.length&&ready("guardian")){
+  if(spawn("guardian",giants[0]))return true;
+ }
+ if(hard&&advance.length>=2){
+  // Fight early on the approach, not when attackers are already on the wall.
+  if(ready("suppress")&&clustered.n>=2&&spawn("suppress",clustered.u))return true;
+  if(ready("archer")&&spawn("archer",flank,65))return true;
+  if(urgent.length&&ready("guardian")&&spawn("guardian",flank))return true;
+  if(urgent.length&&ready("infantry")&&spawn("infantry",flank))return true;
+ }
+ if(!urgent.length&&frontline){
+  const nearbyOwn=allies.filter(u=>dist(u,frontline)<155).length;
+  if(nearbyOwn<2){
+   if(ready("engineer")&&spawn("engineer",frontline))return true;
+   if(ready("scout")&&spawn("scout",frontline))return true;
+   if(hard&&ready("infantry")&&spawn("infantry",frontline))return true;
+  }
+ }
+ if(urgent.length&&ready("infantry")&&spawn("infantry",flank))return true;
+ return false;
+}
 function botAction(){
  const allies=S.units.filter(u=>u.team===2&&u.hp>0);
  const enemies=S.units.filter(u=>u.team===1&&u.hp>0);
  // The BOT shares the player's card hand, costs, and charge limits.
+ if(S.difficulty!=="easy"&&botExpertAction())return;
  if(canPay(2,"barrage")&&enemies.length){
   const best=enemies.map(t=>({target:t,hits:enemies.filter(u=>dist(t,u)<SPELLS.barrage.radius).length}))
    .sort((a,b)=>b.hits-a.hits)[0];
@@ -376,7 +429,8 @@ function botAction(){
  // The BOT must sometimes save energy for its 7-cost giants, otherwise it
  // spends each small increment and never showcases large-vs-large tactics.
  const giantHand=["guardian","tank"].filter(id=>availableCard(2,id));
- const imminent=enemies.some(u=>u.x>WALL_FACE[2]-165);
+ const imminent=enemies.some(u=>u.x>(S.difficulty==="easy"?WALL_FACE[2]-165:530));
+ if(imminent&&S.difficulty!=="easy")S.botSaveLarge=false;
  if(S.botSaveLarge&&(!giantHand.length||(imminent&&S.energy[2]<7)))S.botSaveLarge=false;
  if(!S.botSaveLarge&&giantHand.length&&S.elapsed>20&&S.energy[2]>=2.5&&!imminent&&Math.random()<.62){
   S.botSaveLarge=true;
@@ -416,8 +470,8 @@ function botStep(dt){
  S.botThink-=dt;
  if(S.botThink>0)return;
  botAction();
- const mod=S.difficulty==="easy"?1.55:S.difficulty==="hard"?.85:1;
- S.botThink=rand(4.2,6.4)*mod;
+ const mod=S.difficulty==="easy"?[6.5,9.0]:S.difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
+ S.botThink=rand(mod[0],mod[1]);
 }
 function end(result,reason){
  if(S.phase==="result")return;
