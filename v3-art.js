@@ -258,6 +258,9 @@ const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,
 const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73};
 // Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
+ // The Gald sprite cache replaces only the guardian artwork. Retain the
+ // original Canvas guardian as a safe fallback while loading or on error.
+ if(u.key==="guardian"&&window.GaldArt?.drawUnit(g,u,clock))return;
  const flying=u.key==="drone",heavy=u.key==="guardian"||u.key==="tank";
  const bob=flying?20+Math.sin(clock*4+(u.drift||0))*4:0;
  const size=UNIT_SCALE[u.key]||.95;
@@ -364,7 +367,9 @@ function drawPortrait(canvas,key,team=1){
  g.strokeStyle="#ffffff3b";g.lineWidth=2;
  g.beginPath();g.arc(w*.54,h*.48,34,0,TAU);g.stroke();
  g.fillStyle="#071f3140";g.beginPath();g.ellipse(w*.54,h*.86,32,8,0,0,TAU);g.fill();
- if(key==="barrage"||key==="ward")paintSpell(g,key,team,w,h);
+ if(key==="guardian"&&window.GaldArt?.drawPortrait(g,w,h,team)){
+  // High-quality Gald sprite is ready.
+ }else if(key==="barrage"||key==="ward")paintSpell(g,key,team,w,h);
  else{
   g.save();g.translate(w*.51,h*.97);
   const artScale=Math.min(w/128,h/72)*.78;
@@ -375,5 +380,5 @@ function drawPortrait(canvas,key,team=1){
  g.fillStyle="#ffffff35";round(g,8,8,3,16,1,g.fillStyle,null);
  g.restore();
 }
-window.KokokuArt={drawUnit,drawPortrait,version:"1.0"};
+window.KokokuArt={drawUnit,drawPortrait,version:"1.1-gald"};
 })();
