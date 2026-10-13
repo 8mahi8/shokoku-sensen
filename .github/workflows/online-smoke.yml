@@ -19,3 +19,10 @@ jobs:
           node-version: '22'
       - run: node tests/online-smoke.cjs
       - run: node tests/online-sim.cjs
+      - name: Prepare Google Sites paste file
+        run: cp online-ipad.html Shokoku_III_1v1_school_iPad.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Shokoku-III-1v1-iPad
+          path: Shokoku_III_1v1_school_iPad.txt
+          retention-days: 30
