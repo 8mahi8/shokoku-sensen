@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "id": "REPLACE_UNIT_ID",
+  "design_name": "REPLACE_NAME",
+  "status": "concept",
+  "design_variant": "default",
+  "role": "REPLACE_ROLE",
+  "locomotion": "REPLACE_BIPED_FLYING_TRACKED",
+  "facing": "right",
+  "source_file": "characters/REPLACE_UNIT_ID/source.html",
+  "runtime_adapter": "characters/REPLACE_UNIT_ID/runtime.js",
+  "fallback_renderer": "v3-art.js existing class",
+  "test_api": "CHARACTER_TEST",
+  "silhouette": [
+    "REPLACE_STRONG_SHAPE_1",
+    "REPLACE_STRONG_SHAPE_2",
+    "REPLACE_STRONG_SHAPE_3"
+  ],
+  "subtractive_rule": "Name decorative details to remove, not merely details to add",
+  "atlas": {
+    "frame_width": 330,
+    "frame_height": 372,
+    "columns": 8,
+    "viewport": {
+      "width": 920,
+      "height": 620
+    },
+    "crop": {
+      "x": 240,
+      "y": 0,
+      "width": 550,
+      "height": 620
+    },
+    "anchor": {
+      "x": 105,
+      "y": 292.8
+    },
+    "states": [
+      {
+        "name": "idle",
+        "frames": 8
+      },
+      {
+        "name": "walk",
+        "frames": 16
+      },
+      {
+        "name": "attack",
+        "frames": 20
+      },
+      {
+        "name": "hit",
+        "frames": 8
+      },
+      {
+        "name": "death",
+        "frames": 8
+      }
+    ]
+  },
+  "runtime": {
+    "render_frame_px": {
+      "width": 201,
+      "height": 227
+    },
+    "team_reflection": "flip horizontally for team 2 and apply team-readable tint",
+    "frame_select": "see gald-render.js (clock idle; walkPhase; attackAnim; hitAt; deathProgress)",
+    "source_at_runtime": "Choose async cached or precomputed atlas with a fallback"
+  },
+  "qa": {
+    "grounded_punch_max_screen_drift_px": null,
+    "supported_zoom": [
+      1,
+      0.73,
+      0.46
+    ],
+    "min_inspection": [
+      "idle",
+      "walk",
+      "punch windup",
+      "punch impact",
+      "hit",
+      "death"
+    ],
+    "no_gameplay_changes": true
+  }
+}
