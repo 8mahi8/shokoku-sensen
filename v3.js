@@ -148,7 +148,7 @@ function begin(){
  }else{
   deploy(2,"infantry",1060,205);
   deploy(2,"archer",1082,205);
-  if(S.difficulty==="hard")deploy(2,"engineer",1060,445);
+  if(S.difficulty==="hard")deploy(2,"infantry",1060,445);
  }
  buildCards();updateHUD();
 }
@@ -200,7 +200,10 @@ function getFort(u){
  if(!options.length)return null;
  if(d.behavior==="capture"){
   // Objective troops can skip intermediate forts for a high-risk deep capture.
-  options.sort((a,b)=>direction*(b.x-a.x));
+  // The experienced BOT secures the nearest fort first to advance its summon line.
+  // Keep the player's original deep-capture behavior unchanged.
+  if(u.team===2&&S.difficulty!=="easy")options.sort((a,b)=>b.x-a.x);
+  else options.sort((a,b)=>direction*(b.x-a.x));
   return options[0];
  }
  options.sort((a,b)=>dist(a,u)-dist(b,u));
@@ -394,7 +397,7 @@ function botExpertAction(){
   if(spawn("guardian",giants[0]))return true;
  }
  // Preserve resources for a suppressor when a swarm approaches, unless defense is urgent.
- if(clustered.n>=3&&!urgent.length&&availableCard(2,"suppress")&&S.energy[2]<CLASSES.suppress.cost){
+ if(clustered.n>=3&&!enemies.some(u=>u.x>1070)&&availableCard(2,"suppress")&&S.energy[2]<CLASSES.suppress.cost){
   return true;
  }
  if(hard&&advance.length>=2){
