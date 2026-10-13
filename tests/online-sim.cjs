@@ -68,7 +68,7 @@ function client(){
   return dom.get(id);
  };
  const document={getElementById:get,addEventListener(name,fn){callbacks[name]=fn}};
- const context={window:{crypto:webcrypto},crypto:webcrypto,document,firebase,
+ const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
   console,Date,Math,Uint32Array,Promise,performance,
   navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){}},setTimeout,clearTimeout};
  vm.runInNewContext(source,context,{filename:"online-net.js"});
