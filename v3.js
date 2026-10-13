@@ -39,7 +39,7 @@ const CLASSES={
 };
 const IDS=Object.keys(CLASSES);
 const SPELLS={
- barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:115,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
+ barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
  ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"}
 };
 const CATALOG={...CLASSES,...SPELLS};
