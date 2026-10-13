@@ -55,6 +55,8 @@ const deadline=async (f,label,timeout=18000)=>{
    return units.some(u=>u.team===1)&&units.some(u=>u.team===2)?d:null;
   },"both blue/red infantry synced to Firebase",20000);
   assert.ok(packet.world.energy?.length>=3&&packet.world.capitals?.length===2&&packet.world.forts?.length===3);
+  assert.deepEqual(packet.world.hand[1],packet.world.hand[2],"both teams should receive same shuffled hand");
+  assert.deepEqual(packet.world.queue[1],packet.world.queue[2],"both teams should share fair randomized deck order");
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
   console.log("PASS: two real Chromium pages joined Firebase room "+code+", summoned both teams, synchronized units/energy/capitals/forts");
  }finally{

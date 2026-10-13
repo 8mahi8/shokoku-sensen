@@ -3,6 +3,11 @@ on:
   push:
     paths:
       - '.github/workflows/online-browser-live.yml'
+      - 'online-game.js'
+      - 'online-net.js'
+      - 'online.html'
+      - 'online-ipad.html'
+      - 'tests/online-browser-live.cjs'
   workflow_dispatch:
 jobs:
   browser-live:
