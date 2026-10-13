@@ -31,7 +31,10 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #bottom{height:161px;flex:none;display:flex;gap:12px;padding:10px 15px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(#142d3a,#10242f);border-top:1px solid #406573;min-height:0}
 #resource{width:140px;flex:none;display:flex;flex-direction:column;justify-content:center;gap:7px}
 #resourceTitle{font-size:11px;color:#c4d4da;font-weight:800}#resourceNumber{font-size:28px;font-weight:950;color:#d5a9ff;font-variant-numeric:tabular-nums}#resourceNumber small{font-size:12px;color:#b2a5c7}
-#resourceRail{height:13px;border:1px solid #64557a;border-radius:11px;background:#101525;overflow:hidden}#resourceLevel{height:100%;width:80%;background:linear-gradient(90deg,#8253c8,#e0aefa);transition:width .12s}
+#resourceRail{height:21px;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:2px;background:none;overflow:visible}
+.resourceSegment{display:block;position:relative;height:100%;border:1px solid #72668b;border-radius:4px;background:#111928;overflow:hidden}
+.resourceSegmentFill{display:block;height:100%;width:0;background:linear-gradient(#e0b4ff,#9261dc);transition:width .10s linear}
+#resourceNext{font-size:11px;font-weight:900;color:#efd5ff;white-space:nowrap;font-variant-numeric:tabular-nums}
 #rate{font-size:10px;color:#a4bacc}#remaining{font-size:10px;color:#b6d2d6}
 #collection{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
 #collectionTitle{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;color:#b8d0d7}
@@ -45,6 +48,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #fieldHint{max-width:min(70%,520px)}
 .card{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:2px;min-width:0;border-radius:10px;border:1px solid #648c99;border-bottom:3px solid #416b7b;background:linear-gradient(145deg,#28505b,#193440);padding:6px 7px;overflow:hidden;text-align:left}
 .card.selected{border-color:#ffe28f;background:linear-gradient(145deg,#466555,#254d51);box-shadow:inset 0 0 0 1px #f5d584}
+.card.ready:not(.selected):not(.depleted){border-color:#84bfc5}
 .card.unavailable{filter:saturate(.6);opacity:.58}
 .card.depleted{filter:grayscale(.8);opacity:.47}
 .cardTop{display:flex;align-items:center;justify-content:space-between;gap:3px}
@@ -57,7 +61,11 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 .cardBottom{display:flex;justify-content:space-between;align-items:center;gap:3px;font-size:9px;color:#b6d1d6}
 .cardCapture{font-size:9px;background:#b5a05c35;color:#f0d89b;padding:1px 3px;border-radius:4px}
 .cardLeft{font-weight:800;color:#dde6d4;font-variant-numeric:tabular-nums}
-#dragging{position:fixed;z-index:15;pointer-events:none;display:none;transform:translate(-50%,-115%);min-width:90px;padding:8px;background:#1a3a49f0;border:2px solid #a2d9e5;border-radius:12px;align-items:center;flex-direction:column;box-shadow:0 6px 20px #0007}#dragging span{font-size:28px;color:#f5d893}#dragging small{font-size:11px}
+.cardTier{font-weight:950;white-space:nowrap;color:#c5e7df}
+.card.tier-small .cardTier{color:#a9dfbe}
+.card.tier-medium .cardTier{color:#9bd8f9}
+.card.tier-large{border-bottom-color:#b59a43}
+.card.tier-large .cardTier{color:#ffe19c}
 #overlay{position:fixed;inset:0;background:#05151edf;display:flex;justify-content:center;align-items:center;padding:16px;z-index:30}
 #overlay.hidden{display:none}
 #dialog{width:min(520px,100%);max-height:92dvh;overflow:auto;padding:25px;background:linear-gradient(145deg,#20414b,#112a37);border:1px solid #78a2a9;border-radius:18px;box-shadow:0 22px 90px #0008;text-align:center}
@@ -124,8 +132,14 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
  #headerButtons{grid-column:1/-1;grid-row:2;justify-content:space-around;gap:7px}
  .topButton{flex:1;font-size:10px;padding:6px 6px}
  #bottom{height:129px;padding:6px;gap:5px}
- #resource{width:57px}
- #resourceNumber{font-size:17px}
+ #resource{width:100%;height:36px;display:grid;grid-template-columns:74px minmax(0,1fr) 75px;grid-template-rows:1fr;align-items:center;column-gap:7px}
+ #resourceTitle,#rate,#remaining{display:none}
+ #resourceNumber{font-size:23px;line-height:1;grid-column:1}
+ #resourceNumber small{font-size:11px}
+ #resourceRail{grid-column:2;height:22px;gap:3px}
+ #resourceNext{grid-column:3;font-size:10px;text-align:right}
+ #bottom{height:156px;flex-direction:column;gap:4px}
+ #collection{min-height:0;flex:1}
  #cards{gap:4px}
  .card{padding:4px 3px}
  .cardName{font-size:10px}
@@ -148,9 +162,9 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="app">
 <header id="header">
 <div id="logo"><b>小国戦線 <span style="color:#8bdcf4">III</span></b><small>FORTRESS FRONT</small></div>
-<div class="base"><div class="line">自軍首都 <span id="blueText">2800 / 2800</span></div><div class="bar"><div class="fill" id="blueBar"></div></div></div>
+<div class="base"><div class="line">自軍首都 <span id="blueText">3000 / 3000</span></div><div class="bar"><div class="fill" id="blueBar"></div></div></div>
 <div id="clockbox"><div id="clock">05:00</div><div id="phaseLabel">待機中</div></div>
-<div class="base"><div class="line">敵軍首都 <span id="redText">2800 / 2800</span></div><div class="bar"><div class="fill enemy" id="redBar"></div></div></div>
+<div class="base"><div class="line">敵軍首都 <span id="redText">3000 / 3000</span></div><div class="bar"><div class="fill enemy" id="redBar"></div></div></div>
 <div id="headerButtons"><button class="topButton" id="galleryButton" aria-label="部隊図鑑を開く">✧ 図鑑</button><button class="topButton" id="speed">速度 0.85×</button><button class="topButton" id="pause">Ⅱ 停止</button></div>
 </header>
 <main id="fieldArea">
@@ -163,8 +177,9 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <footer id="bottom">
 <div id="resource">
 <div id="resourceTitle">召喚エネルギー</div>
-<div id="resourceNumber">8 <small>/ 10</small></div>
-<div id="resourceRail"><div id="resourceLevel"></div></div>
+<div id="resourceNumber">8 <small>/ 12</small></div>
+<div id="resourceRail" role="progressbar" aria-label="召喚エネルギー" aria-valuemin="0" aria-valuemax="12" aria-valuenow="8"></div>
+<div id="resourceNext">開戦後回復</div>
 <div id="rate">準備中は回復なし</div>
 <div id="remaining">基本歩兵は何度でも召喚可</div>
 </div>
@@ -174,7 +189,6 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 </div>
 </footer>
 </div>
-<div id="dragging"><span id="dragGlyph">♟</span><small id="dragName">歩兵</small></div>
 
 <div id="cardInfoOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="cardInfoName">
  <div id="cardInfoPanel">
@@ -195,7 +209,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 </div>
 <div id="overlay"><div id="dialog">
 <h1 id="dialogTitle">小国戦線 III</h1>
-<p id="dialogText">城ドラを参考に再設計した、横長1画面の陣取りカード戦略。まずはBOT戦で試そう。</p>
+<p id="dialogText">小型・中型・大型を使い分ける、横スクロール型の陣取りカード戦略。まずはBOT戦で試そう。</p>
 <div id="rules">
 ・<strong>最初の10秒間</strong>は準備フェーズ。配置した部隊は動かず、資源も回復しません。<br>
 ・<strong>戦場は横スクロール制</strong>。カードをタップで選択、戦場をタップで召喚・スペル発動。スワイプはカメラ移動のみ。ミニマップなし。<br>
@@ -204,7 +218,8 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 ・<strong>基本歩兵はいつでも召喚可能</strong>。ほかの7兵種と2種類のスペルは4枚手札で循環します。カードを使うと次のカードに交代。<br>
 ・<strong>範囲砲撃（4）</strong>：約1.3秒後に敵兵へ範囲攻撃。<strong>防護結界（3）</strong>：約5秒間、範囲内の味方へのダメージを45％軽減。各3回まで、開戦後に使用可能。<br>
 ・前哨基地は占領可能ユニットが最後の一撃で獲得。最も奥の自軍基地で<strong>召喚ラインが全域に前進</strong>。<br>
-・序盤は資源の回復が遅く、終盤ほど加速します。<br>
+・召喚エネルギーは上限12。12マスのゲージで次の1コストまでの進捗を確認できます。序盤は回復が遅く、終盤ほど加速します。<br>
+・城壁は自動攻撃しません。兵士で守り、敵の城壁を攻め落としましょう。<br>
 ・敵首都を破壊すると勝利。時間切れは首都HP割合で決着。
 </div>
 <div id="difficulties"><button class="active" data-level="easy">練習</button><button data-level="normal">ふつう</button><button data-level="hard">むずかしい</button></div>
@@ -212,5 +227,5 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <button id="galleryFromMenu" class="galleryLink">✧ 先に8体のキャラクターデザインを見る</button>
 </div></div>
 <script src="./v3-art.js?v=3"></script>
-<script src="./v3.js?v=7"></script>
+<script src="./v3.js?v=8"></script>
 </body></html>
