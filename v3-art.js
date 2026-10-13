@@ -11,7 +11,7 @@ const PALETTES={
 };
 const UNIT_COLORS={
  infantry:["#4d99b8","#294c75"],scout:["#efcc79","#346e89"],engineer:["#d7a963","#3b6574"],archer:["#a784dc","#435d8f"],
- suppress:["#e8a16a","#5b5c83"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"],
+ suppress:["#e8a16a","#5b5c83"],sentinel:["#8ca6d5","#303e63"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"],
  barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"]
 };
 function path(g,points,fill,stroke=INK,lineWidth=2.4){
@@ -132,6 +132,35 @@ function archer(g,p,s){
  crystal(g,29+hit*9,-39,7,p.glow);
  if(Math.sin(t*3)>.2)oval(g,-15,-24,2,2,p.glow,null);
 }
+
+function sentinel(g,p,s){
+ const {step,hit,t}=s;
+ // Frontline interceptor, with a wide tower shield and short sweeping blade.
+ limb(g,-17,-21+step*1.2,13,21,"#31495d");
+ limb(g,5,-21-step*1.2,14,21,"#31495d");
+ round(g,-22,-7+step*1.2,23,9,4,"#243947");
+ round(g,3,-7-step*1.2,22,9,4,"#243947");
+ path(g,[[-23,-49],[-17,-61],[17,-61],[27,-48],[19,-21],[-20,-21]],"#536b87",INK,3);
+ path(g,[[-22,-48],[-39,-44],[-35,-24],[-20,-27]],p.primary,INK,2.8);
+ path(g,[[19,-50],[36,-45],[32,-26],[19,-27]],p.primary,INK,2.8);
+ round(g,-14,-47,30,29,6,p.deep,INK,3);
+ round(g,-5,-41,16,18,4,"#1b354d",p.accent,1.7);
+ crystal(g,3,-34,6,p.glow);
+ helm(g,1,-60,p,p.deep);
+ path(g,[[-9,-72],[-5,-83],[5,-76],[13,-81],[14,-66]],"#a9b8cc",INK,2.5);
+ // Distinct crescent-topped shield, shown on the leading arm.
+ g.save();g.translate(-24,-31);
+ path(g,[[-13,-21],[6,-23],[19,-15],[17,9],[0,25],[-16,9]],"#2a4961",INK,3.2);
+ path(g,[[-8,-13],[5,-16],[11,-11],[10,6],[0,15],[-9,6]],p.deep,p.accent,2);
+ line(g,[[0,-11],[0,13]],p.glow,2.6);line(g,[[-6,0],[6,0]],p.glow,2.6);
+ g.restore();
+ // A heavy warding blade sweeps forward when engaging intruders.
+ line(g,[[17,-29],[31+hit*12,-39]],"#617b8a",8);
+ line(g,[[17,-29],[31+hit*12,-39]],p.accent,3);
+ path(g,[[29+hit*12,-43],[43+hit*14,-71],[40+hit*14,-31],[35+hit*12,-25]],METAL,INK,2.5);
+ line(g,[[38+hit*13,-60],[39+hit*13,-33]],p.glow,2.2);
+ if(Math.sin(t*2.4)>.5){oval(g,-29,-16,2.5,2.5,p.glow,null);}
+}
 function suppress(g,p,s){
  const {step,hit,t}=s;
  limb(g,-16,-16+step,15,18,"#465565");limb(g,6,-16-step,17,18,"#465565");
@@ -191,7 +220,7 @@ function tank(g,p,s){
  crystal(g,1,-38,9,p.glow);
  path(g,[[-34,-28],[-29,-37],[-26,-24]],p.accent,null);
 }
-const SPRITES={infantry,scout,engineer,archer,suppress,guardian,drone,tank};
+const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank};
 function paint(g,key,team,clock=0,unit={}){
  const p=PALETTES[team]||PALETTES[1];
  const moving=!!unit.walking;
@@ -212,8 +241,8 @@ function paint(g,key,team,clock=0,unit={}){
  }
  g.restore();
 }
-const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,guardian:1.28,drone:1.08,tank:1.24};
-const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,guardian:97,drone:64,tank:73};
+const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.28,drone:1.08,tank:1.24};
+const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73};
 // Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
  const flying=u.key==="drone",heavy=u.key==="guardian"||u.key==="tank";
