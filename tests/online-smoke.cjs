@@ -10,7 +10,7 @@ for(const p of ["online-embed.html","online-ipad.html"]){
  const html=read(p);
  assert.ok(html.includes(net),"Missing current online-net.js in "+p);
  assert.ok(html.includes(game),"Missing current online-game.js in "+p);
- const inline=html.split('<script>').slice(1).map(part=>part.split('</script>')[0]);
+ const inline=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]);
  assert.ok(inline.length>=4,p+" inline scripts unexpectedly missing");
  for(const [index,script] of inline.entries())new vm.Script(script,{filename:p+"#script"+index});
  assert.ok(html.includes('id="newRoom"'),p+" lacks new room button");
