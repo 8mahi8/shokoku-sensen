@@ -1,0 +1,20 @@
+name: One-shot online two-browser live QA
+on:
+  push:
+    paths:
+      - '.github/workflows/online-browser-live.yml'
+  workflow_dispatch:
+jobs:
+  browser-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/online-browser-live.cjs
