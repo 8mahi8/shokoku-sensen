@@ -19,6 +19,12 @@ jobs:
           node-version: '22'
       - run: node tests/online-smoke.cjs
       - run: node tests/online-sim.cjs
+      - name: Firebase public read probe (does not modify data)
+        shell: bash
+        run: |
+          code=$(curl -sS --max-time 12 -o /tmp/rtdb-probe.txt -w '%{http_code}' 'https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1/__read_probe__.json') || code=NETWORK_ERROR
+          echo "RTDB_PROBE_HTTP=$code"
+          if test -f /tmp/rtdb-probe.txt; then head -c 180 /tmp/rtdb-probe.txt; echo; fi
       - name: Prepare Google Sites paste file
         run: cp online-ipad.html Shokoku_III_1v1_school_iPad.txt
       - uses: actions/upload-artifact@v4

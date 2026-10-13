@@ -7,6 +7,14 @@
 **1vs1 オンライン試験版:** https://8mahi8.github.io/shokoku-sensen/online.html
 （学校iPad向けGoogle Sites埋め込み用: [online-embed.html](./online-embed.html)、設置とQA: [docs/ONLINE_1V1.md](./docs/ONLINE_1V1.md)）
 
+
+## オンライン版（2026-10-14時点）
+- BOT版v4.2は別ファイルのまま維持。オンラインは `online.html`、単体貼付け版は `online-ipad.html` / `online-embed.html`。
+- ルーム番号5桁、青ホスト／赤ゲスト、両者READY、ホスト権威計算、状態スナップショット、切断表示、再戦を実装。
+- 回帰検査: `node tests/online-smoke.cjs` と `node tests/online-sim.cjs` を GitHub Actions で実施（構文・バンドル一致・模擬RTDB 2クライアント）。
+- **実Firebaseでの部屋作成／実端末操作／学校iPadのGoogle Sites埋め込み確認は未実施。** RTDBの `/shokokuRooms1v1` に権限が無ければFirebaseコンソールで既存BRAWLの権限を維持しながら別途設定が必要。
+- 仕様・既知の制約・学校の貼付け手順は [docs/ONLINE_1V1.md](./docs/ONLINE_1V1.md) を参照。次チャットでもこのQA境界を維持する。
+
 **開発AI向け・キャラクター制作手順（世代交代時の正本）:**
 - [AI引き継ぎ指示 / AGENTS.md](./AGENTS.md)
 - [キャラ制作パイプライン / docs/CHARACTER_PIPELINE.md](./docs/CHARACTER_PIPELINE.md)

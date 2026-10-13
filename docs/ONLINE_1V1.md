@@ -51,3 +51,8 @@
 - ホスト不在・期限切れ部屋への参加を拒否。24時間経過して双方オフラインのルームコードのみ再利用する。
 - 終了時は `room.update` で最終戦場・結果・終了状態を一括反映。
 - **実Firebase権限 / GitHub Pages上での2台通信 / Google Sites内iPad Safari の確認は引き続き未実施。**
+
+### 検証の区別（2026-10-14）
+- 自動テストの出所: `tests/online-smoke.cjs`（構文・埋込一致）と `tests/online-sim.cjs`（JavaScript上の模擬Firebase RTDB 2クライアント）。
+- 2クライアント模擬はロビー作成・入室・準備・開始・操作転送・ダミー戦場パケット・勝敗反転・同室再戦・旧ラウンド拒否・BRAWLパスへの不書込を検証。実ゲーム戦闘のHP/占領計算を丸ごと動かすE2Eテストではない。
+- Google Sites用に `online-ipad.html` の内容を `.txt` として生成。学校iPadでの貼付けが難しい場合はPCでGoogle SitesにHTMLコードを貼り付ける。
