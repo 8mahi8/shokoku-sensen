@@ -3,7 +3,7 @@
 (() => {
 const $=id=>document.getElementById(id);
 const cv=$("field"),ctx=cv.getContext("2d"),area=$("fieldArea"),cards=$("cards");
-const W=1280,H=660,START_HP=2800,POST_HP=12,MATCH=300,PREP=10,CASTLE_DAMAGE=1.0;
+const W=1280,H=660,START_HP=3000,POST_HP=12,MATCH=300,PREP=10,CASTLE_DAMAGE=1.0;
 // Separate camera presets for phones, tablets, and desktop, considering orientation.
 const VIEW_PRESETS={
  phone:{landscape:1.09,portraitWorldWidth:640},
@@ -26,15 +26,16 @@ function chooseViewScale(w,h,screenWidth,screenHeight){
 const WALL_TOP=69,WALL_BOTTOM=H-70,WALL_FACE={1:126,2:W-126};
 const WALL_Y=y=>limit(y,WALL_TOP+12,WALL_BOTTOM-12);
 const BLUE="#80d9f5",RED="#ff889a",GOLD="#f3da91";
+const ENERGY_CAP=12;
 const CLASSES={
- infantry:{name:"基本歩兵",glyph:"♟",cost:2,limit:Infinity,qty:2,hp:116,damage:16,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,armored:false,note:"占領・無制限"},
- scout:{name:"偵察ライダー",glyph:"➤",cost:3,limit:5,qty:1,hp:145,damage:16,cool:1.2,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,armored:false,note:"高速・占領"},
- engineer:{name:"重装工兵",glyph:"◆",cost:4,limit:5,qty:1,hp:315,damage:19,cool:1.6,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,armored:true,note:"耐久・占領"},
- archer:{name:"魔導射手",glyph:"✧",cost:3,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,armored:false,note:"遠距離・対空"},
- suppress:{name:"制圧機兵",glyph:"✳",cost:4,limit:6,qty:1,hp:285,damage:43,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:false,armored:true,splash:70,note:"対集団・広範囲砲撃"},
- guardian:{name:"守護ゴーレム",glyph:"⬡",cost:4,limit:5,qty:1,hp:620,damage:32,cool:1.85,range:44,vision:130,speed:19,r:24,behavior:"guard",capture:0,hitAir:false,armored:true,note:"迎撃・守備"},
- drone:{name:"浮遊ドローン",glyph:"✦",cost:4,limit:5,qty:2,hp:135,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:false,flying:true,armored:false,note:"飛行・突破"},
- tank:{name:"魔導重戦車",glyph:"▰",cost:6,limit:3,qty:1,hp:755,damage:49,cool:2.0,range:108,vision:149,speed:15,r:25,behavior:"normal",capture:0,hitAir:false,armored:true,splash:24,note:"高耐久・重装"}
+ infantry:{name:"基本歩兵",glyph:"♟",size:"small",cost:2,limit:Infinity,qty:2,hp:116,damage:16,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,note:"小型・占領・無制限"},
+ scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:5,qty:1,hp:145,damage:16,cool:1.2,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,note:"中型・高速・占領"},
+ engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:315,damage:19,cool:1.6,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,note:"中型・耐久・占領"},
+ archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,note:"小型・遠距離・対空"},
+ suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:340,damage:52,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:false,splash:70,note:"中型・対集団・範囲砲撃"},
+ guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,note:"大型・敵大型を優先迎撃・衝撃波"},
+ drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:135,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:false,flying:true,note:"中型・飛行・突破"},
+ tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:88,cool:2.15,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:false,splash:58,note:"大型・長射程・重砲・突破"},
 };
 const IDS=Object.keys(CLASSES);
 const SPELLS={
@@ -42,6 +43,7 @@ const SPELLS={
  ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"}
 };
 const CATALOG={...CLASSES,...SPELLS};
+const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
 const DECK_IDS=["scout","engineer","archer","barrage","suppress","guardian","ward","drone","tank"];
 const HAND_SIZE=4;
 const isSpell=id=>Object.prototype.hasOwnProperty.call(SPELLS,id);
@@ -77,8 +79,8 @@ function resetWorld(){
   S.hand[team]=DECK_IDS.slice(0,HAND_SIZE);
   S.queue[team]=DECK_IDS.slice(HAND_SIZE);
  }
- S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP,attack:0},
-             {team:2,x:1206,y:328,hp:START_HP,max:START_HP,attack:0}];
+ S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP},
+             {team:2,x:1206,y:328,hp:START_HP,max:START_HP}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
 }
 function capital(team){return S.capitals[team-1];}
@@ -201,14 +203,24 @@ function getFort(u){
 }
 function nearbyEnemy(u){
  const d=CLASSES[u.key],dir=u.team===1?1:-1,guard=d.behavior==="guard";
- const sight=guard?Math.min(d.vision,165):d.vision;
+ const sight=guard?Math.min(d.vision,210):d.vision;
  let best=null,score=Infinity;
+ // A defensive giant prioritizes an enemy giant inside its interception perimeter.
+ if(guard){
+  const heavies=S.units.filter(v=>v.team!==u.team&&v.hp>0&&CLASSES[v.key].size==="large"&&
+   dist(u,v)<=sight&&Math.hypot(v.x-u.anchorX,v.y-u.anchorY)<=240);
+  if(heavies.length){
+   heavies.sort((a,b)=>dist(u,a)-dist(u,b));
+   const v=heavies[0];u.lock=v.uid;
+   return {kind:"unit",ref:v,x:v.x,y:v.y,r:CLASSES[v.key].r};
+  }
+ }
  // Keep focus on a viable target instead of switching each frame.
  const previous=S.units.find(v=>v.uid===u.lock&&v.hp>0&&v.team!==u.team);
  if(previous&&(!CLASSES[previous.key].flying||d.hitAir)){
   const dx=dir*(previous.x-u.x),distance=dist(previous,u);
   if(distance<sight*1.16&&(guard||dx>=-Math.max(d.range+previous.r,35))){
-   if(!guard||Math.hypot(previous.x-u.anchorX,previous.y-u.anchorY)<=180){
+   if(!guard||Math.hypot(previous.x-u.anchorX,previous.y-u.anchorY)<=(CLASSES[previous.key].size==="large"?240:180)){
     return {kind:"unit",ref:previous,x:previous.x,y:previous.y,r:CLASSES[previous.key].r};
    }
   }
@@ -224,7 +236,7 @@ function nearbyEnemy(u){
   if(guard&&Math.hypot(v.x-u.anchorX,v.y-u.anchorY)>180)continue;
   const behindPenalty=!guard&&dx<0?35:0;
   const groupValue=u.key==="suppress"?Math.min(6,S.units.filter(other=>other.team!==u.team&&other.hp>0&&dist(other,v)<d.splash).length)*24:0;
-  const candidate=distance+behindPenalty+(d.antiArmor&&CLASSES[v.key].armored?-26:0)-groupValue;
+  const candidate=distance+behindPenalty-(d.size==="large"&&CLASSES[v.key].size==="large"?24:0)-groupValue;
   if(candidate<score){score=candidate;best={kind:"unit",ref:v,x:v.x,y:v.y,r:CLASSES[v.key].r};}
  }
  const c=capital(enemy(u.team)),wall=wallTarget(c,u.y),wallDistance=Math.hypot(u.x-wall.x,u.y-wall.y);
@@ -249,12 +261,9 @@ function moveToward(u,x,y,dt){
  u.walking=amt>.03;
  if(u.walking)u.walkPhase+=amt*.31;
 }
-function attackUnit(target,value,attacker){
- const att=CLASSES[attacker.key],def=CLASSES[target.key];
- let power=value;
- if(def.armored&&!att.antiArmor)power*=.78;
- if(def.armored&&att.antiArmor)power*=att.antiArmor;
- hitUnit(target,power);
+function attackUnit(target,value){
+ // No hidden armor or size reductions; direct damage uses the displayed attack value.
+ hitUnit(target,value);
 }
 function fire(u,target){
  const d=CLASSES[u.key],ref=target.ref;
@@ -344,19 +353,6 @@ function unitStep(dt){
  }
  S.units=S.units.filter(u=>u.hp>0);
 }
-function baseStep(dt){
- for(const c of S.capitals){
-  if(c.hp<=0)continue;
-  c.attack=Math.max(0,c.attack-dt);
-  if(c.attack>0)continue;
-  const foes=S.units.filter(u=>u.team!==c.team&&u.hp>0&&Math.abs(u.x-WALL_FACE[c.team])<130&&u.y>WALL_TOP-35&&u.y<WALL_BOTTOM+35);
-  if(!foes.length)continue;
-  foes.sort((a,b)=>Math.abs(a.x-WALL_FACE[c.team])-Math.abs(b.x-WALL_FACE[c.team]));
-  const target=foes[0];hitUnit(target,33);c.attack=1.6;
-  S.effects.push({x:target.x,y:target.y,t:.24,max:.24,team:c.team,r:21,type:"wall"});
-  S.projectiles.push({x:WALL_FACE[c.team],y:WALL_Y(target.y)-19,tx:target.x,ty:target.y-24,t:.28,max:.28,team:c.team,kind:"wall"});
- }
-}
 function rate(){
  if(S.elapsed<100)return .25;
  if(S.elapsed<210)return .36;
@@ -426,8 +422,8 @@ function finishTime(){
 function tick(dt){
  if(S.phase!=="battle")return;
  S.elapsed+=dt;S.seconds-=dt;
- for(const team of [1,2])S.energy[team]=Math.min(10,S.energy[team]+dt*rate()*(team===2&&S.difficulty==="easy"?.82:1));
- botStep(dt);unitStep(dt);baseStep(dt);spellStep(dt);
+ for(const team of [1,2])S.energy[team]=Math.min(ENERGY_CAP,S.energy[team]+dt*rate()*(team===2&&S.difficulty==="easy"?.82:1));
+ botStep(dt);unitStep(dt);spellStep(dt);
  for(const fx of S.effects)fx.t-=dt;
  S.effects=S.effects.filter(f=>f.t>0);
  for(const shot of S.projectiles)shot.t-=dt;
@@ -525,7 +521,7 @@ function drawCapital(c){
  ctx.save();
  ctx.fillStyle="#041c2388";ctx.fillRect(face-(blue?35:0),WALL_TOP+10,35,WALL_BOTTOM-WALL_TOP-15);
  const faceSide=blue?1:-1;
- // Continuous fortress wall, with individual battlements and lit defenses.
+ // Passive fortress wall, with decorative battlements and no auto-turrets.
  ctx.fillStyle=blue?"#3b7c8f":"#925362";ctx.strokeStyle=blue?"#a9e0e7":"#f2b5ad";ctx.lineWidth=3;
  rounded(ctx,face-24,WALL_TOP,48,WALL_BOTTOM-WALL_TOP,7);ctx.fill();ctx.stroke();
  ctx.fillStyle=blue?"#234758":"#663e4a";
@@ -684,14 +680,22 @@ function draw(){
  ctx.globalAlpha=1;drawPreview();
  ctx.restore();
 }
+function buildEnergyMeter(){
+ const rail=$("resourceRail");rail.replaceChildren();
+ for(let i=0;i<ENERGY_CAP;i++){
+  const segment=document.createElement("span");segment.className="resourceSegment";
+  const fill=document.createElement("span");fill.className="resourceSegmentFill";
+  segment.append(fill);rail.append(segment);
+ }
+}
 function buildCards(){
  cards.replaceChildren();
  for(const id of ["infantry",...S.hand[1]]){
   const d=CATALOG[id],available=S.left[1][id]>0,spell=isSpell(id);
   const button=document.createElement("button");
-  button.type="button";button.className="card"+(id==="infantry"?" permanent":"")+(spell?" spell":"");
+  button.type="button";button.className="card"+(id==="infantry"?" permanent":"")+(spell?" spell":"")+(d.size?" tier-"+d.size:"");
   button.dataset.id=id;
-  button.setAttribute("aria-label",d.name+" コスト"+d.cost+(spell?" スペル":""));
+  button.setAttribute("aria-label",d.name+" コスト"+d.cost+" "+(spell?"スペル":SIZE_LABEL[d.size]));
   if(S.selected===id)button.classList.add("selected");
   if(!available)button.classList.add("depleted");
   if(!canPay(1,id))button.classList.add("unavailable");
@@ -701,7 +705,7 @@ function buildCards(){
    '<canvas class="cardPortrait" width="128" height="72" aria-hidden="true"></canvas>'+
    '<div class="cardName">'+d.name+'</div>'+
    '<div class="cardBottom"><span class="cardLeft">'+left+'</span>'+
-   (spell?'<span class="cardSpell">スペル</span>':d.capture?'<span class="cardCapture">⚑ 占領可</span>':'<span>戦闘</span>')+'</div>';
+   (spell?'<span class="cardSpell">魔法</span>':'<span class="cardTier">'+SIZE_LABEL[d.size]+(d.capture?' ⚑':'')+'</span>')+'</div>';
   if(window.KokokuArt)window.KokokuArt.drawPortrait(button.querySelector("canvas"),id,1);
   button.addEventListener("pointerdown",e=>cardDown(e,id));
   button.addEventListener("contextmenu",e=>{e.preventDefault();if(S.phase==="prep"||S.phase==="battle")openCardInfo(id);});
@@ -715,9 +719,9 @@ let galleryResume="menu",infoResume="menu";
 function openCardInfo(id){
  const d=CATALOG[id];if(!d||S.phase==="inspect")return;
  infoResume=S.phase;S.phase="inspect";
- S.drag=null;$("dragging").style.display="none";
+ S.drag=null;
  $("cardInfoName").textContent=d.name;
- $("cardInfoRole").textContent=isSpell(id)?"スペル":d.capture?"占領可能な兵士":"戦闘専門の兵士";
+ $("cardInfoRole").textContent=isSpell(id)?"スペル":SIZE_LABEL[d.size]+" · "+(d.capture?"占領可能":"戦闘専門");
  const remaining=Number.isFinite(S.left[1][id])?S.left[1][id]:"無制限";
  const infos=isSpell(id)?
    [["消費資源",d.cost],["使用回数",remaining+" 回"],["効果半径",d.radius],["持続・着弾時間",id==="barrage"?d.delay+" 秒":d.duration+" 秒"]]:
@@ -753,7 +757,7 @@ function buildGallery(){
   const d=CLASSES[id],tile=document.createElement("div");tile.className="galleryTile";
   tile.innerHTML='<canvas width="240" height="150" aria-label="'+d.name+'のデザイン"></canvas>'+
    '<div class="galleryName">'+d.name+'</div>'+
-   '<div class="galleryDetails"><span class="galleryRole">'+(d.capture?"⚑ 占領可能":"✦ 戦闘専門")+'</span> · コスト '+d.cost+' · '+d.qty+'体召喚</div>'+
+   '<div class="galleryDetails"><span class="galleryRole">'+SIZE_LABEL[d.size]+' · '+(d.capture?"⚑ 占領可能":"✦ 戦闘専門")+'</span> · コスト '+d.cost+' · '+d.qty+'体召喚</div>'+
    '<div class="galleryDetails">'+d.note+'</div>';
   group.append(tile);
   if(window.KokokuArt)window.KokokuArt.drawPortrait(tile.querySelector("canvas"),id,1);
@@ -777,9 +781,16 @@ function updateHUD(){
  $("redText").textContent=Math.ceil(capital(2).hp)+" / "+START_HP;
  $("blueBar").style.width=100*capital(1).hp/START_HP+"%";
  $("redBar").style.width=100*capital(2).hp/START_HP+"%";
- $("resourceNumber").innerHTML=Math.floor(S.energy[1])+' <small>/ 10</small>';
- $("resourceLevel").style.width=100*S.energy[1]/10+"%";
- $("rate").textContent=S.phase==="prep"?"準備中：回復なし":"回復 毎秒 +"+rate().toFixed(2);
+ const energy=limit(S.energy[1],0,ENERGY_CAP);
+ $("resourceNumber").innerHTML=Math.floor(energy)+' <small>/ '+ENERGY_CAP+'</small>';
+ const segments=$("resourceRail").children;
+ for(let i=0;i<segments.length;i++)segments[i].children[0].style.width=100*limit(energy-i,0,1)+"%";
+ $("resourceRail").setAttribute("aria-valuenow",energy.toFixed(2));
+ const playing=S.phase==="battle",paused=["paused","gallery","inspect"].includes(S.phase);
+ const next=energy>=ENERGY_CAP-1e-6?"MAX":playing?
+   "あと "+((Math.floor(energy)+1-energy)/(rate()*S.speed)).toFixed(1)+"秒":paused?"停止中":"開戦後回復";
+ $("resourceNext").textContent=next;
+ $("rate").textContent=S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒";
  $("prepTime").textContent=numTime(S.prep);
  const owners=S.forts.filter(f=>f.owner===1).length;
  $("remaining").textContent="前哨基地 "+owners+" / 3";
@@ -787,7 +798,9 @@ function updateHUD(){
  for(const b of cards.children){
   const id=b.dataset.id;if(!id)continue;
   const d=CATALOG[id];
-  b.classList.toggle("unavailable",!canPay(1,id));
+  const ready=canPay(1,id);
+  b.classList.toggle("unavailable",!ready);
+  b.classList.toggle("ready",ready);
   b.classList.toggle("depleted",S.left[1][id]<=0);
   b.classList.toggle("selected",S.selected===id);
  }
@@ -841,11 +854,11 @@ function resumeButton(){
  else if(S.phase==="paused"){S.phase="battle";$("pause").textContent="Ⅱ 停止";}
 }
 function start(){
- resetWorld();fit();buildCards();buildGallery();
+ resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
  window.addEventListener("resize",fit);
  document.addEventListener("pointermove",onGlobalMove);
  document.addEventListener("pointerup",onGlobalUp);
- document.addEventListener("pointercancel",e=>{if(S.drag&&S.drag.pointer===e.pointerId){S.drag=null;$("dragging").style.display="none";}});
+ document.addEventListener("pointercancel",e=>{if(S.drag&&S.drag.pointer===e.pointerId){S.drag=null;}});
  area.addEventListener("pointerdown",arenaDown);
  area.addEventListener("pointermove",arenaMove);
  area.addEventListener("pointerup",arenaUp);
