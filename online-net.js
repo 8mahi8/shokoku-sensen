@@ -11,26 +11,29 @@ const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)cr
 const clientId=token(), ROOM_VERSION=1;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
+let lastRemoteSeq=0,serverOffset=0,presencePending=false;
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
 function updateUI(){
  const inRoom=!!room,guest=!!players?.guest,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ const seat=host?"host":"guest",other=host?"guest":"host";
+ const seatValid=!inRoom||players?.[seat]?.id===clientId,peerOnline=!!players?.[other]?.online;
  $("netRoom").textContent=inRoom?roomCode:"-----";
  $("netSeat").textContent=inRoom?(host?"青軍／ホスト":"赤軍／ゲスト"):"参加前";
  $("netRoomInfo").textContent=inRoom?("ルーム "+roomCode+" ／ "+(host?"青軍":"赤軍")+(guest?" ／ 2人参加":" ／ 友達を待っています")):"5桁の番号で友達と対戦";
  $("netCreate").disabled=inRoom;
  $("netJoin").disabled=inRoom;
- $("netReady").disabled=!inRoom||(host?!guest:!players?.host)||meta?.status!=="lobby";
+ $("netReady").disabled=!inRoom||!seatValid||!connected||!peerOnline||meta?.status!=="lobby";
  $("netReady").textContent=host&&players?.host?.ready||!host&&players?.guest?.ready?"準備OK ✓":"準備完了";
  $("netStart").hidden=!host;
- $("netStart").disabled=!host||!ready||meta?.status!=="lobby"||!connected;
+ $("netStart").disabled=!host||!ready||!peerOnline||!seatValid||meta?.status!=="lobby"||!connected;
  $("netShare").disabled=!inRoom;
  if(inRoom&&meta?.status==="lobby"&&connected)
-  show(guest?ready?"2人準備OK。ホストが開始できます。":"2人参加中。両方が準備完了を押してください。":"ルーム番号を友達に伝えてください");
+  show(!seatValid?"参加情報が変更されました。新しいルームへ接続し直してください":!peerOnline?"相手の接続を待っています":ready?"2人準備OK。ホストが開始できます。":"2人参加中。両方が準備完了を押してください");
  if(inRoom&&meta?.status==="playing"&&connected){
   $("networkBar").classList.remove("hidden");
-  $("networkBar").textContent="ONLINE "+roomCode+" ｜ "+(host?"青軍":"赤軍")+" ｜ 接続中";
+  $("networkBar").textContent="ONLINE "+roomCode+" ｜ "+(host?"青軍":"赤軍")+" ｜ "+(!connected?"通信切断：再接続中":!seatValid?"参加情報が無効":!peerOnline?"相手の再接続を待っています":"接続中");
  }else if(inRoom&&meta?.status==="finished"){
   $("networkBar").classList.remove("hidden");
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
@@ -48,21 +51,38 @@ function initFirebase(){
  db=firebase.database();
  return db;
 }
+async function registerPresence(){
+ if(presencePending||!connected||!room)return;
+ presencePending=true;
+ const current=room,playerRef=current.child("players/"+(host?"host":"guest"));
+ try{
+  const record=(await playerRef.once("value")).val();
+  if(current!==room||!connected)return;
+  if(record?.id!==clientId){show("参加者IDが一致しません。新しいルームで接続し直してください");return;}
+  const op=playerRef.onDisconnect();
+  await op.update({online:false,lastSeen:firebase.database.ServerValue.TIMESTAMP});
+  if(current!==room||!connected){await op.cancel().catch(()=>{});return;}
+  disconnectOp=op;
+  await playerRef.child("online").set(true);
+ }catch(e){setError(e)}finally{presencePending=false;}
+}
 function setupRoom(code,isHost){
- roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;
+ roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
- const playerRef=room.child("players/"+(host?"host":"guest"));
- disconnectOp=playerRef.onDisconnect();disconnectOp.update({online:false,lastSeen:firebase.database.ServerValue.TIMESTAMP}).catch(setError);
+ if(connected)registerPresence().catch(setError);
  attach(room.child("players"),"value",snap=>{
   players=snap.val();
-  if(!players?.host?.online||!players?.guest?.online&&meta?.status==="playing"){
-   $("networkBar").textContent="相手の接続が切れた可能性があります。";
-  }
   updateUI();
  });
  attach(room.child("meta"),"value",snap=>{
   const before=meta?.status;meta=snap.val();
+  if(meta?.status==="lobby"&&before==="finished"){
+   phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   window.__onlineSeq=0;window.__onlineHandSig="";
+   game?.resetForLobby?.();onlinePanel(true);$("networkBar").classList.add("hidden");
+   show("再戦の準備をしてください。2人とも準備完了で開始できます");
+  }
   if(meta?.status==="playing"&&before!=="playing"){
    phase="playing";onlinePanel(false);
    if(host){
@@ -84,7 +104,7 @@ function setupRoom(code,isHost){
   attach(room.child("commands"),"child_added",async snap=>{
    const data=snap.val();if(!data)return;
    // Only accepted orders from this room's registered guest; all gameplay checks run in host.
-   if(meta?.status==="playing"&&data.by===players?.guest?.id&&
+   if(meta?.status==="playing"&&data.round===meta.round&&data.by===players?.guest?.id&&players?.guest?.online&&
       Number.isInteger(data.seq)&&data.seq>lastGuestSeq){
     lastGuestSeq=data.seq;
     const valid=game?.accept({id:data.id,x:data.x,y:data.y})===true;
@@ -96,8 +116,8 @@ function setupRoom(code,isHost){
  }else{
   attach(room.child("state"),"value",snap=>{
    const packet=snap.val();
-   if(!packet||!Number.isInteger(packet.seq)||!packet.world)return;
-   game?.apply(packet.world,packet.seq);
+   if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||!packet.world||packet.seq<=lastRemoteSeq)return;
+   lastRemoteSeq=packet.seq;game?.apply(packet.world,packet.seq);
   });
   attach(room.child("feedback"),"value",snap=>{
    const feedback=snap.val();
@@ -112,12 +132,16 @@ async function create(){
   for(let attempt=0;attempt<12;attempt++){
    const code=String(10000+Math.floor(Math.random()*90000));
    const ref=db.ref(ROOT+"/"+code);
-   const now=Date.now();
+   const now=Date.now()+serverOffset;
    const proposed={
-    meta:{version:ROOM_VERSION,status:"lobby",createdAt:now},
+    meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
     players:{host:{id:clientId,ready:false,online:true,joinedAt:now}}
    };
-   const result=await ref.transaction(old=>old===null?proposed:undefined,undefined,false);
+   const result=await ref.transaction(old=>{
+    if(old===null)return proposed;
+    const expired=now-(old.meta?.createdAt||0)>24*60*60*1000;
+    return expired&&!old.players?.host?.online&&!old.players?.guest?.online?proposed:undefined;
+   },undefined,false);
    if(result.committed){setupRoom(code,true);return}
   }
   throw Error("ルーム番号を確保できませんでした");
@@ -129,10 +153,17 @@ async function join(){
  try{
   initFirebase();const ref=db.ref(ROOT+"/"+code);
   const status=(await ref.child("meta").once("value")).val();
-  if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION)throw Error("参加できるルームが見つかりません");
-  const now=Date.now();
+  const owner=(await ref.child("players/host").once("value")).val();
+  if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
+   throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
+  const now=Date.now()+serverOffset;
   const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
+  const latest=(await ref.child("meta").once("value")).val();
+  if(latest?.status!=="lobby"){
+   await ref.child("players/guest").transaction(old=>old?.id===clientId?null:undefined,undefined,false);
+   throw Error("試合が先に開始されました。別のルームに参加してください");
+  }
   setupRoom(code,false);
  }catch(e){setError(e)}
 }
@@ -145,7 +176,7 @@ async function ready(){
  }catch(e){setError(e)}
 }
 async function startMatch(){
- if(!host||!room||meta?.status!=="lobby"||!players?.host?.ready||!players?.guest?.ready||!connected)return;
+ if(!host||!room||meta?.status!=="lobby"||!players?.host?.ready||!players?.guest?.ready||!players?.guest?.online||!connected)return;
  try{
   const result=await room.child("meta").transaction(old=>{
    if(!old||old.status!=="lobby")return;
@@ -158,28 +189,41 @@ function sendCommand(c){
  if(host||!room||phase!=="playing")return;
  if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
  const seq=++commandSeq;
- room.child("commands").push({by:clientId,seq,id:c.id,x:c.x,y:c.y,time:Date.now()}).catch(setError);
+ room.child("commands").push({by:clientId,seq,round:meta?.round||1,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(setError);
 }
 function maybePublish(force=false){
  if(!host||!room||phase!=="playing"||!game)return;
  const now=performance.now();if(!force&&now-lastSend<180)return;
  lastSend=now;
  const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
- room.child("state").set({seq:++seq,world,at:Date.now()}).catch(setError);
+ room.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset}).catch(setError);
 }
 function finish(data){
  if(!host||!room||phase!=="playing")return;
  phase="finished";
  // Force publish the final world before closing, so the guest sees the last HP.
  const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
- room.child("state").set({seq:++seq,world:{...world,phase:"result"},at:Date.now()}).catch(setError);
- const winner=data.result==="draw"?0:data.result==="win"?1:2;
- room.child("result").set({winner,reason:data.reason,at:Date.now()}).catch(setError);
- room.child("meta/status").set("finished").catch(setError);
+ const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
+ room.update({
+  state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
+  result:{winner,reason:data.reason,at},
+  "meta/status":"finished"
+ }).catch(setError);
 }
 function resultForMe(){return !result||result.winner===0?"draw":result.winner===team?"win":"lose"}
 function hasResult(){return !!result}
 function resultReason(){return result?.reason||"対戦終了"}
+async function rematch(){
+ if(!host||!room||meta?.status!=="finished"||!connected)return;
+ try{
+  $("start").disabled=true;
+  await room.update({
+   "meta/status":"lobby","meta/startedAt":null,"meta/round":(meta.round||1)+1,
+   "players/host/ready":false,"players/guest/ready":false,
+   state:null,result:null,commands:null,feedback:null
+  });
+ }catch(e){setError(e)}finally{$("start").disabled=false;}
+}
 function resetLobby(){
  detach();room=null;roomCode="";team=0;host=false;players=null;meta=null;phase="none";result=null;
  onlinePanel(true);$("networkBar").classList.add("hidden");show("新しいルームを作るか、番号を入力して参加してください");
@@ -189,7 +233,7 @@ function resetLobby(){
 }
 const api={
  get team(){return team},get isHost(){return host},get isOnline(){return true},
- registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,
+ registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;
@@ -205,8 +249,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(roomCode).then(()=>show("ルーム番号をコピーしました")).catch(()=>show("番号を選択しました。コピーして共有してください"));
   else show("番号を選択しました。コピーして共有してください");
  });
- try{initFirebase();db.ref(".info/connected").on("value",snap=>{
-  connected=snap.val()===true;if(!connected)show("Firebaseに接続中…");else if(!room)show("接続OK。ルームを作成・参加できます。");
+ try{initFirebase();db.ref(".info/serverTimeOffset").on("value",snap=>{serverOffset=Number(snap.val())||0;});db.ref(".info/connected").on("value",snap=>{
+  connected=snap.val()===true;if(!connected)show("通信が切れました。自動再接続を待っています。");else if(!room)show("接続OK。ルームを作成・参加できます。");
+  if(connected&&room)registerPresence().catch(setError);
   updateUI();
  })}catch(e){setError(e)}
  updateUI();
