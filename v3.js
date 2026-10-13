@@ -998,6 +998,8 @@ function resumeButton(){
 }
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
+ // Refresh card and gallery portraits once the high-quality Gald atlas is built.
+ window.addEventListener("gald-ready",()=>{buildCards();buildGallery();});
  window.addEventListener("resize",fit);
  document.addEventListener("pointermove",onGlobalMove);
  document.addEventListener("pointerup",onGlobalUp);
