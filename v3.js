@@ -156,7 +156,7 @@ function spellStep(dt){
     if(u.hp<=0||u.team===shot.team)continue;
     if(Math.hypot(u.x-shot.x,u.y-shot.y)<shot.r){hitUnit(u,SPELLS.barrage.damage);hits++;}
    }
-   S.effects.push({x:shot.x,y:shot.y,t:.52,max:.52,team:shot.team,r:shot.r});
+   S.effects.push({x:shot.x,y:shot.y,t:.52,max:.52,team:shot.team,r:shot.r,type:"barrage"});
    if(shot.team===1&&hits>=3)notice("範囲砲撃が敵兵"+hits+"体に命中！");
   }
  }
@@ -240,7 +240,14 @@ function fire(u,target){
  const d=CLASSES[u.key],ref=target.ref;
  u.attack=d.cool;
  u.attackAnim=.34;
- S.effects.push({x:target.x,y:target.y,t:.23,max:.23,team:u.team,r:d.splash||16});
+ S.effects.push({x:target.x,y:target.y,t:.28,max:.28,team:u.team,r:d.splash||16,type:u.key});
+ if(["archer","suppress","drone","tank"].includes(u.key)){
+  S.projectiles.push({x:u.x,y:u.y-36,tx:target.x,ty:target.y-(target.kind==="unit"?34:8),
+   t:u.key==="tank"?.42:.31,max:u.key==="tank"?.42:.31,team:u.team,kind:u.key});
+ }
+ if(["guardian","engineer","infantry","scout"].includes(u.key)&&S.effects.length<220){
+  S.effects.push({x:u.x,y:u.y-30,t:.18,max:.18,team:u.team,r:19,type:"slash"});
+ }
  if(target.kind==="fort"){
   if(!d.capture||ref.owner===u.team)return;
   ref.hp=Math.max(0,ref.hp-d.capture);
@@ -296,6 +303,21 @@ function unitStep(dt){
   const cap=capital(enemy(u.team)),wall=wallTarget(cap,u.homeY);
   moveToward(u,wall.x,wall.y,dt);
  }
+ // A light lateral separation reduces overlap without pushing armies backward.
+ if((S.tickCount++%2)===0){
+  const active=S.units.filter(u=>u.hp>0&&!CLASSES[u.key].flying);
+  for(let i=0;i<active.length;i++)for(let j=i+1;j<active.length;j++){
+   const a=active[i],b=active[j];
+   if(a.team!==b.team||Math.abs(a.x-b.x)>38)continue;
+   const gap=(CLASSES[a.key].r+CLASSES[b.key].r)*.65;
+   const dx=a.x-b.x,dy=a.y-b.y,distance=Math.hypot(dx,dy);
+   if(distance>=gap)continue;
+   const push=Math.min(2.5,(gap-distance)*.27);
+   const sign=dy===0?(a.uid<b.uid?-1:1):(dy>0?1:-1);
+   a.y=limit(a.y+sign*push,43,H-43);
+   b.y=limit(b.y-sign*push,43,H-43);
+  }
+ }
  S.units=S.units.filter(u=>u.hp>0);
 }
 function baseStep(dt){
@@ -335,6 +357,11 @@ function botAction(){
  if(!affordable.length)return;
  const owned=S.forts.filter(f=>f.owner===2).length;
  const press=S.units.filter(u=>u.team===1&&u.x>border(2)-180).length;
+ const infantryThreat=enemies.filter(u=>u.key==="infantry"&&u.x>border(2)-290);
+ if(affordable.includes("suppress")&&infantryThreat.length>=4){
+  const spot=infantryThreat.sort((a,b)=>b.x-a.x)[0];
+  deploy(2,"suppress",limit(border(2)+32,60,W-50),limit(spot.y,70,H-70));return;
+ }
  const claimable=affordable.filter(id=>CLASSES[id].capture);
  const defenders=affordable.filter(id=>CLASSES[id].behavior==="guard"||id==="suppress"||id==="archer");
  let chosen=null;
@@ -379,6 +406,10 @@ function tick(dt){
  botStep(dt);unitStep(dt);baseStep(dt);spellStep(dt);
  for(const fx of S.effects)fx.t-=dt;
  S.effects=S.effects.filter(f=>f.t>0);
+ for(const shot of S.projectiles)shot.t-=dt;
+ S.projectiles=S.projectiles.filter(f=>f.t>0);
+ if(S.effects.length>140)S.effects.splice(0,S.effects.length-140);
+ if(S.projectiles.length>110)S.projectiles.splice(0,S.projectiles.length-110);
  if(S.phase==="battle"&&S.seconds<=0)finishTime();
 }
 function fit(){
@@ -421,20 +452,33 @@ function terrain(){
  ctx.fillStyle="#6b293233";ctx.fillRect(W-110,0,110,H);
 }
 function drawCapital(c){
- ctx.save();ctx.translate(c.x,c.y);
- const blue=c.team===1,col=blue?BLUE:RED;
- ctx.fillStyle="#05191c80";ctx.beginPath();ctx.ellipse(2,34,69,26,0,0,Math.PI*2);ctx.fill();
- ctx.fillStyle=blue?"#276c86":"#844656";ctx.strokeStyle=col;ctx.lineWidth=4;
- rounded(ctx,-43,-60,86,118,11);ctx.fill();ctx.stroke();
- for(const x of [-45,-15,15,45]){
-  ctx.fillStyle=blue?"#4f9bb6":"#b96776";
-  rounded(ctx,x-10,-82,20,28,4);ctx.fill();ctx.stroke();
+ const blue=c.team===1,col=blue?BLUE:RED,face=WALL_FACE[c.team];
+ ctx.save();
+ ctx.fillStyle="#041c2388";ctx.fillRect(face-(blue?35:0),WALL_TOP+10,35,WALL_BOTTOM-WALL_TOP-15);
+ const faceSide=blue?1:-1;
+ // Continuous fortress wall, with individual battlements and lit defenses.
+ ctx.fillStyle=blue?"#3b7c8f":"#925362";ctx.strokeStyle=blue?"#a9e0e7":"#f2b5ad";ctx.lineWidth=3;
+ rounded(ctx,face-24,WALL_TOP,48,WALL_BOTTOM-WALL_TOP,7);ctx.fill();ctx.stroke();
+ ctx.fillStyle=blue?"#234758":"#663e4a";
+ for(let y=WALL_TOP+12;y<WALL_BOTTOM-12;y+=53){
+  rounded(ctx,face-32,y,64,40,5);ctx.fill();
+  ctx.fillStyle=blue?"#558fa2":"#b56c74";
+  rounded(ctx,face-36,y-6,72,12,2);ctx.fill();
+  ctx.fillStyle=blue?"#234758":"#663e4a";
  }
- ctx.fillStyle="#173746";ctx.strokeStyle="#d5e9ec";ctx.lineWidth=2;
- rounded(ctx,-19,4,38,56,7);ctx.fill();ctx.stroke();
- ctx.fillStyle=col;ctx.beginPath();ctx.arc(0,-29,19,0,Math.PI*2);ctx.fill();
- ctx.fillStyle="#eaf5f0";ctx.font="bold 16px system-ui";ctx.textAlign="center";
- ctx.fillText(blue?"自軍首都":"敵軍首都",0,-104);
+ // Tall luminous lanes on the inward side guide the eye along the wall.
+ ctx.strokeStyle=col;ctx.lineWidth=4;
+ ctx.beginPath();ctx.moveTo(face+faceSide*28,WALL_TOP+8);ctx.lineTo(face+faceSide*28,WALL_BOTTOM-8);ctx.stroke();
+ for(let y=WALL_TOP+40;y<WALL_BOTTOM;y+=120){
+  ctx.save();ctx.translate(face,y);
+  ctx.fillStyle=blue?"#1c3945":"#503842";ctx.strokeStyle="#e2e7d6";ctx.lineWidth=2;
+  rounded(ctx,-15,-24,30,46,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(0,-5,9,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=col;ctx.beginPath();ctx.moveTo(-12,-32);ctx.lineTo(12,-32);ctx.stroke();
+  ctx.restore();
+ }
+ ctx.font="bold 13px system-ui";ctx.fillStyle="#f1f7ed";ctx.textAlign="center";
+ ctx.fillText(blue?"自軍城壁":"敵軍城壁",face,WALL_TOP-18);
  ctx.restore();
 }
 function drawFort(f){
@@ -541,8 +585,31 @@ function draw(){
  objects.sort((a,b)=>a.y-b.y);
  for(const obj of objects)obj.draw();
  for(const e of S.effects){
-  ctx.globalAlpha=e.t/e.max;ctx.strokeStyle=TEAM[e.team];ctx.lineWidth=3;
-  ctx.beginPath();ctx.arc(e.x,e.y,e.r*(1.35-e.t/e.max*.55),0,Math.PI*2);ctx.stroke();
+  const f=e.t/e.max;
+  ctx.save();ctx.globalAlpha=Math.min(1,f*1.4);
+  const boom=e.type==="barrage"||e.type==="tank"||e.type==="suppress",spell=e.type==="barrage";
+  const color=spell?"#ffe2a3":e.type==="archer"?"#d3abff":e.type==="drone"?"#98fff1":TEAM[e.team];
+  ctx.strokeStyle=color;ctx.lineWidth=boom?4:2.5;
+  ctx.beginPath();ctx.arc(e.x,e.y,Math.max(3,e.r*(1.26-.66*f)),0,Math.PI*2);ctx.stroke();
+  if(boom||e.type==="slash"){
+   const n=boom?8:4,base=e.r*(1-f)*.86;
+   for(let k=0;k<n;k++){
+    const angle=k*Math.PI*2/n+(e.x*0.19%1),px=e.x+Math.cos(angle)*base,py=e.y+Math.sin(angle)*base;
+    ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px+Math.cos(angle)*(8+7*(1-f)),py+Math.sin(angle)*(8+7*(1-f)));ctx.stroke();
+   }
+  }
+  ctx.restore();
+ }
+ for(const shot of S.projectiles){
+  const f=1-shot.t/shot.max;
+  const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f;
+  const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
+  ctx.save();ctx.globalAlpha=Math.min(1,shot.t/.09);
+  ctx.strokeStyle=shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
+  ctx.lineWidth=shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
+  ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=shot.kind==="tank"?15:10;ctx.lineCap="round";
+  ctx.beginPath();ctx.moveTo(x-Math.cos(a)*len,y-Math.sin(a)*len);ctx.lineTo(x,y);ctx.stroke();
+  ctx.restore();
  }
  ctx.globalAlpha=1;drawPreview();
  ctx.restore();
