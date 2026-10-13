@@ -56,3 +56,10 @@
 - 自動テストの出所: `tests/online-smoke.cjs`（構文・埋込一致）と `tests/online-sim.cjs`（JavaScript上の模擬Firebase RTDB 2クライアント）。
 - 2クライアント模擬はロビー作成・入室・準備・開始・操作転送・ダミー戦場パケット・勝敗反転・同室再戦・旧ラウンド拒否・BRAWLパスへの不書込を検証。実ゲーム戦闘のHP/占領計算を丸ごと動かすE2Eテストではない。
 - Google Sites用に `online-ipad.html` の内容を `.txt` として生成。学校iPadでの貼付けが難しい場合はPCでGoogle SitesにHTMLコードを貼り付ける。
+
+## 2026-10-14 実クラウドQAの結果
+- 実RTDBに対する一時ルームの条件付き作成→読取→削除に成功（[GitHub Actions](https://github.com/8mahi8/shokoku-sensen/actions/runs/38442265085)）。一時ルームは削除を検証済み。BRAWLのパスは不使用。
+- 実Chromiumブラウザ2つのロビー作成→5桁入室→READY→開始→青赤双方の歩兵カード召喚→実RTDBのunit/energy/capitals/fortsを検証成功（[GitHub Actions](https://github.com/8mahi8/shokoku-sensen/actions/runs/38442603339)）。テストルームは削除確認。
+- オンライン通信、再戦、終了判定、旧ラウンド除外、退出フラグは模擬RTDBテストで検証（[GitHub Actions](https://github.com/8mahi8/shokoku-sensen/actions/runs/38442796810)）。
+- **学校の実iPad SafariとGoogle Sites iframeでは未試験。** 完整な5分対戦による終了・再戦・本当のラグやフレームレートも実機確認が必要。これまでの「実Firebase未実施」の記載は更新前の履歴であり、この追記を最新とする。
+
