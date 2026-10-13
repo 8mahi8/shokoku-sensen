@@ -5,12 +5,12 @@
  */
 (()=>{
 'use strict';
-const FRAME_W=330,FRAME_H=372,COLS=8;
+const FRAME_W=330,FRAME_H=372,COLS=8,PAGE_SIZE=40;
 const ORDER=[['idle',8],['walk',18],['punch',22],['hit',8],['death',10]];
 const INDEX={};let index=0;
 for(const [name,n] of ORDER){INDEX[name]={first:index,count:n};index+=n;}
 const START=index;
-let atlas=null,loading=false,failed=false;
+let atlases=null,loading=false,failed=false;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 function activeFrame(u,t){
  let state='idle',f=0;
@@ -23,7 +23,7 @@ function activeFrame(u,t){
  return item.first+Math.min(item.count-1,Math.floor(clamp(f,0,.999)*item.count));
 }
 function drawUnit(g,u,t){
- if(!atlas)return false;
+ if(!atlases)return false;
  const ix=activeFrame(u,t),width=201,height=227;
  const anchorX=105/330*width,anchorY=292.8/372*height;
  const death=clamp(u.deathProgress||0,0,1);
@@ -35,7 +35,8 @@ function drawUnit(g,u,t){
  g.globalAlpha=clamp((.4+.6*appear)*(1-death*.8),0,1);
  g.scale(dir*size,size);
  if(dir<0&&'filter' in g)g.filter='hue-rotate(160deg) saturate(1.25)';
- g.drawImage(atlas,(ix%COLS)*FRAME_W,Math.floor(ix/COLS)*FRAME_H,FRAME_W,FRAME_H,
+ const page=Math.floor(ix/PAGE_SIZE),local=ix%PAGE_SIZE;
+ g.drawImage(atlases[page],(local%COLS)*FRAME_W,Math.floor(local/COLS)*FRAME_H,FRAME_W,FRAME_H,
    -anchorX,-anchorY,width,height);
  g.restore();
  if(death===0&&u.hp<u.max){
@@ -46,12 +47,12 @@ function drawUnit(g,u,t){
  return true;
 }
 function drawPortrait(g,w,h,team){
- if(!atlas)return false;
+ if(!atlases)return false;
  const height=Math.min(w*.92,h*1.20),width=height*FRAME_W/FRAME_H,dir=team===1?1:-1;
  const anchorX=105/FRAME_W*width,anchorY=292.8/FRAME_H*height;
  g.save();g.translate(w*.53,h*.94);g.scale(dir,1);
  if(dir<0&&'filter' in g)g.filter='hue-rotate(160deg) saturate(1.25)';
- g.drawImage(atlas,0,0,FRAME_W,FRAME_H,-anchorX,-anchorY,width,height);
+ g.drawImage(atlases[0],0,0,FRAME_W,FRAME_H,-anchorX,-anchorY,width,height);
  g.restore();return true;
 }
 async function makeImage(svgText){
@@ -61,7 +62,7 @@ async function makeImage(svgText){
  finally{URL.revokeObjectURL(objectUrl);}
 }
 async function load(){
- if(loading||atlas||failed)return;loading=true;
+ if(loading||atlases||failed)return;loading=true;
  const frame=document.createElement('iframe');
  frame.tabIndex=-1;frame.setAttribute('aria-hidden','true');
  frame.style.cssText='display:none!important';
@@ -78,22 +79,29 @@ async function load(){
   api.state.playing=false;api.state.zoom=1;api.state.design='bastion';api.state.travel=0;
   const defs=doc.getElementById('arena').querySelector('defs').outerHTML;
   const header='<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="330" height="372" viewBox="240 0 550 620">';
-  const out=document.createElement('canvas');
-  out.width=COLS*FRAME_W;out.height=Math.ceil(START/COLS)*FRAME_H;
-  const ctx=out.getContext('2d',{alpha:true});if(!ctx)throw Error('No sprite-cache canvas');
+  // Each cache canvas stays under ~5 million pixels for older iPad Safari.
+  const pages=[PAGE_SIZE,START-PAGE_SIZE].map(count=>{
+   const canvas=document.createElement('canvas');
+   canvas.width=COLS*FRAME_W;
+   canvas.height=Math.ceil(count/COLS)*FRAME_H;
+   return canvas;
+  });
+  const ctxs=pages.map(canvas=>canvas.getContext('2d',{alpha:true}));
+  if(ctxs.some(ctx=>!ctx))throw Error('No sprite-cache canvas');
   let i=0;
   for(const [name,n]of ORDER){
    for(let k=0;k<n;k++){
     api.state.mode=name;api.state.phase=k/n;api.render();
     const img=await makeImage(header+defs+doc.getElementById('character').outerHTML+'</svg>');
-    ctx.drawImage(img,(i%COLS)*FRAME_W,Math.floor(i/COLS)*FRAME_H,FRAME_W,FRAME_H);
+    const page=Math.floor(i/PAGE_SIZE),local=i%PAGE_SIZE;
+    ctxs[page].drawImage(img,(local%COLS)*FRAME_W,Math.floor(local/COLS)*FRAME_H,FRAME_W,FRAME_H);
     i++;
    }
   }
-  atlas=out;window.dispatchEvent(new Event('gald-ready'));
+  atlases=pages;window.dispatchEvent(new Event('gald-ready'));
  }catch(err){failed=true;console.warn('Gald art: using fallback guardian',err);}
  finally{frame.remove();loading=false;}
 }
-window.GaldArt={drawUnit,drawPortrait,isReady:()=>!!atlas,getFrameIndex:activeFrame,ensureLoaded:load,version:'B-04 66-frame cached'};
+window.GaldArt={drawUnit,drawPortrait,isReady:()=>!!atlases,getFrameIndex:activeFrame,ensureLoaded:load,version:'B-04 66-frame cached'};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
 })();
