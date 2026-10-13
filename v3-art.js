@@ -200,28 +200,70 @@ function paint(g,key,team,clock=0,unit={}){
  const hit=attack>0?Math.sin((1-attack)*PI)*1:0;
  const state={step,hit,t:clock,unit};
  g.save();g.lineJoin="round";g.lineCap="round";
+ // Amplify individual motion at the new camera scale without changing hitboxes.
+ const recoil=hit*(key==="tank"||key==="guardian"?.06:.035);
+ const spring=moving?Math.abs(Math.sin(unit.walkPhase||clock*6))*.016:0;
+ g.scale(1+spring+recoil,1-spring*.6-recoil*.7);
  if(team===2)g.scale(-1,1);
- // subtle breath, foot animation, and faction accent in silhouette
- g.translate(0,-Math.sin(clock*2.1+(unit.uid||0))*.65);
+ g.translate(-hit*(key==="tank"?5:2),-Math.sin(clock*2.1+(unit.uid||0))*(moving?1.2:.7));
  (SPRITES[key]||infantry)(g,p,state);
  if(unit.flash>0){
   g.globalAlpha=Math.min(.35,unit.flash*1.4);oval(g,0,-40,25,40,"#ffffff",null);
  }
  g.restore();
 }
+const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,guardian:1.28,drone:1.08,tank:1.24};
+const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,guardian:97,drone:64,tank:73};
+// Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
- const flying=u.key==="drone";const bob=flying?16+Math.sin(clock*4+(u.drift||0))*3:0;
+ const flying=u.key==="drone",heavy=u.key==="guardian"||u.key==="tank";
+ const bob=flying?20+Math.sin(clock*4+(u.drift||0))*4:0;
+ const size=UNIT_SCALE[u.key]||.95;
+ const recoil=Math.max(0,(u.attackAnim||0)/.34);
+ const impact=recoil>0?Math.sin((1-recoil)*PI):0;
+ const direction=u.team===1?1:-1;
  g.save();g.translate(u.x,u.y);
- oval(g,2,4,flying?23:Math.max(14,((u.key==="engineer"||u.key==="guardian"||u.key==="tank")?29:19)),flying?6:8,"#0a222a80",null);
- if(u.key==="scout"&&u.walking){g.globalAlpha=.45;oval(g,-28,2,10,3,"#c9dfc5",null);g.globalAlpha=1;}
- g.translate(0,-bob);g.scale(.82,.82);paint(g,u.key,u.team,clock,u);
- if(flying){g.save();g.strokeStyle="#a1effa66";g.lineWidth=1.5;g.setLineDash([3,4]);g.beginPath();g.moveTo(0,-8);g.lineTo(0,16);g.stroke();g.restore();}
- g.restore();
+ oval(g,2,5,(heavy?32:22)*size,flying?7:9,"#0a222a9b",null);
+ if(u.walking){
+  // Distinct running/hovering cues; these are drawn rather than persistent particles.
+  if(u.key==="scout"||u.key==="tank"){
+   g.save();g.globalAlpha=.35;g.strokeStyle=u.team===1?"#91eeff":"#ffb8bc";
+   g.lineWidth=heavy?3.8:2.5;g.lineCap="round";
+   for(let i=0;i<3;i++){
+    const xx=-direction*(17+i*12),yy=-4+i*2;
+    g.beginPath();g.moveTo(xx,yy);g.lineTo(xx-direction*(11+i*4),yy);g.stroke();
+   }
+   g.restore();
+  }
+  if(heavy){
+   g.save();g.globalAlpha=.28+.16*Math.abs(Math.sin(u.walkPhase||0));
+   g.strokeStyle="#dbe7cf";g.lineWidth=2;
+   g.beginPath();g.ellipse(0,3,23+Math.abs(Math.sin(u.walkPhase||0))*5,7,0,0,TAU);g.stroke();g.restore();
+  }
+ }
+ g.save();g.translate(0,-bob);
+ g.scale(size,size);
+ paint(g,u.key,u.team,clock,u);
+ if(impact>.08){
+  // Character-local strike glints emphasize the action without filling the whole screen.
+  const p=PALETTES[u.team]||PALETTES[1];
+  g.save();g.globalAlpha=impact*.8;g.strokeStyle=p.glow;g.lineWidth=2.4;
+  const px=u.key==="tank"?58:u.key==="suppress"?45:u.key==="archer"?40:u.key==="guardian"?35:27;
+  const py=u.key==="tank"?-59:u.key==="archer"?-40:-35;
+  g.beginPath();g.moveTo(direction*px-7,py-9);g.lineTo(direction*px+7,py+9);
+  g.moveTo(direction*px+7,py-9);g.lineTo(direction*px-7,py+9);g.stroke();
+  g.restore();
+ }
+ if(flying){
+  g.save();g.strokeStyle="#a1effa66";g.lineWidth=1.7;g.setLineDash([3,4]);
+  g.beginPath();g.moveTo(0,-9);g.lineTo(0,18);g.stroke();g.restore();
+ }
+ g.restore();g.restore();
  if(u.hp<u.max){
-  const y=u.y-(u.key==="guardian"?83: u.key==="archer"?77: u.key==="scout"?75: u.key==="engineer"?73: u.key==="drone"?bob+62: u.key==="tank"?68:67);
+  const y=u.y-(BODY_HEIGHT[u.key]*size+bob+10);
   const ratio=Math.max(0,Math.min(1,u.hp/u.max));
-  round(g,u.x-21,y,42,6,3,"#132d36",null);
-  round(g,u.x-20,y+1,40*ratio,4,2,TEAMFILL(u.team),null);
+  round(g,u.x-22,y,44,6,3,"#132d36",null);
+  round(g,u.x-21,y+1,42*ratio,4,2,TEAMFILL(u.team),null);
  }
 }
 function TEAMFILL(team){return team===2?"#ff879b":"#7ddcf6";}
