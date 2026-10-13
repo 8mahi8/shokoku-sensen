@@ -1869,7 +1869,7 @@ function buildCards(){
   if(S.selected===id)button.classList.add("selected");
   if(!available)button.classList.add("depleted");
   if(!canPay(ME(),id))button.classList.add("unavailable");
-  const left=Number.isFinite(S.left[ME()][id])?"残 "+S.left[ME()][id]:"∞";
+  const left=Number.isFinite(CATALOG[id].limit)?"残 "+S.left[ME()][id]:"∞";
   button.innerHTML='<div class="cardTop"><span class="cardCost">'+d.cost+'</span><span class="cardQuantity">'+
    (spell?"魔法":id==="infantry"?"常時":"×"+d.qty)+'</span></div>'+
    '<canvas class="cardPortrait" width="128" height="72" aria-hidden="true"></canvas>'+
