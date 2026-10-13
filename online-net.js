@@ -1,0 +1,212 @@
+/* 小国戦線 III 1vs1 — Firebase RTDB transport, isolated from BRAWL rooms.
+ * No game rules here. The host alone ticks battles and validates guest actions.
+ * This is friend-play networking, not a tamper-proof or anti-cheat backend.
+ */
+(()=>{
+"use strict";
+const FIREBASE_DB_URL="https://mygame-df915-default-rtdb.firebaseio.com/";
+const ROOT="shokokuRooms1v1";
+const $=id=>document.getElementById(id);
+const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)crypto.getRandomValues(a);else throw Error("安全な乱数が使えません");return Array.from(a,x=>x.toString(36)).join("-");};
+const clientId=token(), ROOM_VERSION=1;
+let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
+let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
+const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
+const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
+function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
+function updateUI(){
+ const inRoom=!!room,guest=!!players?.guest,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ $("netRoom").textContent=inRoom?roomCode:"-----";
+ $("netSeat").textContent=inRoom?(host?"青軍／ホスト":"赤軍／ゲスト"):"参加前";
+ $("netRoomInfo").textContent=inRoom?("ルーム "+roomCode+" ／ "+(host?"青軍":"赤軍")+(guest?" ／ 2人参加":" ／ 友達を待っています")):"5桁の番号で友達と対戦";
+ $("netCreate").disabled=inRoom;
+ $("netJoin").disabled=inRoom;
+ $("netReady").disabled=!inRoom||(host?!guest:!players?.host)||meta?.status!=="lobby";
+ $("netReady").textContent=host&&players?.host?.ready||!host&&players?.guest?.ready?"準備OK ✓":"準備完了";
+ $("netStart").hidden=!host;
+ $("netStart").disabled=!host||!ready||meta?.status!=="lobby"||!connected;
+ $("netShare").disabled=!inRoom;
+ if(inRoom&&meta?.status==="lobby"&&connected)
+  show(guest?ready?"2人準備OK。ホストが開始できます。":"2人参加中。両方が準備完了を押してください。":"ルーム番号を友達に伝えてください");
+ if(inRoom&&meta?.status==="playing"&&connected){
+  $("networkBar").classList.remove("hidden");
+  $("networkBar").textContent="ONLINE "+roomCode+" ｜ "+(host?"青軍":"赤軍")+" ｜ 接続中";
+ }else if(inRoom&&meta?.status==="finished"){
+  $("networkBar").classList.remove("hidden");
+  $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
+ }
+}
+function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
+function detach(){
+ for(const [ref,event,fn] of watchers)ref.off(event,fn);
+ watchers=[];disconnectOp?.cancel().catch(()=>{});disconnectOp=null;
+}
+function initFirebase(){
+ if(db)return db;
+ if(!window.firebase?.database)throw Error("Firebase SDKが読み込めません。学校のネットワーク制限を確認してください。");
+ if(!firebase.apps.length)firebase.initializeApp({databaseURL:FIREBASE_DB_URL});
+ db=firebase.database();
+ return db;
+}
+function setupRoom(code,isHost){
+ roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;
+ players=null;meta=null;phase="lobby";result=null;
+ room=db.ref(ROOT+"/"+code);
+ const playerRef=room.child("players/"+(host?"host":"guest"));
+ disconnectOp=playerRef.onDisconnect();disconnectOp.update({online:false,lastSeen:firebase.database.ServerValue.TIMESTAMP}).catch(setError);
+ attach(room.child("players"),"value",snap=>{
+  players=snap.val();
+  if(!players?.host?.online||!players?.guest?.online&&meta?.status==="playing"){
+   $("networkBar").textContent="相手の接続が切れた可能性があります。";
+  }
+  updateUI();
+ });
+ attach(room.child("meta"),"value",snap=>{
+  const before=meta?.status;meta=snap.val();
+  if(meta?.status==="playing"&&before!=="playing"){
+   phase="playing";onlinePanel(false);
+   if(host){
+    game?.begin();
+    maybePublish(true);
+   }
+  }
+  if(meta?.status==="finished"&&before!=="finished"){
+   phase="finished";
+   if(!host&&result&&!game?.wasResult)game?.showResult?.(result);
+  }
+  updateUI();
+ });
+ attach(room.child("result"),"value",snap=>{
+  result=snap.val();
+  if(result&&meta?.status==="finished"&&!host)game?.showResult?.(result);
+ });
+ if(host){
+  attach(room.child("commands"),"child_added",async snap=>{
+   const data=snap.val();if(!data)return;
+   // Only accepted orders from this room's registered guest; all gameplay checks run in host.
+   if(meta?.status==="playing"&&data.by===players?.guest?.id&&
+      Number.isInteger(data.seq)&&data.seq>lastGuestSeq){
+    lastGuestSeq=data.seq;
+    const valid=game?.accept({id:data.id,x:data.x,y:data.y})===true;
+    if(!valid)room.child("feedback").set({seq:data.seq,message:"召喚できませんでした。コスト・範囲・カードを確認。"}).catch(()=>{});
+    else maybePublish(true);
+   }
+   try{await snap.ref.remove()}catch(e){setError(e)}
+  });
+ }else{
+  attach(room.child("state"),"value",snap=>{
+   const packet=snap.val();
+   if(!packet||!Number.isInteger(packet.seq)||!packet.world)return;
+   game?.apply(packet.world,packet.seq);
+  });
+  attach(room.child("feedback"),"value",snap=>{
+   const feedback=snap.val();
+   if(feedback?.seq===commandSeq)show(feedback.message);
+  });
+ }
+ updateUI();
+}
+async function create(){
+ try{
+  $("netCreate").disabled=true;initFirebase();
+  for(let attempt=0;attempt<12;attempt++){
+   const code=String(10000+Math.floor(Math.random()*90000));
+   const ref=db.ref(ROOT+"/"+code);
+   const now=Date.now();
+   const proposed={
+    meta:{version:ROOM_VERSION,status:"lobby",createdAt:now},
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now}}
+   };
+   const result=await ref.transaction(old=>old===null?proposed:undefined,undefined,false);
+   if(result.committed){setupRoom(code,true);return}
+  }
+  throw Error("ルーム番号を確保できませんでした");
+ }catch(e){setError(e);$("netCreate").disabled=false;}
+}
+async function join(){
+ const code=String($("netJoinCode").value||"").replace(/\D/g,"").slice(0,5);
+ if(!/^\d{5}$/.test(code)){show("5桁のルーム番号を入力してください");return}
+ try{
+  initFirebase();const ref=db.ref(ROOT+"/"+code);
+  const status=(await ref.child("meta").once("value")).val();
+  if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION)throw Error("参加できるルームが見つかりません");
+  const now=Date.now();
+  const p=await ref.child("players/guest").transaction(old=>old===null?{id:clientId,ready:false,online:true,joinedAt:now}:undefined,undefined,false);
+  if(!p.committed)throw Error("そのルームにはすでに2人います");
+  setupRoom(code,false);
+ }catch(e){setError(e)}
+}
+async function ready(){
+ if(!room||meta?.status!=="lobby")return;
+ try{
+  const seat=host?"host":"guest",me=players?.[seat];
+  if(me?.id!==clientId)throw Error("参加者情報が一致しません");
+  await room.child("players/"+seat+"/ready").set(!me.ready);
+ }catch(e){setError(e)}
+}
+async function startMatch(){
+ if(!host||!room||meta?.status!=="lobby"||!players?.host?.ready||!players?.guest?.ready||!connected)return;
+ try{
+  const result=await room.child("meta").transaction(old=>{
+   if(!old||old.status!=="lobby")return;
+   return {...old,status:"playing",startedAt:Date.now()};
+  },undefined,false);
+  if(!result.committed)throw Error("開始状態が変わりました");
+ }catch(e){setError(e)}
+}
+function sendCommand(c){
+ if(host||!room||phase!=="playing")return;
+ if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
+ const seq=++commandSeq;
+ room.child("commands").push({by:clientId,seq,id:c.id,x:c.x,y:c.y,time:Date.now()}).catch(setError);
+}
+function maybePublish(force=false){
+ if(!host||!room||phase!=="playing"||!game)return;
+ const now=performance.now();if(!force&&now-lastSend<180)return;
+ lastSend=now;
+ const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ room.child("state").set({seq:++seq,world,at:Date.now()}).catch(setError);
+}
+function finish(data){
+ if(!host||!room||phase!=="playing")return;
+ phase="finished";
+ // Force publish the final world before closing, so the guest sees the last HP.
+ const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ room.child("state").set({seq:++seq,world:{...world,phase:"result"},at:Date.now()}).catch(setError);
+ const winner=data.result==="draw"?0:data.result==="win"?1:2;
+ room.child("result").set({winner,reason:data.reason,at:Date.now()}).catch(setError);
+ room.child("meta/status").set("finished").catch(setError);
+}
+function resultForMe(){return !result||result.winner===0?"draw":result.winner===team?"win":"lose"}
+function resetLobby(){
+ detach();room=null;roomCode="";team=0;host=false;players=null;meta=null;phase="none";result=null;
+ onlinePanel(true);$("networkBar").classList.add("hidden");show("新しいルームを作るか、番号を入力して参加してください");
+ updateUI();
+ // Refresh rather than silently mixing old game state with a new lobby.
+ location.reload();
+}
+const api={
+ get team(){return team},get isHost(){return host},get isOnline(){return true},
+ registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,resetLobby,
+ reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
+};
+window.ShokokuNet=api;
+document.addEventListener("DOMContentLoaded",()=>{
+ $("netCreate").addEventListener("click",create);
+ $("netJoin").addEventListener("click",join);
+ $("netReady").addEventListener("click",ready);
+ $("netStart").addEventListener("click",startMatch);
+ $("netShare").addEventListener("click",()=>{
+  if(!roomCode)return;
+  $("netJoinCode").value=roomCode;
+  $("netJoinCode").select();
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(roomCode).then(()=>show("ルーム番号をコピーしました")).catch(()=>show("番号を選択しました。コピーして共有してください"));
+  else show("番号を選択しました。コピーして共有してください");
+ });
+ try{initFirebase();db.ref(".info/connected").on("value",snap=>{
+  connected=snap.val()===true;if(!connected)show("Firebaseに接続中…");else if(!room)show("接続OK。ルームを作成・参加できます。");
+  updateUI();
+ })}catch(e){setError(e)}
+ updateUI();
+});
+})();
