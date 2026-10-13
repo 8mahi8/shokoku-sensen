@@ -28,14 +28,15 @@ const WALL_Y=y=>limit(y,WALL_TOP+12,WALL_BOTTOM-12);
 const BLUE="#80d9f5",RED="#ff889a",GOLD="#f3da91";
 const ENERGY_CAP=12;
 const CLASSES={
- infantry:{name:"基本歩兵",glyph:"♟",size:"small",cost:2,limit:Infinity,qty:2,hp:116,damage:16,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,note:"小型・占領・無制限"},
+ infantry:{name:"基本歩兵",glyph:"♟",size:"small",cost:2,limit:Infinity,qty:2,hp:105,damage:15,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,note:"小型・占領・無制限"},
  scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:28,cool:1.05,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,note:"中型・高速・少数戦・占領"},
  engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:420,damage:34,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,note:"中型・高耐久・近接・占領"},
  archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,note:"小型・遠距離・対空"},
+ sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:540,damage:62,cool:1.45,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
  suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:445,damage:76,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:false,splash:70,splashScale:.8,note:"中型・密集対策・範囲砲撃"},
- guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,note:"大型・敵大型を優先迎撃・衝撃波"},
+ guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,note:"大型・対大型迎撃・強力な範囲衝撃波"},
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:135,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:false,flying:true,note:"中型・飛行・突破"},
- tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:88,cool:2.15,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:false,splash:58,note:"大型・長射程・重砲・突破"},
+ tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:false,splash:72,splashScale:.67,siege:2,note:"大型・長射程・範囲重砲・対城200%"},
 };
 const IDS=Object.keys(CLASSES);
 const SPELLS={
@@ -44,7 +45,7 @@ const SPELLS={
 };
 const CATALOG={...CLASSES,...SPELLS};
 const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
-const DECK_IDS=["scout","engineer","archer","barrage","suppress","guardian","ward","drone","tank"];
+const DECK_IDS=["scout","engineer","archer","barrage","sentinel","suppress","guardian","ward","drone","tank"];
 const HAND_SIZE=4;
 const isSpell=id=>Object.prototype.hasOwnProperty.call(SPELLS,id);
 const hasCard=(team,id)=>id==="infantry"||S.hand[team].includes(id);
@@ -214,7 +215,7 @@ function nearbyEnemy(u){
  const sight=guard?Math.min(d.vision,210):d.vision;
  let best=null,score=Infinity;
  // A defensive giant prioritizes an enemy giant inside its interception perimeter.
- if(guard){
+ if(u.key==="guardian"){
   const heavies=S.units.filter(v=>v.team!==u.team&&v.hp>0&&CLASSES[v.key].size==="large"&&
    dist(u,v)<=sight&&Math.hypot(v.x-u.anchorX,v.y-u.anchorY)<=240);
   if(heavies.length){
@@ -293,7 +294,7 @@ function fire(u,target){
    notice(u.team===1?"前哨基地を確保！ 召喚ラインが前進":"敵が前哨基地を占領！");
   }
  }else if(target.kind==="capital"){
-  ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE);
+  ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE*(d.siege??1));
   if(ref.team===1){
    S.underAttackUntil=S.clock+3.5;
    if(S.clock-S.lastAlert>5){S.lastAlert=S.clock;notice("自軍城壁が攻撃中！ 自城ボタンで防衛を確認");}
@@ -396,6 +397,9 @@ function botExpertAction(){
  if(giants.length&&ready("guardian")){
   if(spawn("guardian",giants[0]))return true;
  }
+ if(urgent.length&&ready("sentinel")){
+  if(spawn("sentinel",flank,34))return true;
+ }
  // Preserve resources for a suppressor when a swarm approaches, unless defense is urgent.
  if(clustered.n>=3&&!enemies.some(u=>u.x>1070)&&availableCard(2,"suppress")&&S.energy[2]<CLASSES.suppress.cost){
   return true;
@@ -403,6 +407,7 @@ function botExpertAction(){
  if(hard&&advance.length>=2){
   // Fight early on the approach, not when attackers are already on the wall.
   if(ready("suppress")&&clustered.n>=2&&spawn("suppress",clustered.u))return true;
+  if(ready("sentinel")&&spawn("sentinel",flank,35))return true;
   if(ready("archer")&&spawn("archer",flank,65))return true;
   if(urgent.length&&ready("guardian")&&spawn("guardian",flank))return true;
   if(urgent.length&&ready("infantry")&&spawn("infantry",flank))return true;
@@ -436,7 +441,7 @@ function botAction(){
  // The BOT must sometimes save energy for its 7-cost giants, otherwise it
  // spends each small increment and never showcases large-vs-large tactics.
  const giantHand=["guardian","tank"].filter(id=>availableCard(2,id));
- const imminent=enemies.some(u=>u.x>(S.difficulty==="easy"?WALL_FACE[2]-165:530));
+ const imminent=enemies.some(u=>u.x>(S.difficulty==="easy"?WALL_FACE[2]-165:850));
  if(imminent&&S.difficulty!=="easy")S.botSaveLarge=false;
  if(S.botSaveLarge&&(!giantHand.length||(imminent&&S.energy[2]<7)))S.botSaveLarge=false;
  if(!S.botSaveLarge&&giantHand.length&&S.elapsed>20&&S.energy[2]>=2.5&&!imminent&&Math.random()<.62){
@@ -665,6 +670,9 @@ function drawUnit(u){
   ctx.strokeStyle="#f8dc93";ctx.beginPath();ctx.moveTo(0,-8);ctx.lineTo(9,0);ctx.lineTo(0,8);ctx.stroke();break;
  case "suppress":
   rounded(ctx,-16,-15,32,30,6);ctx.fill();ctx.stroke();ctx.fillStyle="#e4d398";ctx.fillRect(0,-6,25,12);break;
+ case "sentinel":
+  rounded(ctx,-19,-20,38,40,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle="#e5d6aa";ctx.fillRect(-18,-8,15,18);break;
  case "guardian":
   rounded(ctx,-23,-24,46,48,10);ctx.fill();ctx.stroke();ctx.fillStyle="#f0dc9e";ctx.beginPath();ctx.arc(0,0,8,0,Math.PI*2);ctx.fill();break;
  case "drone":
@@ -810,6 +818,8 @@ function openCardInfo(id){
  if(!isSpell(id)&&d.splash){
   infos.push(["範囲攻撃半径",d.splash],["巻き込み攻撃力",Math.round(d.damage*(d.splashScale??.57))]);
  }
+ if(!isSpell(id)&&d.siege)infos.push(["対城ダメージ",Math.round(d.damage*d.siege)+"（"+d.siege+"倍）"]);
+ if(!isSpell(id)&&d.behavior==="guard")infos.push(["行動方針","設置地点付近で迎撃"]);
  $("cardInfoStats").replaceChildren();
  for(const [label,value] of infos){
   const row=document.createElement("div");row.className="infoStat";
