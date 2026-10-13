@@ -65,7 +65,7 @@ const limit=(v,min,max)=>Math.max(min,Math.min(max,v));
 const rand=(min,max)=>min+(max-min)*Math.random();
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
-const S={phase:"menu",difficulty:"easy",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
+const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
  energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],tickCount:0,
  uid:0,botThink:0,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
