@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "id": "guardian",
+  "design_name": "ガルド（守護ゴーレム）",
+  "status": "shipped-visual-v4.2",
+  "design_variant": "bastion",
+  "role": "large defensive brawler",
+  "locomotion": "heavy-biped",
+  "facing": "right",
+  "source_file": "gald-source.html",
+  "runtime_adapter": "gald-render.js",
+  "fallback_renderer": "v3-art.js (guardian)",
+  "test_api": "GOLEM_TEST",
+  "silhouette": [
+    "giant forward fist",
+    "fortress shoulders",
+    "small profile face"
+  ],
+  "subtractive_rule": "Do not add random markings. Preserve three strong shapes and readable negative space at play size.",
+  "atlas": {
+    "frame_width": 330,
+    "frame_height": 372,
+    "columns": 8,
+    "viewport": {
+      "width": 920,
+      "height": 620
+    },
+    "crop": {
+      "x": 240,
+      "y": 0,
+      "width": 550,
+      "height": 620
+    },
+    "anchor": {
+      "x": 105,
+      "y": 292.8
+    },
+    "states": [
+      {
+        "name": "idle",
+        "frames": 8
+      },
+      {
+        "name": "walk",
+        "frames": 18
+      },
+      {
+        "name": "punch",
+        "frames": 22
+      },
+      {
+        "name": "hit",
+        "frames": 8
+      },
+      {
+        "name": "death",
+        "frames": 10
+      }
+    ]
+  },
+  "runtime": {
+    "render_frame_px": {
+      "width": 201,
+      "height": 227
+    },
+    "team_reflection": "flip horizontally for team 2 and apply team-readable tint",
+    "frame_select": "see gald-render.js (clock idle; walkPhase; attackAnim; hitAt; deathProgress)",
+    "source_at_runtime": "v4.2 builds a 66-frame atlas asynchronously in browser; exported atlas is QA artifact, not yet live"
+  },
+  "qa": {
+    "grounded_punch_max_screen_drift_px": 0.1,
+    "supported_zoom": [
+      1,
+      0.73,
+      0.46
+    ],
+    "min_inspection": [
+      "idle",
+      "walk",
+      "punch windup",
+      "punch impact",
+      "hit",
+      "death"
+    ],
+    "no_gameplay_changes": true
+  }
+}
