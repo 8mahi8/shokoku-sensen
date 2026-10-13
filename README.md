@@ -4,6 +4,16 @@
 
 **プレイURL:** https://8mahi8.github.io/shokoku-sensen/
 
+**開発AI向け・キャラクター制作手順（世代交代時の正本）:**
+- [AI引き継ぎ指示 / AGENTS.md](./AGENTS.md)
+- [キャラ制作パイプライン / docs/CHARACTER_PIPELINE.md](./docs/CHARACTER_PIPELINE.md)
+- [採用済みガルドの仕様 / characters/gald/character.json](./characters/gald/character.json)
+- [新キャラ用設定雛形 / characters/_template/character.json](./characters/_template/character.json)
+- [スプライト書き出し / tools/characters/export_atlas.py](./tools/characters/export_atlas.py)・[ポーズと接地のQA / tools/characters/qa_rig.py](./tools/characters/qa_rig.py)
+
+今後のキャラ制作ではガルドの横向きキャラデザイン・自然なモーション・引き算の美学を起点とし、**次のチャットも上記の正本を必ず読む**。成功した1体の設計数値を全キャラへコピペしない。本編v4.2の既存戦闘やBOTの仕様は制作テンプレの整備では変更しない。
+
+
 GitHub Pagesが未設定の場合は、リポジトリの **Settings → Pages** から **Deploy from a branch / main / (root)** を選んで公開できます。画面が古い場合は再読み込みしてください。
 
 ## v4.2｜城塞巨兵ガルドを本編へ試験導入（2026-10-14）
