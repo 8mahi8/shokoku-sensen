@@ -14,11 +14,24 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from playwright.sync_api import sync_playwright
 
-POSES=[("idle",.15),("walk",.19),("walk",.51),("punch",.29),
-       ("punch",.43),("punch",.53),("punch",.68),("hit",.20),("death",.70)]
+def representative_poses(spec):
+    """Adapt QA to character's motion names: punch, attack, fly, walk etc."""
+    states={row["name"] for row in spec["atlas"]["states"]}
+    attack=next((v for v in ("punch","attack","shoot","strike","cast") if v in states),None)
+    move=next((v for v in ("walk","move","fly","hover","roll") if v in states),None)
+    result=[]
+    if "idle" in states:result.append(("idle",.15))
+    if move:result.extend([(move,.19),(move,.51)])
+    if attack:result.extend([(attack,.29),(attack,.43),(attack,.53),(attack,.68)])
+    if "hit" in states:result.append(("hit",.20))
+    if "death" in states:result.append(("death",.70))
+    if len(result)<3:raise ValueError("At least three key poses required")
+    return result,attack
+
 
 def run(spec:dict,source:Path,output:Path,chromium:str|None=None):
     output.mkdir(parents=True,exist_ok=True)
+    poses,attack_mode=representative_poses(spec)
     with sync_playwright() as p:
         launch={"headless":True,"args":["--no-sandbox","--disable-dev-shm-usage"]}
         browser_path=chromium or shutil.which("chromium") or shutil.which("chromium-browser")
@@ -30,7 +43,7 @@ def run(spec:dict,source:Path,output:Path,chromium:str|None=None):
             page.on("pageerror",lambda e:errors.append(str(e)))
             page.set_content(source.read_text(encoding="utf-8"),wait_until="load")
             images=[]
-            for mode,t in POSES:
+            for mode,t in poses:
                 page.evaluate("""([api,mode,phase,variant])=>{
                   const rig=window[api];if(!rig)throw Error('Missing rig API');
                   rig.state.mode=mode;rig.state.phase=phase;
@@ -41,10 +54,12 @@ def run(spec:dict,source:Path,output:Path,chromium:str|None=None):
                 images.append((mode+" "+str(t),img))
             threshold=spec.get("qa",{}).get("grounded_punch_max_screen_drift_px")
             if threshold is not None:
-                distance=page.evaluate("""apiName=>{
+                if not attack_mode:
+                    raise ValueError("Foot-contact QA needs an attack state")
+                distance=page.evaluate("""([apiName,attackMode])=>{
                   const rig=window[apiName],results=[];
                   for(const phase of [.05,.18,.32,.43,.51,.57,.68,.83]){
-                    rig.state.mode='punch';rig.state.playing=false;
+                    rig.state.mode=attackMode;rig.state.playing=false;
                     rig.state.phase=phase;rig.render();
                     const root=document.getElementById('character').getAttribute('transform');
                     const a=root.match(/translate\\(([-.\\d]+) ([-.\\d]+)\\) scale\\(([-.\\d]+)\\)/);
@@ -60,7 +75,7 @@ def run(spec:dict,source:Path,output:Path,chromium:str|None=None):
                   }
                   return Math.max(...results.flatMap(row=>row.flatMap((point,i)=>
                     point.map((v,j)=>Math.abs(v-results[0][i][j])))));
-                }""",spec["test_api"])
+                }""",[spec["test_api"],attack_mode])
                 if distance>threshold:
                     raise AssertionError(f"Planted feet drift {distance} pixels (> {threshold})")
                 print("Planted foot drift:",round(distance,4),"px")
@@ -68,14 +83,14 @@ def run(spec:dict,source:Path,output:Path,chromium:str|None=None):
             if page.evaluate("document.body.scrollWidth")>400:
                 raise AssertionError("Mobile UI has horizontal overflow")
             if errors:raise RuntimeError("Browser errors: "+"; ".join(errors))
-            sheet=Image.new("RGB",(3*480,3*350),"#13252c")
+            sheet=Image.new("RGB",(3*480,((len(poses)+2)//3)*350),"#13252c")
             painter=ImageDraw.Draw(sheet)
             for i,(name,img) in enumerate(images):
                 x=i%3*480;y=i//3*350
                 sheet.paste(img,(x+(480-img.width)//2,y))
                 painter.text((x+15,y+319),name,fill="white")
             sheet.save(output/"pose-review.jpg",quality=90)
-            print("PASS: "+str(len(POSES))+" poses, planted-foot check when applicable, phone viewport, JS errors")
+            print("PASS: "+str(len(poses))+" poses, planted-foot check when applicable, phone viewport, JS errors")
             print("REVIEW BY EYE:",output/"pose-review.jpg")
         finally:
             browser.close()
