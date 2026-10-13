@@ -72,13 +72,13 @@ function setupRoom(code,isHost){
   }
   if(meta?.status==="finished"&&before!=="finished"){
    phase="finished";
-   if(!host&&result&&!game?.wasResult)game?.showResult?.(result);
+   if(!host&&result)game?.showResult?.(result);
   }
   updateUI();
  });
  attach(room.child("result"),"value",snap=>{
   result=snap.val();
-  if(result&&meta?.status==="finished"&&!host)game?.showResult?.(result);
+  if(result&&!host&&meta?.status==="finished")game?.showResult?.(result);
  });
  if(host){
   attach(room.child("commands"),"child_added",async snap=>{
@@ -131,7 +131,7 @@ async function join(){
   const status=(await ref.child("meta").once("value")).val();
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION)throw Error("参加できるルームが見つかりません");
   const now=Date.now();
-  const p=await ref.child("players/guest").transaction(old=>old===null?{id:clientId,ready:false,online:true,joinedAt:now}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   setupRoom(code,false);
  }catch(e){setError(e)}
@@ -178,6 +178,8 @@ function finish(data){
  room.child("meta/status").set("finished").catch(setError);
 }
 function resultForMe(){return !result||result.winner===0?"draw":result.winner===team?"win":"lose"}
+function hasResult(){return !!result}
+function resultReason(){return result?.reason||"対戦終了"}
 function resetLobby(){
  detach();room=null;roomCode="";team=0;host=false;players=null;meta=null;phase="none";result=null;
  onlinePanel(true);$("networkBar").classList.add("hidden");show("新しいルームを作るか、番号を入力して参加してください");
@@ -187,7 +189,7 @@ function resetLobby(){
 }
 const api={
  get team(){return team},get isHost(){return host},get isOnline(){return true},
- registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,resetLobby,
+ registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;
