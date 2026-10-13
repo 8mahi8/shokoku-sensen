@@ -3,7 +3,8 @@
 (() => {
 const $=id=>document.getElementById(id);
 const cv=$("field"),ctx=cv.getContext("2d"),area=$("fieldArea"),cards=$("cards");
-const W=1280,H=660,START_HP=2800,POST_HP=12,MATCH=300,PREP=10;
+const W=1280,H=660,START_HP=2800,POST_HP=12,MATCH=300,PREP=10,CASTLE_DAMAGE=1.0;
+const CAMERA_ZOOM=1.52;
 const WALL_TOP=69,WALL_BOTTOM=H-70,WALL_FACE={1:126,2:W-126};
 const WALL_Y=y=>limit(y,WALL_TOP+12,WALL_BOTTOM-12);
 const BLUE="#80d9f5",RED="#ff889a",GOLD="#f3da91";
@@ -47,10 +48,11 @@ const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60
 const S={phase:"menu",difficulty:"easy",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
  energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],tickCount:0,
  uid:0,botThink:0,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
- hudTick:0,noticeUntil:0,clock:0};
+ hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;
  S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
+ S.cam={x:415,y:330,tx:415,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  for(const team of [1,2]){
   for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
@@ -256,7 +258,11 @@ function fire(u,target){
    notice(u.team===1?"前哨基地を確保！ 召喚ラインが前進":"敵が前哨基地を占領！");
   }
  }else if(target.kind==="capital"){
-  ref.hp=Math.max(0,ref.hp-d.damage*.45);
+  ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE);
+  if(ref.team===1){
+   S.underAttackUntil=S.clock+3.5;
+   if(S.clock-S.lastAlert>5){S.lastAlert=S.clock;notice("自軍城壁が攻撃中！ 自城ボタンで防衛を確認");}
+  }
   if(ref.hp===0)end(u.team===1?"win":"lose","首都が破壊された！");
  }else if(target.kind==="unit"){
   if(ref.hp<=0)return;
@@ -412,12 +418,56 @@ function tick(dt){
  if(S.projectiles.length>110)S.projectiles.splice(0,S.projectiles.length-110);
  if(S.phase==="battle"&&S.seconds<=0)finishTime();
 }
+// The tactical world remains 1280 x 660, so unit travel time and attack ranges
+// stay unchanged. A zoomed camera shows only a portion of it at once.
+function clampCamera(){
+ const v=S.view,c=S.cam,hx=v.w/(2*v.s),hy=v.h/(2*v.s);
+ if(!Number.isFinite(hx)||!Number.isFinite(hy))return;
+ const minX=Math.min(hx,W/2),maxX=Math.max(W-hx,W/2);
+ const minY=Math.min(hy,H/2),maxY=Math.max(H-hy,H/2);
+ c.x=limit(c.x,minX,maxX);c.y=limit(c.y,minY,maxY);
+ c.tx=limit(c.tx,minX,maxX);c.ty=limit(c.ty,minY,maxY);
+ v.ox=v.w/2-c.x*v.s;v.oy=v.h/2-c.y*v.s;
+}
 function fit(){
  const rect=area.getBoundingClientRect(),v=S.view;
- v.w=rect.width;v.h=rect.height;v.dpr=Math.min(window.devicePixelRatio||1,2);
+ v.w=Math.max(1,rect.width);v.h=Math.max(1,rect.height);
+ v.dpr=Math.min(window.devicePixelRatio||1,2);
  cv.width=Math.max(1,Math.round(v.w*v.dpr));cv.height=Math.max(1,Math.round(v.h*v.dpr));
  cv.style.width=v.w+"px";cv.style.height=v.h+"px";
- v.s=Math.min(v.w/W,v.h/H);v.ox=(v.w-W*v.s)/2;v.oy=(v.h-H*v.s)/2;
+ // Show roughly two thirds of the field horizontally, instead of the entire arena.
+ v.s=Math.max(v.w/W,v.h/H)*CAMERA_ZOOM;
+ clampCamera();
+}
+function cameraTo(x,y){
+ const c=S.cam;c.tx=x;c.ty=y;c.moving=true;clampCamera();
+}
+function panCamera(dx,dy){
+ const c=S.cam;c.moving=false;
+ c.x+=dx;c.y+=dy;c.tx=c.x;c.ty=c.y;clampCamera();
+}
+function updateCamera(dt){
+ const c=S.cam;
+ if(c.moving){
+  const t=1-Math.exp(-Math.max(0,dt)*10);
+  c.x+=(c.tx-c.x)*t;c.y+=(c.ty-c.y)*t;
+  if(Math.hypot(c.tx-c.x,c.ty-c.y)<.2){c.x=c.tx;c.y=c.ty;c.moving=false;}
+ }
+ clampCamera();
+}
+function frontlineCamera(){
+ // Prefer a live skirmish; otherwise the furthest friendly army or the nearest contested fort.
+ const allies=S.units.filter(u=>u.team===1&&u.hp>0);
+ const enemies=S.units.filter(u=>u.team===2&&u.hp>0);
+ let best=null,score=-Infinity;
+ for(const u of allies){
+  const nearby=enemies.filter(v=>dist(v,u)<180).length;
+  const value=nearby*150+u.x*.22;
+  if(value>score){best=u;score=value;}
+ }
+ if(best)return cameraTo(best.x+75,best.y);
+ const active=S.forts.filter(f=>f.owner!==1).sort((a,b)=>a.x-b.x)[0];
+ cameraTo(active?active.x:W/2,active?active.y:H/2);
 }
 function point(clientX,clientY){
  const r=area.getBoundingClientRect(),v=S.view;
@@ -561,9 +611,9 @@ function drawSpellFields(){
  }
 }
 function drawPreview(){
- const item=S.drag&&S.drag.active?S.drag.id:S.selected;
+ const item=S.selected;
  if(!item)return;
- const p=S.drag&&S.drag.active?point(S.drag.x,S.drag.y):(S.pointer&&S.pointer.pos);
+ const p=S.pointer&&!S.pointer.dragging?S.pointer.pos:null;
  if(!p)return;
  const legal=canPay(1,item)&&validTarget(1,item,p.x,p.y);
  const radius=isSpell(item)?SPELLS[item].radius:39;
@@ -714,6 +764,7 @@ function updateHUD(){
  $("prepTime").textContent=numTime(S.prep);
  const owners=S.forts.filter(f=>f.owner===1).length;
  $("remaining").textContent="前哨基地 "+owners+" / 3";
+ $("homeCam").classList.toggle("danger",S.underAttackUntil>S.clock);
  for(const b of cards.children){
   const id=b.dataset.id;if(!id)continue;
   const d=CATALOG[id];
@@ -729,48 +780,43 @@ function cardDown(e,id){
  S.drag={pointer:e.pointerId,id,originX:e.clientX,originY:e.clientY,x:e.clientX,y:e.clientY,active:false,startedAt:performance.now(),infoShown:false};
 }
 function onGlobalMove(e){
- const m=S.drag;
- if(!m||m.pointer!==e.pointerId)return;
+ const m=S.drag;if(!m||m.pointer!==e.pointerId)return;
  m.x=e.clientX;m.y=e.clientY;
+ // Moving a finger on the card area is not a placement gesture.
  if(Math.hypot(e.clientX-m.originX,e.clientY-m.originY)>12)m.active=true;
- if(m.active){
-  const ghost=$("dragging");ghost.style.display="flex";
-  ghost.style.left=e.clientX+"px";ghost.style.top=e.clientY+"px";
-  $("dragGlyph").textContent=CATALOG[m.id].glyph;$("dragName").textContent=CATALOG[m.id].name;
- }
 }
 function onGlobalUp(e){
  const m=S.drag;if(!m||m.pointer!==e.pointerId)return;
- const rect=area.getBoundingClientRect();
- const inside=e.clientX>=rect.left&&e.clientX<=rect.right&&e.clientY>=rect.top&&e.clientY<=rect.bottom;
- if(m.active&&inside){
-  const p=point(e.clientX,e.clientY);
-  if(!playCard(1,m.id,p.x,p.y))notice(cardFailure(1,m.id));
- }else if(!m.active){S.selected=S.selected===m.id?null:m.id;buildCards();}
- S.drag=null;$("dragging").style.display="none";
+ if(!m.active){S.selected=S.selected===m.id?null:m.id;buildCards();}
+ S.drag=null;
 }
 function arenaDown(e){
  if(S.phase!=="prep"&&S.phase!=="battle")return;
  if(e.target!==cv)return;
- const pos=point(e.clientX,e.clientY);
- S.pointer={id:e.pointerId,pos};
+ S.cam.moving=false;
+ S.pointer={id:e.pointerId,originX:e.clientX,originY:e.clientY,
+  lastX:e.clientX,lastY:e.clientY,dragging:false,pos:point(e.clientX,e.clientY)};
 }
 function arenaMove(e){
- if(S.pointer?.id===e.pointerId)S.pointer.pos=point(e.clientX,e.clientY);
+ const p=S.pointer;if(!p||p.id!==e.pointerId)return;
+ if(!p.dragging&&Math.hypot(e.clientX-p.originX,e.clientY-p.originY)>12)p.dragging=true;
+ if(p.dragging){
+  const dx=(p.lastX-e.clientX)/S.view.s,dy=(p.lastY-e.clientY)/S.view.s;
+  panCamera(dx,dy);p.pos=null;
+ }else p.pos=point(e.clientX,e.clientY);
+ p.lastX=e.clientX;p.lastY=e.clientY;
 }
 function arenaUp(e){
- if(S.pointer?.id!==e.pointerId)return;
- const p=point(e.clientX,e.clientY);
- if(S.selected){
-  const id=S.selected;
-  if(!playCard(1,id,p.x,p.y))notice(cardFailure(1,id));
+ const p=S.pointer;if(!p||p.id!==e.pointerId)return;
+ // A swipe only moves the camera; releasing it must NEVER deploy a unit.
+ const wasSwipe=p.dragging||Math.hypot(e.clientX-p.originX,e.clientY-p.originY)>12;
+ if(!wasSwipe&&S.selected){
+  const pt=point(e.clientX,e.clientY),id=S.selected;
+  if(!playCard(1,id,pt.x,pt.y))notice(cardFailure(1,id));
  }
  S.pointer=null;
 }
-function resumeButton(){
- if(S.phase==="battle"){S.phase="paused";$("pause").textContent="▶ 再開";}
- else if(S.phase==="paused"){S.phase="battle";$("pause").textContent="Ⅱ 停止";}
-}
+
 function start(){
  resetWorld();fit();buildCards();buildGallery();
  window.addEventListener("resize",fit);
@@ -781,11 +827,16 @@ function start(){
  area.addEventListener("pointermove",arenaMove);
  area.addEventListener("pointerup",arenaUp);
  area.addEventListener("pointercancel",()=>S.pointer=null);
+ // Keep camera tracking alive when a swipe drifts outside the canvas.
+ document.addEventListener("pointermove",arenaMove);
+ document.addEventListener("pointerup",arenaUp);
  $("pause").addEventListener("click",resumeButton);
  $("galleryButton").addEventListener("click",openGallery);
  $("galleryFromMenu").addEventListener("click",openGallery);
  $("galleryClose").addEventListener("click",closeGallery);
  $("cardInfoClose").addEventListener("click",closeCardInfo);
+ $("homeCam").addEventListener("click",()=>cameraTo(WALL_FACE[1]+115,H/2));
+ $("frontCam").addEventListener("click",frontlineCamera);
  $("speed").addEventListener("click",()=>{
   const options=[.85,.65,1];S.speed=options[(options.indexOf(S.speed)+1)%options.length];
   $("speed").textContent="速度 "+S.speed.toFixed(2)+"×";
@@ -812,13 +863,14 @@ function start(){
  function frame(now){
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   S.clock+=delta;
+  updateCamera(delta);
   inspectHold(now);
   if(S.phase==="prep"){
    S.prep=Math.max(0,S.prep-delta);
    if(S.prep<=0){
     S.phase="battle";S.botThink=4;
     $("prepBanner").classList.remove("visible");
-    $("fieldHint").textContent="キャラは青い範囲に召喚／スペルは戦場のどこでも使用可能。";
+    $("fieldHint").textContent="タップで召喚 ／ スワイプで画面移動。スペルはどこでも使える。";
     notice("開戦！ 前哨基地を奪って敵首都を目指そう");
    }
   }else if(S.phase==="battle"){
