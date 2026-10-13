@@ -817,6 +817,10 @@ function arenaUp(e){
  S.pointer=null;
 }
 
+function resumeButton(){
+ if(S.phase==="battle"){S.phase="paused";$("pause").textContent="▶ 再開";}
+ else if(S.phase==="paused"){S.phase="battle";$("pause").textContent="Ⅱ 停止";}
+}
 function start(){
  resetWorld();fit();buildCards();buildGallery();
  window.addEventListener("resize",fit);
