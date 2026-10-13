@@ -1015,7 +1015,7 @@ function start(){
    return validTarget(2,c.id,c.x,c.y)&&playCard(2,c.id,c.x,c.y);
   },
   apply:(data,seq)=>{
-   if(NET.isHost||!data||!(seq>window.__onlineSeq||0))return;
+   if(NET.isHost||!data||!(seq>(window.__onlineSeq||0)))return;
    window.__onlineSeq=seq;
    const was=S.phase;
    const oldSelected=S.selected,oldCam=S.cam;
