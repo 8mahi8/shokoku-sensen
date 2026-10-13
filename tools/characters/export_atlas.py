@@ -52,7 +52,7 @@ async def export(spec: dict, root: Path, output: Path,
             page = await browser.new_page(viewport=viewport, device_scale_factor=1)
             page.on("pageerror", lambda e: errors.append(str(e)))
             await page.set_content(source.read_text(encoding="utf-8"), wait_until="load")
-            await page.evaluate("""api => {
+            await page.evaluate("""([api, viewportWidth, viewportHeight]) => {
               const rig = window[api];
               if (!rig || !rig.render) throw new Error('Missing character rig API '+api);
               rig.state.playing = false;
@@ -61,9 +61,9 @@ async def export(spec: dict, root: Path, output: Path,
               for (const node of Array.from(svg.children))
                 if (node.tagName.toLowerCase() !== 'defs' && node.id !== 'character')
                   node.style.display = 'none';
-              svg.style.cssText='position:fixed;left:0;top:0;width:920px;height:620px';
+              svg.style.cssText='position:fixed;left:0;top:0;width:'+viewportWidth+'px;height:'+viewportHeight+'px';
               document.body.style.cssText='margin:0;background:transparent';
-            }""", spec["test_api"])
+            }""", [spec["test_api"], viewport["width"], viewport["height"]])
             await page.add_style_tag(content="""html,body,.stage,.wrap,.layout{
               background:transparent!important;background-image:none!important;
               box-shadow:none!important;border:0!important
