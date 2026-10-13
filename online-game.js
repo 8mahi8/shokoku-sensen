@@ -1004,7 +1004,7 @@ function resumeButton(){
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
  NET.registerGame({
-  begin,world:()=>({
+  begin,showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
    phase:S.phase,prep:S.prep,seconds:S.seconds,elapsed:S.elapsed,clock:S.clock,
    energy:S.energy,left:S.left,hand:S.hand,queue:S.queue,units:S.units,
    forts:S.forts,capitals:S.capitals,spells:S.spells,effects:S.effects,
@@ -1027,8 +1027,8 @@ function start(){
     S.phase=data.phase;$("overlay").classList.add("hidden");
     $("prepBanner").classList.toggle("visible",S.phase==="prep");
     if(was==="menu")cameraTo(980,330);
-   }else if(data.phase==="result"&&S.phase!=="result"){
-    end(NET.resultForMe(),"対戦終了");
+   }else if(data.phase==="result"){
+    if(NET.hasResult()&&S.phase!=="result")end(NET.resultForMe(),NET.resultReason());
    }
    S.selected=oldSelected;S.cam=oldCam;buildCards();updateHUD();
   }
