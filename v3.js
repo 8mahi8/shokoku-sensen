@@ -29,10 +29,10 @@ const BLUE="#80d9f5",RED="#ff889a",GOLD="#f3da91";
 const ENERGY_CAP=12;
 const CLASSES={
  infantry:{name:"基本歩兵",glyph:"♟",size:"small",cost:2,limit:Infinity,qty:2,hp:116,damage:16,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,note:"小型・占領・無制限"},
- scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:5,qty:1,hp:145,damage:16,cool:1.2,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,note:"中型・高速・占領"},
- engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:315,damage:19,cool:1.6,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,note:"中型・耐久・占領"},
+ scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:28,cool:1.05,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,note:"中型・高速・少数戦・占領"},
+ engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:420,damage:34,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,note:"中型・高耐久・近接・占領"},
  archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,note:"小型・遠距離・対空"},
- suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:340,damage:52,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:false,splash:70,note:"中型・対集団・範囲砲撃"},
+ suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:445,damage:76,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:false,splash:70,splashScale:.8,note:"中型・密集対策・範囲砲撃"},
  guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,note:"大型・敵大型を優先迎撃・衝撃波"},
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:135,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:false,flying:true,note:"中型・飛行・突破"},
  tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:88,cool:2.15,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:false,splash:58,note:"大型・長射程・重砲・突破"},
@@ -302,7 +302,7 @@ function fire(u,target){
   if(d.splash){
    for(const v of S.units){
     if(v.hp<=0||v===ref||v.team===u.team||CLASSES[v.key].flying)continue;
-    if(dist(v,ref)<d.splash)attackUnit(v,d.damage*.57,u);
+    if(dist(v,ref)<d.splash)attackUnit(v,d.damage*(d.splashScale??.57),u);
    }
   }
  }
@@ -323,7 +323,7 @@ function unitStep(dt){
   }
   if(d.behavior==="capture"&&fort){
    const immediate=foe&&foe.kind==="unit"&&dist(u,foe)<Math.max(d.range+foe.r,43);
-   if(immediate&&u.key==="engineer"){if(u.attack<=0)fire(u,foe);}
+   if(immediate&&(u.key==="engineer"||u.key==="scout")){if(u.attack<=0)fire(u,foe);}
    else if(dist(u,fort)<d.range+26){if(u.attack<=0)fire(u,{kind:"fort",ref:fort,x:fort.x,y:fort.y,r:24});}
    else moveToward(u,fort.x,fort.y,dt);
    continue;
@@ -392,6 +392,10 @@ function botExpertAction(){
  }
  if(giants.length&&ready("guardian")){
   if(spawn("guardian",giants[0]))return true;
+ }
+ // Preserve resources for a suppressor when a swarm approaches, unless defense is urgent.
+ if(clustered.n>=3&&!urgent.length&&availableCard(2,"suppress")&&S.energy[2]<CLASSES.suppress.cost){
+  return true;
  }
  if(hard&&advance.length>=2){
   // Fight early on the approach, not when attackers are already on the wall.
@@ -800,6 +804,9 @@ function openCardInfo(id){
    [["消費資源",d.cost],["残り召喚回数",remaining],["1回の召喚数",d.qty+" 体"],
     ["HP",d.hp],["攻撃力",d.damage],["射程",d.range],["移動速度",d.speed],
     ["攻撃間隔",d.cool+" 秒"],["砦占領力",d.capture||"なし"]];
+ if(!isSpell(id)&&d.splash){
+  infos.push(["範囲攻撃半径",d.splash],["巻き込み攻撃力",Math.round(d.damage*(d.splashScale??.57))]);
+ }
  $("cardInfoStats").replaceChildren();
  for(const [label,value] of infos){
   const row=document.createElement("div");row.className="infoStat";
