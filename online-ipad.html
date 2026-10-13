@@ -213,7 +213,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
  background:#092735d9;border:1px solid #467d8f;padding:3px 12px;border-radius:22px;
  color:#edfaf5;font-size:11px;text-align:center;pointer-events:none}
 #networkBar.hidden{display:none}
-#difficulties{display:none!important}
+#difficulties,#speed,#pause{display:none!important}
 @media(max-width:580px){#onlineDialog{padding:14px}#networkBar{top:34px;max-width:98%;font-size:9px}}
 </style>
 </head>
@@ -221,9 +221,9 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="app">
 <header id="header">
 <div id="logo"><b>小国戦線 <span style="color:#8bdcf4">III</span></b><small>FORTRESS FRONT</small></div>
-<div class="base"><div class="line">自軍首都 <span id="blueText">3000 / 3000</span></div><div class="bar"><div class="fill" id="blueBar"></div></div></div>
+<div class="base"><div class="line">青軍首都 <span id="blueText">3000 / 3000</span></div><div class="bar"><div class="fill" id="blueBar"></div></div></div>
 <div id="clockbox"><div id="clock">05:00</div><div id="phaseLabel">待機中</div></div>
-<div class="base"><div class="line">敵軍首都 <span id="redText">3000 / 3000</span></div><div class="bar"><div class="fill enemy" id="redBar"></div></div></div>
+<div class="base"><div class="line">赤軍首都 <span id="redText">3000 / 3000</span></div><div class="bar"><div class="fill enemy" id="redBar"></div></div></div>
 <div id="headerButtons"><button class="topButton" id="galleryButton" aria-label="部隊図鑑を開く">✧ 図鑑</button><button class="topButton" id="speed">速度 0.85×</button><button class="topButton" id="pause">Ⅱ 停止</button></div>
 </header>
 <main id="fieldArea">
@@ -260,7 +260,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="galleryOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
  <div id="galleryPanel">
   <div id="galleryHead">
-   <div><small>CHARACTER COLLECTION / ORIGINAL 2D ART</small><h2 id="galleryTitle">小国戦線｜部隊図鑑</h2><p>装備・シルエット・攻撃方法で描き分けた、9種類の近未来ファンタジー兵士。図鑑を開いている間、対戦は一時停止します。</p></div>
+   <div><small>CHARACTER COLLECTION / ORIGINAL 2D ART</small><h2 id="galleryTitle">小国戦線｜部隊図鑑</h2><p>装備・シルエット・攻撃方法で描き分けた、9種類の近未来ファンタジー兵士。オンライン対戦中も試合は進行します。</p></div>
    <button id="galleryClose" class="topButton" aria-label="図鑑を閉じて対戦に戻る">✕ 戻る</button>
   </div>
   <div id="galleryCards"></div>
