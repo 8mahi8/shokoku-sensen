@@ -535,7 +535,7 @@ function end(result,reason){
  "<br>敵軍首都："+Math.ceil(capital(3-ME()).hp)+" / "+START_HP+
  "<br>残り時間："+numTime(S.seconds)+
  "<br>1vs1 オンライン対戦";
- $("start").textContent="新しいルームで遊ぶ";
+ $("start").textContent=NET.isHost?"同じルームで再戦":"新しいルームで遊ぶ";
  $("overlay").classList.remove("hidden");
  $("prepBanner").classList.remove("visible");
 }
@@ -1011,7 +1011,11 @@ function resumeButton(){
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
  NET.registerGame({
-  begin,showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
+  begin,resetForLobby:()=>{
+   resetWorld();S.phase="menu";S.remoteBlend=null;
+   $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
+   buildCards();updateHUD();
+  },showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
    phase:S.phase,prep:S.prep,seconds:S.seconds,elapsed:S.elapsed,clock:S.clock,
    energy:S.energy,left:S.left,hand:S.hand,queue:S.queue,units:S.units,
    forts:S.forts,capitals:S.capitals,spells:S.spells,effects:S.effects,
@@ -1075,7 +1079,8 @@ function start(){
   S.difficulty=b.dataset.level;
   document.querySelectorAll("[data-level]").forEach(x=>x.classList.toggle("active",x===b));
  }));
- $("start").addEventListener("click",()=>NET.resetLobby());
+ $("start").addEventListener("click",()=>NET.isHost?NET.rematch():NET.resetLobby());
+ $("newRoom").addEventListener("click",()=>NET.resetLobby());
  document.addEventListener("visibilitychange",()=>{
   if(document.hidden&&S.phase==="battle")NET.reportVisibility(true);
  });

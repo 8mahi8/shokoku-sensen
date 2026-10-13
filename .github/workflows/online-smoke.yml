@@ -1,0 +1,19 @@
+name: Online 1v1 smoke
+on:
+  push:
+    paths:
+      - 'online*'
+      - 'tests/online-smoke.cjs'
+      - '.github/workflows/online-smoke.yml'
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/online-smoke.cjs

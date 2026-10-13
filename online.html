@@ -75,6 +75,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #difficulties button{background:#1b3946;border:1px solid #668895;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:800}
 #difficulties button.active{border-color:#f6d891;background:#4e5441;color:#ffe6a0}
 #start{border:0;border-radius:10px;padding:13px 20px;background:linear-gradient(100deg,#f2da93,#dfa973);font-size:16px;font-weight:950;color:#243237;width:100%}
+#newRoom{margin-top:8px;border:1px solid #648494;border-radius:10px;padding:10px 16px;background:#193440;color:#e2f3fa;font-size:14px;font-weight:800;width:100%}
 
 /* Full-size character collection; responsive for landscape iPad. */
 #cardInfoOverlay{position:fixed;inset:0;background:#05151de9;display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;touch-action:pan-y}
@@ -252,15 +253,15 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 ・敵首都を破壊すると勝利。時間切れは首都HP割合で決着。
 </div>
 <div id="difficulties"><button data-level="easy">練習</button><button class="active" data-level="normal">ふつう</button><button data-level="hard">むずかしい</button></div>
-<button id="start">新しいルームを作る</button>
+<button id="start">同じルームで再戦</button><button id="newRoom">新しいルームで遊ぶ</button>
 <button id="galleryFromMenu" class="galleryLink">✧ 先に9体のキャラクターデザインを見る</button>
 </div></div>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-<script src="./online-net.js?v=2"></script>
+<script src="./online-net.js?v=3"></script>
 <script src="./gald-render.js?v=1"></script>
 <script src="./v3-art.js?v=7"></script>
-<script src="./online-game.js?v=2"></script>
+<script src="./online-game.js?v=3"></script>
 <div id="networkBar" class="hidden" aria-live="polite"></div>
 <div id="onlinePanel" role="dialog" aria-label="オンライン対戦ルーム">
  <div id="onlineDialog"><h1>小国戦線 III｜友達対戦</h1>
