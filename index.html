@@ -64,6 +64,18 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #start{border:0;border-radius:10px;padding:13px 20px;background:linear-gradient(100deg,#f2da93,#dfa973);font-size:16px;font-weight:950;color:#243237;width:100%}
 
 /* Full-size character collection; responsive for landscape iPad. */
+#cardInfoOverlay{position:fixed;inset:0;background:#05151de9;display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;touch-action:pan-y}
+#cardInfoOverlay.hidden{display:none}
+#cardInfoPanel{width:min(570px,100%);max-height:96dvh;overflow:auto;background:linear-gradient(135deg,#1e4451,#0e2937);border:2px solid #7ab6c4;border-radius:16px;padding:15px;box-shadow:0 15px 65px #000b}
+#cardInfoTop{display:flex;justify-content:space-between;align-items:start;gap:10px}
+#cardInfoTop h2{margin:2px 0 0;font-size:22px}
+#cardInfoRole{color:#e7ce9d;font-size:11px;font-weight:800}
+#cardInfoPortrait{display:block;width:100%;height:160px;object-fit:contain;max-height:28dvh;border-radius:10px;margin:9px 0}
+#cardInfoStats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 9px}
+.infoStat{display:flex;justify-content:space-between;gap:10px;background:#0a22318a;border:1px solid #49677965;border-radius:7px;padding:6px 8px;font-size:11px}
+.infoStat span{color:#b5cbd2}.infoStat strong{color:#f4e7bf}
+#cardInfoNote{margin:10px 2px 0;color:#d4e6dc;font-size:12px;line-height:1.6}
+@media(max-height:480px){#cardInfoPortrait{height:100px}#cardInfoPanel{padding:10px}#cardInfoTop h2{font-size:17px}.infoStat{padding:3px 7px;font-size:10px}}
 #galleryOverlay{position:fixed;inset:0;background:#06151ceF;z-index:40;display:flex;align-items:center;justify-content:center;padding:13px;touch-action:pan-y}
 #galleryOverlay.hidden{display:none}
 #galleryPanel{width:min(1080px,100%);max-height:95dvh;overflow:auto;overscroll-behavior:contain;background:linear-gradient(140deg,#1b3946,#0c2734);border:1px solid #6f9ca9;border-radius:17px;padding:15px;box-shadow:0 20px 75px #000b}
@@ -116,13 +128,21 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="remaining">基本歩兵は何度でも召喚可</div>
 </div>
 <div id="collection">
-<div id="collectionTitle"><span>基本歩兵は固定｜4枚の手札を使うと次のカードへ</span><span id="nextCard">次：範囲砲撃</span></div>
+<div id="collectionTitle"><span>歩兵は連続召喚OK｜カード長押しで能力表示｜4枚手札</span><span id="nextCard">次：範囲砲撃</span></div>
 <div id="cards"></div>
 </div>
 </footer>
 </div>
 <div id="dragging"><span id="dragGlyph">♟</span><small id="dragName">歩兵</small></div>
 
+<div id="cardInfoOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="cardInfoName">
+ <div id="cardInfoPanel">
+  <div id="cardInfoTop"><div><span id="cardInfoRole">キャラクター能力</span><h2 id="cardInfoName">基本歩兵</h2></div><button class="topButton" id="cardInfoClose">✕ 戻る</button></div>
+  <canvas id="cardInfoPortrait" width="320" height="184" aria-hidden="true"></canvas>
+  <div id="cardInfoStats"></div>
+  <p id="cardInfoNote"></p>
+ </div>
+</div>
 <div id="galleryOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
  <div id="galleryPanel">
   <div id="galleryHead">
@@ -137,6 +157,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <p id="dialogText">城ドラを参考に再設計した、横長1画面の陣取りカード戦略。まずはBOT戦で試そう。</p>
 <div id="rules">
 ・<strong>最初の10秒間</strong>は準備フェーズ。配置した部隊は動かず、資源も回復しません。<br>
+・カードは<strong>長押しで能力表示</strong>。基本歩兵は召喚後も選択したままで連続召喚可能。<br>
 ・<strong>基本歩兵はいつでも召喚可能</strong>。ほかの7兵種と2種類のスペルは4枚手札で循環します。カードを使うと次のカードに交代。<br>
 ・<strong>範囲砲撃（4）</strong>：約1.3秒後に敵兵へ範囲攻撃。<strong>防護結界（3）</strong>：約5秒間、範囲内の味方へのダメージを45％軽減。各3回まで、開戦後に使用可能。<br>
 ・前哨基地は占領可能ユニットが最後の一撃で獲得。最も奥の自軍基地で<strong>召喚ラインが全域に前進</strong>。<br>
@@ -148,5 +169,5 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <button id="galleryFromMenu" class="galleryLink">✧ 先に8体のキャラクターデザインを見る</button>
 </div></div>
 <script src="./v3-art.js?v=2"></script>
-<script src="./v3.js?v=4"></script>
+<script src="./v3.js?v=5"></script>
 </body></html>
