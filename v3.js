@@ -131,6 +131,7 @@ function deploy(team,id,x,y){
    hp:d.hp,max:d.hp,attack:rand(0,.65),facing:team===1?0:Math.PI,flash:0,attackAnim:0,lock:null,walkPhase:rand(0,6.28),walking:false,
    drift:rand(0,Math.PI*2)});
  }
+ if(team===2&&d.size==="large"&&S.phase==="battle")notice("敵軍が"+d.name+"を投入！");
  if(team===1){S.selected=id==="infantry"?"infantry":null;buildCards();updateHUD();}
  return true;
 }
@@ -369,65 +370,72 @@ function rate(){
  return .7;
 }
 // Expert heuristics operate within the same hand, economy and placement rules.
+// v3.9 tactical BOT. Same deck order, charges, energy rate and deployment rules as a human.
 function botExpertAction(){
- const hard=S.difficulty==="hard";
- const enemies=S.units.filter(u=>u.team===1&&u.hp>0),allies=S.units.filter(u=>u.team===2&&u.hp>0);
- const advance=enemies.filter(u=>u.x>520);
- const urgent=advance.filter(u=>u.x>850);
- const giants=advance.filter(u=>CLASSES[u.key].size==="large");
- const air=advance.filter(u=>CLASSES[u.key].flying);
- const ready=id=>canPay(2,id);
- const frontline=S.forts.filter(f=>f.owner!==2).sort((a,b)=>b.x-a.x)[0];
- const flank=urgent.slice().sort((a,b)=>b.x-a.x)[0]||advance.slice().sort((a,b)=>b.x-a.x)[0];
- const posY=u=>limit((u?.y??frontline?.y??330)+rand(-18,18),70,H-70);
- const spawn=(id,u,offset=40)=>deploy(2,id,limit(border(2)+offset,45,W-42),posY(u));
- const clustered=advance.reduce((best,u)=>{
-  const n=advance.filter(v=>dist(u,v)<SPELLS.barrage.radius).length;
-  return n>best.n?{u,n}:best;
- },{u:null,n:0});
- if(ready("barrage")&&clustered.u&&clustered.n>=(hard?2:3)){
-  if(castSpell(2,"barrage",clustered.u.x,clustered.u.y))return true;
+ const hard=S.difficulty==="hard",edge=border(2),power=S.energy[2];
+ const foes=S.units.filter(u=>u.team===1&&u.hp>0),friends=S.units.filter(u=>u.team===2&&u.hp>0);
+ const raiders=foes.filter(u=>u.x>edge-380);
+ const desperate=foes.filter(u=>u.x>1035);
+ const fort=S.forts.filter(f=>f.owner!==2).sort((a,b)=>b.x-a.x)[0];
+ const focus=raiders.slice().sort((a,b)=>b.x-a.x)[0];
+ const have=id=>availableCard(2,id),pay=id=>canPay(2,id);
+ const group=raiders.map(u=>({u,neighbors:raiders.filter(v=>dist(v,u)<70)}))
+  .sort((a,b)=>b.neighbors.length-a.neighbors.length)[0];
+ const groupSize=group?.neighbors.length??0;
+ const yFocus=focus?.y??fort?.y??330;
+ const spawn=(id,y,margin=35)=>
+   pay(id)&&deploy(2,id,limit(edge+margin,40,W-40),limit(y,70,H-70));
+ // Use meaningful counters early. The BOT never receives free units or bonus damage.
+ if(groupSize>=3&&pay("barrage")&&castSpell(2,"barrage",group.u.x,group.u.y))return true;
+ if(groupSize>=3&&spawn("suppress",group.u.y,50))return true;
+ if(raiders.some(u=>CLASSES[u.key].flying)&&spawn("archer",yFocus,58))return true;
+ if(raiders.some(u=>CLASSES[u.key].size==="large")&&spawn("guardian",yFocus,34))return true;
+ if(desperate.length){
+  if(groupSize>=2&&spawn("sentinel",yFocus,32))return true;
+  if(groupSize>=2&&spawn("suppress",yFocus,52))return true;
+  const defenders=friends.filter(u=>u.x>850&&Math.abs(u.y-yFocus)<140);
+  if(defenders.length<3&&spawn("archer",yFocus,65))return true;
+  if(defenders.length<3&&spawn("infantry",yFocus,32))return true;
  }
- if(ready("suppress")&&clustered.u&&clustered.n>=3){
-  if(spawn("suppress",clustered.u))return true;
+ const giant=["tank","guardian"].filter(have);
+ const workers=fort?friends.filter(u=>CLASSES[u.key].capture&&Math.abs(u.y-fort.y)<145&&u.x>fort.x-130):[];
+ const needFort=!!fort&&workers.length<(S.elapsed<48?1:2);
+ // The first meaningful plays must cycle the 4-card hand; infantry doesn't rotate it.
+ if(S.elapsed<37&&needFort&&spawn("scout",fort.y,35))return true;
+ if(S.elapsed<40&&friends.filter(u=>u.key==="archer").length<3&&spawn("archer",yFocus,64))return true;
+ // A drawn giant is an explicit seven-energy investment, unless the castle is in danger.
+ if(giant.length&&S.elapsed>18){
+  const id=giant.includes("tank")&&!desperate.length?"tank":
+   giant.includes("guardian")?"guardian":giant[0];
+  if(power>=7&&spawn(id,id==="guardian"?yFocus:fort?.y??yFocus,38))return true;
+  if(!desperate.length)return true;
  }
- if(air.length&&ready("archer")){
-  if(spawn("archer",air.slice().sort((a,b)=>b.x-a.x)[0],65))return true;
+ if(needFort&&spawn("scout",fort.y,33))return true;
+ if(needFort&&spawn("engineer",fort.y,35))return true;
+ if(raiders.length>=2&&spawn("sentinel",yFocus,36))return true;
+ if(groupSize>=2&&spawn("suppress",group.u.y,50))return true;
+ if(friends.filter(u=>u.key==="archer").length<2&&spawn("archer",yFocus,70))return true;
+ if(pay("ward")){
+  const team=friends.map(u=>({u,value:friends.filter(v=>dist(v,u)<90&&raiders.some(e=>dist(e,v)<175)).length}))
+   .sort((a,b)=>b.value-a.value)[0];
+  if(team&&team.value>=2&&castSpell(2,"ward",team.u.x,team.u.y))return true;
  }
- if(giants.length&&ready("guardian")){
-  if(spawn("guardian",giants[0]))return true;
+ if(groupSize>=2&&pay("barrage")&&castSpell(2,"barrage",group.u.x,group.u.y))return true;
+ // Rotate non-permanent cards for the next tactical option; hold energy if necessary.
+ for(const id of ["scout","archer","engineer","sentinel","suppress","drone"]){
+  if(spawn(id,id==="scout"||id==="engineer"?fort?.y??330:yFocus,
+   id==="archer"||id==="suppress"?64:36))return true;
  }
- if(urgent.length&&ready("sentinel")){
-  if(spawn("sentinel",flank,34))return true;
- }
- // Preserve resources for a suppressor when a swarm approaches, unless defense is urgent.
- if(clustered.n>=3&&!enemies.some(u=>u.x>1070)&&availableCard(2,"suppress")&&S.energy[2]<CLASSES.suppress.cost){
-  return true;
- }
- if(hard&&advance.length>=2){
-  // Fight early on the approach, not when attackers are already on the wall.
-  if(ready("suppress")&&clustered.n>=2&&spawn("suppress",clustered.u))return true;
-  if(ready("sentinel")&&spawn("sentinel",flank,35))return true;
-  if(ready("archer")&&spawn("archer",flank,65))return true;
-  if(urgent.length&&ready("guardian")&&spawn("guardian",flank))return true;
-  if(urgent.length&&ready("infantry")&&spawn("infantry",flank))return true;
- }
- if(!urgent.length&&frontline){
-  const nearbyOwn=allies.filter(u=>dist(u,frontline)<155).length;
-  if(nearbyOwn<2){
-   if(ready("engineer")&&spawn("engineer",frontline))return true;
-   if(ready("scout")&&spawn("scout",frontline))return true;
-   if(hard&&ready("infantry")&&spawn("infantry",frontline))return true;
-  }
- }
- if(urgent.length&&ready("infantry")&&spawn("infantry",flank))return true;
- return false;
+ // Basic infantry remains the low-cost emergency choice, not the default policy.
+ if(power>=11&&spawn("infantry",yFocus,36))return true;
+ if(desperate.length&&spawn("infantry",yFocus,36))return true;
+ return true;
 }
 function botAction(){
  const allies=S.units.filter(u=>u.team===2&&u.hp>0);
  const enemies=S.units.filter(u=>u.team===1&&u.hp>0);
  // The BOT shares the player's card hand, costs, and charge limits.
- if(S.difficulty!=="easy"&&botExpertAction())return;
+ if(S.difficulty!=="easy"){botExpertAction();return;}
  if(canPay(2,"barrage")&&enemies.length){
   const best=enemies.map(t=>({target:t,hits:enemies.filter(u=>dist(t,u)<SPELLS.barrage.radius).length}))
    .sort((a,b)=>b.hits-a.hits)[0];
