@@ -191,7 +191,7 @@ function guardian(g,p,s){
  for(const x of [-18,15])line(g,[[x,-34],[x+3,-24]],p.accent,3);
 }
 function drone(g,p,s){
- const {t}=s;const flap=Math.sin(t*8)*7;
+ const {t}=s;const flap=Math.sin(t*6.2)*7;
  // levitating quad-wing fae reconnaissance drone
  path(g,[[-13,-34],[-40,-49-flap],[-36,-20],[-11,-21]],p.deep,INK,2.8);
  path(g,[[13,-34],[40,-49-flap],[36,-20],[11,-21]],p.primary,INK,2.8);
@@ -224,7 +224,7 @@ const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,t
 function paint(g,key,team,clock=0,unit={}){
  const p=PALETTES[team]||PALETTES[1];
  const moving=!!unit.walking;
- const step=moving?Math.sin(unit.walkPhase||clock*6)*.9:Math.sin(clock*1.9+(unit.uid||0))*.16;
+ const step=moving?Math.sin((unit.walkPhase||clock*5)*.76)*.9:Math.sin(clock*1.45+(unit.uid||0))*.14;
  const attack=Math.max(0,Math.min(1,(unit.attackAnim||0)/(unit.attackAnimMax||.34)));
  const hit=attack>0?Math.sin((1-attack)*PI)*1:0;
  const windup=Math.max(0,Math.min(1,unit.windup||0));
@@ -238,12 +238,12 @@ function paint(g,key,team,clock=0,unit={}){
  const spring=moving?Math.abs(Math.sin(unit.walkPhase||clock*6))*.018:0;
  g.scale(1+spring+recoil,1-spring*.6-recoil*.7);
  if(team===2)g.scale(-1,1);
- g.translate(momentum*hit-windup*brace,-Math.sin(clock*2.1+(unit.uid||0))*(moving?1.2:.7));
+ g.translate(momentum*hit-windup*brace,-Math.sin(clock*1.45+(unit.uid||0))*(moving?1.2:.7));
  if(key==="guardian")g.rotate(-windup*.085+hit*.10);
  else if(key==="sentinel")g.rotate(-windup*.07+hit*.06);
  else if(key==="engineer")g.rotate(-windup*.055+hit*.04);
  else if(key==="scout")g.rotate(-windup*.065);
- const reaction=Math.max(0,1-Math.max(0,clock-(unit.hitAt??-100))/.23);
+ const reaction=Math.max(0,1-Math.max(0,clock-(unit.hitAt??-100))/.31);
  if(reaction>0){
   g.translate(-reaction*(key==="guardian"||key==="tank"?3:5),-reaction*2);
   g.rotate(-reaction*(key==="guardian"||key==="tank"?.018:.05));
@@ -254,7 +254,7 @@ function paint(g,key,team,clock=0,unit={}){
  }
  g.restore();
 }
-const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.28,drone:1.08,tank:1.24};
+const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.73,drone:1.08,tank:1.79};
 const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73};
 // Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
@@ -265,7 +265,7 @@ function drawUnit(g,u,clock){
  const impact=recoil>0?Math.sin((1-recoil)*PI):0;
  const direction=u.team===1?1:-1;
  const entering=Number.isFinite(u.spawnAt)?Math.max(0,Math.min(1,(clock-u.spawnAt)/(u.spawnDuration||.45))):1;
- const appear=1-Math.pow(1-entering,3);
+ const appear=.5-.5*Math.cos(PI*entering);
  const death=Math.max(0,Math.min(1,u.deathProgress||0));
  g.save();g.globalAlpha*=Math.max(0,1-death*death);
  g.translate(u.x,u.y);
@@ -284,7 +284,7 @@ function drawUnit(g,u,clock){
  if(u.walking){
   // Distinct running/hovering cues; these are drawn rather than persistent particles.
   if(u.key==="scout"||u.key==="tank"){
-   g.save();g.globalAlpha=.35;g.strokeStyle=u.team===1?"#91eeff":"#ffb8bc";
+   g.save();g.globalAlpha=.30;g.strokeStyle=u.team===1?"#91eeff":"#ffb8bc";
    g.lineWidth=heavy?3.8:2.5;g.lineCap="round";
    for(let i=0;i<3;i++){
     const xx=-direction*(17+i*12),yy=-4+i*2;
@@ -295,7 +295,7 @@ function drawUnit(g,u,clock){
   if(heavy){
    g.save();g.globalAlpha=.28+.16*Math.abs(Math.sin(u.walkPhase||0));
    g.strokeStyle="#dbe7cf";g.lineWidth=2;
-   g.beginPath();g.ellipse(0,3,23+Math.abs(Math.sin(u.walkPhase||0))*5,7,0,0,TAU);g.stroke();g.restore();
+   g.beginPath();g.ellipse(0,3,23+Math.abs(Math.sin((u.walkPhase||0)*.76))*5,7,0,0,TAU);g.stroke();g.restore();
   }
  }
  g.save();g.translate(0,-bob-(1-appear)*(heavy?18:13));
