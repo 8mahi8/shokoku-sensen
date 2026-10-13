@@ -4,6 +4,7 @@ on:
     paths:
       - 'online*'
       - 'tests/online-smoke.cjs'
+      - 'tests/online-sim.cjs'
       - '.github/workflows/online-smoke.yml'
   workflow_dispatch:
 jobs:
@@ -17,3 +18,4 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/online-smoke.cjs
+      - run: node tests/online-sim.cjs
