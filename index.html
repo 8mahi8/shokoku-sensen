@@ -18,7 +18,12 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #clockbox{min-width:100px;text-align:center}#clock{font-size:24px;line-height:1.05;font-weight:950;font-variant-numeric:tabular-nums}#phaseLabel{color:#bfd0bc;font-size:10px;letter-spacing:.06em}
 #headerButtons{display:flex;gap:6px}.topButton{background:#1d3543;border:1px solid #527987;border-radius:9px;padding:9px 10px;font-size:11px;font-weight:800;white-space:nowrap}
 #fieldArea{position:relative;flex:1;min-height:0;background:#142629;overflow:hidden}
-#field{display:block;width:100%;height:100%;touch-action:none}
+#field{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#cameraNav{position:absolute;right:10px;bottom:10px;display:flex;gap:7px;z-index:3}
+.cameraButton{border:1px solid #92b8bca6;background:#132e39e9;min-width:60px;min-height:37px;border-radius:9px;padding:7px 10px;color:#edf7ee;font-size:11px;font-weight:900;box-shadow:0 3px 9px #07151a66}
+.cameraButton:active{transform:translateY(1px);background:#30566a}
+.cameraButton.danger{border-color:#ff9ca8;background:#7f2f42;box-shadow:0 0 0 2px #ff9ca84f}
+@media(max-width:710px){#cameraNav{right:5px;bottom:5px;gap:4px}.cameraButton{min-width:52px;min-height:33px;padding:6px;font-size:9px}#fieldHint{max-width:54%;font-size:9px}}
 #announcement{position:absolute;pointer-events:none;top:10px;left:50%;transform:translateX(-50%);width:max-content;max-width:70%;padding:7px 15px;text-align:center;font-size:12px;font-weight:800;background:#102832ea;border:1px solid #8baeb3;border-radius:12px;opacity:0;transition:opacity .18s;z-index:2}#announcement.visible{opacity:1}
 #prepBanner{position:absolute;pointer-events:none;top:12px;left:50%;transform:translateX(-50%);min-width:175px;display:none;text-align:center;background:#162d3ff0;border:1px solid #e4c481;border-radius:13px;padding:8px 18px;box-shadow:0 8px 30px #031a1c66}
 #prepBanner.visible{display:block}#prepBanner small{display:block;color:#d3caab;font-size:10px}#prepTime{font-size:27px;font-weight:950;color:#ffe29b;line-height:1.05;font-variant-numeric:tabular-nums}
@@ -114,10 +119,11 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="headerButtons"><button class="topButton" id="galleryButton" aria-label="部隊図鑑を開く">✧ 図鑑</button><button class="topButton" id="speed">速度 0.85×</button><button class="topButton" id="pause">Ⅱ 停止</button></div>
 </header>
 <main id="fieldArea">
-<canvas id="field" aria-label="横長の戦場。タップして部隊を召喚できます。"></canvas>
+<canvas id="field" aria-label="横スクロールできる戦場。タップで召喚・スペル発動、スワイプで戦場を移動できます。"></canvas>
+<div id="cameraNav"><button type="button" id="homeCam" class="cameraButton" aria-label="自軍の城壁を見る">⌂ 自城</button><button type="button" id="frontCam" class="cameraButton" aria-label="戦闘中の前線を見る">⌖ 前線</button></div>
 <div id="announcement" aria-live="polite"></div>
 <div id="prepBanner"><small>開戦準備 · 配置した部隊は動きません</small><div id="prepTime">00:10</div></div>
-<div id="fieldHint">左右に首都 · 旗は前哨基地 · 黄色い旗を占領して召喚範囲を拡大</div>
+<div id="fieldHint">カード選択→戦場をタップして召喚 · 戦場をスワイプして移動</div>
 </main>
 <footer id="bottom">
 <div id="resource">
@@ -128,7 +134,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="remaining">基本歩兵は何度でも召喚可</div>
 </div>
 <div id="collection">
-<div id="collectionTitle"><span>歩兵は連続召喚OK｜カード長押しで能力表示｜4枚手札</span><span id="nextCard">次：範囲砲撃</span></div>
+<div id="collectionTitle"><span>タップで召喚｜スワイプで視点移動｜長押しで能力</span><span id="nextCard">次：範囲砲撃</span></div>
 <div id="cards"></div>
 </div>
 </footer>
@@ -157,6 +163,8 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <p id="dialogText">城ドラを参考に再設計した、横長1画面の陣取りカード戦略。まずはBOT戦で試そう。</p>
 <div id="rules">
 ・<strong>最初の10秒間</strong>は準備フェーズ。配置した部隊は動かず、資源も回復しません。<br>
+・<strong>戦場は横スクロール制</strong>。カードをタップで選択、戦場をタップで召喚・スペル発動。スワイプはカメラ移動のみ。ミニマップなし。<br>
+・<strong>自城・前線ボタン</strong>でカメラ移動。城HP・制限時間はいつでも確認可能。<br>
 ・カードは<strong>長押しで能力表示</strong>。基本歩兵は召喚後も選択したままで連続召喚可能。<br>
 ・<strong>基本歩兵はいつでも召喚可能</strong>。ほかの7兵種と2種類のスペルは4枚手札で循環します。カードを使うと次のカードに交代。<br>
 ・<strong>範囲砲撃（4）</strong>：約1.3秒後に敵兵へ範囲攻撃。<strong>防護結界（3）</strong>：約5秒間、範囲内の味方へのダメージを45％軽減。各3回まで、開戦後に使用可能。<br>
@@ -169,5 +177,5 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <button id="galleryFromMenu" class="galleryLink">✧ 先に8体のキャラクターデザインを見る</button>
 </div></div>
 <script src="./v3-art.js?v=2"></script>
-<script src="./v3.js?v=5"></script>
+<script src="./v3.js?v=6"></script>
 </body></html>
