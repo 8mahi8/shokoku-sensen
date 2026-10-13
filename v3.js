@@ -578,8 +578,9 @@ function draw(){
  ctx.fillStyle="#0d2426";ctx.fillRect(0,0,v.w,v.h);
  ctx.save();ctx.translate(v.ox,v.oy);ctx.scale(v.s,v.s);
  terrain();drawSpellFields();
+ // Walls occupy the full vertical edge; render behind units regardless of center Y.
+ for(const c of S.capitals)drawCapital(c);
  const objects=[];
- for(const c of S.capitals)objects.push({y:c.y-10,draw:()=>drawCapital(c)});
  for(const p of S.forts)objects.push({y:p.y+20,draw:()=>drawFort(p)});
  for(const u of S.units)objects.push({y:u.y,draw:()=>drawUnit(u)});
  objects.sort((a,b)=>a.y-b.y);
