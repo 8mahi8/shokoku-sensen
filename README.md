@@ -2,7 +2,10 @@
 
 横スクロールで戦場を大きく見せる、近未来ファンタジーの陣取りカード戦略ゲームです。
 
-**プレイURL:** https://8mahi8.github.io/shokoku-sensen/
+**BOT版URL:** https://8mahi8.github.io/shokoku-sensen/
+
+**1vs1 オンライン試験版:** https://8mahi8.github.io/shokoku-sensen/online.html
+（学校iPad向けGoogle Sites埋め込み用: [online-embed.html](./online-embed.html)、設置とQA: [docs/ONLINE_1V1.md](./docs/ONLINE_1V1.md)）
 
 **開発AI向け・キャラクター制作手順（世代交代時の正本）:**
 - [AI引き継ぎ指示 / AGENTS.md](./AGENTS.md)
