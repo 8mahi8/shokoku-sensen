@@ -689,6 +689,14 @@ function drawFort(f){
  ctx.restore();
 }
 function drawUnit(u){
+ if(!NET.isHost&&S.remoteBlend){
+  const prev=S.remoteBlend.before[u.uid];
+  if(prev){
+   const factor=Math.max(0,Math.min(1,(performance.now()-S.remoteBlend.since)/170));
+   if(Math.hypot(u.x-prev.x,u.y-prev.y)<100)
+    u={...u,x:prev.x+(u.x-prev.x)*factor,y:prev.y+(u.y-prev.y)*factor};
+  }
+ }
  if(window.KokokuArt){window.KokokuArt.drawUnit(ctx,u,S.clock);return;}
  const d=CLASSES[u.key],col=TEAM[u.team],isAir=!!d.flying;
  const bob=isAir?18+Math.sin(S.clock*4+u.drift)*4:3;
@@ -759,7 +767,7 @@ function drawPreview(){
  if(!item)return;
  const p=S.pointer&&!S.pointer.dragging?S.pointer.pos:null;
  if(!p)return;
- const legal=canPay(1,item)&&validTarget(1,item,p.x,p.y);
+ const legal=canPay(ME(),item)&&validTarget(ME(),item,p.x,p.y);
  const radius=isSpell(item)?SPELLS[item].radius:39;
  ctx.strokeStyle=legal?"#9deaff":"#ff9aa3";ctx.fillStyle=legal?"#7bdfff34":"#ff788a39";ctx.lineWidth=3;
  ctx.beginPath();ctx.arc(p.x,p.y,radius,0,Math.PI*2);ctx.fill();ctx.stroke();
@@ -857,13 +865,12 @@ function buildCards(){
 
 let galleryResume="menu",infoResume="menu";
 function openCardInfo(id){
- if(S.phase==="prep"||S.phase==="battle"){notice("長押し情報は対戦後に確認できます");return;}
  const d=CATALOG[id];if(!d||S.phase==="inspect")return;
- infoResume=S.phase;S.phase="inspect";
+ infoResume=S.phase;if(S.phase!=="prep"&&S.phase!=="battle")S.phase="inspect";
  S.drag=null;
  $("cardInfoName").textContent=d.name;
  $("cardInfoRole").textContent=isSpell(id)?"スペル":SIZE_LABEL[d.size]+" · "+(d.capture?"占領可能":"戦闘専門");
- const remaining=Number.isFinite(S.left[1][id])?S.left[1][id]:"無制限";
+ const remaining=Number.isFinite(S.left[ME()][id])?S.left[ME()][id]:"無制限";
  const infos=isSpell(id)?
    [["消費資源",d.cost],["使用回数",remaining+" 回"],["効果半径",d.radius],["持続・着弾時間",id==="barrage"?d.delay+" 秒":d.duration+" 秒"]]:
    [["消費資源",d.cost],["残り召喚回数",remaining],["1回の召喚数",d.qty+" 体"],
@@ -882,13 +889,13 @@ function openCardInfo(id){
   row.append(k,v);$("cardInfoStats").append(row);
  }
  $("cardInfoNote").textContent=d.note;
- if(window.KokokuArt)window.KokokuArt.drawPortrait($("cardInfoPortrait"),id,1);
+ if(window.KokokuArt)window.KokokuArt.drawPortrait($("cardInfoPortrait"),id,ME());
  $("cardInfoOverlay").classList.remove("hidden");
  $("cardInfoClose").focus();
 }
 function closeCardInfo(){
- if(S.phase!=="inspect")return;
- S.phase=infoResume;$("cardInfoOverlay").classList.add("hidden");
+ if(S.phase==="inspect")S.phase=infoResume;
+ $("cardInfoOverlay").classList.add("hidden");
 }
 function inspectHold(now){
  const m=S.drag;
@@ -1019,6 +1026,7 @@ function start(){
    window.__onlineSeq=seq;
    const was=S.phase;
    const oldSelected=S.selected,oldCam=S.cam;
+   const before={};for(const u of S.units)before[u.uid]={x:u.x,y:u.y};
    for(const field of ["prep","seconds","elapsed","clock","energy","left","hand","queue",
     "units","forts","capitals","spells","effects","projectiles","deaths","uid","speed"]){
     if(data[field]!==undefined)S[field]=data[field];
@@ -1030,7 +1038,11 @@ function start(){
    }else if(data.phase==="result"){
     if(NET.hasResult()&&S.phase!=="result")end(NET.resultForMe(),NET.resultReason());
    }
-   S.selected=oldSelected;S.cam=oldCam;buildCards();updateHUD();
+   S.selected=oldSelected;S.cam=oldCam;
+   S.remoteBlend={before,since:performance.now()};
+   const sig=JSON.stringify([S.hand[ME()],S.queue[ME()],S.left[ME()]]);
+   if(sig!==window.__onlineHandSig){window.__onlineHandSig=sig;buildCards();}
+   updateHUD();
   }
  });
  // Refresh card and gallery portraits once the high-quality Gald atlas is built.
