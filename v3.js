@@ -27,6 +27,14 @@ const WALL_TOP=69,WALL_BOTTOM=H-70,WALL_FACE={1:126,2:W-126};
 const WALL_Y=y=>limit(y,WALL_TOP+12,WALL_BOTTOM-12);
 const BLUE="#80d9f5",RED="#ff889a",GOLD="#f3da91";
 const ENERGY_CAP=12;
+// Rendering-only durations. Gameplay movement, recovery, cooldown and hits are unaffected.
+const MOTION={
+ spawn:{small:.55,medium:.78,large:1.06},
+ defeat:{small:.59,medium:.81,large:1.16},
+ attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
+  sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84},
+ windup:.44
+};
 const CLASSES={
  infantry:{name:"基本歩兵",glyph:"♟",size:"small",cost:2,limit:Infinity,qty:2,hp:105,damage:15,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,note:"小型・占領・無制限"},
  scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:28,cool:1.05,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,note:"中型・高速・少数戦・占領"},
@@ -129,8 +137,8 @@ function deploy(team,id,x,y){
   const py=limit(y+dy,46,H-45);
   S.units.push({uid:++S.uid,key:id,team,x:px,y:py,anchorX:px,anchorY:py,homeY:py,
    hp:d.hp,max:d.hp,attack:rand(0,.65),facing:team===1?0:Math.PI,flash:0,
-   attackAnim:0,attackAnimMax:.34,windup:0,hitAt:-100,
-   spawnAt:S.clock,spawnDuration:d.size==="large"?.72:d.size==="medium"?.56:.38,
+   attackAnim:0,attackAnimMax:MOTION.attack[id],windup:0,hitAt:-100,
+   spawnAt:S.clock,spawnDuration:MOTION.spawn[d.size],
    lock:null,walkPhase:rand(0,6.28),walking:false,
    drift:rand(0,Math.PI*2)});
  }
@@ -177,11 +185,11 @@ function shieldMultiplier(team,x,y){
 function hitUnit(u,power){
  if(u.hp<=0)return;
  u.hp-=power*shieldMultiplier(u.team,u.x,u.y);
- u.flash=.15;
+ u.flash=.19;
  u.hitAt=S.clock;
  // Store only a short-lived visual echo; removal and battle calculations are unchanged.
  if(u.hp<=0){
-  const d=CLASSES[u.key],lasting=d.size==="large"?.88:d.size==="medium"?.62:.44;
+  const d=CLASSES[u.key],lasting=MOTION.defeat[d.size];
   S.deaths.push({key:u.key,team:u.team,x:u.x,y:u.y,uid:u.uid,
    facing:u.facing,max:u.max,hp:0,t:lasting,maxTime:lasting,
    walkPhase:u.walkPhase||0,walking:false,flash:0,attackAnim:0,hitAt:-100,
@@ -292,15 +300,15 @@ function attackUnit(target,value){
 function fire(u,target){
  const d=CLASSES[u.key],ref=target.ref;
  u.attack=d.cool;
- // Pose durations affect artwork only; combat cooldown and hit resolution are unchanged.
- u.attackAnimMax=u.key==="guardian"?.68:u.key==="tank"?.58:
-  u.key==="sentinel"?.46:u.key==="engineer"?.44:.34;
+ // Longer artwork poses; hit resolution and combat cooldown are unchanged.
+ u.attackAnimMax=MOTION.attack[u.key];
  u.attackAnim=u.attackAnimMax;
  u.windup=0;
- S.effects.push({x:target.x,y:target.y,t:.28,max:.28,team:u.team,r:d.splash||16,type:u.key});
+ const impactLife=d.size==="large"?.42:.33;
+ S.effects.push({x:target.x,y:target.y,t:impactLife,max:impactLife,team:u.team,r:d.splash||16,type:u.key});
  if(["archer","suppress","drone","tank"].includes(u.key)){
   S.projectiles.push({x:u.x,y:u.y-36,tx:target.x,ty:target.y-(target.kind==="unit"?34:8),
-   t:u.key==="tank"?.42:.31,max:u.key==="tank"?.42:.31,team:u.team,kind:u.key});
+   t:u.key==="tank"?.56:.40,max:u.key==="tank"?.56:.40,team:u.team,kind:u.key});
  }
  if(["guardian","engineer","infantry","scout"].includes(u.key)&&S.effects.length<220){
   S.effects.push({x:u.x,y:u.y-30,t:.18,max:.18,team:u.team,r:19,type:"slash"});
@@ -340,7 +348,7 @@ function unitStep(dt){
   // Readable visual anticipation on the last fraction of an existing cooldown.
   // It never delays an actual strike or changes target selection.
   const inReach=foe&&dist(u,foe)<d.range+foe.r+9;
-  u.windup=inReach&&u.attack>0&&u.attack<.32?1-u.attack/.32:0;
+  u.windup=inReach&&u.attack>0&&u.attack<MOTION.windup?1-u.attack/MOTION.windup:0;
   if(d.behavior==="guard"){
    if(foe){
     if(dist(u,foe)<d.range+foe.r){u.facing=Math.atan2(foe.y-u.y,foe.x-u.x);if(u.attack<=0)fire(u,foe);}
