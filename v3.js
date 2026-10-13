@@ -12,7 +12,8 @@ const VIEW_PRESETS={
 };
 function chooseViewScale(w,h,screenWidth,screenHeight){
  const short=Math.min(screenWidth,screenHeight),long=Math.max(screenWidth,screenHeight);
- const kind=short<600&&long<=1050?"phone":short<850&&long<=1350?"tablet":"desktop";
+ const isTablet=(window.navigator?.maxTouchPoints>1&&short>=600&&short<1100&&long<1500)||short>=600&&short<850&&long<=1350;
+ const kind=short<600&&long<=1050?"phone":isTablet?"tablet":"desktop";
  const aspect=w/h,profile=VIEW_PRESETS[kind];
  // Landscape: fill available height/width but reduce phone zoom substantially.
  // Portrait: favour seeing more of the battlefield width; the unused upper/lower
