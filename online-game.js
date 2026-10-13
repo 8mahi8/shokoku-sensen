@@ -58,6 +58,15 @@ const CATALOG={...CLASSES,...SPELLS};
 const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
 const DECK_IDS=["scout","engineer","archer","barrage","sentinel","suppress","guardian","ward","drone","tank"];
 const HAND_SIZE=4;
+// Randomized each round, then rotated without replacement.
+function shuffledDeck(){
+ const d=DECK_IDS.slice();
+ for(let i=d.length-1;i>0;i--){
+  const j=Math.floor(Math.random()*(i+1));
+  [d[i],d[j]]=[d[j],d[i]];
+ }
+ return d;
+}
 const isSpell=id=>Object.prototype.hasOwnProperty.call(SPELLS,id);
 const hasCard=(team,id)=>id==="infantry"||S.hand[team].includes(id);
 const availableCard=(team,id)=>S.left[team][id]>0&&hasCard(team,id);
@@ -86,11 +95,14 @@ function resetWorld(){
  S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
+ // The same randomized deck on both teams preserves symmetrical card access.
+ const deck=shuffledDeck();
  for(const team of [1,2]){
   for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
-  S.hand[team]=DECK_IDS.slice(0,HAND_SIZE);
-  S.queue[team]=DECK_IDS.slice(HAND_SIZE);
+  S.hand[team]=deck.slice(0,HAND_SIZE);
+  S.queue[team]=deck.slice(HAND_SIZE);
  }
+ S.remoteSprites=null;
  S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP},
              {team:2,x:1206,y:328,hp:START_HP,max:START_HP}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
@@ -572,7 +584,9 @@ function clampCamera(){
 function fit(){
  const rect=area.getBoundingClientRect(),v=S.view;
  v.w=Math.max(1,rect.width);v.h=Math.max(1,rect.height);
- v.dpr=Math.min(window.devicePixelRatio||1,2);
+ // Reduce Retina tablet raster overdraw; simulation coordinates remain untouched.
+ const tablet=(window.innerWidth||v.w)>=700&&(window.matchMedia?.("(pointer: coarse)").matches||/iPad/i.test(navigator.userAgent||""));
+ v.dpr=Math.min(window.devicePixelRatio||1,tablet?1.45:2);
  cv.width=Math.max(1,Math.round(v.w*v.dpr));cv.height=Math.max(1,Math.round(v.h*v.dpr));
  cv.style.width=v.w+"px";cv.style.height=v.h+"px";
  // Show roughly two thirds of the field horizontally, instead of the entire arena.
@@ -689,12 +703,17 @@ function drawFort(f){
  ctx.restore();
 }
 function drawUnit(u){
- if(!NET.isHost&&S.remoteBlend){
-  const prev=S.remoteBlend.before[u.uid];
-  if(prev){
-   const factor=Math.max(0,Math.min(1,(performance.now()-S.remoteBlend.since)/170));
-   if(Math.hypot(u.x-prev.x,u.y-prev.y)<100)
-    u={...u,x:prev.x+(u.x-prev.x)*factor,y:prev.y+(u.y-prev.y)*factor};
+ // Smooth presentation only. Combat physics and Firebase state stay authoritative.
+ if(!NET.isHost&&S.remoteSprites){
+  const v=S.remoteSprites.get(u.uid);
+  if(v){
+   const now=performance.now(),dt=Math.max(0,Math.min(.07,(now-v.lastFrame)/1000));
+   v.lastFrame=now;
+   const age=Math.max(0,Math.min(.17,(now-v.updatedAt)/1000));
+   const alpha=1-Math.exp(-dt*13);
+   v.x+=(v.targetX+v.vx*age-v.x)*alpha;
+   v.y+=(v.targetY+v.vy*age-v.y)*alpha;
+   u={...u,x:v.x,y:v.y};
   }
  }
  if(window.KokokuArt){window.KokokuArt.drawUnit(ctx,u,S.clock);return;}
@@ -1012,7 +1031,7 @@ function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
  NET.registerGame({
   begin,resetForLobby:()=>{
-   resetWorld();S.phase="menu";S.remoteBlend=null;
+   resetWorld();S.phase="menu";S.remoteSprites=null;
    $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
    buildCards();updateHUD();
   },showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
@@ -1028,9 +1047,8 @@ function start(){
   apply:(data,seq)=>{
    if(NET.isHost||!data||!(seq>(window.__onlineSeq||0)))return;
    window.__onlineSeq=seq;
-   const was=S.phase;
+   const was=S.phase,localClock=S.clock;
    const oldSelected=S.selected,oldCam=S.cam;
-   const before={};for(const u of S.units)before[u.uid]={x:u.x,y:u.y};
    for(const field of ["prep","seconds","elapsed","clock","energy","left","hand","queue",
     "units","forts","capitals","spells","effects","projectiles","deaths","uid","speed"]){
     if(data[field]!==undefined)S[field]=data[field];
@@ -1043,7 +1061,24 @@ function start(){
     if(NET.hasResult()&&S.phase!=="result")end(NET.resultForMe(),NET.resultReason());
    }
    S.selected=oldSelected;S.cam=oldCam;
-   S.remoteBlend={before,since:performance.now()};
+   // Never rewind character animations when a delayed packet arrives.
+   S.clock=Math.max(localClock,S.clock);
+   const now=performance.now(),sprites=S.remoteSprites||(S.remoteSprites=new Map());
+   const seen=new Set();
+   for(const u of S.units){
+    seen.add(u.uid);
+    let v=sprites.get(u.uid);
+    if(!v){
+     sprites.set(u.uid,{x:u.x,y:u.y,targetX:u.x,targetY:u.y,vx:0,vy:0,updatedAt:now,lastFrame:now});
+     continue;
+    }
+    const elapsed=Math.max(.085,Math.min(.75,(now-v.updatedAt)/1000));
+    const dx=u.x-v.targetX,dy=u.y-v.targetY;
+    if(Math.hypot(dx,dy)>100){v.x=u.x;v.y=u.y;v.vx=0;v.vy=0;}
+    else{v.vx=limit(dx/elapsed,-65,65);v.vy=limit(dy/elapsed,-65,65);}
+    v.targetX=u.x;v.targetY=u.y;v.updatedAt=now;
+   }
+   for(const id of sprites.keys())if(!seen.has(id))sprites.delete(id);
    const sig=JSON.stringify([S.hand[ME()],S.queue[ME()],S.left[ME()]]);
    if(sig!==window.__onlineHandSig){window.__onlineHandSig=sig;buildCards();}
    updateHUD();

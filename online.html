@@ -54,7 +54,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 .cardTop{display:flex;align-items:center;justify-content:space-between;gap:3px}
 .cardCost{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#8054b3;border:2px solid #dcb4ff;font-size:12px;font-weight:900;flex:none}
 .cardQuantity{font-size:10px;font-weight:900;color:#ecddb0;background:#09202e73;border-radius:5px;padding:2px 4px}
-.cardPortrait{display:block;flex:1;width:100%;height:10px;max-height:76px;min-height:0;object-fit:fill;border-radius:7px;pointer-events:none}
+.cardPortrait{display:block;flex:1 1 0%;width:100%;height:100%;max-height:76px;min-height:0;object-fit:contain;align-self:center;border-radius:7px;pointer-events:none}
 .card:hover{border-color:#b4dfe5}
 .card:active{transform:translateY(1px)}
 .cardName{font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -161,6 +161,35 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
  .cameraButton{min-height:29px}
 }
 
+
+/* Optimized iPad touch layout with non-distorted portraits. */
+@media (min-width:700px) and (pointer:coarse){
+ #header{height:54px;padding:5px 10px;gap:8px}
+ #bottom{height:clamp(152px,22dvh,196px);padding:8px 12px calc(8px + env(safe-area-inset-bottom));gap:10px}
+ #resource{width:116px;gap:6px}
+ #resourceNumber{font-size:26px}
+ #resourceRail{height:22px}
+ #collection{gap:5px}
+ #cards{gap:7px}
+ .card{padding:6px 7px;gap:3px;border-radius:11px;min-height:0}
+ .cardCost{width:24px;height:24px;font-size:12px}
+ .cardName{font-size:12px;line-height:1.1;min-height:1.1em;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+ .cardTop,.cardBottom{flex:none}
+ .cardBottom{font-size:10px}
+ .cardPortrait{max-height:none;max-width:100%;object-fit:contain}
+ .cardQuantity{font-size:10px}
+ #collectionTitle{font-size:11px}
+}
+@media (min-width:700px) and (pointer:coarse) and (max-height:560px){
+ #header{height:40px}
+ #bottom{height:130px;padding:5px 9px;gap:6px}
+ #resource{width:94px}
+ #resourceTitle,#rate,#remaining{display:none}
+ .card{padding:3px 5px;gap:1px}
+ .cardPortrait{min-height:0;max-height:49px}
+ .cardName{font-size:10px}
+ .cardBottom{font-size:9px}
+}
 </style>
 <style id="online-style">
 #onlinePanel{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;
@@ -214,7 +243,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <div id="remaining">基本歩兵は何度でも召喚可</div>
 </div>
 <div id="collection">
-<div id="collectionTitle"><span>タップで召喚｜スワイプで視点移動｜長押しで能力</span><span id="nextCard">次：範囲砲撃</span></div>
+<div id="collectionTitle"><span>カード選択→戦場をタップ｜長押しで能力</span><span id="nextCard">次：範囲砲撃</span></div>
 <div id="cards"></div>
 </div>
 </footer>
@@ -261,7 +290,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 <script src="./online-net.js?v=3"></script>
 <script src="./gald-render.js?v=1"></script>
 <script src="./v3-art.js?v=7"></script>
-<script src="./online-game.js?v=3"></script>
+<script src="./online-game.js?v=4"></script>
 <div id="networkBar" class="hidden" aria-live="polite"></div>
 <div id="onlinePanel" role="dialog" aria-label="オンライン対戦ルーム">
  <div id="onlineDialog"><h1>小国戦線 III｜友達対戦</h1>
