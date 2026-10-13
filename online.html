@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#101c26"><title>小国戦線 III | 1vs1 オンライン対戦</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1820;--panel:#122735;--ink:#ecf5ee;--sub:#9fb7b9;--blue:#73d6f5;--red:#ff8794;--gold:#f3d78b}
+*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
+#app{display:flex;flex-direction:column;height:100dvh;min-height:0}
+#header{height:61px;flex:none;display:flex;align-items:center;gap:11px;padding:7px 14px;background:linear-gradient(#122735,#0e222d);border-bottom:1px solid #33515a}
+#logo{min-width:145px}#logo b{display:block;font-size:17px;letter-spacing:.06em}#logo small{font-size:9px;color:#91b6b9;letter-spacing:.15em}
+.base{flex:1;min-width:90px;max-width:320px;display:flex;flex-direction:column;gap:5px}
+.base .line{display:flex;justify-content:space-between;gap:7px;font-size:12px;font-weight:800}.base .line span{font-weight:600;color:#aec4c7;font-variant-numeric:tabular-nums}
+.bar{height:9px;background:#07151e;border-radius:12px;overflow:hidden;border:1px solid #375363}
+.fill{height:100%;width:100%;background:linear-gradient(90deg,#278db4,#8ee7f7);transition:width .2s}.fill.enemy{background:linear-gradient(90deg,#a94056,#ff94a5)}
+#clockbox{min-width:100px;text-align:center}#clock{font-size:24px;line-height:1.05;font-weight:950;font-variant-numeric:tabular-nums}#phaseLabel{color:#bfd0bc;font-size:10px;letter-spacing:.06em}
+#headerButtons{display:flex;gap:6px}.topButton{background:#1d3543;border:1px solid #527987;border-radius:9px;padding:9px 10px;font-size:11px;font-weight:800;white-space:nowrap}
+#fieldArea{position:relative;flex:1;min-height:0;background:#142629;overflow:hidden}
+#field{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#cameraNav{position:absolute;right:10px;bottom:10px;display:flex;gap:7px;z-index:3}
+.cameraButton{border:1px solid #92b8bca6;background:#132e39e9;min-width:60px;min-height:37px;border-radius:9px;padding:7px 10px;color:#edf7ee;font-size:11px;font-weight:900;box-shadow:0 3px 9px #07151a66}
+.cameraButton:active{transform:translateY(1px);background:#30566a}
+.cameraButton.danger{border-color:#ff9ca8;background:#7f2f42;box-shadow:0 0 0 2px #ff9ca84f}
+@media(max-width:710px){#cameraNav{right:5px;bottom:5px;gap:4px}.cameraButton{min-width:52px;min-height:33px;padding:6px;font-size:9px}#fieldHint{max-width:54%;font-size:9px}}
+#announcement{position:absolute;pointer-events:none;top:10px;left:50%;transform:translateX(-50%);width:max-content;max-width:70%;padding:7px 15px;text-align:center;font-size:12px;font-weight:800;background:#102832ea;border:1px solid #8baeb3;border-radius:12px;opacity:0;transition:opacity .18s;z-index:2}#announcement.visible{opacity:1}
+#prepBanner{position:absolute;pointer-events:none;top:12px;left:50%;transform:translateX(-50%);min-width:175px;display:none;text-align:center;background:#162d3ff0;border:1px solid #e4c481;border-radius:13px;padding:8px 18px;box-shadow:0 8px 30px #031a1c66}
+#prepBanner.visible{display:block}#prepBanner small{display:block;color:#d3caab;font-size:10px}#prepTime{font-size:27px;font-weight:950;color:#ffe29b;line-height:1.05;font-variant-numeric:tabular-nums}
+#fieldHint{position:absolute;left:12px;bottom:9px;pointer-events:none;font-size:10px;color:#d4e7da;background:#0c2930c9;padding:6px 9px;border-radius:8px}
+#bottom{height:161px;flex:none;display:flex;gap:12px;padding:10px 15px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(#142d3a,#10242f);border-top:1px solid #406573;min-height:0}
+#resource{width:140px;flex:none;display:flex;flex-direction:column;justify-content:center;gap:7px}
+#resourceTitle{font-size:11px;color:#c4d4da;font-weight:800}#resourceNumber{font-size:28px;font-weight:950;color:#d5a9ff;font-variant-numeric:tabular-nums}#resourceNumber small{font-size:12px;color:#b2a5c7}
+#resourceRail{height:21px;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:2px;background:none;overflow:visible}
+.resourceSegment{display:block;position:relative;height:100%;border:1px solid #72668b;border-radius:4px;background:#111928;overflow:hidden}
+.resourceSegmentFill{display:block;height:100%;width:0;background:linear-gradient(#e0b4ff,#9261dc);transition:width .10s linear}
+#resourceNext{font-size:11px;font-weight:900;color:#efd5ff;white-space:nowrap;font-variant-numeric:tabular-nums}
+#rate{font-size:10px;color:#a4bacc}#remaining{font-size:10px;color:#b6d2d6}
+#collection{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+#collectionTitle{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;color:#b8d0d7}
+#cards{flex:1;min-height:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.card.permanent{border-color:#6ecbb3;box-shadow:inset 0 0 0 1px #61a9994a}
+.card.permanent::after{content:"固定";position:absolute;right:5px;top:31px;background:#21554d;color:#c9fbde;border-radius:4px;font-size:9px;font-weight:900;padding:1px 4px}
+.card.spell{border-color:#c19d6d;background:linear-gradient(135deg,#56435d,#342a43)}
+.card.spell .cardCost{background:#aa674a;border-color:#f2c095}
+.cardSpell{font-size:9px;background:#e6b5812c;color:#ffd79c;padding:1px 4px;border-radius:4px}
+#nextCard{font-size:10px;color:#efcf9b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:800}
+#fieldHint{max-width:min(70%,520px)}
+.card{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:2px;min-width:0;border-radius:10px;border:1px solid #648c99;border-bottom:3px solid #416b7b;background:linear-gradient(145deg,#28505b,#193440);padding:6px 7px;overflow:hidden;text-align:left}
+.card.selected{border-color:#ffe28f;background:linear-gradient(145deg,#466555,#254d51);box-shadow:inset 0 0 0 1px #f5d584}
+.card.ready:not(.selected):not(.depleted){border-color:#84bfc5}
+.card.unavailable{filter:saturate(.6);opacity:.58}
+.card.depleted{filter:grayscale(.8);opacity:.47}
+.cardTop{display:flex;align-items:center;justify-content:space-between;gap:3px}
+.cardCost{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#8054b3;border:2px solid #dcb4ff;font-size:12px;font-weight:900;flex:none}
+.cardQuantity{font-size:10px;font-weight:900;color:#ecddb0;background:#09202e73;border-radius:5px;padding:2px 4px}
+.cardPortrait{display:block;flex:1;width:100%;height:10px;max-height:76px;min-height:0;object-fit:fill;border-radius:7px;pointer-events:none}
+.card:hover{border-color:#b4dfe5}
+.card:active{transform:translateY(1px)}
+.cardName{font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cardBottom{display:flex;justify-content:space-between;align-items:center;gap:3px;font-size:9px;color:#b6d1d6}
+.cardCapture{font-size:9px;background:#b5a05c35;color:#f0d89b;padding:1px 3px;border-radius:4px}
+.cardLeft{font-weight:800;color:#dde6d4;font-variant-numeric:tabular-nums}
+.cardTier{font-weight:950;white-space:nowrap;color:#c5e7df}
+.card.tier-small .cardTier{color:#a9dfbe}
+.card.tier-medium .cardTier{color:#9bd8f9}
+.card.tier-large{border-bottom-color:#b59a43}
+.card.tier-large .cardTier{color:#ffe19c}
+#overlay{position:fixed;inset:0;background:#05151edf;display:flex;justify-content:center;align-items:center;padding:16px;z-index:30}
+#overlay.hidden{display:none}
+#dialog{width:min(520px,100%);max-height:92dvh;overflow:auto;padding:25px;background:linear-gradient(145deg,#20414b,#112a37);border:1px solid #78a2a9;border-radius:18px;box-shadow:0 22px 90px #0008;text-align:center}
+#dialog h1{margin:0 0 4px;font-size:29px;letter-spacing:.06em}#dialog p{font-size:13px;color:#bdd4d8;line-height:1.8}
+#rules{margin:13px 0;text-align:left;background:#0b2631;padding:12px 16px;border-radius:10px;color:#c3dce0;font-size:12px;line-height:1.8}
+#difficulties{display:flex;justify-content:center;gap:7px;margin:13px 0}
+#difficulties button{background:#1b3946;border:1px solid #668895;border-radius:9px;padding:9px 13px;font-size:12px;font-weight:800}
+#difficulties button.active{border-color:#f6d891;background:#4e5441;color:#ffe6a0}
+#start{border:0;border-radius:10px;padding:13px 20px;background:linear-gradient(100deg,#f2da93,#dfa973);font-size:16px;font-weight:950;color:#243237;width:100%}
+
+/* Full-size character collection; responsive for landscape iPad. */
+#cardInfoOverlay{position:fixed;inset:0;background:#05151de9;display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;touch-action:pan-y}
+#cardInfoOverlay.hidden{display:none}
+#cardInfoPanel{width:min(570px,100%);max-height:96dvh;overflow:auto;background:linear-gradient(135deg,#1e4451,#0e2937);border:2px solid #7ab6c4;border-radius:16px;padding:15px;box-shadow:0 15px 65px #000b}
+#cardInfoTop{display:flex;justify-content:space-between;align-items:start;gap:10px}
+#cardInfoTop h2{margin:2px 0 0;font-size:22px}
+#cardInfoRole{color:#e7ce9d;font-size:11px;font-weight:800}
+#cardInfoPortrait{display:block;width:100%;height:160px;object-fit:contain;max-height:28dvh;border-radius:10px;margin:9px 0}
+#cardInfoStats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 9px}
+.infoStat{display:flex;justify-content:space-between;gap:10px;background:#0a22318a;border:1px solid #49677965;border-radius:7px;padding:6px 8px;font-size:11px}
+.infoStat span{color:#b5cbd2}.infoStat strong{color:#f4e7bf}
+#cardInfoNote{margin:10px 2px 0;color:#d4e6dc;font-size:12px;line-height:1.6}
+@media(max-height:480px){#cardInfoPortrait{height:100px}#cardInfoPanel{padding:10px}#cardInfoTop h2{font-size:17px}.infoStat{padding:3px 7px;font-size:10px}}
+#galleryOverlay{position:fixed;inset:0;background:#06151ceF;z-index:40;display:flex;align-items:center;justify-content:center;padding:13px;touch-action:pan-y}
+#galleryOverlay.hidden{display:none}
+#galleryPanel{width:min(1080px,100%);max-height:95dvh;overflow:auto;overscroll-behavior:contain;background:linear-gradient(140deg,#1b3946,#0c2734);border:1px solid #6f9ca9;border-radius:17px;padding:15px;box-shadow:0 20px 75px #000b}
+#galleryHead{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;margin-bottom:10px}
+#galleryHead h2{margin:2px 0 4px;font-size:20px;letter-spacing:.08em}
+#galleryHead small{font-size:9px;color:#e7cc86;font-weight:800;letter-spacing:.1em}
+#galleryHead p{font-size:11px;color:#aac4ca;margin:0;line-height:1.5}
+#galleryClose{flex:none}
+#galleryCards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.galleryTile{border:1px solid #6a8f994f;background:#142d3ce0;border-radius:11px;padding:8px;overflow:hidden}
+.galleryTile canvas{display:block;width:100%;height:auto;aspect-ratio:128/80;border-radius:8px;background:#204252}
+.galleryName{margin-top:6px;font-size:12px;font-weight:950}
+.galleryDetails{font-size:10px;color:#b8d0da;margin-top:3px;line-height:1.5}
+.galleryRole{color:#ebd18f}
+.galleryLink{display:block;margin:9px auto 0;border:0;background:none;color:#a6e1ef;font-size:12px;font-weight:800;padding:8px}
+.galleryLink:hover{text-decoration:underline}
+@media(max-width:700px){#galleryCards{grid-template-columns:repeat(2,minmax(0,1fr))}#galleryPanel{max-height:93dvh}#galleryHead h2{font-size:16px}#galleryHead p{font-size:10px}}
+@media(max-height:480px){#galleryPanel{max-height:97dvh;padding:10px}.galleryTile{padding:5px}#galleryHead p{display:none}#galleryHead{margin-bottom:6px}}
+@media(max-width:1120px){
+#header{height:50px;padding:4px 7px;gap:6px}#logo{min-width:100px}#logo b{font-size:13px}#logo small{font-size:7px}.base .line{font-size:10px}.base .line span{font-size:9px}#clockbox{min-width:67px}#clock{font-size:19px}#phaseLabel{font-size:9px}.topButton{font-size:10px;padding:7px 8px}
+#bottom{height:136px;padding:7px 8px;gap:7px}#resource{width:95px}#resourceNumber{font-size:22px}#cards{gap:4px}.card{padding:4px 5px;border-radius:8px}.cardCost{width:21px;height:21px;font-size:11px}.cardPortrait{max-height:64px}.cardName{font-size:10px}.cardBottom{font-size:8px}#collectionTitle{font-size:10px}
+}
+@media(max-width:710px){
+#logo{min-width:64px}#logo b{font-size:11px}#logo small{display:none}.base{min-width:60px}#header{gap:4px}#headerButtons{gap:3px}.topButton{padding:6px 5px;font-size:9px}#bottom{height:119px;padding:5px;gap:4px}#resource{width:65px}#resourceTitle,#rate,#remaining{font-size:8px}#resourceNumber{font-size:17px}#cards{gap:3px}.cardPortrait{max-height:49px}.cardQuantity{font-size:8px}.cardName{font-size:9px}.cardCost{width:18px;height:18px;font-size:9px}.cardBottom{font-size:7px}.cardCapture{font-size:7px;padding:0 1px}
+}
+@media(max-height:485px){#header{height:40px}#bottom{height:105px}#dialog{padding:14px}#dialog h1{font-size:20px}#dialog p{font-size:11px}#rules{font-size:10px;margin:8px 0;padding:8px}#difficulties{margin:7px 0}}
+
+/* Phone-specific HUD, compact touch cards, and tablet breathing room. */
+@media(max-width:600px) and (orientation:portrait){
+ #header{height:82px;display:grid;grid-template-columns:minmax(0,1fr) 69px minmax(0,1fr);grid-template-rows:33px 31px;column-gap:6px;row-gap:3px;padding:4px 7px}
+ #logo{display:none}
+ #header>.base:nth-child(2){grid-column:1;grid-row:1}
+ #header>.base:nth-child(4){grid-column:3;grid-row:1}
+ .base{min-width:0;max-width:none;gap:3px}
+ .base .line{gap:3px;font-size:9px}
+ .base .line span{font-size:8px;white-space:nowrap}
+ .bar{height:7px}
+ #clockbox{grid-column:2;grid-row:1;min-width:0}
+ #clock{font-size:18px}
+ #phaseLabel{font-size:8px}
+ #headerButtons{grid-column:1/-1;grid-row:2;justify-content:space-around;gap:7px}
+ .topButton{flex:1;font-size:10px;padding:6px 6px}
+ #bottom{height:129px;padding:6px;gap:5px}
+ #resource{width:100%;height:36px;display:grid;grid-template-columns:74px minmax(0,1fr) 75px;grid-template-rows:1fr;align-items:center;column-gap:7px}
+ #resourceTitle,#rate,#remaining{display:none}
+ #resourceNumber{font-size:23px;line-height:1;grid-column:1}
+ #resourceNumber small{font-size:11px}
+ #resourceRail{grid-column:2;height:22px;gap:3px}
+ #resourceNext{grid-column:3;font-size:10px;text-align:right}
+ #bottom{height:156px;flex-direction:column;gap:4px}
+ #collection{min-height:0;flex:1}
+ #cards{gap:4px}
+ .card{padding:4px 3px}
+ .cardName{font-size:10px}
+ #collectionTitle{font-size:9px}
+ #fieldHint{left:6px;bottom:6px;max-width:56%;font-size:9px;padding:5px}
+ #cameraNav{right:6px;bottom:6px}
+ .cameraButton{min-height:36px;font-size:10px;min-width:54px}
+}
+@media(max-height:485px) and (orientation:landscape){
+ #header{height:38px}
+ #bottom{height:99px}
+ #resource{gap:3px}
+ #resourceTitle,#remaining,#rate{display:none}
+ #resourceRail{height:18px}
+ #resourceNext{font-size:9px}
+ #fieldHint{font-size:9px;padding:4px 6px}
+ #cameraNav{bottom:5px}
+ .cameraButton{min-height:29px}
+}
+
+</style>
+<style id="online-style">
+#onlinePanel{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;
+ background:linear-gradient(150deg,#071a23eb,#162d3bf7);padding:12px;overflow:auto;touch-action:pan-y}
+#onlinePanel.hidden{display:none!important}
+#onlineDialog{width:min(96vw,510px);max-height:96dvh;overflow:auto;padding:20px;border-radius:18px;
+ border:1px solid #5d8999;background:#122c38;box-shadow:0 12px 70px #0009;text-align:center}
+#onlineDialog h1{margin:2px 0 9px;font-size:clamp(20px,4vw,30px);color:#ecf5ee}
+#onlineDialog p{font-size:13px;color:#bbd3d5;margin:4px 0 15px}
+.netControls{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin:9px 0}
+.netControls button{background:#23536a;border:1px solid #84c5d6;color:white;border-radius:11px;
+ min-height:46px;padding:10px 17px;font-weight:700}
+.netControls button:disabled{opacity:.35}
+#netJoinCode{width:132px;min-height:45px;background:#071921;border:1px solid #56859a;color:#fff;
+ font-size:23px;font-variant-numeric:tabular-nums;text-align:center;letter-spacing:5px;border-radius:9px}
+#netRoom{font-size:clamp(26px,8vw,42px);font-weight:900;letter-spacing:6px;color:#c8f5ff}
+#netStatus{min-height:41px;color:#ffd998;font-size:13px;line-height:1.4;margin:9px 0}
+.netTip{font-size:11px;color:#9bbac1;margin-top:10px}
+#netStart{background:#21694e;color:#e8fff4}
+#networkBar{position:fixed;top:46px;left:50%;transform:translateX(-50%);z-index:25;
+ background:#092735d9;border:1px solid #467d8f;padding:3px 12px;border-radius:22px;
+ color:#edfaf5;font-size:11px;text-align:center;pointer-events:none}
+#networkBar.hidden{display:none}
+#difficulties{display:none!important}
+@media(max-width:580px){#onlineDialog{padding:14px}#networkBar{top:34px;max-width:98%;font-size:9px}}
+</style>
+</head>
+<body>
+<div id="app">
+<header id="header">
+<div id="logo"><b>小国戦線 <span style="color:#8bdcf4">III</span></b><small>FORTRESS FRONT</small></div>
+<div class="base"><div class="line">自軍首都 <span id="blueText">3000 / 3000</span></div><div class="bar"><div class="fill" id="blueBar"></div></div></div>
+<div id="clockbox"><div id="clock">05:00</div><div id="phaseLabel">待機中</div></div>
+<div class="base"><div class="line">敵軍首都 <span id="redText">3000 / 3000</span></div><div class="bar"><div class="fill enemy" id="redBar"></div></div></div>
+<div id="headerButtons"><button class="topButton" id="galleryButton" aria-label="部隊図鑑を開く">✧ 図鑑</button><button class="topButton" id="speed">速度 0.85×</button><button class="topButton" id="pause">Ⅱ 停止</button></div>
+</header>
+<main id="fieldArea">
+<canvas id="field" aria-label="横スクロールできる戦場。タップで召喚・スペル発動、スワイプで戦場を移動できます。"></canvas>
+<div id="cameraNav"><button type="button" id="homeCam" class="cameraButton" aria-label="自軍の城壁を見る">⌂ 自城</button><button type="button" id="frontCam" class="cameraButton" aria-label="戦闘中の前線を見る">⌖ 前線</button></div>
+<div id="announcement" aria-live="polite"></div>
+<div id="prepBanner"><small>開戦準備 · 配置した部隊は動きません</small><div id="prepTime">00:10</div></div>
+<div id="fieldHint">カード選択→戦場をタップして召喚 · 戦場をスワイプして移動</div>
+</main>
+<footer id="bottom">
+<div id="resource">
+<div id="resourceTitle">召喚エネルギー</div>
+<div id="resourceNumber">8 <small>/ 12</small></div>
+<div id="resourceRail" role="progressbar" aria-label="召喚エネルギー" aria-valuemin="0" aria-valuemax="12" aria-valuenow="8"></div>
+<div id="resourceNext">開戦後回復</div>
+<div id="rate">準備中は回復なし</div>
+<div id="remaining">基本歩兵は何度でも召喚可</div>
+</div>
+<div id="collection">
+<div id="collectionTitle"><span>タップで召喚｜スワイプで視点移動｜長押しで能力</span><span id="nextCard">次：範囲砲撃</span></div>
+<div id="cards"></div>
+</div>
+</footer>
+</div>
+
+<div id="cardInfoOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="cardInfoName">
+ <div id="cardInfoPanel">
+  <div id="cardInfoTop"><div><span id="cardInfoRole">キャラクター能力</span><h2 id="cardInfoName">基本歩兵</h2></div><button class="topButton" id="cardInfoClose">✕ 戻る</button></div>
+  <canvas id="cardInfoPortrait" width="320" height="184" aria-hidden="true"></canvas>
+  <div id="cardInfoStats"></div>
+  <p id="cardInfoNote"></p>
+ </div>
+</div>
+<div id="galleryOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
+ <div id="galleryPanel">
+  <div id="galleryHead">
+   <div><small>CHARACTER COLLECTION / ORIGINAL 2D ART</small><h2 id="galleryTitle">小国戦線｜部隊図鑑</h2><p>装備・シルエット・攻撃方法で描き分けた、9種類の近未来ファンタジー兵士。図鑑を開いている間、対戦は一時停止します。</p></div>
+   <button id="galleryClose" class="topButton" aria-label="図鑑を閉じて対戦に戻る">✕ 戻る</button>
+  </div>
+  <div id="galleryCards"></div>
+ </div>
+</div>
+<div id="overlay"><div id="dialog">
+<h1 id="dialogTitle">小国戦線 III</h1>
+<p id="dialogText">小型・中型・大型を使い分ける、横スクロール型の陣取りカード戦略。友達と1vs1オンライン対戦しよう。</p>
+<div id="rules">
+・<strong>最初の10秒間</strong>は準備フェーズ。配置した部隊は動かず、資源も回復しません。<br>
+・<strong>戦場は横スクロール制</strong>。カードをタップで選択、戦場をタップで召喚・スペル発動。スワイプはカメラ移動のみ。ミニマップなし。<br>
+・<strong>自城・前線ボタン</strong>でカメラ移動。城HP・制限時間はいつでも確認可能。<br>
+・カードは<strong>長押しで能力表示</strong>。基本歩兵は召喚後も選択したままで連続召喚可能。<br>
+・<strong>基本歩兵はいつでも召喚可能</strong>。ほかの8兵種と2種類のスペルは4枚手札で循環します。カードを使うと次のカードに交代。<br>
+・<strong>範囲砲撃（4）</strong>：約1.3秒後に敵兵へ範囲攻撃。<strong>防護結界（3）</strong>：約5秒間、範囲内の味方へのダメージを45％軽減。各3回まで、開戦後に使用可能。<br>
+・前哨基地は占領可能ユニットが最後の一撃で獲得。最も奥の自軍基地で<strong>召喚ラインが全域に前進</strong>。<br>
+・召喚エネルギーは上限12。12マスのゲージで次の1コストまでの進捗を確認できます。序盤は回復が遅く、終盤ほど加速します。<br>
+・城壁は自動攻撃しません。兵士で守り、敵の城壁を攻め落としましょう。<br>
+・敵首都を破壊すると勝利。時間切れは首都HP割合で決着。
+</div>
+<div id="difficulties"><button data-level="easy">練習</button><button class="active" data-level="normal">ふつう</button><button data-level="hard">むずかしい</button></div>
+<button id="start">新しいルームを作る</button>
+<button id="galleryFromMenu" class="galleryLink">✧ 先に9体のキャラクターデザインを見る</button>
+</div></div>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<script src="./online-net.js?v=1"></script>
+<script src="./gald-render.js?v=1"></script>
+<script src="./v3-art.js?v=7"></script>
+<script src="./online-game.js?v=1"></script>
+<div id="networkBar" class="hidden" aria-live="polite"></div>
+<div id="onlinePanel" role="dialog" aria-label="オンライン対戦ルーム">
+ <div id="onlineDialog"><h1>小国戦線 III｜友達対戦</h1>
+  <p>学校のiPad・Safari対応の1vs1。ルーム番号を共有して一緒に対戦しよう。</p>
+  <div id="netRoomInfo">5桁の番号で友達と対戦</div>
+  <div id="netRoom">-----</div><div id="netSeat">参加前</div>
+  <div class="netControls"><button id="netCreate">ルームを作成</button><button id="netShare" disabled>番号をコピー</button></div>
+  <div class="netControls"><input id="netJoinCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="5桁のルーム番号"><button id="netJoin">ルームに参加</button></div>
+  <div class="netControls"><button id="netReady" disabled>準備完了</button><button id="netStart" hidden disabled>対戦スタート</button></div>
+  <div id="netStatus" role="status">Firebaseに接続中…</div>
+  <div class="netTip">ホスト＝青軍、参加者＝赤軍。両方が準備完了したらホストが開始。<br>双方ともコスト・HP・手札制限は同じです。音声なし。</div>
+ </div>
+</div>
+</body></html>
