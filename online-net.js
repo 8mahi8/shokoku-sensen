@@ -11,7 +11,7 @@ const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)cr
 const clientId=token(), ROOM_VERSION=1;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
-let lastRemoteSeq=0,serverOffset=0,presencePending=false;
+let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false;
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
@@ -29,6 +29,14 @@ function updateUI(){
  $("netStart").hidden=!host;
  $("netStart").disabled=!host||!ready||!peerOnline||!seatValid||meta?.status!=="lobby"||!connected;
  $("netShare").disabled=!inRoom;
+  const guestControl=inRoom&&!host&&seatValid;
+  $("netGuestBot").hidden=!guestControl;
+  $("netGuestBot").disabled=!guestControl||!connected;
+  $("netGuestBot").textContent=guestBot?"BOT操作：ON ✓":"この参加端末をBOT操作";
+  $("netGuestBot").setAttribute("aria-pressed",String(guestBot));
+  $("guestBotLive").hidden=!(guestControl&&meta?.status==="playing");
+  $("guestBotLive").textContent=guestBot?"🤖 BOT操作 ON｜手動へ":"🎮 手動操作｜BOTへ";
+  $("guestBotLive").setAttribute("aria-pressed",String(guestBot));
  if(inRoom&&meta?.status==="lobby"&&connected)
   show(!seatValid?"参加情報が変更されました。新しいルームへ接続し直してください":!peerOnline?"相手の接続を待っています":ready?"2人準備OK。ホストが開始できます。":"2人参加中。両方が準備完了を押してください");
  if(inRoom&&meta?.status==="playing"&&connected){
@@ -70,6 +78,7 @@ async function registerPresence(){
  }catch(e){setError(e)}finally{presencePending=false;}
 }
 function setupRoom(code,isHost){
+ solo=false;guestBot=false;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
@@ -170,6 +179,23 @@ async function join(){
   setupRoom(code,false);
  }catch(e){setError(e)}
 }
+async function toggleGuestBot(){
+ if(solo||!room||host||players?.guest?.id!==clientId)return;
+ guestBot=!guestBot;
+ game?.setBotControl?.(guestBot);
+ updateUI();
+ if(guestBot&&meta?.status==="lobby"&&!players?.guest?.ready&&connected)await ready();
+ show(guestBot?"BOT操作ON。ホストが開始すると自動召喚します":"手動操作に戻しました");
+}
+function startSolo(){
+ if(room||solo)return;
+ solo=true;guestBot=false;team=1;host=false;
+ document.body.classList.add("soloMode");
+ $("onlinePanel").classList.add("hidden");
+ $("networkBar").classList.remove("hidden");
+ $("networkBar").textContent="OFFLINE｜青軍 vs BOT赤軍";
+ game?.begin();
+}
 async function ready(){
  if(!room||meta?.status!=="lobby")return;
  try{
@@ -202,6 +228,7 @@ function maybePublish(force=false){
  room.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset}).catch(setError);
 }
 function finish(data){
+ if(solo)return;
  if(!host||!room||phase!=="playing")return;
  phase="finished";
  // Force publish the final world before closing, so the guest sees the last HP.
@@ -217,6 +244,7 @@ function resultForMe(){return !result||result.winner===0?"draw":result.winner===
 function hasResult(){return !!result}
 function resultReason(){return result?.reason||"対戦終了"}
 async function rematch(){
+ if(solo){game?.begin();return;}
  if(!host||!room||meta?.status!=="finished"||!connected)return;
  try{
   $("start").disabled=true;
@@ -228,6 +256,7 @@ async function rematch(){
  }catch(e){setError(e)}finally{$("start").disabled=false;}
 }
 async function resetLobby(){
+ if(solo){location.reload();return;}
  const leaving=room,seat=host?"host":"guest";
  // Write offline before navigating, and leave onDisconnect armed as a fallback.
  // Never write another player's seat after their ID has changed.
@@ -243,13 +272,18 @@ async function resetLobby(){
  location.reload();
 }
 const api={
- get team(){return team},get isHost(){return host},get isOnline(){return true},
+ get team(){return solo?1:team},get isHost(){return host||solo},
+  get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
+  get botActive(){return solo||guestBot},
  registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
+  $("netSolo").addEventListener("click",startSolo);
+  $("netGuestBot").addEventListener("click",toggleGuestBot);
+  $("guestBotLive").addEventListener("click",toggleGuestBot);
  $("netJoin").addEventListener("click",join);
  $("netReady").addEventListener("click",ready);
  $("netStart").addEventListener("click",startMatch);

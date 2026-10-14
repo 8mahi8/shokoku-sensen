@@ -88,10 +88,10 @@ const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
 const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
  energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
- uid:0,botThink:0,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
+ uid:0,botThink:0,botPrepDone:false,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
- S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botSaveLarge=false;
+ S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
  S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
@@ -412,6 +412,15 @@ function rate(){
  if(S.elapsed<270)return .53;
  return .7;
 }
+// Guest BOT uses normal guest commands; only the host changes world state.
+function botUse(team,id,x,y){return playCard(team,id,x,y);}
+function botPreparation(){
+ if(!NET.botActive||S.phase!=="prep"||S.botPrepDone||S.prep>8.5)return;
+ S.botPrepDone=true;
+ const x=limit(border(2)+40,40,W-40),fort=S.forts.find(f=>f.x===867),y=fort?.y??210;
+ for(const id of ["scout","engineer","archer","infantry"])
+  if(canPay(2,id)&&botUse(2,id,x,y))break;
+}
 // Expert heuristics operate within the same hand, economy and placement rules.
 // v3.9 tactical BOT. Same deck order, charges, energy rate and deployment rules as a human.
 function botExpertAction(){
@@ -427,9 +436,9 @@ function botExpertAction(){
  const groupSize=group?.neighbors.length??0;
  const yFocus=focus?.y??fort?.y??330;
  const spawn=(id,y,margin=35)=>
-   pay(id)&&deploy(2,id,limit(edge+margin,40,W-40),limit(y,70,H-70));
+   pay(id)&&botUse(2,id,limit(edge+margin,40,W-40),limit(y,70,H-70));
  // Use meaningful counters early. The BOT never receives free units or bonus damage.
- if(groupSize>=3&&pay("barrage")&&castSpell(2,"barrage",group.u.x,group.u.y))return true;
+ if(groupSize>=3&&pay("barrage")&&botUse(2,"barrage",group.u.x,group.u.y))return true;
  if(groupSize>=3&&spawn("suppress",group.u.y,50))return true;
  if(raiders.some(u=>CLASSES[u.key].flying)&&spawn("archer",yFocus,58))return true;
  if(raiders.some(u=>CLASSES[u.key].size==="large")&&spawn("guardian",yFocus,34))return true;
@@ -461,9 +470,9 @@ function botExpertAction(){
  if(pay("ward")){
   const team=friends.map(u=>({u,value:friends.filter(v=>dist(v,u)<90&&raiders.some(e=>dist(e,v)<175)).length}))
    .sort((a,b)=>b.value-a.value)[0];
-  if(team&&team.value>=2&&castSpell(2,"ward",team.u.x,team.u.y))return true;
+  if(team&&team.value>=2&&botUse(2,"ward",team.u.x,team.u.y))return true;
  }
- if(groupSize>=2&&pay("barrage")&&castSpell(2,"barrage",group.u.x,group.u.y))return true;
+ if(groupSize>=2&&pay("barrage")&&botUse(2,"barrage",group.u.x,group.u.y))return true;
  // Rotate non-permanent cards for the next tactical option; hold energy if necessary.
  for(const id of ["scout","archer","engineer","sentinel","suppress","drone"]){
   if(spawn(id,id==="scout"||id==="engineer"?fort?.y??330:yFocus,
@@ -482,12 +491,12 @@ function botAction(){
  if(canPay(2,"barrage")&&enemies.length){
   const best=enemies.map(t=>({target:t,hits:enemies.filter(u=>dist(t,u)<SPELLS.barrage.radius).length}))
    .sort((a,b)=>b.hits-a.hits)[0];
-  if(best.hits>=2&&Math.random()<.75){castSpell(2,"barrage",best.target.x,best.target.y);return;}
+  if(best.hits>=2&&Math.random()<.75){botUse(2,"barrage",best.target.x,best.target.y);return;}
  }
  if(canPay(2,"ward")&&allies.length){
   const best=allies.map(t=>({target:t,hits:allies.filter(u=>dist(t,u)<SPELLS.ward.radius).length,
    threatened:enemies.some(u=>dist(t,u)<150)})).filter(x=>x.threatened).sort((a,b)=>b.hits-a.hits)[0];
-  if(best&&best.hits>=2&&Math.random()<.7){castSpell(2,"ward",best.target.x,best.target.y);return;}
+  if(best&&best.hits>=2&&Math.random()<.7){botUse(2,"ward",best.target.x,best.target.y);return;}
  }
  // The BOT must sometimes save energy for its 7-cost giants, otherwise it
  // spends each small increment and never showcases large-vs-large tactics.
@@ -504,7 +513,7 @@ function botAction(){
   const target=enemies.filter(u=>u.x>560).sort((a,b)=>b.x-a.x)[0];
   const x=limit(border(2)+rand(20,65),38,W-35);
   const y=target?target.y:rand(190,455);
-  deploy(2,giant,x,limit(y,70,H-70));
+  botUse(2,giant,x,limit(y,70,H-70));
   S.botSaveLarge=false;
   return;
  }
@@ -515,7 +524,7 @@ function botAction(){
  const infantryThreat=enemies.filter(u=>u.key==="infantry"&&u.x>border(2)-290);
  if(affordable.includes("suppress")&&infantryThreat.length>=4){
   const spot=infantryThreat.sort((a,b)=>b.x-a.x)[0];
-  deploy(2,"suppress",limit(border(2)+32,60,W-50),limit(spot.y,70,H-70));return;
+  botUse(2,"suppress",limit(border(2)+32,60,W-50),limit(spot.y,70,H-70));return;
  }
  const claimable=affordable.filter(id=>CLASSES[id].capture);
  const defenders=affordable.filter(id=>CLASSES[id].behavior==="guard"||id==="suppress"||id==="archer");
@@ -527,7 +536,7 @@ function botAction(){
  const x=limit(border(2)+rand(20,75),38,W-35);
  const y=chosen==="guardian"&&press?S.units.filter(u=>u.team===1).sort((a,b)=>b.x-a.x)[0]?.y||330:
    (target&&Math.random()<.72?target.y+rand(-35,35):rand(160,490));
- deploy(2,chosen,x,limit(y,70,H-70));
+ botUse(2,chosen,x,limit(y,70,H-70));
 }
 function botStep(dt){
  S.botThink-=dt;
@@ -546,8 +555,8 @@ function end(result,reason){
  $("rules").innerHTML="自軍首都："+Math.ceil(capital(ME()).hp)+" / "+START_HP+
  "<br>敵軍首都："+Math.ceil(capital(3-ME()).hp)+" / "+START_HP+
  "<br>残り時間："+numTime(S.seconds)+
- "<br>1vs1 オンライン対戦";
- $("start").textContent=NET.isHost?"同じルームで再戦":"新しいルームで遊ぶ";
+ "<br>"+(NET.isSolo?"オフライン BOT対戦":"1vs1 オンライン対戦");
+ $("start").textContent=NET.isSolo?"BOTと再戦":NET.isHost?"同じルームで再戦":"新しいルームで遊ぶ";
  $("overlay").classList.remove("hidden");
  $("prepBanner").classList.remove("visible");
 }
@@ -568,6 +577,7 @@ function tick(dt){
  S.projectiles=S.projectiles.filter(f=>f.t>0);
  if(S.effects.length>140)S.effects.splice(0,S.effects.length-140);
  if(S.projectiles.length>110)S.projectiles.splice(0,S.projectiles.length-110);
+ if(NET.isSolo&&S.phase==="battle")botStep(dt);
  if(S.phase==="battle"&&S.seconds<=0)finishTime();
 }
 // The tactical world remains 1280 x 660, so unit travel time and attack ranges
@@ -980,6 +990,7 @@ function updateHUD(){
  if(performance.now()>S.noticeUntil)$("announcement").classList.remove("visible");
 }
 function cardDown(e,id){
+ if(NET.guestBot){notice("BOT操作中。右上で手動に戻せます");return;}
  if(S.phase!=="prep"&&S.phase!=="battle")return;
  e.preventDefault();
  S.drag={pointer:e.pointerId,id,originX:e.clientX,originY:e.clientY,x:e.clientX,y:e.clientY,active:false,startedAt:performance.now(),infoShown:false};
@@ -1015,7 +1026,7 @@ function arenaUp(e){
  const p=S.pointer;if(!p||p.id!==e.pointerId)return;
  // A swipe only moves the camera; releasing it must NEVER deploy a unit.
  const wasSwipe=p.dragging||Math.hypot(e.clientX-p.originX,e.clientY-p.originY)>12;
- if(!wasSwipe&&S.selected){
+ if(!wasSwipe&&S.selected&&!NET.guestBot){
   const pt=point(e.clientX,e.clientY),id=S.selected;
   if(!playCard(ME(),id,pt.x,pt.y))notice(cardFailure(ME(),id));
  }
@@ -1030,7 +1041,10 @@ function resumeButton(){
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
  NET.registerGame({
-  begin,resetForLobby:()=>{
+  begin,setBotControl:active=>{
+    if(active){S.selected=null;S.drag=null;S.pointer=null;S.botThink=2.5;S.botPrepDone=false;}
+    buildCards();updateHUD();
+   },resetForLobby:()=>{
    resetWorld();S.phase="menu";S.remoteSprites=null;
    $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
    buildCards();updateHUD();
@@ -1054,7 +1068,9 @@ function start(){
     if(data[field]!==undefined)S[field]=data[field];
    }
    if(data.phase==="prep"||data.phase==="battle"){
-    S.phase=data.phase;$("overlay").classList.add("hidden");
+    S.phase=data.phase;
+    if(NET.guestBot&&data.phase==="battle"&&was!=="battle")S.botThink=3;
+    $("overlay").classList.add("hidden");
     $("prepBanner").classList.toggle("visible",S.phase==="prep");
     if(was==="menu")cameraTo(980,330);
    }else if(data.phase==="result"){
@@ -1136,6 +1152,7 @@ function start(){
   inspectHold(now);
   if(NET.isHost&&S.phase==="prep"){
    S.prep=Math.max(0,S.prep-delta);
+   if(NET.isSolo)botPreparation();
    if(S.prep<=0){
     S.phase="battle";S.botThink=4;
     $("prepBanner").classList.remove("visible");
@@ -1150,9 +1167,13 @@ function start(){
    }
    if(iter===5)acc=0;
   }else acc=0;
+  if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle")){
+   if(S.phase==="prep")botPreparation();
+   else botStep(delta*S.speed);
+  }
   S.hudTick+=delta;
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();}
-  if(NET.isHost&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
+  if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
   draw();requestAnimationFrame(frame);
  }
  requestAnimationFrame(frame);

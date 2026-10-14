@@ -214,6 +214,13 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
  color:#edfaf5;font-size:11px;text-align:center;pointer-events:none}
 #networkBar.hidden{display:none}
 #difficulties,#speed,#pause{display:none!important}
+body.soloMode #difficulties{display:flex!important}
+#netSolo{background:linear-gradient(100deg,#56744b,#2a625c);border-color:#acd18e}
+#netGuestBot[aria-pressed="true"],#guestBotLive[aria-pressed="true"]{background:#1c6b52;border-color:#9cf5a8;color:white}
+#guestBotLive{position:fixed;right:9px;top:69px;z-index:26;border-radius:9px;padding:7px 11px;font-size:11px;
+ font-weight:800;background:#1c3543;border:1px solid #82b3c8;color:#e9f9ff;touch-action:manipulation}
+#guestBotLive[hidden]{display:none!important}
+@media(max-height:530px){#guestBotLive{top:43px;padding:5px 8px;font-size:10px}}
 @media(max-width:580px){#onlineDialog{padding:14px}#networkBar{top:34px;max-width:98%;font-size:9px}}
 </style>
 </head>
@@ -287,11 +294,12 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 </div></div>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-<script src="./online-net.js?v=3"></script>
+<script src="./online-net.js?v=5"></script>
 <script src="./gald-render.js?v=1"></script>
 <script src="./v3-art.js?v=7"></script>
-<script src="./online-game.js?v=4"></script>
+<script src="./online-game.js?v=5"></script>
 <div id="networkBar" class="hidden" aria-live="polite"></div>
+<button id="guestBotLive" type="button" hidden aria-pressed="false">BOT操作へ</button>
 <div id="onlinePanel" role="dialog" aria-label="オンライン対戦ルーム">
  <div id="onlineDialog"><h1>小国戦線 III｜友達対戦</h1>
   <p>学校のiPad・Safari対応の1vs1。ルーム番号を共有して一緒に対戦しよう。</p>
@@ -300,8 +308,10 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
   <div class="netControls"><button id="netCreate">ルームを作成</button><button id="netShare" disabled>番号をコピー</button></div>
   <div class="netControls"><input id="netJoinCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="5桁のルーム番号"><button id="netJoin">ルームに参加</button></div>
   <div class="netControls"><button id="netReady" disabled>準備完了</button><button id="netStart" hidden disabled>対戦スタート</button></div>
+   <div class="netControls"><button id="netGuestBot" type="button" hidden aria-pressed="false">この参加端末をBOT操作</button></div>
+   <div class="netControls"><button id="netSolo" type="button">通信不要｜BOTと練習する</button></div>
   <div id="netStatus" role="status">Firebaseに接続中…</div>
-  <div class="netTip">ホスト＝青軍、参加者＝赤軍。両方が準備完了したらホストが開始。<br>双方ともコスト・HP・手札制限は同じです。音声なし。</div>
+  <div class="netTip">通信できなくても「BOTと練習する」で1人プレイ可能。<br>2台テスト時は参加端末でBOT操作をONにすると自動準備・自動召喚。ホストは青軍、参加側は赤軍です。</div>
  </div>
 </div>
 </body></html>
