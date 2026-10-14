@@ -61,13 +61,13 @@ function client(){
  const get=id=>{
   if(!dom.has(id)){
    const el={textContent:"",value:"",disabled:false,hidden:false,
-    classList:{add(){},remove(){},toggle(){}},select(){},
+    classList:{add(){},remove(){},toggle(){}},select(){},setAttribute(name,v){this[name]=v},
     addEventListener(name,fn){this["on"+name]=fn}};
    dom.set(id,el);
   }
   return dom.get(id);
  };
- const document={getElementById:get,addEventListener(name,fn){callbacks[name]=fn}};
+ const document={getElementById:get,body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
  const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
   console,Date,Math,Uint32Array,Promise,performance,
   navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){}},setTimeout,clearTimeout};
