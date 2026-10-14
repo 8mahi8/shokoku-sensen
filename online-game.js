@@ -1041,7 +1041,12 @@ function resumeButton(){
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
  NET.registerGame({
-  begin,setBotControl:active=>{
+  begin,setDifficulty:level=>{
+    if(["easy","normal","hard"].includes(level)){
+      S.difficulty=level;
+      document.querySelectorAll("[data-level]").forEach(b=>b.classList.toggle("active",b.dataset.level===level));
+    }
+   },setBotControl:active=>{
     if(active){S.selected=null;S.drag=null;S.pointer=null;S.botThink=2.5;S.botPrepDone=false;}
     buildCards();updateHUD();
    },resetForLobby:()=>{

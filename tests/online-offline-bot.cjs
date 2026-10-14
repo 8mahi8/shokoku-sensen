@@ -20,7 +20,10 @@ const server=http.createServer((req,res)=>{
    // Block just Firebase, not the game scripts or original Gald character art.
    await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
    await page.goto("http://127.0.0.1:8771/"+source,{waitUntil:"domcontentloaded"});
+   await page.locator('[data-solo-level="hard"]').click();
+   assert.equal(await page.locator('[data-solo-level="hard"]').getAttribute("aria-pressed"),"true");
    await page.locator("#netSolo").click();
+   assert.equal(await page.evaluate(()=>window.ShokokuNet.soloDifficulty),"hard");
    await page.waitForFunction(()=>window.ShokokuNet?.isSolo===true&&window.ShokokuNet?.isOnline===false&&window.ShokokuNet?.isHost===true);
    await page.locator("#onlinePanel").waitFor({state:"hidden"});
    const badge=await page.locator("#networkBar").innerText();assert.match(badge,/OFFLINE/);

@@ -216,6 +216,13 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #difficulties,#speed,#pause{display:none!important}
 body.soloMode #difficulties{display:flex!important}
 #netSolo{background:linear-gradient(100deg,#56744b,#2a625c);border-color:#acd18e}
+.netPractice{margin:12px 0 6px;padding:10px;background:#0c2530;border:1px solid #476d78;border-radius:12px;display:flex;flex-direction:column;gap:8px}
+.netPracticeHeading{font-weight:800;color:#d7e9e2;font-size:12px}
+#netSoloLevels{display:flex;gap:8px;justify-content:center}
+#netSoloLevels button{flex:1;border:1px solid #5b8390;border-radius:9px;padding:9px 5px;background:#1b3a46;color:#cee2eb;font-size:12px;font-weight:800;min-height:40px}
+#netSoloLevels button.selected{background:#476e45;color:#fcffe5;border-color:#c5e78b;box-shadow:inset 0 0 0 1px #a5cf84}
+.netPractice #netSolo{min-height:45px;border-radius:9px;padding:11px;font-weight:900;color:white;border:1px solid #92c4a5}
+@media(max-height:500px){.netPractice{margin:5px 0;padding:6px;gap:5px}#netSoloLevels button{min-height:32px;padding:5px}#onlineDialog{padding:10px}}
 #netGuestBot[aria-pressed="true"],#guestBotLive[aria-pressed="true"]{background:#1c6b52;border-color:#9cf5a8;color:white}
 #guestBotLive{position:fixed;right:9px;top:69px;z-index:26;border-radius:9px;padding:7px 11px;font-size:11px;
  font-weight:800;background:#1c3543;border:1px solid #82b3c8;color:#e9f9ff;touch-action:manipulation}
@@ -308,7 +315,7 @@ const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)cr
 const clientId=token(), ROOM_VERSION=1;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
-let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false;
+let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal';
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
@@ -486,6 +493,7 @@ async function toggleGuestBot(){
 }
 function startSolo(){
  if(room||solo)return;
+ game?.setDifficulty?.(soloDifficulty);
  solo=true;guestBot=false;team=1;host=false;
  document.body.classList.add("soloMode");
  $("onlinePanel").classList.add("hidden");
@@ -571,7 +579,7 @@ async function resetLobby(){
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
-  get botActive(){return solo||guestBot},
+  get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
  registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
@@ -579,6 +587,17 @@ window.ShokokuNet=api;
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
   $("netSolo").addEventListener("click",startSolo);
+  document.querySelectorAll("[data-solo-level]").forEach(button=>button.addEventListener("click",()=>{
+    if(room||solo)return;
+    const level=button.dataset.soloLevel;
+    if(!["easy","normal","hard"].includes(level))return;
+    soloDifficulty=level;
+    document.querySelectorAll("[data-solo-level]").forEach(b=>{
+      const selected=b.dataset.soloLevel===level;
+      b.classList.toggle("selected",selected);
+      b.setAttribute("aria-pressed",String(selected));
+    });
+  }));
   $("netGuestBot").addEventListener("click",toggleGuestBot);
   $("guestBotLive").addEventListener("click",toggleGuestBot);
  $("netJoin").addEventListener("click",join);
@@ -2142,7 +2161,12 @@ function resumeButton(){
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
  NET.registerGame({
-  begin,setBotControl:active=>{
+  begin,setDifficulty:level=>{
+    if(["easy","normal","hard"].includes(level)){
+      S.difficulty=level;
+      document.querySelectorAll("[data-level]").forEach(b=>b.classList.toggle("active",b.dataset.level===level));
+    }
+   },setBotControl:active=>{
     if(active){S.selected=null;S.drag=null;S.pointer=null;S.botThink=2.5;S.botPrepDone=false;}
     buildCards();updateHUD();
    },resetForLobby:()=>{
@@ -2293,7 +2317,15 @@ start();
   <div class="netControls"><input id="netJoinCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="5桁のルーム番号"><button id="netJoin">ルームに参加</button></div>
   <div class="netControls"><button id="netReady" disabled>準備完了</button><button id="netStart" hidden disabled>対戦スタート</button></div>
    <div class="netControls"><button id="netGuestBot" type="button" hidden aria-pressed="false">この参加端末をBOT操作</button></div>
-   <div class="netControls"><button id="netSolo" type="button">通信不要｜BOTと練習する</button></div>
+   <div class="netPractice">
+    <div class="netPracticeHeading">1人プレイ・BOTの強さ</div>
+    <div id="netSoloLevels" role="group" aria-label="BOTの難易度">
+      <button type="button" data-solo-level="easy" aria-pressed="false">練習</button>
+      <button type="button" data-solo-level="normal" class="selected" aria-pressed="true">ふつう</button>
+      <button type="button" data-solo-level="hard" aria-pressed="false">むずかしい</button>
+    </div>
+    <button id="netSolo" type="button">通信不要｜BOTと練習する</button>
+   </div>
   <div id="netStatus" role="status">Firebaseに接続中…</div>
   <div class="netTip">通信できなくても「BOTと練習する」で1人プレイ可能。<br>2台テスト時は参加端末でBOT操作をONにすると自動準備・自動召喚。ホストは青軍、参加側は赤軍です。</div>
  </div>

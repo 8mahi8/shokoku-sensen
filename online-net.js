@@ -11,7 +11,7 @@ const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)cr
 const clientId=token(), ROOM_VERSION=1;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
-let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false;
+let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal';
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
@@ -189,6 +189,7 @@ async function toggleGuestBot(){
 }
 function startSolo(){
  if(room||solo)return;
+ game?.setDifficulty?.(soloDifficulty);
  solo=true;guestBot=false;team=1;host=false;
  document.body.classList.add("soloMode");
  $("onlinePanel").classList.add("hidden");
@@ -274,7 +275,7 @@ async function resetLobby(){
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
-  get botActive(){return solo||guestBot},
+  get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
  registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
@@ -282,6 +283,17 @@ window.ShokokuNet=api;
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
   $("netSolo").addEventListener("click",startSolo);
+  document.querySelectorAll("[data-solo-level]").forEach(button=>button.addEventListener("click",()=>{
+    if(room||solo)return;
+    const level=button.dataset.soloLevel;
+    if(!["easy","normal","hard"].includes(level))return;
+    soloDifficulty=level;
+    document.querySelectorAll("[data-solo-level]").forEach(b=>{
+      const selected=b.dataset.soloLevel===level;
+      b.classList.toggle("selected",selected);
+      b.setAttribute("aria-pressed",String(selected));
+    });
+  }));
   $("netGuestBot").addEventListener("click",toggleGuestBot);
   $("guestBotLive").addEventListener("click",toggleGuestBot);
  $("netJoin").addEventListener("click",join);
