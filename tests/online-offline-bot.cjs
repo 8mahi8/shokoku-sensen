@@ -22,9 +22,9 @@ const server=http.createServer((req,res)=>{
    await page.goto("http://127.0.0.1:8771/"+source,{waitUntil:"domcontentloaded"});
    await page.locator("#netSolo").click();
    await page.waitForFunction(()=>window.ShokokuNet?.isSolo===true&&window.ShokokuNet?.isOnline===false&&window.ShokokuNet?.isHost===true);
-   await page.locator("#onlinePanel.hidden").waitFor();
+   await page.locator("#onlinePanel").waitFor({state:"hidden"});
    const badge=await page.locator("#networkBar").innerText();assert.match(badge,/OFFLINE/);
-   await page.waitForFunction(()=>window.KokokuArt&&window.KokokuArt.drawUnit,{timeout:15000});
+   await page.waitForFunction(()=>window.KokokuArt&&window.KokokuArt.drawUnit,null,{timeout:15000});
    await page.evaluate(()=>{
     window.__offlineRender={red:0,blue:0};
     const old=window.KokokuArt.drawUnit;
@@ -34,7 +34,7 @@ const server=http.createServer((req,res)=>{
      return old.call(this,ctx,unit,clock);
     };
    });
-   await page.waitForFunction(()=>window.__offlineRender.red>0,{timeout:9000});
+   await page.waitForFunction(()=>window.__offlineRender.red>0,null,{timeout:9000});
    // Unit rendering alone isn't enough: tick locally, not using Firebase.
    const first=await page.locator("#prepTime").innerText();
    await delay(1600);
@@ -44,7 +44,7 @@ const server=http.createServer((req,res)=>{
    await page.locator('button.card[data-id="infantry"]').click();
    const rect=await page.locator("#field").boundingBox();
    await page.mouse.click(rect.x+rect.width*.12,rect.y+rect.height*.45);
-   await page.waitForFunction(()=>window.__offlineRender.blue>0,{timeout:9000});
+   await page.waitForFunction(()=>window.__offlineRender.blue>0,null,{timeout:9000});
    // Local rematch must restart without a room (no Firebase).
    await page.evaluate(()=>window.ShokokuNet.rematch());
    assert.equal(await page.locator("#prepTime").innerText(),"00:10");
