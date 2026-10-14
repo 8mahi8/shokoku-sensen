@@ -16,7 +16,7 @@ for(const p of ["online-embed.html","online-ipad.html"]){
  assert.ok(html.includes('id="newRoom"'),p+" lacks new room button");
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=3')&&page.includes('./online-game.js?v=4'));
+assert.ok(page.includes('./online-net.js?v=5')&&page.includes('./online-game.js?v=5'));
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
 assert.ok(net.includes('packet.round!==meta?.round'));
@@ -39,5 +39,19 @@ assert.ok(orders.size>=3,'Shuffled decks must vary across matches');
 assert.ok(game.includes('const deck=shuffledDeck()'),'Match reset uses shuffle');
 assert.ok(game.includes('S.hand[team]=deck.slice(0,HAND_SIZE)')&&game.includes('S.queue[team]=deck.slice(HAND_SIZE)'),'Team deck draw fairness');
 assert.ok(page.includes('object-fit:contain'),'Portraits must not stretch');
+for(const id of ["netSolo","netGuestBot","guestBotLive"]){
+ assert.ok(page.includes('id="'+id+'"'),id+" control missing");
+ for(const p of ["online-ipad.html","online-embed.html"])assert.ok(read(p).includes('id="'+id+'"'),id+" missing from "+p);
+}
+assert.ok(net.includes('if(solo){game?.begin();return;}'),"offline rematch must work");
+assert.ok(net.includes('get isHost(){return host||solo}'),"offline local simulation must tick");
+assert.ok(net.includes('get botActive(){return solo||guestBot}'),"both BOT modes active");
+assert.ok(game.includes('botPreparation()'),"BOT must enter preparation phase");
+assert.ok(game.includes('if(NET.isSolo&&S.phase==="battle")botStep(dt)'),"solo BOT must think in simulation");
+assert.ok(game.includes('if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle"))'),"guest BOT must think from client frame");
+const ai=game.slice(game.indexOf('function botExpertAction(){'),game.indexOf('function botStep(dt){'));
+assert.ok(!ai.includes('deploy(2,')&&!ai.includes('castSpell(2,'),"guest AI must use normal validated commands");
+assert.ok(ai.includes('botUse(2,'),"AI must use dispatch adapter");
 
-console.log("PASS: syntax, round isolation, reconnect, rematch, 64 deck shuffles, tablet CSS and embedded bundles");
+
+console.log("PASS: syntax, round isolation, reconnect, rematch, 64 deck shuffles, offline BOT, guest BOT, tablet UI and bundles");

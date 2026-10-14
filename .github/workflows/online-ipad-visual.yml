@@ -4,6 +4,10 @@ on:
     paths:
       - '.github/workflows/online-ipad-visual.yml'
       - 'tests/online-ipad-ui.cjs'
+      - 'online-game.js'
+      - 'online-net.js'
+      - 'online.html'
+      - 'online-ipad.html'
   workflow_dispatch:
 jobs:
   ui:

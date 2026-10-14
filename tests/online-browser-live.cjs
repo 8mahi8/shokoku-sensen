@@ -33,7 +33,12 @@ const deadline=async (f,label,timeout=18000)=>{
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
   await guest.locator("#netJoinCode").fill(code);await guest.locator("#netJoin").click();
   await deadline(async()=>(await guest.locator("#netRoom").innerText()).trim()===code,"guest join");
-  await host.locator("#netReady").click();await guest.locator("#netReady").click();
+  // Guest device can substitute a tactical robot: toggling also readies it.
+  await deadline(async()=>await guest.locator("#netGuestBot").isVisible(),"guest BOT toggle visible");
+  await guest.locator("#netGuestBot").click();
+  await deadline(async()=>((await guest.locator("#netGuestBot").getAttribute("aria-pressed"))==="true"),"BOT enabled");
+  await deadline(async()=>((await guest.locator("#netReady").innerText()).includes("✓")),"guest BOT automatically ready");
+  await host.locator("#netReady").click();
   await deadline(async()=>await host.locator("#netStart").isEnabled(),"both ready");
   await host.locator("#netStart").click();
   for(const [name,p] of [["host",host],["guest",guest]]){
@@ -46,19 +51,32 @@ const deadline=async (f,label,timeout=18000)=>{
    for(const fraction of (team===1?[.14,.08,.22]:[.86,.92,.78]))
     await p.mouse.click(rect.x+rect.width*fraction,rect.y+rect.height*.48);
   }
-  await summon(host,1);await summon(guest,2);
+  await summon(host,1);
+  const botToggle=guest.locator("#guestBotLive");
+  assert.ok(await botToggle.isVisible(),"Guest BOT toggle should remain accessible in-match");
+  assert.equal(await botToggle.getAttribute("aria-pressed"),"true");
   const stateURL=urlDB+"/"+code+"/state.json";
   const state=async()=>{const response=await fetch(stateURL);return response.ok?response.json():null};
   const packet=await deadline(async()=>{
    const d=await state();
    const units=d?.world?.units||[];
    return units.some(u=>u.team===1)&&units.some(u=>u.team===2)?d:null;
-  },"both blue/red infantry synced to Firebase",20000);
+  },"blue human and red BOT units synchronized to Firebase",25000);
   assert.ok(packet.world.energy?.length>=3&&packet.world.capitals?.length===2&&packet.world.forts?.length===3);
   assert.deepEqual(packet.world.hand[1],packet.world.hand[2],"both teams should receive same shuffled hand");
   assert.deepEqual(packet.world.queue[1],packet.world.queue[2],"both teams should share fair randomized deck order");
+
+  // Switching BOT off should permit manual guest input without affecting multiplayer.
+  await botToggle.click();
+  assert.equal(await botToggle.getAttribute("aria-pressed"),"false");
+  const manualCount=packet.world.units.filter(u=>u.team===2).length;
+  await summon(guest,2);
+  await deadline(async()=>{
+   const state=await (await fetch(stateURL)).json();
+   return state.world?.units?.filter(u=>u.team===2).length>manualCount;
+  },"manual guest control after BOT off",18000);
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
-  console.log("PASS: two real Chromium pages joined Firebase room "+code+", summoned both teams, synchronized units/energy/capitals/forts");
+  console.log("PASS: real Firebase guest BOT auto-ready, auto-deploy, manual override and state synchronization in room "+code);
  }finally{
   for(const p of pages){try{await p.close()}catch{}}
   if(browser)try{await browser.close()}catch{}
