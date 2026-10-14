@@ -4,6 +4,7 @@ on:
     paths:
       - '.github/workflows/online-ipad-visual.yml'
       - 'tests/online-ipad-ui.cjs'
+      - 'tests/online-offline-bot.cjs'
       - 'online-game.js'
       - 'online-net.js'
       - 'online.html'
@@ -23,6 +24,7 @@ jobs:
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium
       - run: node tests/online-ipad-ui.cjs
+      - run: node tests/online-offline-bot.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
