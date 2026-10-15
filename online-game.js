@@ -1099,8 +1099,38 @@ function closeGallery(){
  if(S.phase!=="gallery")return;
  S.phase=galleryResume;$("galleryOverlay").classList.add("hidden");
 }
+// Read-only objective overview; color matches the fixed blue/red HUD sides.
+function updateFortNavigation(){
+ const nav=$("fortNav");
+ nav.hidden=!(S.phase==="battle"||S.phase==="prep");
+ if(nav.hidden||S.forts.length!==3)return;
+ let blue=0,red=0;
+ const buttons=nav.querySelectorAll("button[data-fort]");
+ for(let i=0;i<3;i++){
+  const fort=S.forts[i],button=buttons[i];
+  if(fort.owner===1)blue++;else if(fort.owner===2)red++;
+  const blueNear=S.units.some(u=>u.hp>0&&u.team===1&&Math.abs(u.x-fort.x)<110&&Math.abs(u.y-fort.y)<105);
+  const redNear=S.units.some(u=>u.hp>0&&u.team===2&&Math.abs(u.x-fort.x)<110&&Math.abs(u.y-fort.y)<105);
+  const contested=blueNear&&redNear;
+  const threatened=(fort.owner===1&&redNear)||(fort.owner===2&&blueNear);
+  const advancing=(fort.owner!==1&&blueNear)||(fort.owner!==2&&redNear);
+  const owner=fort.owner===1?"青軍":fort.owner===2?"赤軍":"中立";
+  const state=contested?"争奪":threatened?"警戒":advancing?"攻略":owner;
+  button.classList.toggle("owner-blue",fort.owner===1);
+  button.classList.toggle("owner-red",fort.owner===2);
+  button.classList.toggle("contested",contested);
+  button.classList.toggle("under-pressure",threatened);
+  const label=button.querySelector(".fortState");
+  if(label.textContent!==state)label.textContent=state;
+  const description="第"+(i+1)+"前哨基地 "+owner+(contested?"、争奪中":threatened?"、敵接近":advancing?"、攻略中":"")+"。タップで確認";
+  if(button.getAttribute("aria-label")!==description)button.setAttribute("aria-label",description);
+ }
+ const summary="基地 青"+blue+"・赤"+red;
+ if($("fortSummary").textContent!==summary)$("fortSummary").textContent=summary;
+}
 function updateHUD(){
  if(!S.capitals.length)return;
+ updateFortNavigation();
  $("clock").textContent=S.phase==="prep"?numTime(S.prep):numTime(S.seconds);
  $("phaseLabel").textContent=S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊";
  $("blueText").textContent=Math.ceil(capital(1).hp)+" / "+START_HP;
@@ -1268,6 +1298,11 @@ function start(){
  $("cardInfoClose").addEventListener("click",closeCardInfo);
  $("homeCam").addEventListener("click",()=>cameraTo(WALL_FACE[ME()]+(ME()===1?115:-115),H/2));
  $("frontCam").addEventListener("click",frontlineCamera);
+ $("fortNav").querySelectorAll("button[data-fort]").forEach(button=>button.addEventListener("click",()=>{
+  if(S.phase!=="battle"&&S.phase!=="prep")return;
+  const fort=S.forts[Number(button.dataset.fort)];
+  if(fort)cameraTo(fort.x,fort.y);
+ }));
  $("speed").addEventListener("click",()=>{
   notice("オンライン対戦は速度固定です");return;
   const options=[.85,.65,1];S.speed=options[(options.indexOf(S.speed)+1)%options.length];
@@ -1353,6 +1388,21 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  spriteStats:()=>({cached:denseSpritesRendered,full:fullSpritesRendered,
   tiles:denseSpriteCache.size,active:useDenseSpriteCache,broken:denseCacheBroken}),
  setCamera:(x,y)=>cameraTo(x,y),
+ setFortTest:(owners,contest=false)=>{
+  if(!NET.isSolo||!Array.isArray(owners)||owners.length!==3||
+    owners.some(owner=>![0,1,2].includes(owner)))return false;
+  S.forts.forEach((f,i)=>{f.owner=owners[i];f.hp=POST_HP;});
+  if(contest){
+   const f=S.forts[1],d=CLASSES.infantry;
+   for(const team of [1,2]){
+    const x=f.x+(team===1?-25:25);
+    S.units.push({uid:++S.uid,key:"infantry",team,x,y:f.y,anchorX:x,anchorY:f.y,
+     homeY:f.y,hp:d.hp,max:d.hp,attack:20,attackAnim:0,attackAnimMax:.5,
+     flash:0,spawnAt:-100,spawnDuration:.5,drift:0,walking:false,walkPhase:0,facing:team===1?0:Math.PI});
+   }
+  }
+  updateFortNavigation();return true;
+ },
  seedMassBattle:()=>{
   if(!NET.isSolo)return false;
   resetWorld();S.phase="battle";S.prep=0;S.elapsed=120;S.seconds=180;S.botThink=999;
