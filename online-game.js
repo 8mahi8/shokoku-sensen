@@ -190,7 +190,13 @@ function playCard(team,id,x,y){
   NET.sendCommand({id,x,y});
   return true;
  }
- return isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
+ const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
+ if(ok&&duelStats){
+  duelStats.actions[team]++;
+  duelStats.spent[team]+=CATALOG[id].cost;
+  duelStats.cards[team][id]=(duelStats.cards[team][id]||0)+1;
+ }
+ return ok;
 }
 function shieldMultiplier(team,x,y){
  return S.spells.zones.some(z=>z.team===team&&z.time>0&&Math.hypot(z.x-x,z.y-y)<=z.r)?SPELLS.ward.mult:1;
@@ -414,6 +420,8 @@ function rate(){
 }
 // Guest BOT uses normal guest commands; only the host changes world state.
 let botLastAction=null;
+// Only populated by the localhost ?qa=1 tournament harness.
+let duelStats=null;
 function botUse(team,id,x,y){
  const accepted=playCard(team,id,x,y);
  if(accepted)botLastAction={team,id,x,y,elapsed:S.elapsed};
@@ -1406,6 +1414,98 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ // Batch simulation runs the SAME 30Hz combat/energy/spell/fort code as a match,
+ // with no drawing, network traffic or player input; only on localhost ?qa=1.
+ runDuel:(seed,blueStyle="balanced",difficulty="hard")=>{
+  if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
+    !["rush","balanced","fortress"].includes(blueStyle)||
+    !["hard","normal"].includes(difficulty))return null;
+  const originalRandom=Math.random;
+  let state=(seed>>>0)||1;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+  try{
+   duelStats={seed,blueStyle,difficulty,actions:[0,0,0],spent:[0,0,0],
+    cards:[null,{},{}],fortSeconds:[0,0,0],energyIntegral:[0,0,0],maxUnits:[0,0,0]};
+   resetWorld();S.phase="battle";S.prep=0;S.speed=1;S.difficulty=difficulty;
+   S.botThink=3.1;S.botPrepDone=true;
+   $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
+   // Identical starting resources, shared randomized deck, symmetrical opening.
+   const open=(team)=>{
+    const id=["scout","engineer","archer","infantry"].find(c=>canPay(team,c));
+    if(id)botUse(team,id,limit(border(team)+(team===1?-35:35),35,W-35),
+     team===1?190:205);
+   };
+   open(1);open(2);
+   let blueThink=3.1;
+   const blueAction=()=>{
+    const allies=S.units.filter(u=>u.team===1&&u.hp>0);
+    const enemyUnits=S.units.filter(u=>u.team===2&&u.hp>0);
+    const raider=enemyUnits.filter(u=>u.x<border(1)+255).sort((a,b)=>a.x-b.x)[0];
+    const fort=S.forts.filter(f=>f.owner!==1).sort((a,b)=>a.x-b.x)[0];
+    const workers=fort?allies.filter(u=>CLASSES[u.key].capture&&u.x<fort.x+145&&Math.abs(u.y-fort.y)<135):[];
+    const need=fort&&workers.length<1;
+    const pressure=enemyUnits.some(u=>u.x<490);
+    const lane=pressure?raider?.y??330:fort?.y??330;
+    const spawn=(id,y,margin=32)=>canPay(1,id)&&botUse(1,id,
+     limit(border(1)-margin,35,W-35),limit(y,70,H-70));
+    const pack=raider&&enemyUnits.filter(u=>dist(u,raider)<80);
+    if(pack?.length>=3&&canPay(1,"barrage")&&
+     botUse(1,"barrage",raider.x,raider.y))return true;
+    if(pressure){
+     if(spawn("suppress",lane,45))return true;
+     if(spawn("sentinel",lane,30))return true;
+    }
+    if(enemyUnits.some(u=>u.x<720&&CLASSES[u.key].flying)&&
+      spawn("archer",lane,55))return true;
+    if(enemyUnits.some(u=>u.x<700&&CLASSES[u.key].size==="large")&&
+      spawn("guardian",lane,35))return true;
+    const prior=blueStyle==="rush"?["scout","engineer","drone","archer","infantry"]:
+     blueStyle==="fortress"?["sentinel","archer","suppress","engineer","scout","infantry"]:
+      ["scout","archer","engineer","suppress","drone","infantry"];
+    if(need){
+     if(spawn("scout",fort.y,32))return true;
+     if(spawn("engineer",fort.y,34))return true;
+    }
+    if(blueStyle!=="rush"&&S.energy[1]>=7&&spawn("tank",lane,35))return true;
+    for(const id of prior)if(spawn(id,id==="engineer"||id==="scout"?fort?.y??lane:lane,
+     id==="archer"||id==="suppress"?60:32))return true;
+    if(S.energy[1]>=10&&spawn("infantry",lane,35))return true;
+    return false;
+   };
+   const dt=1/30;
+   // Existing game limits 300 seconds. More than 9000 ticks indicates a regression.
+   for(let step=0;step<9100&&S.phase==="battle";step++){
+    blueThink-=dt;
+    if(blueThink<=0){
+     blueAction();
+     const pace=blueStyle==="rush"?2.6:blueStyle==="fortress"?3.4:3.0;
+     blueThink=pace+Math.random()*.6;
+    }
+    tick(dt);
+    for(const f of S.forts)if(f.owner===1||f.owner===2)duelStats.fortSeconds[f.owner]+=dt;
+    for(const team of [1,2]){
+     duelStats.energyIntegral[team]+=S.energy[team]*dt;
+     const count=S.units.filter(u=>u.team===team).length;
+     duelStats.maxUnits[team]=Math.max(duelStats.maxUnits[team],count);
+    }
+    if(!Number.isFinite(S.energy[1])||!Number.isFinite(S.energy[2])||
+     S.energy[1]<0||S.energy[2]<0||S.energy[1]>ENERGY_CAP+.0001||
+     S.energy[2]>ENERGY_CAP+.0001)throw Error("unfair energy");
+   }
+   const hp=[null,Math.max(0,capital(1).hp),Math.max(0,capital(2).hp)];
+   const winner=hp[1]===hp[2]?0:hp[1]>hp[2]?1:2;
+   const elapsed=S.elapsed;
+   return {seed,blueStyle,difficulty,winner,elapsed,
+    castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],
+    actions:duelStats.actions.slice(),spent:duelStats.spent.slice(),
+    cards:duelStats.cards.map(v=>v&&{...v}),
+    fortSeconds:duelStats.fortSeconds.slice(),
+    avgEnergy:duelStats.energyIntegral.map((v,i)=>i?v/Math.max(.0001,elapsed):0),
+    maxUnits:duelStats.maxUnits.slice(),
+    finished:S.phase==="result"};
+  }finally{duelStats=null;Math.random=originalRandom;}
+ },
+
  setBotScenario:spec=>{
   if(!NET.isSolo||!spec||!Array.isArray(spec.enemies)||!Array.isArray(spec.hand))return false;
   resetWorld();S.phase="battle";S.botThink=999;S.prep=0;

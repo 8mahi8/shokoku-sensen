@@ -4,6 +4,7 @@ on:
     paths:
       - '.github/workflows/online-bot-tactics.yml'
       - 'tests/online-bot-tactics.cjs'
+      - 'tests/online-bot-tournament.cjs'
       - 'online-game.js'
       - 'online-ipad.html'
   workflow_dispatch:
@@ -21,3 +22,10 @@ jobs:
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium
       - run: node tests/online-bot-tactics.cjs
+      - run: node tests/online-bot-tournament.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bot-duel-baseline-report
+          path: qa-bot-tournament
+          retention-days: 30
