@@ -595,15 +595,18 @@ function clampCamera(){
 // consistently slow tablet displays. A one-way change avoids resolution flicker.
 let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
 function adaptCanvasQuality(now){
- if(qualityMeasured||!(S.phase==="battle"||S.phase==="prep")||document.hidden)return;
+ if(qualityMeasured||!(S.phase==="battle"||S.phase==="prep")||document.hidden){
+  if(document.hidden){qualityWindowStart=0;qualityFrames=0;}
+  return;
+ }
  if(!qualityWindowStart){qualityWindowStart=now;return;}
  qualityFrames++;
  const elapsed=now-qualityWindowStart;
  if(elapsed<3400)return;
- qualityMeasured=true;
- if(qualityFrames/(elapsed/1000)<38&&S.view.dpr>1.02){
-  tabletDprCap=1.0;
-  fit();
+ const fps=qualityFrames/(elapsed/1000);
+ qualityWindowStart=now;qualityFrames=0;
+ if(fps<38&&S.view.dpr>1.02){
+  tabletDprCap=1.0;qualityMeasured=true;fit();
  }
 }
 function fit(){
@@ -829,18 +832,24 @@ function drawPreview(){
  ctx.font="bold 13px system-ui";ctx.textAlign="center";ctx.fillStyle="#fff";
  ctx.fillText(legal?(isSpell(item)?SPELLS[item].name:"召喚可能"):"使用不可",p.x,p.y-radius-13);
 }
+// Visual-only rejection of entirely off-camera sprite work.
+let drawCullingEnabled=true;
 function draw(){
  const v=S.view,d=v.dpr;
+ const minX=-v.ox/v.s,maxX=(v.w-v.ox)/v.s,minY=-v.oy/v.s,maxY=(v.h-v.oy)/v.s;
+ const visible=(x,y,rx=155,above=225,below=85)=>
+  !drawCullingEnabled||(x>=minX-rx&&x<=maxX+rx&&y>=minY-below&&y<=maxY+above);
  ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,v.w,v.h);
  ctx.fillStyle="#0d2426";ctx.fillRect(0,0,v.w,v.h);
  ctx.save();ctx.translate(v.ox,v.oy);ctx.scale(v.s,v.s);
  terrain();drawSpellFields();
  // Walls occupy the full vertical edge; render behind units regardless of center Y.
- for(const c of S.capitals)drawCapital(c);
+ for(const c of S.capitals)if(visible(WALL_FACE[c.team],H/2,115,H/2,H/2))drawCapital(c);
  const objects=[];
- for(const p of S.forts)objects.push({y:p.y+20,draw:()=>drawFort(p)});
- for(const u of S.units)objects.push({y:u.y,draw:()=>drawUnit(u)});
+ for(const p of S.forts)if(visible(p.x,p.y,60,100,55))objects.push({y:p.y+20,draw:()=>drawFort(p)});
+ for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>drawUnit(u)});
  for(const gone of S.deaths){
+  if(!visible(gone.x,gone.y))continue;
   objects.push({y:gone.y,draw:()=>{
    if(window.KokokuArt){
     window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-gone.t/gone.maxTime},S.clock);
@@ -854,6 +863,7 @@ function draw(){
  objects.sort((a,b)=>a.y-b.y);
  for(const obj of objects)obj.draw();
  for(const e of S.effects){
+  if(!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
   const f=e.t/e.max;
   ctx.save();ctx.globalAlpha=Math.min(1,f*1.4);
   const boom=e.type==="barrage"||e.type==="tank"||e.type==="suppress",spell=e.type==="barrage";
@@ -872,6 +882,7 @@ function draw(){
  for(const shot of S.projectiles){
   const f=1-shot.t/shot.max;
   const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f;
+  if(!visible(x,y,35,45,45))continue;
   const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
   ctx.save();ctx.globalAlpha=Math.min(1,shot.t/.09);
   ctx.strokeStyle=shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
@@ -1215,6 +1226,22 @@ function start(){
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
  setTerrainCache:enabled=>{terrainCacheEnabled=!!enabled;},
+ setDrawCulling:on=>{drawCullingEnabled=!!on;},
+ seedMassBattle:()=>{
+  if(!NET.isSolo)return false;
+  resetWorld();S.phase="battle";S.prep=0;S.elapsed=120;S.seconds=180;S.botThink=999;
+  S.energy=[0,12,12];S.cam={x:330,y:330,tx:330,ty:330,moving:false};clampCamera();
+  const keys=["infantry","archer","scout","engineer","sentinel","suppress","guardian","drone","tank"];
+  for(const team of [1,2])for(let i=0;i<65;i++){
+   const id=keys[i%keys.length],d=CLASSES[id],x=team===1?250+(i%13)*31:1030-(i%13)*31,y=125+Math.floor(i/13)*94;
+   S.units.push({uid:++S.uid,key:id,team,x,y,anchorX:x,anchorY:y,homeY:y,
+    hp:d.hp,max:d.hp,attack:.5,facing:team===1?0:Math.PI,flash:0,
+    attackAnim:0,attackAnimMax:MOTION.attack[id],windup:0,hitAt:-100,
+    spawnAt:-100,spawnDuration:.5,lock:null,walkPhase:i*.11,walking:true,drift:i*.25});
+  }
+  $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
+  buildCards();updateHUD();return true;
+ },
  setDpr:d=>{
   if(!Number.isFinite(d)||d<.6||d>2)return;
   S.view.dpr=d;cv.width=Math.round(S.view.w*d);cv.height=Math.round(S.view.h*d);

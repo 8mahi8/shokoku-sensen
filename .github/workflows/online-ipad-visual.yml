@@ -6,6 +6,7 @@ on:
       - 'tests/online-ipad-ui.cjs'
       - 'tests/online-offline-bot.cjs'
       - 'tests/online-touch-interaction.cjs'
+      - 'tests/online-mass-battle.cjs'
       - 'online-game.js'
       - 'online-net.js'
       - 'online.html'
@@ -27,6 +28,7 @@ jobs:
       - run: node tests/online-ipad-ui.cjs
       - run: node tests/online-offline-bot.cjs
       - run: node tests/online-touch-interaction.cjs
+      - run: node tests/online-mass-battle.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -34,4 +36,5 @@ jobs:
           path: |
             qa-ipad-screens
             qa-touch-captures
+            qa-mass-battle
           retention-days: 14
