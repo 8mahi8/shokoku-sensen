@@ -34,12 +34,16 @@ const server=http.createServer((req,res)=>{
      assert.equal(await buttons.nth(1).locator(".fortState").innerText(),"争奪");
      const box=await buttons.nth(1).boundingBox();
      assert.ok(box&&box.width>=41&&box.height>=32,label+" accessible target");
+     // Move away first: compact layouts may start within 50 world units of
+     // the selected fort, which is not proof that clicking navigated.
+     await p.evaluate(()=>window.__shokokuQa.setCamera(1100,330));
+     await p.waitForFunction(()=>window.__shokokuQa.snapshot().camera.x>672,null,{timeout:4000});
      const before=await p.evaluate(()=>window.__shokokuQa.snapshot());
      await p.locator('.card[data-id="infantry"]').click();
      const selected=await p.evaluate(()=>window.__shokokuQa.snapshot());
      assert.equal(selected.selected,"infantry",label+" selects infantry");
      await p.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
-     await p.waitForFunction(()=>Math.abs(window.__shokokuQa.snapshot().camera.x-633)<52,null,{timeout:4500});
+     await p.waitForFunction(()=>Math.abs(window.__shokokuQa.snapshot().camera.x-633)<8,null,{timeout:4500});
      const after=await p.evaluate(()=>window.__shokokuQa.snapshot());
      assert.equal(after.selected,"infantry",label+" retains card");
      assert.equal(after.units.length,selected.units.length,label+" no false summon");
