@@ -1954,9 +1954,56 @@ function drawPreview(){
  ctx.font="bold 13px system-ui";ctx.textAlign="center";ctx.fillStyle="#fff";
  ctx.fillText(legal?(isSpell(item)?SPELLS[item].name:"召喚可能"):"使用不可",p.x,p.y-radius-13);
 }
+// Inspired by the readability of silhouette-led realtime strategy battles:
+// cache recognizable character artwork under heavy crowding, never gameplay state.
+const denseSpriteCache=new Map(),FAST_W=164,FAST_H=190,FAST_AX=82,FAST_AY=155;
+let useDenseSpriteCache=true,denseCacheBroken=false,denseSpritesRendered=0,fullSpritesRendered=0;
+function cachedSprite(u,pose){
+ const key=u.key+"/"+u.team+"/"+pose;
+ if(denseSpriteCache.has(key))return denseSpriteCache.get(key);
+ if(denseCacheBroken||!window.KokokuArt?.drawUnit)return null;
+ try{
+  const tile=document.createElement("canvas");tile.width=FAST_W;tile.height=FAST_H;
+  const g=tile.getContext("2d");if(!g)throw Error("Canvas2D unavailable");
+  const sample={...u,x:FAST_AX,y:FAST_AY,hp:100,max:100,
+   spawnAt:-100,spawnDuration:.4,deathProgress:0,flash:0,hitAt:-100,drift:0,
+   walking:pose===1||pose===2,walkPhase:pose===2?3.2:.4,windup:0,
+   attackAnim:pose===3?(MOTION.attack[u.key]||.5)*.6:0,
+   attackAnimMax:MOTION.attack[u.key]||.5};
+  window.KokokuArt.drawUnit(g,sample,Math.max(300,S.clock));
+  denseSpriteCache.set(key,tile);
+  return tile;
+ }catch(error){denseCacheBroken=true;denseSpriteCache.clear();return null;}
+}
+function renderCrowdedUnit(u){
+ // Keep dramatic large units, their unique Gald sprite atlas, and normal
+ // fights at full detail. Only small/medium sprites get a cheap crowded LOD.
+ if(!useDenseSpriteCache||denseCacheBroken||S.units.length<40||
+   u.key==="guardian"||u.key==="tank"||!window.KokokuArt){
+  fullSpritesRendered++;drawUnit(u);return;
+ }
+ const pose=(u.attackAnim||0)>.12?3:!u.walking?0:Math.sin(u.walkPhase||0)>0?1:2;
+ const sprite=cachedSprite(u,pose);
+ if(!sprite){fullSpritesRendered++;drawUnit(u);return;}
+ denseSpritesRendered++;
+ // Small colored ground indicator separates friend and foe in overlapping crowds.
+ ctx.strokeStyle=u.team===1?"#7fe4ffad":"#ff879bac";ctx.lineWidth=1.65;
+ ctx.beginPath();ctx.ellipse(u.x,u.y+1,Math.max(14,CLASSES[u.key].r+6),7,0,0,Math.PI*2);ctx.stroke();
+ ctx.drawImage(sprite,Math.round(u.x-FAST_AX),Math.round(u.y-FAST_AY));
+ if(u.flash>0){
+  ctx.save();ctx.globalAlpha=Math.min(.42,u.flash*.85);ctx.fillStyle="#fff";
+  ctx.beginPath();ctx.arc(u.x,u.y-38,14,0,Math.PI*2);ctx.fill();ctx.restore();
+ }
+ if(u.hp<u.max){
+  const ratio=Math.max(0,Math.min(1,u.hp/u.max)),y=u.y-(u.key==="drone"?100:105);
+  ctx.fillStyle="#10242b";ctx.fillRect(u.x-22,y,44,6);
+  ctx.fillStyle=TEAM[u.team];ctx.fillRect(u.x-21,y+1,42*ratio,4);
+ }
+}
 // Visual-only rejection of entirely off-camera sprite work.
 let drawCullingEnabled=true;
 function draw(){
+ denseSpritesRendered=0;fullSpritesRendered=0;
  const v=S.view,d=v.dpr;
  const minX=-v.ox/v.s,maxX=(v.w-v.ox)/v.s,minY=-v.oy/v.s,maxY=(v.h-v.oy)/v.s;
  const visible=(x,y,rx=155,above=225,below=85)=>
@@ -1969,7 +2016,7 @@ function draw(){
  for(const c of S.capitals)if(visible(WALL_FACE[c.team],H/2,115,H/2,H/2))drawCapital(c);
  const objects=[];
  for(const p of S.forts)if(visible(p.x,p.y,60,100,55))objects.push({y:p.y+20,draw:()=>drawFort(p)});
- for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>drawUnit(u)});
+ for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>renderCrowdedUnit(u)});
  for(const gone of S.deaths){
   if(!visible(gone.x,gone.y))continue;
   objects.push({y:gone.y,draw:()=>{
@@ -2349,6 +2396,9 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  window.__shokokuQa={
  setTerrainCache:enabled=>{terrainCacheEnabled=!!enabled;},
  setDrawCulling:on=>{drawCullingEnabled=!!on;},
+ setDenseSpriteCache:on=>{useDenseSpriteCache=!!on;},
+ spriteStats:()=>({cached:denseSpritesRendered,full:fullSpritesRendered,
+  tiles:denseSpriteCache.size,active:useDenseSpriteCache,broken:denseCacheBroken}),
  setCamera:(x,y)=>cameraTo(x,y),
  seedMassBattle:()=>{
   if(!NET.isSolo)return false;

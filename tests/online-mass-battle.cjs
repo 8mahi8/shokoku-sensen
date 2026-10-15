@@ -44,7 +44,7 @@ async function sample(page,ms=1100){
      assert.equal(start.units.length,130,"max-cap 65 per team");
      assert.equal(start.units.filter(u=>u.team===1).length,65);
      assert.equal(start.units.filter(u=>u.team===2).length,65);
-     await page.evaluate(()=>window.__shokokuQa.setDrawCulling(false));
+     await page.evaluate(()=>{window.__shokokuQa.setDenseSpriteCache(false);window.__shokokuQa.setDrawCulling(false);});
      const without=await sample(page);
      await page.evaluate(()=>window.__shokokuQa.setDrawCulling(true));
      const withCulling=await sample(page);
@@ -62,9 +62,23 @@ async function sample(page,ms=1100){
        key+" offscreen draws per frame were not reduced: "+JSON.stringify({without,withCulling,worldWidth}));
      else assert.ok(culledPerFrame<=originalPerFrame*1.08,
        key+" full-field rendering unexpectedly increased: "+JSON.stringify({without,withCulling,worldWidth}));
+     // Compare full character painting against cached poses with same culling.
+     await page.screenshot({path:path.join(folder,key+"-full.png")});
+     await page.evaluate(()=>window.__shokokuQa.setDenseSpriteCache(true));
+     // Pre-warm pose variants under live simulation to avoid measuring cache initialization only.
+     await page.waitForTimeout(1000);
+     const lod=await sample(page);
+     const stats=await page.evaluate(()=>window.__shokokuQa.spriteStats());
+     assert.equal(stats.broken,false,key+" sprite cache initialization failed");
+     assert.ok(stats.tiles>=12,key+" expected reusable poses: "+JSON.stringify(stats));
+     assert.ok(stats.cached>5,key+" cached units not rendered: "+JSON.stringify(stats));
+     const fullDrawPerFrame=withCulling.drawCalls/Math.max(1,withCulling.frames);
+     const lodFullPerFrame=lod.drawCalls/Math.max(1,lod.frames);
+     assert.ok(lodFullPerFrame<fullDrawPerFrame*.56,
+      key+" expensive vector redraws not reduced: "+JSON.stringify({withCulling,lod,stats}));
      assert.deepEqual(errors,[],key+" runtime errors");
-     await page.screenshot({path:path.join(folder,key+".png")});
-     const result={key,without,withCulling,unitsRemaining:after.units.length};
+     await page.screenshot({path:path.join(folder,key+"-lod.png")});
+     const result={key,without,withCulling,lod,spriteStats:stats,unitsRemaining:after.units.length};
      results.push(result);console.log("PASS",JSON.stringify(result));
     }catch(e){
      await page.screenshot({path:path.join(folder,key+"-FAIL.png")}).catch(()=>{});
