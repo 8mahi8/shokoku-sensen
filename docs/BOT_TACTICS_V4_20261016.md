@@ -38,3 +38,11 @@ BOTをチートで強くするのではなく、人間と同じカードコス�
 
 - [iPad QAのGitHub Actions](https://github.com/8mahi8/shokoku-sensen/actions/workflows/online-ipad-visual.yml)
 - [BOT戦術検証ソース](https://github.com/8mahi8/shokoku-sensen/blob/develop/tests/online-bot-tactics.cjs)
+
+## 検証済み結果
+
+- [BOT tactical regression #38767262919](https://github.com/8mahi8/shokoku-sensen/actions/runs/38767262919)：**成功**。8戦況×リンク版・単体iPad版の計16ケースをすべて通過。
+- [Online iPad UI visual QA #38767000066](https://github.com/8mahi8/shokoku-sensen/actions/runs/38767000066)：**成功**。従来のタップ・スワイプ・大型演出・130体負荷・前哨基地ナビ・BOT戦術の回帰試験を通過。
+- [Online 1v1 smoke #38766854287](https://github.com/8mahi8/shokoku-sensen/actions/runs/38766854287)：**成功**。
+- [実Firebase 2ブラウザオンライン #38766854394](https://github.com/8mahi8/shokoku-sensen/actions/runs/38766854394)：**成功**。
+- ゲームAIの判断は改善したが、「旧BOTに対する勝率」「対人勝率」の比較はまだ未測定。強さの実証は模擬対戦と実機対戦によって続ける。
