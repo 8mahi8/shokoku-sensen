@@ -1233,7 +1233,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   S.energy=[0,12,12];S.cam={x:330,y:330,tx:330,ty:330,moving:false};clampCamera();
   const keys=["infantry","archer","scout","engineer","sentinel","suppress","guardian","drone","tank"];
   for(const team of [1,2])for(let i=0;i<65;i++){
-   const id=keys[i%keys.length],d=CLASSES[id],x=team===1?250+(i%13)*31:1030-(i%13)*31,y=125+Math.floor(i/13)*94;
+   const id=keys[i%keys.length],d=CLASSES[id],x=team===1?250+(i%13)*31:1180-(i%13)*31,y=125+Math.floor(i/13)*94;
    S.units.push({uid:++S.uid,key:id,team,x,y,anchorX:x,anchorY:y,homeY:y,
     hp:d.hp,max:d.hp,attack:.5,facing:team===1?0:Math.PI,flash:0,
     attackAnim:0,attackAnimMax:MOTION.attack[id],windup:0,hitAt:-100,
