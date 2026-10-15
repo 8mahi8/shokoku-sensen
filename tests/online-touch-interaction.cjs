@@ -85,9 +85,21 @@ const cases=[
       requestAnimationFrame(loop);
      }));
      assert.ok(frames.count>=8,key+" frame stall "+JSON.stringify(frames));
+     // Same viewport with the ground cache disabled, for an in-page A/B reference.
+     await page.evaluate(()=>window.__shokokuQa.setTerrainCache(false));
+     const uncached=await page.evaluate(()=>new Promise(ok=>{
+      let first=0,last=0,delta=[];
+      const loop=t=>{if(!first)first=t;if(last)delta.push(t-last);last=t;
+       if(t-first<1100)requestAnimationFrame(loop);else {
+        delta.sort((a,b)=>a-b);ok({count:delta.length,medianMs:delta[Math.floor(delta.length/2)]||null,
+         p95Ms:delta[Math.floor(delta.length*.95)]||null});
+       }};
+      requestAnimationFrame(loop);
+     }));
+     await page.evaluate(()=>window.__shokokuQa.setTerrainCache(true));
      assert.deepEqual(errors,[],key+" uncaught errors");
-     results.push({key,frames});
-     console.log("PASS",key,"tap, legal summon, mouse & touch swipe, long-press, close, frame sample",JSON.stringify(frames));
+     results.push({key,frames,uncached});
+     console.log("PASS",key,"tap, summon, swipe, long-press, cached vs uncached frames",JSON.stringify({cached:frames,uncached}));
     }catch(e){
      await page.screenshot({path:path.join(out,key+"-FAILED.png")}).catch(()=>{});
      throw e;

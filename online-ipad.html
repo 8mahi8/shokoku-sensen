@@ -1763,18 +1763,28 @@ function rounded(g,x,y,w,h,r){
  g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);
  g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();
 }
-function terrain(){
- ctx.fillStyle="#2b4e42";ctx.fillRect(0,0,W,H);
- const ground=ctx.createLinearGradient(0,0,0,H);
+function renderTerrainBackdrop(g){
+ g.fillStyle="#2b4e42";g.fillRect(0,0,W,H);
+ const ground=g.createLinearGradient(0,0,0,H);
  ground.addColorStop(0,"#35604e");ground.addColorStop(.5,"#335a4c");ground.addColorStop(1,"#1f3c36");
- ctx.fillStyle=ground;ctx.fillRect(0,0,W,H);
- ctx.fillStyle="#73957e16";ctx.fillRect(35,260,1210,126);
+ g.fillStyle=ground;g.fillRect(0,0,W,H);
+ g.fillStyle="#73957e16";g.fillRect(35,260,1210,126);
  // Natural path details rather than discrete lanes.
  for(let i=0;i<75;i++){
   const x=(i*167+84)%W,y=(i*131+63)%H;
-  ctx.strokeStyle=i%3===0?"#b0be8e25":"#092b272c";ctx.lineWidth=2.5;
-  ctx.beginPath();ctx.moveTo(x-10,y+5);ctx.quadraticCurveTo(x,y-5,x+12,y+2);ctx.stroke();
+  g.strokeStyle=i%3===0?"#b0be8e25":"#092b272c";g.lineWidth=2.5;
+  g.beginPath();g.moveTo(x-10,y+5);g.quadraticCurveTo(x,y-5,x+12,y+2);g.stroke();
  }
+// Fixed ground is rasterized once; deploy lines stay dynamic.
+let terrainBase=null,terrainCacheEnabled=true;
+function terrain(){
+ if(terrainCacheEnabled){
+  if(!terrainBase){
+   terrainBase=document.createElement("canvas");terrainBase.width=W;terrainBase.height=H;
+   renderTerrainBackdrop(terrainBase.getContext("2d"));
+  }
+  ctx.drawImage(terrainBase,0,0);
+ }else renderTerrainBackdrop(ctx);
  ctx.fillStyle="#84dcfa12";ctx.fillRect(0,0,border(1),H);
  ctx.fillStyle="#ff9ca911";ctx.fillRect(border(2),0,W-border(2),H);
  ctx.lineWidth=2.5;ctx.setLineDash([10,10]);
@@ -2306,7 +2316,9 @@ function start(){
 
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
- window.__shokokuQa={snapshot:()=>({
+ window.__shokokuQa={
+ setTerrainCache:enabled=>{terrainCacheEnabled=!!enabled;},
+ snapshot:()=>({
   phase:S.phase,selected:S.selected,prep:S.prep,elapsed:S.elapsed,
   energy:S.energy.slice(),camera:{x:S.cam.x,y:S.cam.y},
   view:{...S.view},hand:S.hand.map(h=>h&&h.slice()),
