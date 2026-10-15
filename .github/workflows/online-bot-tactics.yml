@@ -1,0 +1,23 @@
+name: BOT tactical regression
+on:
+  push:
+    paths:
+      - '.github/workflows/online-bot-tactics.yml'
+      - 'tests/online-bot-tactics.cjs'
+      - 'online-game.js'
+      - 'online-ipad.html'
+  workflow_dispatch:
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/online-bot-tactics.cjs
