@@ -54,8 +54,14 @@ async function sample(page,ms=1100){
      // are more frames. Compare the number of expensive sprite draws per frame.
      const originalPerFrame=without.drawCalls/Math.max(1,without.frames);
      const culledPerFrame=withCulling.drawCalls/Math.max(1,withCulling.frames);
-     assert.ok(culledPerFrame<originalPerFrame*.94,
-       key+" offscreen draws per frame were not reduced: "+JSON.stringify({without,withCulling}));
+     // The compact Google Sites view uses the phone camera preset and may show
+     // nearly the entire battlefield. No sprite can be culled in that case.
+     const v=after.view,worldWidth=v.w/v.s;
+     const offscreenExpected=worldWidth+2*155<1280;
+     if(offscreenExpected)assert.ok(culledPerFrame<originalPerFrame*.94,
+       key+" offscreen draws per frame were not reduced: "+JSON.stringify({without,withCulling,worldWidth}));
+     else assert.ok(culledPerFrame<=originalPerFrame*1.08,
+       key+" full-field rendering unexpectedly increased: "+JSON.stringify({without,withCulling,worldWidth}));
      assert.deepEqual(errors,[],key+" runtime errors");
      await page.screenshot({path:path.join(folder,key+".png")});
      const result={key,without,withCulling,unitsRemaining:after.units.length};
