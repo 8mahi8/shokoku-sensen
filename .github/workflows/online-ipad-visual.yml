@@ -9,6 +9,7 @@ on:
       - 'tests/online-mass-battle.cjs'
       - 'tests/online-grand-arrival.cjs'
       - 'tests/online-fort-navigation.cjs'
+      - 'tests/online-bot-tactics.cjs'
       - 'online-game.js'
       - 'online-net.js'
       - 'online.html'
@@ -33,6 +34,7 @@ jobs:
       - run: node tests/online-mass-battle.cjs
       - run: node tests/online-grand-arrival.cjs
       - run: node tests/online-fort-navigation.cjs
+      - run: node tests/online-bot-tactics.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
