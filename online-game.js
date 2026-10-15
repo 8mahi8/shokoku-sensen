@@ -591,12 +591,27 @@ function clampCamera(){
  c.tx=limit(c.tx,minX,maxX);c.ty=limit(c.ty,minY,maxY);
  v.ox=v.w/2-c.x*v.s;v.oy=v.h/2-c.y*v.s;
 }
+// Keep Retina quality on fast devices; switch to a cheaper Canvas raster on
+// consistently slow tablet displays. A one-way change avoids resolution flicker.
+let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
+function adaptCanvasQuality(now){
+ if(qualityMeasured||!(S.phase==="battle"||S.phase==="prep")||document.hidden)return;
+ if(!qualityWindowStart){qualityWindowStart=now;return;}
+ qualityFrames++;
+ const elapsed=now-qualityWindowStart;
+ if(elapsed<3400)return;
+ qualityMeasured=true;
+ if(qualityFrames/(elapsed/1000)<38&&S.view.dpr>1.02){
+  tabletDprCap=1.0;
+  fit();
+ }
+}
 function fit(){
  const rect=area.getBoundingClientRect(),v=S.view;
  v.w=Math.max(1,rect.width);v.h=Math.max(1,rect.height);
  // Reduce Retina tablet raster overdraw; simulation coordinates remain untouched.
  const tablet=(window.innerWidth||v.w)>=700&&(window.matchMedia?.("(pointer: coarse)").matches||/iPad/i.test(navigator.userAgent||""));
- v.dpr=Math.min(window.devicePixelRatio||1,tablet?1.45:2);
+ v.dpr=Math.min(window.devicePixelRatio||1,tablet?tabletDprCap:2);
  cv.width=Math.max(1,Math.round(v.w*v.dpr));cv.height=Math.max(1,Math.round(v.h*v.dpr));
  cv.style.width=v.w+"px";cv.style.height=v.h+"px";
  // Show roughly two thirds of the field horizontally, instead of the entire arena.
@@ -1163,6 +1178,7 @@ function start(){
  let previous=performance.now(),acc=0;
  function frame(now){
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
+  adaptCanvasQuality(now);
   S.clock+=delta;
   updateCamera(delta);
   inspectHold(now);
@@ -1203,6 +1219,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   if(!Number.isFinite(d)||d<.6||d>2)return;
   S.view.dpr=d;cv.width=Math.round(S.view.w*d);cv.height=Math.round(S.view.h*d);
  },
+ quality:()=>({tabletDprCap,qualityMeasured,qualityFrames}),
  snapshot:()=>({
   phase:S.phase,selected:S.selected,prep:S.prep,elapsed:S.elapsed,
   energy:S.energy.slice(),camera:{x:S.cam.x,y:S.cam.y},

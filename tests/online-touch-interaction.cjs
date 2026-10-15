@@ -77,6 +77,8 @@ const cases=[
      await page.screenshot({path:path.join(out,key+"-long-press.png")});
      await page.locator("#cardInfoClose").click();
      assert.ok(await page.locator("#cardInfoOverlay").isHidden(),key+" modal closes");
+     const autoQuality=await page.evaluate(()=>window.__shokokuQa.quality());
+     const autoDpr=(await snapshot()).view.dpr;
      const frames=await page.evaluate(()=>new Promise(ok=>{
       let first=0,last=0,d=[];
       function loop(t){if(!first)first=t;if(last)d.push(t-last);last=t;
@@ -108,8 +110,8 @@ const cases=[
      await page.screenshot({path:path.join(out,key+"-dpr1.png")});
      await page.evaluate(()=>window.__shokokuQa.setDpr(1.45));
      assert.deepEqual(errors,[],key+" uncaught errors");
-     results.push({key,frames,uncached,dprOne});
-     console.log("PASS",key,"tap, summon, swipe, hold and A/B FPS",JSON.stringify({dpr145:frames,uncached,dpr100:dprOne}));
+     results.push({key,frames,uncached,dprOne,autoQuality,autoDpr});
+     console.log("PASS",key,"tap, summon, swipe, hold and A/B FPS",JSON.stringify({autoQuality,autoDpr,measured:frames,uncached,dpr100:dprOne}));
     }catch(e){
      await page.screenshot({path:path.join(out,key+"-FAILED.png")}).catch(()=>{});
      throw e;
