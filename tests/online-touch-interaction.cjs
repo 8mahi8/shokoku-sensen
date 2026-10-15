@@ -96,10 +96,20 @@ const cases=[
        }};
       requestAnimationFrame(loop);
      }));
-     await page.evaluate(()=>window.__shokokuQa.setTerrainCache(true));
+     await page.evaluate(()=>{window.__shokokuQa.setTerrainCache(true);window.__shokokuQa.setDpr(1);});
+     const dprOne=await page.evaluate(()=>new Promise(ok=>{
+      let first=0,last=0,d=[];
+      const loop=t=>{if(!first)first=t;if(last)d.push(t-last);last=t;
+       if(t-first<1100)requestAnimationFrame(loop);
+       else{d.sort((a,b)=>a-b);ok({count:d.length,medianMs:d[Math.floor(d.length/2)]||null,
+        p95Ms:d[Math.floor(d.length*.95)]||null});}};
+      requestAnimationFrame(loop);
+     }));
+     await page.screenshot({path:path.join(out,key+"-dpr1.png")});
+     await page.evaluate(()=>window.__shokokuQa.setDpr(1.45));
      assert.deepEqual(errors,[],key+" uncaught errors");
-     results.push({key,frames,uncached});
-     console.log("PASS",key,"tap, summon, swipe, long-press, cached vs uncached frames",JSON.stringify({cached:frames,uncached}));
+     results.push({key,frames,uncached,dprOne});
+     console.log("PASS",key,"tap, summon, swipe, hold and A/B FPS",JSON.stringify({dpr145:frames,uncached,dpr100:dprOne}));
     }catch(e){
      await page.screenshot({path:path.join(out,key+"-FAILED.png")}).catch(()=>{});
      throw e;
