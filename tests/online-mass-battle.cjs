@@ -50,8 +50,12 @@ async function sample(page,ms=1100){
      const withCulling=await sample(page);
      const after=await page.evaluate(()=>window.__shokokuQa.snapshot());
      assert.ok(after.units.length>40,"normal simulation should continue");
-     assert.ok(withCulling.drawCalls<without.drawCalls*.94,
-       key+" offscreen draws were not skipped: "+JSON.stringify({without,withCulling}));
+     // FPS can improve after culling; total draws may increase because there
+     // are more frames. Compare the number of expensive sprite draws per frame.
+     const originalPerFrame=without.drawCalls/Math.max(1,without.frames);
+     const culledPerFrame=withCulling.drawCalls/Math.max(1,withCulling.frames);
+     assert.ok(culledPerFrame<originalPerFrame*.94,
+       key+" offscreen draws per frame were not reduced: "+JSON.stringify({without,withCulling}));
      assert.deepEqual(errors,[],key+" runtime errors");
      await page.screenshot({path:path.join(folder,key+".png")});
      const result={key,without,withCulling,unitsRemaining:after.units.length};
