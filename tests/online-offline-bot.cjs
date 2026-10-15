@@ -43,6 +43,7 @@ const server=http.createServer((req,res)=>{
    await page.evaluate(()=>window.__shokokuQa.setCamera(1015,220));
    await page.waitForFunction(()=>window.__offlineRender.red>0,null,{timeout:9000});
    await page.evaluate(()=>window.__shokokuQa.setCamera(300,330));
+   await page.waitForFunction(()=>window.__shokokuQa.snapshot().camera.x<600);
    // Unit rendering alone isn't enough: tick locally, not using Firebase.
    const first=await page.locator("#prepTime").innerText();
    await delay(1600);
