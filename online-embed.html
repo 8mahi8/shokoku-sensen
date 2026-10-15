@@ -2349,6 +2349,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  window.__shokokuQa={
  setTerrainCache:enabled=>{terrainCacheEnabled=!!enabled;},
  setDrawCulling:on=>{drawCullingEnabled=!!on;},
+ setCamera:(x,y)=>cameraTo(x,y),
  seedMassBattle:()=>{
   if(!NET.isSolo)return false;
   resetWorld();S.phase="battle";S.prep=0;S.elapsed=120;S.seconds=180;S.botThink=999;
