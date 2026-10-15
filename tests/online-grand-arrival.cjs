@@ -40,6 +40,7 @@ const layouts=[
      await page.waitForFunction(()=>window.__shokokuQa.grandState().active?.key==="guardian",{},{timeout:5000});
      const hero=await page.evaluate(()=>window.__shokokuQa.grandState());
      assert.equal(hero.active.team,1);
+     await page.waitForTimeout(220);
      await page.screenshot({path:path.join(out,tag+"-guardian.png")});
      // The screen pulse must not introduce an input-capturing overlay.
      const button=page.locator(".card[data-id='infantry']"),r=await button.boundingBox();
@@ -52,6 +53,7 @@ const layouts=[
      await page.waitForFunction(()=>window.__shokokuQa.grandState().active?.key==="tank",{},{timeout:5000});
      const foe=await page.evaluate(()=>window.__shokokuQa.grandState());
      assert.equal(foe.active.team,2);
+     await page.waitForTimeout(220);
      await page.screenshot({path:path.join(out,tag+"-enemy-tank.png")});
      await page.waitForFunction(()=>window.__shokokuQa.grandState().active===null,{},{timeout:5500});
      // Disable the cue with test toggle while keeping the full combat simulation.

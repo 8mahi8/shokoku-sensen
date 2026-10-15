@@ -2018,8 +2018,9 @@ function observeGrandArrival(now){
  for(const u of S.units){
   if(u.key!=="guardian"&&u.key!=="tank" || grandSeen.has(u.uid))continue;
   grandSeen.add(u.uid);
-  // Only a newly deployed giant, not a long-lived unit from a late packet.
-  if(!Number.isFinite(u.spawnAt)||Math.abs(S.clock-u.spawnAt)>4)continue;
+  // The new UID is authoritative. Avoid comparing local and remote clocks:
+  // a guest who waited in a room may be many seconds ahead of the host.
+  // Units existing on battle entry were already registered in grandSeen.
   if(grandEffectEnabled)grandArrival={uid:u.uid,team:u.team,key:u.key,x:u.x,y:u.y,started:now};
  }
  if(grandArrival&&now-grandArrival.started>=GRAND_DURATION)grandArrival=null;
