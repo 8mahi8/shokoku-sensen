@@ -655,6 +655,7 @@ function renderTerrainBackdrop(g){
   g.strokeStyle=i%3===0?"#b0be8e25":"#092b272c";g.lineWidth=2.5;
   g.beginPath();g.moveTo(x-10,y+5);g.quadraticCurveTo(x,y-5,x+12,y+2);g.stroke();
  }
+}
 // Fixed ground is rasterized once; deploy lines stay dynamic.
 let terrainBase=null,terrainCacheEnabled=true;
 function terrain(){
