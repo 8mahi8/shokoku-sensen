@@ -2305,6 +2305,16 @@ function start(){
  }
  requestAnimationFrame(frame);
 }
+
+// Test-only readback. Enabled only on loopback via ?qa=1.
+if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
+ window.__shokokuQa={snapshot:()=>({
+  phase:S.phase,selected:S.selected,prep:S.prep,elapsed:S.elapsed,
+  energy:S.energy.slice(),camera:{x:S.cam.x,y:S.cam.y},
+  view:{...S.view},hand:S.hand.map(h=>h&&h.slice()),
+  units:S.units.map(u=>({uid:u.uid,team:u.team,key:u.key,x:u.x,y:u.y}))
+ })};
+}
 start();
 })();
 </script>
