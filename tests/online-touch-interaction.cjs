@@ -68,7 +68,13 @@ const cases=[
      assert.ok(touch.camera.x<swiped.camera.x-8,key+" touch pointer swipe pans");
      assert.equal(touch.units.filter(u=>u.team===1).length,deployed.units.filter(u=>u.team===1).length,key+" touch swipe no summon");
      await page.screenshot({path:path.join(out,key+"-swiped.png")});
-     const other=page.locator('.card:not([data-id="infantry"])').first(),p=await other.boundingBox(),selected=touch.selected;
+     // The hand is rebuilt asynchronously as BOT/energy changes. Retry geometry
+     // rather than using a detached element from a concurrent card rotation.
+     const other=page.locator('.card:not([data-id="infantry"])').first(),selected=touch.selected;
+     await other.waitFor({state:"visible",timeout:12000});
+     let p=await other.boundingBox();
+     if(!p){await other.waitFor({state:"visible",timeout:12000});p=await other.boundingBox();}
+     assert.ok(p,key+" inspect card needs a visible hitbox");
      await page.mouse.move(p.x+p.width/2,p.y+p.height/2);
      await page.mouse.down();
      await page.locator("#cardInfoOverlay").waitFor({state:"visible",timeout:4000});
