@@ -413,75 +413,115 @@ function rate(){
  return .7;
 }
 // Guest BOT uses normal guest commands; only the host changes world state.
-function botUse(team,id,x,y){return playCard(team,id,x,y);}
+let botLastAction=null;
+function botUse(team,id,x,y){
+ const accepted=playCard(team,id,x,y);
+ if(accepted)botLastAction={team,id,x,y,elapsed:S.elapsed};
+ return accepted;
+}
 function botPreparation(){
  if(!NET.botActive||S.phase!=="prep"||S.botPrepDone||S.prep>8.5)return;
- S.botPrepDone=true;
  const x=limit(border(2)+40,40,W-40),fort=S.forts.find(f=>f.x===867),y=fort?.y??210;
  for(const id of ["scout","engineer","archer","infantry"])
-  if(canPay(2,id)&&botUse(2,id,x,y))break;
+  if(canPay(2,id)&&botUse(2,id,x,y)){S.botPrepDone=true;break;}
 }
 // Expert heuristics operate within the same hand, economy and placement rules.
 // v3.9 tactical BOT. Same deck order, charges, energy rate and deployment rules as a human.
 function botExpertAction(){
  const hard=S.difficulty==="hard",edge=border(2),power=S.energy[2];
  const foes=S.units.filter(u=>u.team===1&&u.hp>0),friends=S.units.filter(u=>u.team===2&&u.hp>0);
- const raiders=foes.filter(u=>u.x>edge-380);
- const desperate=foes.filter(u=>u.x>1035);
+ const raiders=foes.filter(u=>u.x>edge-380),castleThreat=foes.filter(u=>u.x>WALL_FACE[2]-180);
  const fort=S.forts.filter(f=>f.owner!==2).sort((a,b)=>b.x-a.x)[0];
- const focus=raiders.slice().sort((a,b)=>b.x-a.x)[0];
- const have=id=>availableCard(2,id),pay=id=>canPay(2,id);
- const group=raiders.map(u=>({u,neighbors:raiders.filter(v=>dist(v,u)<70)}))
-  .sort((a,b)=>b.neighbors.length-a.neighbors.length)[0];
- const groupSize=group?.neighbors.length??0;
- const yFocus=focus?.y??fort?.y??330;
- const spawn=(id,y,margin=35)=>
-   pay(id)&&botUse(2,id,limit(edge+margin,40,W-40),limit(y,70,H-70));
- // Use meaningful counters early. The BOT never receives free units or bonus damage.
- if(groupSize>=3&&pay("barrage")&&botUse(2,"barrage",group.u.x,group.u.y))return true;
- if(groupSize>=3&&spawn("suppress",group.u.y,50))return true;
- if(raiders.some(u=>CLASSES[u.key].flying)&&spawn("archer",yFocus,58))return true;
- if(raiders.some(u=>CLASSES[u.key].size==="large")&&spawn("guardian",yFocus,34))return true;
- if(desperate.length){
-  if(groupSize>=2&&spawn("sentinel",yFocus,32))return true;
-  if(groupSize>=2&&spawn("suppress",yFocus,52))return true;
-  const defenders=friends.filter(u=>u.x>850&&Math.abs(u.y-yFocus)<140);
-  if(defenders.length<3&&spawn("archer",yFocus,65))return true;
-  if(defenders.length<3&&spawn("infantry",yFocus,32))return true;
+ const threatened=S.forts.filter(f=>f.owner===2).map(f=>{
+  const enemies=foes.filter(u=>Math.abs(u.x-f.x)<155&&Math.abs(u.y-f.y)<135);
+  const allies=friends.filter(u=>Math.abs(u.x-f.x)<155&&Math.abs(u.y-f.y)<135);
+  return {f,enemies,score:2*enemies.length-allies.length};
+ }).filter(c=>c.enemies.length&&c.score>=0).sort((a,b)=>b.score-a.score)[0];
+ const urgent=castleThreat.length>0||!!threatened;
+ const focus=castleThreat.sort((a,b)=>b.x-a.x)[0]||threatened?.enemies[0]||
+  raiders.sort((a,b)=>b.x-a.x)[0];
+ const defendY=castleThreat.length?focus?.y:threatened?.f.y;
+ const laneY=defendY??focus?.y??fort?.y??330;
+ const spawn=(id,y,margin=35)=>canPay(2,id)&&botUse(2,id,
+  limit(edge+margin,40,W-40),limit(y,70,H-70));
+
+ // Aim the 1.3s delayed barrage where walking enemies will roughly be at impact.
+ // Do not stack an expensive cast over a still-incoming allied barrage.
+ const projected=u=>{
+  const speed=u.walking?CLASSES[u.key].speed*SPELLS.barrage.delay*.7:0;
+  return {x:limit(u.x+Math.cos(u.facing||0)*speed,30,W-30),
+   y:limit(u.y+Math.sin(u.facing||0)*speed,40,H-35)};
+ };
+ const targets=raiders.map(u=>{
+  const center=projected(u),hits=raiders.filter(v=>{
+   const p=projected(v);return Math.hypot(p.x-center.x,p.y-center.y)<SPELLS.barrage.radius*.94;
+  });
+  return {center,hits:hits.length,value:hits.reduce((sum,v)=>
+   sum+1+(CLASSES[v.key].size==="large"?.85:0),0)};
+ }).sort((a,b)=>b.value-a.value)[0];
+ const groupSize=targets?.hits??0;
+ const alreadyTargeted=targets&&S.spells.incoming.some(shot=>shot.team===2&&shot.time>0&&
+  Math.hypot(shot.x-targets.center.x,shot.y-targets.center.y)<SPELLS.barrage.radius*.85);
+ if(targets&&(groupSize>=(hard?2:3)||urgent&&groupSize===2)&&
+  canPay(2,"barrage")&&!alreadyTargeted&&
+  botUse(2,"barrage",targets.center.x,targets.center.y))return true;
+
+ // Counters are only useful if a real target and a gap in coverage exist.
+ const flyer=raiders.find(u=>CLASSES[u.key].flying);
+ if(flyer&&friends.filter(u=>u.key==="archer"&&u.x>edge-175&&Math.abs(u.y-flyer.y)<130).length<2&&
+  spawn("archer",flyer.y,60))return true;
+ const giant=raiders.find(u=>CLASSES[u.key].size==="large");
+ if(giant&&friends.filter(u=>u.key==="guardian"&&u.x>edge-175&&Math.abs(u.y-giant.y)<150).length===0&&
+  spawn("guardian",giant.y,35))return true;
+ if(urgent){
+  const incoming=foes.filter(u=>u.x>edge-255&&Math.abs(u.y-laneY)<145);
+  const defense=friends.filter(u=>u.x>edge-175&&Math.abs(u.y-laneY)<145);
+  if(incoming.length>=2&&spawn("suppress",laneY,50))return true;
+  if(incoming.length&&defense.length<incoming.length+1&&spawn("sentinel",laneY,35))return true;
+  if(defense.length<incoming.length+1&&spawn("archer",laneY,60))return true;
+  if(defense.length<incoming.length+1&&spawn("infantry",laneY,35))return true;
  }
- const giant=["tank","guardian"].filter(have);
- const workers=fort?friends.filter(u=>CLASSES[u.key].capture&&Math.abs(u.y-fort.y)<145&&u.x>fort.x-130):[];
- const needFort=!!fort&&workers.length<(S.elapsed<48?1:2);
- // The first meaningful plays must cycle the 4-card hand; infantry doesn't rotate it.
- if(S.elapsed<37&&needFort&&spawn("scout",fort.y,35))return true;
- if(S.elapsed<40&&friends.filter(u=>u.key==="archer").length<3&&spawn("archer",yFocus,64))return true;
- // A drawn giant is an explicit seven-energy investment, unless the castle is in danger.
- if(giant.length&&S.elapsed>18){
-  const id=giant.includes("tank")&&!desperate.length?"tank":
-   giant.includes("guardian")?"guardian":giant[0];
-  if(power>=7&&spawn(id,id==="guardian"?yFocus:fort?.y??yFocus,38))return true;
-  if(!desperate.length)return true;
+
+ // Ward cannot protect the same army twice, so avoid overlapping active zones.
+ if(canPay(2,"ward")){
+  const candidate=friends.map(u=>{
+   const close=friends.filter(v=>dist(v,u)<SPELLS.ward.radius*.85);
+   const threatenedAllies=close.filter(v=>foes.some(e=>dist(e,v)<CLASSES[e.key].vision+35));
+   const existing=S.spells.zones.some(z=>z.team===2&&z.time>1.5&&
+    Math.hypot(z.x-u.x,z.y-u.y)<SPELLS.ward.radius*.70);
+   return {u,score:threatenedAllies.length+
+    (threatenedAllies.some(v=>CLASSES[v.key].size==="large")?1:0),existing};
+  }).filter(p=>!p.existing).sort((a,b)=>b.score-a.score)[0];
+  if(candidate&&candidate.score>=(hard?2:3)&&
+   botUse(2,"ward",candidate.u.x,candidate.u.y))return true;
  }
- if(needFort&&spawn("scout",fort.y,33))return true;
+ const workers=fort?friends.filter(u=>CLASSES[u.key].capture&&
+  u.x>fort.x-175&&Math.abs(u.y-fort.y)<135):[];
+ const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
+ if(needFort&&spawn("scout",fort.y,35))return true;
  if(needFort&&spawn("engineer",fort.y,35))return true;
- if(raiders.length>=2&&spawn("sentinel",yFocus,36))return true;
- if(groupSize>=2&&spawn("suppress",group.u.y,50))return true;
- if(friends.filter(u=>u.key==="archer").length<2&&spawn("archer",yFocus,70))return true;
- if(pay("ward")){
-  const team=friends.map(u=>({u,value:friends.filter(v=>dist(v,u)<90&&raiders.some(e=>dist(e,v)<175)).length}))
-   .sort((a,b)=>b.value-a.value)[0];
-  if(team&&team.value>=2&&botUse(2,"ward",team.u.x,team.u.y))return true;
+
+ const archers=friends.filter(u=>u.key==="archer").length;
+ if(S.elapsed<45&&archers<2&&spawn("archer",laneY,60))return true;
+
+ // Save for giants only if owned lanes are not under pressure, and the
+ // objective capture line already has troops. No hidden energy advantages.
+ const giants=["tank","guardian"].filter(id=>availableCard(2,id));
+ if(giants.length&&S.elapsed>18&&!urgent){
+  const chosen=giants.includes("tank")?"tank":giants[0];
+  if(power>=7&&spawn(chosen,chosen==="tank"?fort?.y??laneY:laneY,38))return true;
+  if(power>=4&&!needFort&&friends.length>=2&&
+   !raiders.some(u=>u.x>edge-160))return true;
  }
- if(groupSize>=2&&pay("barrage")&&botUse(2,"barrage",group.u.x,group.u.y))return true;
- // Rotate non-permanent cards for the next tactical option; hold energy if necessary.
- for(const id of ["scout","archer","engineer","sentinel","suppress","drone"]){
-  if(spawn(id,id==="scout"||id==="engineer"?fort?.y??330:yFocus,
-   id==="archer"||id==="suppress"?64:36))return true;
+ if(groupSize>=2&&spawn("suppress",targets.center.y,50))return true;
+ if(raiders.length>=2&&spawn("sentinel",laneY,35))return true;
+ if(archers<3&&spawn("archer",laneY,62))return true;
+ for(const id of ["scout","engineer","archer","suppress","drone","sentinel","tank","guardian"]){
+  const y=id==="scout"||id==="engineer"||id==="tank"?fort?.y??laneY:laneY;
+  if(spawn(id,y,id==="archer"||id==="suppress"?60:35))return true;
  }
- // Basic infantry remains the low-cost emergency choice, not the default policy.
- if(power>=11&&spawn("infantry",yFocus,36))return true;
- if(desperate.length&&spawn("infantry",yFocus,36))return true;
- return true;
+ if((power>=10||urgent)&&spawn("infantry",laneY,35))return true;
+ return false;
 }
 function botAction(){
  const allies=S.units.filter(u=>u.team===2&&u.hp>0);
@@ -1366,6 +1406,31 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ setBotScenario:spec=>{
+  if(!NET.isSolo||!spec||!Array.isArray(spec.enemies)||!Array.isArray(spec.hand))return false;
+  resetWorld();S.phase="battle";S.botThink=999;S.prep=0;
+  S.difficulty=spec.difficulty||"hard";S.elapsed=spec.elapsed??80;
+  S.energy=[0,8,spec.energy??8];S.hand[2]=spec.hand.slice();S.queue[2]=[];
+  if(Array.isArray(spec.fortOwners))S.forts.forEach((f,i)=>f.owner=spec.fortOwners[i]||0);
+  const place=(team,u)=>{
+   const d=CLASSES[u.key],x=u.x,y=u.y;
+   if(!d)throw Error("unknown class "+u.key);
+   S.units.push({uid:++S.uid,key:u.key,team,x,y,anchorX:x,anchorY:y,homeY:y,
+    hp:d.hp,max:d.hp,attack:0,flash:0,attackAnim:0,attackAnimMax:MOTION.attack[u.key],
+    windup:0,hitAt:-100,spawnAt:-100,spawnDuration:.5,lock:null,walkPhase:0,
+    walking:u.walking??false,drift:0,facing:u.facing??(team===1?0:Math.PI)});
+  };
+  spec.enemies.forEach(u=>place(1,u));(spec.allies||[]).forEach(u=>place(2,u));
+  botLastAction=null;updateHUD();return true;
+ },
+ runBotOnce:()=>{
+  if(!NET.isSolo||S.phase!=="battle")return null;
+  const initial=S.energy[2],acted=botExpertAction();
+  return {acted,action:botLastAction,spent:initial-S.energy[2],
+    remaining:S.energy[2],incoming:S.spells.incoming.length,wards:S.spells.zones.length,
+    units:S.units.length};
+ },
+
  setTerrainCache:enabled=>{terrainCacheEnabled=!!enabled;},
  setDrawCulling:on=>{drawCullingEnabled=!!on;},
  setDenseSpriteCache:on=>{useDenseSpriteCache=!!on;},
