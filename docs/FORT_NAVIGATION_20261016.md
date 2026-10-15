@@ -25,3 +25,14 @@
 既存の`online-ipad-ui.cjs`、`online-offline-bot.cjs`、`online-touch-interaction.cjs`、`online-mass-battle.cjs`、`online-grand-arrival.cjs`と並行して回帰テストする。オンライン2画面テストとsmokeも維持。表示のわかりやすさやタッチ感覚の最終確認には実機iPadが必要。
 
 テスト実行：<https://github.com/8mahi8/shokoku-sensen/actions/workflows/online-ipad-visual.yml>
+
+
+## 実装後の最終検証（PASS）
+
+- 新しい基地ナビ専用テスト：Chromium横画面・縦画面・Sites相当、WebKit横画面・縦画面・Sites相当の**6/6件すべてPASS**。固定の青赤所有者表示、争奪表示、タップでの正しいカメラ移動、カード選択維持、誤召喚0件を検証。
+- [Online iPad UI visual QA run 38764842434](https://github.com/8mahi8/shokoku-sensen/actions/runs/38764842434)：**success**。レイアウト、Firebase遮断でのソロBOT、タッチ操作、130体負荷テスト、大型登場演出、基地ナビをすべて通過。
+- [Online 1v1 smoke run 38764216264](https://github.com/8mahi8/shokoku-sensen/actions/runs/38764216264)：**success**。
+- [One-shot online two-browser live QA run 38764216331](https://github.com/8mahi8/shokoku-sensen/actions/runs/38764216331)：**success**。
+- 検証画像を確認し、横向き・縦向きで中央開戦表示・カード・城HP表示への重大な重なりは見つからなかった。
+- 最終テスト改善：Sites相当のビューでは最初のカメラ位置が基地に近いため、**カメラを一度反対側まで動かしてから目的地へ戻る**ことを確認し、真のナビゲーション成功を検証した。
+- 最終開発版テスト対象SHA: `7ae0fb40ff65a99509b668d116dc4d8f084299a3`。公開版のSHAは `e3330a0564bda8460bf746232e75abf7130b1bfe` のまま。
