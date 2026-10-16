@@ -64,3 +64,19 @@ BLUE/REDのターゲット基地の違いを固定検証し、既存の戦術回
 正式BOTを守りつつ、現在のBLUE側深い進軍とRED側近距離占領の両方に対応できる **frontline state / siege pressure / emergency defense** のフェーズ判定と、実際の部隊配置・損失を結びつける。初手から作戦を決め打ちするのでなく、脅威が現れた時点で目標を再評価し、前線を維持する最低限の部隊を出す。その先に新たな有望仮説ができるまで、新候補の正式採用を行わない。
 
 生の試合ログはActionsの bot-duel-baseline-report アーティファクト内 qa-bot-objectives に保存した。公開main、カードバランス、通常BOTの意思決定は変更していない。
+
+ 
+## 移動AIの分離評価（[GitHub Actions #38891925981](https://github.com/8mahi8/shokoku-sensen/actions/runs/38891925981)）
+
+同一学習条件50組について、以下の案を比較した。
+
+| 候補 | 勝敗改善 | 悪化 | 純差 |
+| --- | ---: | ---: | ---: |
+| objectiveDirector | 1 | 4 | -3 |
+| directorNoSave | 1 | 3 | -2 |
+| directorCaptureOnly | 1 | 3 | -2 |
+| directorRouteAware | 1 | 4 | -3 |
+| nearestCapture（占領移動のみ変更） | 0 | 7 | **-7** |
+| directorPathAligned（戦略と移動を同時変更） | 2 | 5 | **-3** |
+
+nearestCapture の悪化7件はすべて青側、赤側では差0。青側の既存の奥の基地への跳躍を禁止すると劣化するという訓練データ上の反証であり、通常プレイヤーの深い占領能力を維持する理由となる。ユニット移動規則の統一と戦略ディレクターの無条件採用は不適切。どちらもQAのまま保留。
