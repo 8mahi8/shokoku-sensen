@@ -45,6 +45,7 @@ const diff=(rows,key)=>mean(rows.map(r=>r.heavy.stats[key]-r.alternatives.stats[
      assert.ok(g.stats.enemyUnitDamage>=0,"unit damage nonnegative");
      assert.ok(g.stats.remainingEnergy>=0&&g.stats.remainingEnergy<=12,"legal energy");
      assert.ok(g.stats.survivalSeconds>=0,"survival time");
+     assert.ok(g.stats.enemyCastleAt30>=0&&g.stats.enemyCastleAt60>=0&&g.stats.enemyCastleAt90>=0,"checkpoint damage bounds");
     }
     assert.deepEqual(heavy.enemyCards,alternatives.enemyCards,"same enemy");
     assert.equal(heavy.team,alternatives.team,"same side");
@@ -59,7 +60,7 @@ const diff=(rows,key)=>mean(rows.map(r=>r.heavy.stats[key]-r.alternatives.stats[
   assert.deepEqual(reproduce,records[0].heavy,"deterministic seeded replay");
   assert.deepEqual(errors,[],"page errors");
   const summary={kind:"7-energy fixed-force ROLE trials (not full-match win rate)",
-   version:1,trialPairs:records.length,seeds,roles:Object.fromEntries(
+   version:2,trialPairs:records.length,seeds,roles:Object.fromEntries(
     Object.entries(cases).map(([role,opponents])=>{
      const all=records.filter(r=>r.role===role);
      const stat=rows=>({pairs:rows.length,
@@ -67,6 +68,17 @@ const diff=(rows,key)=>mean(rows.map(r=>r.heavy.stats[key]-r.alternatives.stats[
       meanDeltaCastleDamage:diff(rows,"enemyCastleDamage"),
       meanDeltaOwnCastleDamage:diff(rows,"ownCastleDamage"),
       meanDeltaSurvivalSeconds:diff(rows,"survivalSeconds"),
+      meanDeltaSurvivalSecondsPerUnit:diff(rows,"survivalSecondsPerUnit"),
+      meanDeltaCastleAt30:diff(rows,"enemyCastleAt30"),
+      meanDeltaCastleAt60:diff(rows,"enemyCastleAt60"),
+      meanDeltaCastleAt90:diff(rows,"enemyCastleAt90"),
+      meanDeltaOwnCastleAt30:diff(rows,"ownCastleAt30"),
+      heavyFasterCastle:rows.filter(r=>
+       (r.heavy.stats.enemyCastleFallAt??121)<(r.alternatives.stats.enemyCastleFallAt??121)).length,
+      alternativeFasterCastle:rows.filter(r=>
+       (r.heavy.stats.enemyCastleFallAt??121)>(r.alternatives.stats.enemyCastleFallAt??121)).length,
+      heavyMeanCastleFallOr121:mean(rows.map(r=>r.heavy.stats.enemyCastleFallAt??121)),
+      alternativeMeanCastleFallOr121:mean(rows.map(r=>r.alternatives.stats.enemyCastleFallAt??121)),
       heavyBetterCastle:rows.filter(r=>r.deltaCastleDamage>0).length,
       heavyBetterUnitDamage:rows.filter(r=>r.deltaUnitDamage>0).length,
       heavyReducedOwnCastleDamage:rows.filter(r=>r.deltaOwnDamage<0).length,

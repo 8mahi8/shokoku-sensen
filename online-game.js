@@ -1639,8 +1639,16 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    const baseHp=[null,capital(1).hp,capital(2).hp];
    const duration=120,dt=1/30;
    let firstContact=null,fortTime=0,steps=0;
+   const damageSnapshots={30:null,60:null,90:null};
+   const castleFallAt=[null,null,null];
    for(;steps<duration*30&&S.phase==="battle";steps++){
     tick(dt);
+    for(const side of [1,2])if(castleFallAt[side]===null&&capital(side).hp<=0)
+      castleFallAt[side]=S.elapsed;
+    if([900,1800,2700].includes(steps+1)){
+     const sec=(steps+1)/30;
+     damageSnapshots[sec]=[null,baseHp[1]-capital(1).hp,baseHp[2]-capital(2).hp];
+    }
     for(const u of tracked)if(u.ref.hp>0)u.life+=dt;
     if(S.forts.some(f=>f.owner===team))fortTime+=dt;
     if(firstContact===null&&(tracked.some(u=>u.ref.hp<u.startHp)||
@@ -1649,16 +1657,25 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       S.energy[1]<0||S.energy[2]<0||S.energy[1]>ENERGY_CAP+.0001||
       S.energy[2]>ENERGY_CAP+.0001)throw Error("energy bounds");
    }
+   for(const sec of [30,60,90])if(damageSnapshots[sec]===null)
+    damageSnapshots[sec]=[null,baseHp[1]-capital(1).hp,baseHp[2]-capital(2).hp];
    const members=(side)=>tracked.filter(u=>u.team===side);
    const metrics=side=>{
     const own=members(side),enemies=members(3-side);
     return {deployed:own.length,alive:own.filter(u=>u.ref.hp>0).length,
      survivalSeconds:own.reduce((s,u)=>s+u.life,0),
+     survivalSecondsPerUnit:own.reduce((s,u)=>s+u.life,0)/Math.max(1,own.length),
      remainingUnitHp:own.reduce((s,u)=>s+Math.max(0,u.ref.hp),0),
      enemyUnitDamage:enemies.reduce((s,u)=>s+Math.min(u.startHp,
        Math.max(0,u.startHp-u.ref.hp)),0),
      enemyUnitsDefeated:enemies.filter(u=>u.ref.hp<=0).length,
      enemyCastleDamage:baseHp[3-side]-capital(3-side).hp,
+     enemyCastleAt30:damageSnapshots[30][3-side],
+     enemyCastleAt60:damageSnapshots[60][3-side],
+     enemyCastleAt90:damageSnapshots[90][3-side],
+     enemyCastleFallAt:castleFallAt[3-side],
+     ownCastleAt30:damageSnapshots[30][side],
+     ownCastleAt60:damageSnapshots[60][side],
      ownCastleDamage:baseHp[side]-capital(side).hp,
      progress:own.reduce((s,u)=>s+(side===1?u.ref.x-u.startX:u.startX-u.ref.x),0),
      remainingEnergy:S.energy[side]};
