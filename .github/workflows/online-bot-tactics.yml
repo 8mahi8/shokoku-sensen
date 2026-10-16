@@ -17,6 +17,7 @@ on:
       - 'tests/online-bot-staged-budget.cjs'
       - 'tests/online-bot-screen-budget.cjs'
       - 'tests/online-bot-objectives.cjs'
+      - 'tests/online-bot-surgical.cjs'
       - 'online-embed.html'
       - 'online-game.js'
       - 'online-ipad.html'
@@ -24,7 +25,7 @@ on:
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 32
     permissions:
       contents: read
     steps:
@@ -48,6 +49,7 @@ jobs:
       - run: node tests/online-bot-staged-budget.cjs
       - run: node tests/online-bot-screen-budget.cjs
       - run: node tests/online-bot-objectives.cjs
+      - run: node tests/online-bot-surgical.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,4 +68,5 @@ jobs:
             qa-bot-staged-budget
             qa-bot-screen-budget
             qa-bot-objectives
+            qa-bot-surgical
           retention-days: 30

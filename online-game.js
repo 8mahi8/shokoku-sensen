@@ -658,6 +658,58 @@ function botExpertAction(team=2){
    front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
  const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
  if(event&&needFort)event.needFort++;
+ // Independent QA-only policy probes. Do not alter existing movement,
+ // high-priority counters or base decisions unless conditions truly apply.
+ const surgical=reason=>{if(event){
+  const counts=event.surgicalChoices||(event.surgicalChoices={});
+  counts[reason]=(counts[reason]||0)+1;
+ }};
+ if(qaPolicy==="preemptFort"&&!urgent&&power>=4){
+  const threatenedSoon=S.forts.filter(f=>f.owner===team).map(f=>{
+   const enemies=foes.filter(u=>Math.abs(u.x-f.x)<330&&Math.abs(u.y-f.y)<140);
+   const cover=friends.filter(u=>Math.abs(u.x-f.x)<195&&Math.abs(u.y-f.y)<140);
+   return {f,enemies,cover};
+  }).filter(a=>a.enemies.length&&a.enemies.length>a.cover.length)
+   .sort((a,b)=>b.enemies.length-a.enemies.length)[0];
+  if(threatenedSoon&&!threatenedSoon.cover.some(u=>u.key==="sentinel")&&
+     spawn("sentinel",threatenedSoon.f.y,35)){
+   surgical("preemptFort");return true;
+  }
+ }
+ if(qaPolicy==="escortCapturer"&&!urgent&&power>=2){
+  const unescorted=S.forts.filter(f=>f.owner!==team).map(f=>{
+   const units=friends.filter(u=>CLASSES[u.key].capture&&
+    Math.abs(u.x-f.x)<205&&Math.abs(u.y-f.y)<110);
+   const enemies=foes.filter(u=>Math.abs(u.x-f.x)<210&&Math.abs(u.y-f.y)<130);
+   const support=friends.filter(u=>!CLASSES[u.key].capture&&
+    Math.abs(u.x-f.x)<180&&Math.abs(u.y-f.y)<120);
+   return {f,units,enemies,support};
+  }).filter(v=>v.units.length&&v.enemies.length&&!v.support.length)
+   .sort((a,b)=>b.enemies.length-a.enemies.length)[0];
+  if(unescorted&&spawn("archer",unescorted.f.y,60)){
+   surgical("escortCapturer");return true;
+  }
+ }
+ if(qaPolicy==="laneScout"&&needFort&&canPay(team,"scout")){
+  // Score actual card destination using existing getFort, never retarget units.
+  const options=S.forts.filter(f=>f.owner!==team).map(f=>{
+   const x=limit(edge+dir*35,40,W-40),y=f.y;
+   const target=getFort({key:"scout",team,x,y});
+   if(!target)return null;
+   const foesNear=foes.filter(u=>Math.abs(u.x-target.x)<185&&
+    Math.abs(u.y-target.y)<145).length;
+   const assigned=friends.filter(u=>CLASSES[u.key].capture&&
+    getFort(u)===target).length;
+   return {y,target,score:foesNear*3+assigned*2+Math.abs(target.x-edge)/450};
+  }).filter(Boolean).sort((a,b)=>a.score-b.score);
+  if(options.length){
+   const current=getFort({key:"scout",team,
+    x:limit(edge+dir*35,40,W-40),y:fort.y});
+   if(options[0].target!==current&&spawn("scout",options[0].y,35)){
+    surgical("laneScout");return true;
+   }
+  }
+ }
  // QA-only stateful siege intent. Unlike one-turn affordability thresholds,
  // a healthy forward capture group can protect a bounded 7-energy investment.
  // Emergency defense, counters and wards always run before this stage.
@@ -1754,7 +1806,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
