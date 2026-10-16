@@ -2625,7 +2625,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
     !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard"].includes(variant)||
-    (blueStyle!=="self"&&variantTeam!==0)||
+    (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
   let state=(seed>>>0)||1;
