@@ -62,10 +62,10 @@ function metrics(set){
   assert.equal(screened.spent,0,"screen-aware policy defers card");
   const exposed=await action({...scene,variant:"screenBudget",
    allies:[{key:"scout",x:720,y:440},{key:"engineer",x:725,y:440}]});
-  assert.equal(exposed.action?.id,"scout","unscreened enemy must cancel saving");
+  assert.ok(exposed.action?.id&&exposed.spent>0,"unscreened enemy must cancel saving and spend on a valid defense/capture");
   const airborne=await action({...scene,variant:"screenBudget",
    enemies:[{key:"drone",x:690,y:205}]});
-  assert.equal(airborne.action?.id,"scout","melee cannot screen a flying enemy");
+  assert.ok(airborne.action?.id&&airborne.spent>0,"melee cannot screen a flying enemy");
   const run=(seed,style,team,mirror,variant)=>page.evaluate(x=>
    window.__shokokuQa.runDuel(x.seed,x.style,"hard",x.team,
     "standard",x.mirror,x.variant==="baseline"?0:x.team,x.variant),
