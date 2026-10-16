@@ -5,13 +5,14 @@ on:
       - '.github/workflows/online-bot-tactics.yml'
       - 'tests/online-bot-tactics.cjs'
       - 'tests/online-bot-tournament.cjs'
+      - 'tests/online-bot-evaluation.cjs'
       - 'online-game.js'
       - 'online-ipad.html'
   workflow_dispatch:
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 12
     permissions:
       contents: read
     steps:
@@ -23,9 +24,12 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/online-bot-tactics.cjs
       - run: node tests/online-bot-tournament.cjs
+      - run: node tests/online-bot-evaluation.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bot-duel-baseline-report
-          path: qa-bot-tournament
+          path: |
+            qa-bot-tournament
+            qa-bot-evaluation
           retention-days: 30
