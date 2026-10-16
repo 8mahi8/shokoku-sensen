@@ -71,7 +71,7 @@ const sum=(a,fn)=>a.reduce((v,x)=>v+fn(x),0);
   assert.equal(baselines.length,24);
   assert.equal(records.length,96);
   assert.deepEqual(errors,[],"browser page errors");
-  const summary={kind:"TRAIN-only publicly inferred opponent energy experiment",version:1,
+  const summary={kind:"TRAIN-only publicly inferred opponent energy experiment",version:2,
    seeds,baselineGames:baselines.length,comparisons:records.length,
    reconstructionVerified:true,privateEnergyIndependenceVerified:true,
    scenarioWeakAction:weak.action?.id??null,scenarioRichAction:rich.action?.id??null,
@@ -80,7 +80,11 @@ const sum=(a,fn)=>a.reduce((v,x)=>v+fn(x),0);
     return [variant,{comparisons:set.length,delta:sum(set,r=>r.delta),
      improved:set.filter(x=>x.delta>0).length,worse:set.filter(x=>x.delta<0).length,
      unchanged:set.filter(x=>x.delta===0).length,
+     withChangedCardUse:set.filter(x=>
+      JSON.stringify(x.baselineCards)!==JSON.stringify(x.trialCards)).length,
+     triggered:sum(set,x=>x.events.variantTriggers||0),
      lowObservations:sum(set,x=>x.events.opponentLow||0),
+     barrageReadyObservations:sum(set,x=>x.events.opponentCanBarrage||0),
      highObservations:sum(set,x=>x.events.opponentHigh||0),
      byTeam:Object.fromEntries(teams.map(team=>{
       const a=set.filter(x=>x.team===team);

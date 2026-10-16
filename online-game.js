@@ -462,6 +462,7 @@ function botExpertAction(team=2){
   if(power>=7)event.energy7++;
   event.opponentLow=(event.opponentLow||0)+(opposingPower<=2.5?1:0);
   event.opponentHigh=(event.opponentHigh||0)+(opposingPower>=7?1:0);
+  event.opponentCanBarrage=(event.opponentCanBarrage||0)+(opposingPower>=4?1:0);
   if(["tank","guardian"].some(id=>availableCard(team,id)))event.giantInHand++;
  }
  const focus=castleThreat.sort((a,b)=>front(b.x)-front(a.x))[0]||threatened?.enemies[0]||
@@ -549,12 +550,19 @@ function botExpertAction(team=2){
  if(qaPolicy==="opponentPunish"&&opposingPower<=2.5&&!urgent&&fort&&
   S.elapsed>30&&power>=3&&friends.length>=2&&
   friends.some(u=>front(u.x)<front(edge)-75)&&
-  spawn("scout",fort.y,35))return true;
- // Do not prepare for a wealthy opponent until troops actually approach.
- if(qaPolicy==="opponentGuard"&&opposingPower>=7&&!urgent&&
+  spawn("scout",fort.y,35)){
+   if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+   return true;
+ }
+ // Four public energy is sufficient to afford a barrage, if in hand.
+ // A high-cost defense is only justified by visible enemies in a threatened lane.
+ if(qaPolicy==="opponentGuard"&&opposingPower>=4&&!urgent&&
   raiders.length>0&&friends.length>=2&&
   friends.filter(u=>u.key==="sentinel"&&Math.abs(u.y-laneY)<130&&
-   Math.abs(u.x-edge)<160).length===0&&spawn("sentinel",laneY,35))return true;
+   Math.abs(u.x-edge)<160).length===0&&spawn("sentinel",laneY,35)){
+   if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+   return true;
+ }
  if(needFort&&spawn("scout",fort.y,35))return true;
  if(needFort&&spawn("engineer",fort.y,35))return true;
 
