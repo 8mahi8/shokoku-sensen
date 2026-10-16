@@ -57,12 +57,14 @@ const aggregate=rows=>({
   const run=(q,variant)=>page.evaluate(x=>window.__shokokuQa.runDuel(
    x.seed,x.style,"hard",x.team,"standard",x.mirror,
    x.variant==="baseline"?0:x.team,x.variant),{...q,variant});
+  const variants=["objectiveDirector","directorNoSave","directorCaptureOnly"];
   const rows=[],baselines=[];
   for(const seed of seeds)for(const style of styles)for(const team of teams)
    for(const mirror of style==="self"?[false,true]:[false]){
     const q={seed,style,team,mirror};
     const base=await run(q,"baseline");
-    const trial=await run(q,"objectiveDirector");
+   for(const variant of variants){
+    const trial=await run(q,variant);
     assert.ok(base?.finished&&trial?.finished,"paired matches finish");
     assert.deepEqual(base.initialHand,trial.initialHand,"same starting deck");
     assert.deepEqual(base.openingQueue,trial.openingQueue,"same draw order");
@@ -74,22 +76,29 @@ const aggregate=rows=>({
     const expert=trial.decisionAudit[team];
     assert.ok(expert.calls>0,"real decisions audited");
     assert.ok(Object.values(actions).every(x=>Number.isInteger(x)&&x>=0));
-    rows.push({...q,controlWinner:base.winner,trialWinner:trial.winner,
+    rows.push({...q,variant,controlWinner:base.winner,trialWinner:trial.winner,
      delta:score(trial,team)-score(base,team),actions,
      controlCards:base.cards[team],trialCards:trial.cards[team],
      baseCastleDamage:base.damage[3-team],trialCastleDamage:trial.damage[3-team],
      baseOwnCastleHp:base.castleHp[team],trialOwnCastleHp:trial.castleHp[team],
      baseFortSeconds:base.fortSeconds[team],trialFortSeconds:trial.fortSeconds[team],
      baseSpent:base.spent[team],trialSpent:trial.spent[team]});
+   }
     baselines.push({...q,winner:base.winner,cardCounts:base.cards[team]});
    }
-  assert.equal(rows.length,50);assert.equal(baselines.length,50);
+  assert.equal(rows.length,150);assert.equal(baselines.length,50);
   assert.deepEqual(await run({seed:17,style:"self",team:2,mirror:false},"objectiveDirector"),
    await run({seed:17,style:"self",team:2,mirror:false},"objectiveDirector"),
    "seeded repeatability");
   assert.deepEqual(errors,[],"no browser errors");
-  const summary={kind:"TRAIN-only objective-aware strategy A/B",version:1,seeds,
+  const summary={kind:"TRAIN-only objective-aware strategy A/B",version:2,seeds,
    baselineGames:baselines.length,comparisonGames:rows.length,scenarioLaneChanged:true,
+   variants:Object.fromEntries(variants.map(variant=>{
+    const subset=rows.filter(r=>r.variant===variant);
+    return [variant,{...aggregate(subset),
+     byStyle:Object.fromEntries(styles.map(style=>[style,aggregate(subset.filter(r=>r.style===style))])),
+     byTeam:Object.fromEntries(teams.map(team=>[team,aggregate(subset.filter(r=>r.team===team))]))}];
+   })),
    overall:aggregate(rows),
    byStyle:Object.fromEntries(styles.map(style=>[style,aggregate(rows.filter(r=>r.style===style))])),
    byTeam:Object.fromEntries(teams.map(team=>[team,aggregate(rows.filter(r=>r.team===team))])),

@@ -568,7 +568,7 @@ function botExpertAction(team=2){
  // QA-only strategic director: evaluate *every* fort as an objective before
  // picking the next card, rather than spending on the first affordable unit.
  // Counters, urgent defense and real defensive wards above keep priority.
- if(qaPolicy==="objectiveDirector"){
+ if(["objectiveDirector","directorNoSave","directorCaptureOnly"].includes(qaPolicy)){
   const objectives=S.forts.filter(f=>f.owner!==team).map(f=>{
    const friendlyCapturers=friends.filter(u=>CLASSES[u.key].capture&&
     Math.abs(u.x-f.x)<205&&Math.abs(u.y-f.y)<130);
@@ -621,7 +621,7 @@ function botExpertAction(team=2){
   // Once a wave is already committed, reserve a little for a meaningful
   // follow-up rather than converting every 2 energy into more infantry.
   // Never wait during an actual raid or when no advance troops survive.
-  if(!urgent&&friends.length>=2&&S.forts.some(f=>f.owner===team)&&
+  if(qaPolicy!=="directorCaptureOnly"&&!urgent&&friends.length>=2&&S.forts.some(f=>f.owner===team)&&
     !raiders.some(u=>front(u.x)>front(edge)-180)&&
     (progress>=1||!objective)){
    const attackY=objective?.f.y??(friends.find(u=>front(u.x)<front(edge)-30)?.y??330);
@@ -630,7 +630,7 @@ function botExpertAction(team=2){
     (deploy("tank",attackY,"siegeTank")||
      deploy("drone",attackY,"siegeDrone")||
      deploy("suppress",attackY,"siegeSupport")))return true;
-   if(attacking&&power>=2&&power<4&&friends.length>=3){
+   if(qaPolicy==="objectiveDirector"&&attacking&&power>=2&&power<4&&friends.length>=3){
     record("saveForPush");return true;
    }
   }
@@ -1727,7 +1727,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
