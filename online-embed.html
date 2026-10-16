@@ -1385,6 +1385,12 @@ function getFort(u){
    Math.abs(f.y-u.y)<(d.behavior==="capture"?220:150));
  if(!options.length)return null;
  if(d.behavior==="capture"){
+  // Trial-only nearest capture targeting for AI sides. Normal player and
+  // standard BOT movement are unchanged.
+  if(["nearestCapture","directorPathAligned"].includes(qaBotVariants[u.team])){
+   options.sort((a,b)=>Math.abs(a.x-u.x)-Math.abs(b.x-u.x));
+   return options[0];
+  }
   // Objective troops can skip intermediate forts for a high-risk deep capture.
   // The experienced BOT secures the nearest fort first to advance its summon line.
   // Keep the player's original deep-capture behavior unchanged.
@@ -1709,9 +1715,9 @@ function botExpertAction(team=2){
  // QA-only strategic director: evaluate *every* fort as an objective before
  // picking the next card, rather than spending on the first affordable unit.
  // Counters, urgent defense and real defensive wards above keep priority.
- if(["objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware"].includes(qaPolicy)){
+ if(["objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","directorPathAligned"].includes(qaPolicy)){
   const objectives=S.forts.filter(f=>f.owner!==team).filter(f=>{
-   if(qaPolicy!=="directorRouteAware")return true;
+   if(!["directorRouteAware","directorPathAligned"].includes(qaPolicy))return true;
    // A chosen lane must lead to its real in-game capture objective.
    // In particular the human BLUE-side movement AI can intentionally skip
    // a near fort; do not count a card spawn as a near-fort capture action.
@@ -1720,7 +1726,7 @@ function botExpertAction(team=2){
    return getFort(probe)===f;
   }).map(f=>{
    const friendlyCapturers=friends.filter(u=>CLASSES[u.key].capture&&
-    (qaPolicy==="directorRouteAware"
+    (["directorRouteAware","directorPathAligned"].includes(qaPolicy)
      ?getFort(u)===f
      :Math.abs(u.x-f.x)<205&&Math.abs(u.y-f.y)<130));
    const enemyDefenders=foes.filter(u=>Math.abs(u.x-f.x)<185&&Math.abs(u.y-f.y)<135);
@@ -2865,6 +2871,17 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ captureObjective:(team,x,y,variant="baseline",kind="scout")=>{
+  if(!NET.isSolo||![1,2].includes(team)||!["scout","engineer"].includes(kind)||
+    !Number.isFinite(x)||!Number.isFinite(y)||
+    !["baseline","nearestCapture","directorPathAligned"].includes(variant))return null;
+  const previous=qaBotVariants[team];
+  try{
+   qaBotVariants[team]=variant;
+   const target=getFort({team,x,y,key:kind});
+   return target?{x:target.x,y:target.y,owner:target.owner}:null;
+  }finally{qaBotVariants[team]=previous;}
+ },
  resourceForecast:(energy,elapsed=90)=>({
   eta2:secondsUntilAffordable(energy,2,elapsed),
   eta4:secondsUntilAffordable(energy,4,elapsed),
@@ -2878,7 +2895,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;

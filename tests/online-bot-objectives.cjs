@@ -39,6 +39,16 @@ const aggregate=rows=>({
   await page.goto("http://127.0.0.1:8803/online.html?qa=1",{waitUntil:"domcontentloaded"});
   await page.locator("#netSolo").click();
   await page.waitForFunction(()=>window.__shokokuQa?.snapshot().phase==="prep");
+  // Movement-only counterfactual must be isolated from card allocation.
+  const blueBase=await page.evaluate(()=>window.__shokokuQa.captureObjective(1,280,205));
+  const blueNear=await page.evaluate(()=>window.__shokokuQa.captureObjective(1,280,205,"nearestCapture"));
+  const redBase=await page.evaluate(()=>window.__shokokuQa.captureObjective(2,1000,205));
+  const redNear=await page.evaluate(()=>window.__shokokuQa.captureObjective(2,1000,205,"nearestCapture"));
+  assert.ok(blueBase&&blueNear&&redBase&&redNear,"capture targets found");
+  assert.notEqual(blueBase.x,blueNear.x,"BLUE baseline can bypass the near fort");
+  assert.equal(blueNear.x,410,"BLUE nearest is first fort");
+  assert.equal(redBase.x,867,"RED baseline is its first fort");
+  assert.equal(redNear.x,redBase.x,"RED nearest no-op");
   const scene=spec=>page.evaluate(s=>{
    if(!window.__shokokuQa.setBotScenario(s))throw Error("scenario init failed");
    return window.__shokokuQa.runBotOnce();
@@ -57,7 +67,7 @@ const aggregate=rows=>({
   const run=(q,variant)=>page.evaluate(x=>window.__shokokuQa.runDuel(
    x.seed,x.style,"hard",x.team,"standard",x.mirror,
    x.variant==="baseline"?0:x.team,x.variant),{...q,variant});
-  const variants=["objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware"];
+  const variants=["objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned"];
   const rows=[],baselines=[];
   for(const seed of seeds)for(const style of styles)for(const team of teams)
    for(const mirror of style==="self"?[false,true]:[false]){
@@ -86,12 +96,12 @@ const aggregate=rows=>({
    }
     baselines.push({...q,winner:base.winner,cardCounts:base.cards[team]});
    }
-  assert.equal(rows.length,200);assert.equal(baselines.length,50);
+  assert.equal(rows.length,300);assert.equal(baselines.length,50);
   assert.deepEqual(await run({seed:17,style:"self",team:2,mirror:false},"objectiveDirector"),
    await run({seed:17,style:"self",team:2,mirror:false},"objectiveDirector"),
    "seeded repeatability");
   assert.deepEqual(errors,[],"no browser errors");
-  const summary={kind:"TRAIN-only objective-aware strategy A/B",version:3,seeds,
+  const summary={kind:"TRAIN-only objective-aware strategy A/B",version:4,seeds,
    baselineGames:baselines.length,comparisonGames:rows.length,scenarioLaneChanged:true,
    variants:Object.fromEntries(variants.map(variant=>{
     const subset=rows.filter(r=>r.variant===variant);
