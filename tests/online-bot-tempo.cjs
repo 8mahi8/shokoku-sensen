@@ -42,6 +42,29 @@ const close=(actual,expected,label)=>assert.ok(Math.abs(actual-expected)<1e-6,
   close(f.eta4,3/.7,"late high-rate economy");
   f=await forecast(8,15);close(f.eta7,0,"already affordable");
   f=await forecast(0,260);close(f.eta7,10+(7-5.3)/.7,"cross 270sec boundary");
+  // Counterfactual scenarios guarantee that policy changes a *real* card.
+  const scenario=spec=>page.evaluate(s=>{
+   const qa=window.__shokokuQa;
+   if(!qa.setBotScenario(s))throw Error("scenario init");
+   return qa.runBotOnce();
+  },spec);
+  const siegeSpec={difficulty:"hard",elapsed:80,energy:5,enemyEnergy:.2,
+   fortOwners:[0,0,2],hand:["drone","scout","archer","tank"],enemies:[],
+   allies:[{key:"scout",x:700,y:444},{key:"engineer",x:692,y:444}]};
+  const siegeBase=await scenario({...siegeSpec,variant:"baseline"});
+  const siegeVariant=await scenario({...siegeSpec,variant:"tempoSiege"});
+  assert.equal(siegeVariant.action?.id,"drone","flanking when enemy is resource-starved");
+  assert.notEqual(siegeBase.action?.id,"drone","baseline must not do the same");
+  assert.equal(siegeVariant.spent,4,"actual drone cost");
+  const guardSpec={difficulty:"hard",elapsed:80,energy:6,enemyEnergy:5,
+   fortOwners:[0,0,0],hand:["sentinel","scout","archer","tank"],
+   allies:[{key:"scout",x:850,y:205},{key:"engineer",x:855,y:205}],
+   enemies:[{key:"scout",x:650,y:205}]};
+  const guardBase=await scenario({...guardSpec,variant:"baseline"});
+  const guardVariant=await scenario({...guardSpec,variant:"tempoScreen"});
+  assert.equal(guardVariant.action?.id,"sentinel","early guard against actual oncoming force");
+  assert.notEqual(guardBase.action?.id,"sentinel","guard must differ from baseline");
+  assert.equal(guardVariant.spent,4,"actual sentinel cost");
   // No privileged hidden enemy resources enter the forecast.
   const run=({seed,style,cadence,team,variant="baseline"})=>page.evaluate(x=>
    window.__shokokuQa.runDuel(x.seed,x.style,"hard",x.team,
@@ -99,7 +122,7 @@ const close=(actual,expected,label)=>assert.ok(Math.abs(actual-expected)<1e-6,
    meanOwnCastleHpDelta:mean(set.map(x=>x.trialHp-x.baseHp)),
    meanFortSecondsDelta:mean(set.map(x=>x.trialFortSeconds-x.baseFortSeconds))});
   const summary={kind:"Training-only observed energy recharge + strategic banking opponent",
-   version:1,seeds,styles,cadences,baselineGames:baseRows.length,
+   version:2,seeds,styles,cadences,baselineGames:baseRows.length,
    comparisonGames:rows.length,forecastVerified:true,
    baselineBanker:{
     scenarios:baseRows.filter(x=>x.style==="banker").length,

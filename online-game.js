@@ -581,22 +581,16 @@ function botExpertAction(team=2){
    if(event)event.variantTriggers=(event.variantTriggers||0)+1;
    return true;
  }
- // QA-only risk/reward study: a forward fort and two already advancing units
- // provide cover to bank the remaining energy for a 7-cost castle breaker,
- // but only if the observed enemy cannot regenerate to a 4-cost response soon.
- if(qaPolicy==="tempoSiege"&&!urgent&&S.elapsed>32&&
-    S.forts.some(f=>f.owner===team)&&availableCard(team,"tank")&&
-    friends.filter(u=>front(u.x)<front(edge)-30).length>=2&&
-    enemyReady4>5&&enemyReady7>11&&
-    !raiders.some(u=>front(u.x)>front(edge)-200)){
-   if(power>=7&&spawn("tank",fort?.y??laneY,38)){
-    if(event)event.variantTriggers=(event.variantTriggers||0)+1;
-    return true;
-   }
-   if(power>=3.3&&power<7){
-    if(event)event.variantReserves=(event.variantReserves||0)+1;
-    return true;
-   }
+ // QA-only opportunistic flanking: launch a fast flying unit before
+ // the observed enemy economy can afford an immediate 4-cost response.
+ if(qaPolicy==="tempoSiege"&&!urgent&&S.elapsed>32&&power>=4&&
+    availableCard(team,"drone")&&S.forts.some(f=>f.owner===team)&&
+    friends.length>=2&&friends.some(u=>front(u.x)<front(edge)-30)&&
+    enemyReady4>7&&enemyReady7>15&&
+    !raiders.some(u=>front(u.x)>front(edge)-160)&&
+    spawn("drone",fort?.y??laneY,35)){
+   if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+   return true;
  }
  // QA-only proactive defense: intercept a visible approach while there
  // is still time to place guards; do not invent invisible enemy units.
