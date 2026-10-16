@@ -1561,6 +1561,8 @@ function rate(){
 let botLastAction=null;
 // Only populated by the localhost ?qa=1 tournament harness.
 let duelStats=null;
+// Development QA-only policy overrides. Standard gameplay always uses baseline.
+let qaBotVariants=[null,"baseline","baseline"];
 function botUse(team,id,x,y){
  const accepted=playCard(team,id,x,y);
  if(accepted)botLastAction={team,id,x,y,elapsed:S.elapsed};
@@ -1576,6 +1578,7 @@ function botPreparation(){
 // v3.9 tactical BOT. Same deck order, charges, energy rate and deployment rules as a human.
 function botExpertAction(team=2){
  const hard=S.difficulty==="hard",edge=border(team),power=S.energy[team];
+ const qaPolicy=qaBotVariants[team];
  // Use RED-facing x values for identical tactical decisions on either side.
  const dir=team===2?1:-1,front=x=>team===2?x:W-x;
  const foes=S.units.filter(u=>u.team!==team&&u.hp>0),friends=S.units.filter(u=>u.team===team&&u.hp>0);
@@ -1587,6 +1590,13 @@ function botExpertAction(team=2){
   return {f,enemies,score:2*enemies.length-allies.length};
  }).filter(c=>c.enemies.length&&c.score>=0).sort((a,b)=>b.score-a.score)[0];
  const urgent=castleThreat.length>0||!!threatened;
+ const event=duelStats?.decisionEvents?.[team];
+ if(event){
+  event.calls++;
+  if(urgent)event.urgent++;
+  if(power>=7)event.energy7++;
+  if(["tank","guardian"].some(id=>availableCard(team,id)))event.giantInHand++;
+ }
  const focus=castleThreat.sort((a,b)=>front(b.x)-front(a.x))[0]||threatened?.enemies[0]||
   raiders.sort((a,b)=>front(b.x)-front(a.x))[0];
  const defendY=castleThreat.length?focus?.y:threatened?.f.y;
@@ -1645,8 +1655,16 @@ function botExpertAction(team=2){
    botUse(team,"ward",candidate.u.x,candidate.u.y))return true;
  }
  const workers=fort?friends.filter(u=>CLASSES[u.key].capture&&
-  front(u.x)>front(fort.x)-175&&Math.abs(u.y-fort.y)<135):[];
+  (qaPolicy==="captureCoverage"?Math.abs(u.x-fort.x)<300:
+   front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
  const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
+ if(event&&needFort)event.needFort++;
+ // QA-only hypothesis A: after securing a fort and having two capture troops,
+ // spend a real 7-energy tank window on offense before making more capture troops.
+ if(qaPolicy==="siegeWindow"&&!urgent&&S.elapsed>45&&power>=7&&
+    S.forts.some(f=>f.owner===team)&&
+    friends.filter(u=>CLASSES[u.key].capture).length>=2&&
+    spawn("tank",fort?.y??laneY,38))return true;
  if(needFort&&spawn("scout",fort.y,35))return true;
  if(needFort&&spawn("engineer",fort.y,35))return true;
 
@@ -2557,18 +2575,25 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  window.__shokokuQa={
  // Batch simulation runs the SAME 30Hz combat/energy/spell/fort code as a match,
  // with no drawing, network traffic or player input; only on localhost ?qa=1.
- runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard",mirrorTerrain=false)=>{
+ runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard",mirrorTerrain=false,variantTeam=0,variant="baseline")=>{
   if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
     !["rush","balanced","fortress","self"].includes(blueStyle)||
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
-    (blueStyle!=="self"&&mirrorTerrain))return null;
-  const originalRandom=Math.random;
+    (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
+    !["baseline","siegeWindow","captureCoverage"].includes(variant)||
+    (blueStyle!=="self"&&variantTeam!==0)||
+    (variantTeam===0&&variant!=="baseline"))return null;
+  const originalRandom=Math.random,originalVariants=qaBotVariants;
   let state=(seed>>>0)||1;
   Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
   try{
-   duelStats={seed,blueStyle,difficulty,tacticalTeam,actions:[0,0,0],spent:[0,0,0],
+   duelStats={seed,blueStyle,difficulty,tacticalTeam,variantTeam,variant,actions:[0,0,0],spent:[0,0,0],
+    decisionEvents:[null,{calls:0,urgent:0,energy7:0,giantInHand:0,needFort:0},
+     {calls:0,urgent:0,energy7:0,giantInHand:0,needFort:0}],
     cards:[null,{},{}],fortSeconds:[0,0,0],energyIntegral:[0,0,0],maxUnits:[0,0,0]};
+   qaBotVariants=[null,"baseline","baseline"];
+   if(variantTeam)qaBotVariants[variantTeam]=variant;
    resetWorld();S.phase="battle";S.prep=0;S.speed=1;S.difficulty=difficulty;
    // This switches only the QA map; it does not modify game map or balance.
    if(mirrorTerrain)S.forts.forEach(f=>{f.x=W-f.x;});
@@ -2670,7 +2695,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    const hp=[null,Math.max(0,capital(1).hp),Math.max(0,capital(2).hp)];
    const winner=hp[1]===hp[2]?0:hp[1]>hp[2]?1:2;
    const elapsed=S.elapsed;
-   return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,mirrorTerrain,winner,elapsed,
+   return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,mirrorTerrain,
+    variantTeam,variant,decisionEvents:duelStats.decisionEvents.map(x=>x&&{...x}),winner,elapsed,
     initialHand:openingHand,openingQueue:openingQueue,
     castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],
     actions:duelStats.actions.slice(),spent:duelStats.spent.slice(),
@@ -2679,7 +2705,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     avgEnergy:duelStats.energyIntegral.map((v,i)=>i?v/Math.max(.0001,elapsed):0),
     maxUnits:duelStats.maxUnits.slice(),
     finished:S.phase==="result"};
-  }finally{duelStats=null;Math.random=originalRandom;}
+  }finally{duelStats=null;qaBotVariants=originalVariants;Math.random=originalRandom;}
  },
 
  setBotScenario:spec=>{
