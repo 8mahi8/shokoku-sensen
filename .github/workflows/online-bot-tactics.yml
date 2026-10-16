@@ -14,6 +14,7 @@ on:
       - 'tests/online-bot-energy-opponents.cjs'
       - 'tests/online-bot-tempo.cjs'
       - 'tests/online-bot-priority-audit.cjs'
+      - 'tests/online-bot-staged-budget.cjs'
       - 'online-embed.html'
       - 'online-game.js'
       - 'online-ipad.html'
@@ -21,7 +22,7 @@ on:
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 23
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -42,6 +43,7 @@ jobs:
       - run: node tests/online-bot-energy-opponents.cjs
       - run: node tests/online-bot-tempo.cjs
       - run: node tests/online-bot-priority-audit.cjs
+      - run: node tests/online-bot-staged-budget.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -57,4 +59,5 @@ jobs:
             qa-bot-energy-opponents
             qa-bot-tempo
             qa-bot-priority-audit
+            qa-bot-staged-budget
           retention-days: 30

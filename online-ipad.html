@@ -1707,6 +1707,24 @@ function botExpertAction(team=2){
    front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
  const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
  if(event&&needFort)event.needFort++;
+ // QA-only hypothesis D: compare the cost of one more capture card against
+ // a short bank toward a siege tank behind an already covered forward fort.
+ // Never let it override real emergency defense/counters handled above.
+ if(qaPolicy==="stagedBudget"&&!urgent&&S.elapsed>=48&&
+    S.forts.some(f=>f.owner===team)&&availableCard(team,"tank")&&
+    power>=3&&secondsUntilAffordable(power,7)<=12&&enemyReady4>4&&
+    friends.filter(u=>CLASSES[u.key].capture&&u.hp>u.max*.4&&
+     front(u.x)<front(edge)+60).length>=2&&
+    !raiders.some(u=>front(u.x)>front(edge)-160)){
+  if(power>=7&&spawn("tank",fort?.y??laneY,38)){
+   if(event)event.budgetTank=(event.budgetTank||0)+1;
+   return true;
+  }
+  if(power<7){
+   if(event)event.budgetWait=(event.budgetWait||0)+1;
+   return true;
+  }
+ }
  // QA-only hypothesis C: a guarded economy window saves for a giant only when
  // there is a healthy capture group and the frontline is not being raided.
  const reserveGiants=["tank","guardian"].filter(id=>availableCard(team,id));
@@ -2727,7 +2745,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
