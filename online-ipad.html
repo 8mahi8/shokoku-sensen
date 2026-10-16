@@ -1659,6 +1659,18 @@ function botExpertAction(team=2){
    front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
  const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
  if(event&&needFort)event.needFort++;
+ // QA-only hypothesis C: a guarded economy window saves for a giant only when
+ // there is a healthy capture group and the frontline is not being raided.
+ const reserveGiants=["tank","guardian"].filter(id=>availableCard(team,id));
+ const reserveReady=S.elapsed>25&&!urgent&&reserveGiants.length>0&&
+  friends.length>=3&&friends.some(u=>CLASSES[u.key].capture)&&
+  !raiders.some(u=>front(u.x)>front(edge)-160);
+ if(event&&reserveReady)event.reserveReady=(event.reserveReady||0)+1;
+ if(qaPolicy==="reserveEarly"&&reserveReady){
+  if(power>=7&&spawn(reserveGiants.includes("tank")?"tank":"guardian",
+    fort?.y??laneY,38))return true;
+  if(power>=2.5&&power<7)return true;
+ }
  // QA-only hypothesis A: after securing a fort and having two capture troops,
  // spend a real 7-energy tank window on offense before making more capture troops.
  if(qaPolicy==="siegeWindow"&&!urgent&&S.elapsed>45&&power>=7&&
@@ -2581,7 +2593,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;

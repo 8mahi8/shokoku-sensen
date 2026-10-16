@@ -12,7 +12,7 @@ const server=http.createServer((req,res)=>{
  fs.createReadStream(f).pipe(res);
 });
 const seeds=[17,41,73,101,131,163]; // TRAIN. None of the reserved holdout seeds.
-const policies=["siegeWindow","captureCoverage"],maps=[false,true],orders=[1,2],teams=[1,2];
+const policies=["siegeWindow","captureCoverage","reserveEarly"],maps=[false,true],orders=[1,2],teams=[1,2];
 const points=(g,team)=>g.winner===0?.5:g.winner===team?1:0;
 function mean(nums){return nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:0;}
 (async()=>{
@@ -54,7 +54,7 @@ function mean(nums){return nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:0;}
    }
   }
   assert.equal(reference.length,24);
-  assert.equal(rows.length,96);
+  assert.equal(rows.length,144);
   const replay=await run(seeds[0],false,1,1,"captureCoverage");
   const repeated=await run(seeds[0],false,1,1,"captureCoverage");
   assert.deepEqual(replay,repeated,"candidate replay determinism");
@@ -81,7 +81,11 @@ function mean(nums){return nums.length?nums.reduce((a,b)=>a+b,0)/nums.length:0;}
      baselineMeanNeedFort:mean(set.map(x=>x.baselineMetrics.needFort)),
      variantMeanNeedFort:mean(set.map(x=>x.trialMetrics.needFort)),
      baselineMeanGiantHand:mean(set.map(x=>x.baselineMetrics.giantInHand)),
-     variantMeanGiantHand:mean(set.map(x=>x.trialMetrics.giantInHand))
+     variantMeanGiantHand:mean(set.map(x=>x.trialMetrics.giantInHand)),
+     baselineMeanEnergy7:mean(set.map(x=>x.baselineMetrics.energy7)),
+     variantMeanEnergy7:mean(set.map(x=>x.trialMetrics.energy7)),
+     baselineMeanReserveReady:mean(set.map(x=>x.baselineMetrics.reserveReady||0)),
+     variantMeanReserveReady:mean(set.map(x=>x.trialMetrics.reserveReady||0))
     }];
    })),
    cautions:["Uses shared sequential PRNG; a different action changes subsequent RNG draws.",
