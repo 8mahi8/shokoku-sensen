@@ -1581,6 +1581,97 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   }finally{duelStats=null;qaBotVariants=originalVariants;Math.random=originalRandom;}
  },
 
+
+ // Controlled 7-energy role trial; localhost QA only. Real playCard, unitStep,
+ // siege damage, target selection, area damage and 30Hz tick are unchanged.
+ runHeavyTrial:(seed,role="siege",kind="heavy",opponent="open",team=1)=>{
+  const cases={siege:["open","screen","defender","giant"],
+   defense:["swarm","giant","air","ranged"]};
+  if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
+     !cases[role]?.includes(opponent)||!["heavy","alternatives"].includes(kind)||
+     ![1,2].includes(team))return null;
+  const oldRandom=Math.random,oldDuel=duelStats;
+  let state=(seed>>>0)||1;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+  try{
+   duelStats=null;
+   resetWorld();
+   S.phase="battle";S.prep=0;S.speed=1;S.difficulty="hard";
+   S.botThink=99999;S.botPrepDone=true;
+   $("overlay").classList.add("hidden");
+   $("prepBanner").classList.remove("visible");
+   const foe=3-team;
+   // Give the advancing side the closest forward fort; use the same board
+   // ownership in both arms of the matched 7-cost comparison.
+   const advanced=role==="siege"?team:foe;
+   const forward=advanced===1?S.forts[2]:S.forts[0];
+   forward.owner=advanced;forward.hp=POST_HP;
+   const ours=role==="siege"?
+    (kind==="heavy"?["tank"]:["suppress","archer"]):
+    (kind==="heavy"?["guardian"]:["sentinel","scout"]);
+   const enemyCases=role==="siege"?
+    {open:[],screen:["scout","archer"],defender:["sentinel","archer"],giant:["tank"]}:
+    {swarm:["infantry","infantry","infantry"],giant:["tank"],
+     air:["drone"],ranged:["suppress","archer"]};
+   const theirs=enemyCases[opponent];
+   const arm=(side,ids)=>{
+    S.energy[side]=ids.reduce((n,id)=>n+CATALOG[id].cost,0);
+    S.hand[side]=[...new Set(ids.filter(id=>id!=="infantry"))];
+    S.queue[side]=[];
+    return ids.reduce((n,id)=>n+CATALOG[id].cost,0);
+   };
+   const cost=arm(team,ours),otherCost=arm(foe,theirs);
+   if(cost!==7||otherCost>7)throw Error("role trial invalid cost");
+   const actor=side=>role==="siege"?(side===team?"advance":"defend"):
+    (side===team?"defend":"advance");
+   const spawn=(side,ids)=>{
+    const mode=actor(side);
+    const x=limit(border(side)+(side===1?-35:35),40,W-40);
+    for(let i=0;i<ids.length;i++){
+     const y=limit(328+(i-(ids.length-1)/2)*25,70,H-70);
+     if(!playCard(side,ids[i],x,y))throw Error("cannot deploy "+side+":"+ids[i]+" at "+x+","+y);
+    }
+   };
+   spawn(team,ours);
+   spawn(foe,theirs);
+   const tracked=S.units.map(u=>({ref:u,team:u.team,key:u.key,startHp:u.max,
+    startX:u.x,life:0,engagedAt:null}));
+   const baseHp=[null,capital(1).hp,capital(2).hp];
+   const duration=120,dt=1/30;
+   let firstContact=null,fortTime=0,steps=0;
+   for(;steps<duration*30&&S.phase==="battle";steps++){
+    tick(dt);
+    for(const u of tracked)if(u.ref.hp>0)u.life+=dt;
+    if(S.forts.some(f=>f.owner===team))fortTime+=dt;
+    if(firstContact===null&&(tracked.some(u=>u.ref.hp<u.startHp)||
+      capital(1).hp<baseHp[1]||capital(2).hp<baseHp[2]))firstContact=S.elapsed;
+    if(!Number.isFinite(S.energy[1])||!Number.isFinite(S.energy[2])||
+      S.energy[1]<0||S.energy[2]<0||S.energy[1]>ENERGY_CAP+.0001||
+      S.energy[2]>ENERGY_CAP+.0001)throw Error("energy bounds");
+   }
+   const members=(side)=>tracked.filter(u=>u.team===side);
+   const metrics=side=>{
+    const own=members(side),enemies=members(3-side);
+    return {deployed:own.length,alive:own.filter(u=>u.ref.hp>0).length,
+     survivalSeconds:own.reduce((s,u)=>s+u.life,0),
+     remainingUnitHp:own.reduce((s,u)=>s+Math.max(0,u.ref.hp),0),
+     enemyUnitDamage:enemies.reduce((s,u)=>s+Math.min(u.startHp,
+       Math.max(0,u.startHp-u.ref.hp)),0),
+     enemyUnitsDefeated:enemies.filter(u=>u.ref.hp<=0).length,
+     enemyCastleDamage:baseHp[3-side]-capital(3-side).hp,
+     ownCastleDamage:baseHp[side]-capital(side).hp,
+     progress:own.reduce((s,u)=>s+(side===1?u.ref.x-u.startX:u.startX-u.ref.x),0),
+     remainingEnergy:S.energy[side]};
+   };
+   const stat=metrics(team);
+   return {seed,role,kind,opponent,team,spent:cost,enemySpent:otherCost,
+    cards:ours,enemyCards:theirs,firstContact,elapsed:S.elapsed,
+    stats:stat,opponentStats:metrics(foe),
+    forts:S.forts.map(f=>({x:f.x,owner:f.owner,hp:f.hp})),
+    finished:steps>0,seeded:true};
+  }finally{duelStats=oldDuel;Math.random=oldRandom;}
+ },
+
  setBotScenario:spec=>{
   if(!NET.isSolo||!spec||!Array.isArray(spec.enemies)||!Array.isArray(spec.hand))return false;
   resetWorld();S.phase="battle";S.botThink=999;S.prep=0;

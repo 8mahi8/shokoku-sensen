@@ -9,6 +9,7 @@ on:
       - 'tests/online-bot-selfplay.cjs'
       - 'tests/online-bot-ab.cjs'
       - 'tests/online-bot-holdout.cjs'
+      - 'tests/online-heavy-value.cjs'
       - 'online-game.js'
       - 'online-ipad.html'
   workflow_dispatch:
@@ -31,6 +32,7 @@ jobs:
       - run: node tests/online-bot-selfplay.cjs
       - run: node tests/online-bot-ab.cjs
       - run: node tests/online-bot-holdout.cjs
+      - run: node tests/online-heavy-value.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -41,4 +43,5 @@ jobs:
             qa-bot-selfplay
             qa-bot-ab
             qa-bot-holdout
+            qa-heavy-value
           retention-days: 30
