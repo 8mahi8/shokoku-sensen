@@ -516,7 +516,7 @@ function botExpertAction(team=2){
 
  // Save for giants only if owned lanes are not under pressure, and the
  // objective capture line already has troops. No hidden energy advantages.
- const giants=["tank","guardian"].filter(id=>availableCard(2,id));
+ const giants=["tank","guardian"].filter(id=>availableCard(team,id));
  if(giants.length&&S.elapsed>18&&!urgent){
   const chosen=giants.includes("tank")?"tank":giants[0];
   if(power>=7&&spawn(chosen,chosen==="tank"?fort?.y??laneY:laneY,38))return true;
@@ -1418,11 +1418,12 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  window.__shokokuQa={
  // Batch simulation runs the SAME 30Hz combat/energy/spell/fort code as a match,
  // with no drawing, network traffic or player input; only on localhost ?qa=1.
- runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard")=>{
+ runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard",mirrorTerrain=false)=>{
   if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
-    !["rush","balanced","fortress"].includes(blueStyle)||
+    !["rush","balanced","fortress","self"].includes(blueStyle)||
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
-    !["standard","fast"].includes(scriptedCadence))return null;
+    !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
+    (blueStyle!=="self"&&mirrorTerrain))return null;
   const originalRandom=Math.random;
   let state=(seed>>>0)||1;
   Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
@@ -1430,14 +1431,21 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    duelStats={seed,blueStyle,difficulty,tacticalTeam,actions:[0,0,0],spent:[0,0,0],
     cards:[null,{},{}],fortSeconds:[0,0,0],energyIntegral:[0,0,0],maxUnits:[0,0,0]};
    resetWorld();S.phase="battle";S.prep=0;S.speed=1;S.difficulty=difficulty;
-   S.botThink=tacticalTeam===2?3.1:1000;S.botPrepDone=true;
+   // This switches only the QA map; it does not modify game map or balance.
+   if(mirrorTerrain)S.forts.forEach(f=>{f.x=W-f.x;});
+   S.botThink=blueStyle==="self"?1000:(tacticalTeam===2?3.1:1000);
+   S.botPrepDone=true;
    $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
    // Identical starting resources, shared randomized deck, symmetrical opening.
    const openingHand=S.hand[1].slice(),openingQueue=S.queue[1].slice();
    const open=(team)=>{
     const id=["scout","engineer","archer","infantry"].find(c=>canPay(team,c));
-    if(id)botUse(team,id,limit(border(team)+(team===1?-35:35),35,W-35),
-     team===1?190:205);
+    if(id){
+     const openingY=blueStyle==="self"
+      ?S.forts.slice().sort((a,b)=>Math.abs(a.x-border(team))-Math.abs(b.x-border(team)))[0].y
+      :(team===1?190:205);
+     botUse(team,id,limit(border(team)+(team===1?-35:35),35,W-35),openingY);
+    }
    };
    open(1);open(2);
    let opponentThink=3.1,tacticalThink=3.1;
@@ -1478,22 +1486,35 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     if(S.energy[scriptedTeam]>=10&&spawn("infantry",lane,35))return true;
     return false;
    };
-   const dt=1/30;
+   const dt=1/30,selfThink=[0,3.1,3.1];
    // Existing game limits 300 seconds. More than 9000 ticks indicates a regression.
    for(let step=0;step<9100&&S.phase==="battle";step++){
-    opponentThink-=dt;
-    if(opponentThink<=0){
-     blueAction();
-     const pace=blueStyle==="rush"?2.6:blueStyle==="fortress"?3.4:3.0;
-     const factor=scriptedCadence==="fast"?.65:1;
-     opponentThink=(pace+Math.random()*.6)*factor;
-    }
-    // QA-only: when expert plays BLUE, suppress RED's normal botStep.
-    if(tacticalTeam===1){
-     tacticalThink-=dt;
-     if(tacticalThink<=0){
-      botExpertAction(1);
-      tacticalThink=rand(...(difficulty==="hard"?[1.2,1.9]:[2.5,3.8]));
+    if(blueStyle==="self"){
+     // Both teams use precisely the SAME hard/normal expert policy, resources
+     // and thought cadence. The first-to-think side is explicit and paired.
+     for(const team of [tacticalTeam,3-tacticalTeam]){
+      selfThink[team]-=dt;
+      if(selfThink[team]<=0){
+       botExpertAction(team);
+       const mod=difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
+       selfThink[team]=rand(mod[0],mod[1]);
+      }
+     }
+    }else{
+     opponentThink-=dt;
+     if(opponentThink<=0){
+      blueAction();
+      const pace=blueStyle==="rush"?2.6:blueStyle==="fortress"?3.4:3.0;
+      const factor=scriptedCadence==="fast"?.65:1;
+      opponentThink=(pace+Math.random()*.6)*factor;
+     }
+     // QA-only: when expert plays BLUE, suppress RED's normal botStep.
+     if(tacticalTeam===1){
+      tacticalThink-=dt;
+      if(tacticalThink<=0){
+       botExpertAction(1);
+       tacticalThink=rand(...(difficulty==="hard"?[1.2,1.9]:[2.5,3.8]));
+      }
      }
     }
     tick(dt);
@@ -1510,7 +1531,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    const hp=[null,Math.max(0,capital(1).hp),Math.max(0,capital(2).hp)];
    const winner=hp[1]===hp[2]?0:hp[1]>hp[2]?1:2;
    const elapsed=S.elapsed;
-   return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,winner,elapsed,
+   return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,mirrorTerrain,winner,elapsed,
     initialHand:openingHand,openingQueue:openingQueue,
     castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],
     actions:duelStats.actions.slice(),spent:duelStats.spent.slice(),
