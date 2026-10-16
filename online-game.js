@@ -581,8 +581,19 @@ function botExpertAction(team=2){
    !raiders.some(u=>front(u.x)>front(edge)-160);
   const plan=qaSiegePlans[team];
   if(plan?.active&&(!safe||S.elapsed>plan.deadline)){
+   // A plan may have been disrupted between BOT thoughts; classify the
+   // observable reason at its next evaluation, not a causal claim.
+   const cause=S.elapsed>plan.deadline?"expired":
+    urgent?"emergency":
+    !S.forts.some(f=>f.owner===team)?"lostFort":
+    !availableCard(team,"tank")?"tankUnusable":
+    !covered?"frontlineLost":"enemyClose";
    qaSiegePlans[team]={blockedUntil:S.elapsed+18};
-   if(event)event.budgetCancelled=(event.budgetCancelled||0)+1;
+   if(event){
+    event.budgetCancelled=(event.budgetCancelled||0)+1;
+    const counts=event.budgetCancelReasons||(event.budgetCancelReasons={});
+    counts[cause]=(counts[cause]||0)+1;
+   }
   }
   const active=qaSiegePlans[team];
   if(safe&&S.elapsed>=50&&(!active||active.blockedUntil<=S.elapsed)){

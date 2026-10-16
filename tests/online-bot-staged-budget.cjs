@@ -23,6 +23,11 @@ const agg=rows=>({
  activeTankPlays:rows.reduce((a,r)=>a+r.tanks,0),
  planStarts:rows.reduce((a,r)=>a+(r.started||0),0),
  planCancelled:rows.reduce((a,r)=>a+(r.cancelled||0),0),
+ cancelReasons:rows.reduce((map,row)=>{
+  for(const [reason,count] of Object.entries(row.cancelReasons||{}))
+   map[reason]=(map[reason]||0)+count;
+  return map;
+ },{}),
  changedCards:rows.filter(r=>JSON.stringify(r.refCards)!==JSON.stringify(r.trialCards)).length,
  meanCastleDamageDelta:mean(rows.map(r=>r.trialCastleDamage-r.baseCastleDamage)),
  meanFortTimeDelta:mean(rows.map(r=>r.trialFort-r.baseFort))
@@ -78,6 +83,7 @@ const agg=rows=>({
       trialWinner:trial.winner,delta:pts(trial,team)-pts(baseline,team),
       waits:ev.budgetWait||0,tanks:ev.budgetTank||0,
       started:ev.budgetStarted||0,cancelled:ev.budgetCancelled||0,
+      cancelReasons:ev.budgetCancelReasons||{},
       refCards:baseline.cards[team],trialCards:trial.cards[team],
       trialDecisionAudit:trial.decisionAudit[team],
       baseCastleDamage:baseline.damage[3-team],
@@ -88,7 +94,7 @@ const agg=rows=>({
   assert.equal(rows.length,30);
   assert.deepEqual(errors,[],"no browser runtime errors");
   const summary={kind:"TRAIN-only staged budget arbitration versus identical baseline",
-   version:2,seeds,scenarios:rows.length,scenarioActionDifference:true,
+   version:3,seeds,scenarios:rows.length,scenarioActionDifference:true,
    overall:agg(rows),
    byStyle:Object.fromEntries(["self","rush","fortress","banker"].map(style=>
     [style,agg(rows.filter(x=>x.style===style))])),
