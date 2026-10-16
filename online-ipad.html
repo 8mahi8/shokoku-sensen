@@ -2557,10 +2557,11 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  window.__shokokuQa={
  // Batch simulation runs the SAME 30Hz combat/energy/spell/fort code as a match,
  // with no drawing, network traffic or player input; only on localhost ?qa=1.
- runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2)=>{
+ runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard")=>{
   if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
     !["rush","balanced","fortress"].includes(blueStyle)||
-    !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam))return null;
+    !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
+    !["standard","fast"].includes(scriptedCadence))return null;
   const originalRandom=Math.random;
   let state=(seed>>>0)||1;
   Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
@@ -2623,7 +2624,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     if(opponentThink<=0){
      blueAction();
      const pace=blueStyle==="rush"?2.6:blueStyle==="fortress"?3.4:3.0;
-     opponentThink=pace+Math.random()*.6;
+     const factor=scriptedCadence==="fast"?.65:1;
+     opponentThink=(pace+Math.random()*.6)*factor;
     }
     // QA-only: when expert plays BLUE, suppress RED's normal botStep.
     if(tacticalTeam===1){
@@ -2647,7 +2649,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    const hp=[null,Math.max(0,capital(1).hp),Math.max(0,capital(2).hp)];
    const winner=hp[1]===hp[2]?0:hp[1]>hp[2]?1:2;
    const elapsed=S.elapsed;
-   return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,winner,elapsed,
+   return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,winner,elapsed,
     initialHand:openingHand,openingQueue:openingQueue,
     castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],
     actions:duelStats.actions.slice(),spent:duelStats.spent.slice(),

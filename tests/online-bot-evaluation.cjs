@@ -15,7 +15,7 @@ const server=http.createServer((req,res)=>{
  fs.createReadStream(f).pipe(res);
 });
 const seeds={train:[17,41,73],holdout:[2003,2017,2063]};
-const styles=["rush","balanced","fortress"];
+const styles=["rush","balanced","fortress"],cadences=["standard","fast"];
 function mean(values){return values.length?values.reduce((total,n)=>total+n,0)/values.length:null;}
 function sideStats(games,team){
  return {games:games.length,wins:games.filter(g=>g.winner===team).length,
@@ -66,15 +66,15 @@ function riskSignals(g){
   await page.goto("http://127.0.0.1:8792/online.html?qa=1",{waitUntil:"domcontentloaded"});
   await page.locator("#netSolo").click();
   await page.waitForFunction(()=>window.__shokokuQa?.snapshot().phase==="prep");
-  const run=(seed,style,team)=>page.evaluate(({seed,style,team})=>
-   window.__shokokuQa.runDuel(seed,style,"hard",team),{seed,style,team});
+  const run=(seed,style,team,cadence="standard")=>page.evaluate(({seed,style,team,cadence})=>
+   window.__shokokuQa.runDuel(seed,style,"hard",team,cadence),{seed,style,team,cadence});
   const replay=await run(seeds.train[0],"balanced",1);
   assert.deepEqual(await run(seeds.train[0],"balanced",1),replay,
    "same scenario must replay exactly");
   const matches=[],pairs=[];
   for(const [split,values] of Object.entries(seeds)){
-   for(const style of styles)for(const seed of values){
-    const blue=await run(seed,style,1),red=await run(seed,style,2);
+   for(const style of styles)for(const seed of values)for(const cadence of cadences){
+    const blue=await run(seed,style,1,cadence),red=await run(seed,style,2,cadence);
     for(const g of [blue,red]){
      assert.ok(g?.finished&&g.elapsed>0&&g.elapsed<=302,"complete match");
      assert.ok(g.actions[1]>0&&g.actions[2]>0,"both sides take actions");
@@ -85,26 +85,31 @@ function riskSignals(g){
     }
     assert.deepEqual(blue.initialHand,red.initialHand,"paired initial hands");
     assert.deepEqual(blue.openingQueue,red.openingQueue,"paired starting decks");
-    pairs.push({split,style,seed,
+    pairs.push({split,style,seed,cadence,
      tacticalBlueWon:blue.winner===1,tacticalRedWon:red.winner===2,
      blueTacticalMatchWinner:blue.winner,redTacticalMatchWinner:red.winner,
      category:blue.winner===1&&red.winner===2?"both_tactical_win":
       blue.winner===2&&red.winner===1?"both_tactical_lose":"side_or_rng_sensitive"});
-    console.log("PAIR",split,style,seed,"BLUE",blue.winner,"RED",red.winner);
+    console.log("PAIR",split,style,seed,cadence,"BLUE",blue.winner,"RED",red.winner);
    }
   }
-  assert.equal(matches.length,36);
-  assert.equal(pairs.length,18);
+  assert.equal(matches.length,72);
+  assert.equal(pairs.length,36);
   assert.deepEqual(errors,[],"page errors");
   const summary={
    kind:"paired tactical BOT vs scripted opponents (not tactical self-play)",
-   version:2,seedSets:seeds,styles,replayVerified:true,
+   version:3,seedSets:seeds,styles,cadences,replayVerified:true,
    limitations:["Tactical and scripted policies have different capabilities.",
     "Fort positions and opening deployment Y are not perfectly mirror symmetric.",
     "Swapped factions may consume PRNG values in a different order.",
+    "Decision cadence is only a frequency difference, not proof of a stronger opponent.",
     "Do not use these outcomes for player-skill or card balance claims."],
    train:report(matches.filter(g=>g.split==="train")),
    holdout:report(matches.filter(g=>g.split==="holdout")),
+   byCadence:Object.fromEntries(cadences.map(cadence=>[cadence,{
+    train:report(matches.filter(g=>g.split==="train"&&g.scriptedCadence===cadence)),
+    holdout:report(matches.filter(g=>g.split==="holdout"&&g.scriptedCadence===cadence))
+   }])),
    pairs:pairs.length,
    riskSignalCounts:Object.fromEntries(
     ["loss_with_high_reserve","loss_with_low_fort_control","loss_without_anti_air_card_use"]
