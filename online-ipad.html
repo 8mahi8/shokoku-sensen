@@ -1559,6 +1559,19 @@ function rate(){
  if(S.elapsed<270)return .53;
  return .7;
 }
+// Known regeneration timeline: forecast affordability without hidden cards/energy.
+function secondsUntilAffordable(energy,cost,elapsed=S.elapsed){
+ if(!Number.isFinite(energy)||!Number.isFinite(cost)||!Number.isFinite(elapsed)||
+    energy<0||cost>ENERGY_CAP||cost<0||elapsed<0)return Infinity;
+ let needed=Math.max(0,cost-Math.min(ENERGY_CAP,energy)),clock=elapsed,total=0;
+ for(const [limitTime,perSecond] of [[100,.25],[210,.36],[270,.53],[Infinity,.7]]){
+  if(clock>=limitTime)continue;
+  const availableTime=limitTime-clock,wait=needed/perSecond;
+  if(wait<=availableTime)return total+wait;
+  total+=availableTime;needed-=availableTime*perSecond;clock=limitTime;
+ }
+ return total;
+}
 // Guest BOT uses normal guest commands; only the host changes world state.
 let botLastAction=null;
 // Only populated by the localhost ?qa=1 tournament harness.
@@ -1583,6 +1596,9 @@ function botExpertAction(team=2){
  const qaPolicy=qaBotVariants[team];
  // Deterministic estimate from visible plays, starting energy, known regen.
  const opposingPower=S.observedEnergy[3-team];
+ const enemyReady2=secondsUntilAffordable(opposingPower,2);
+ const enemyReady4=secondsUntilAffordable(opposingPower,4);
+ const enemyReady7=secondsUntilAffordable(opposingPower,7);
  // Use RED-facing x values for identical tactical decisions on either side.
  const dir=team===2?1:-1,front=x=>team===2?x:W-x;
  const foes=S.units.filter(u=>u.team!==team&&u.hp>0),friends=S.units.filter(u=>u.team===team&&u.hp>0);
@@ -1602,6 +1618,8 @@ function botExpertAction(team=2){
   event.opponentLow=(event.opponentLow||0)+(opposingPower<=2.5?1:0);
   event.opponentHigh=(event.opponentHigh||0)+(opposingPower>=7?1:0);
   event.opponentCanBarrage=(event.opponentCanBarrage||0)+(opposingPower>=4?1:0);
+  event.enemyRecoveryWindow=(event.enemyRecoveryWindow||0)+(enemyReady4>5?1:0);
+  event.enemyGiantSoon=(event.enemyGiantSoon||0)+(enemyReady7<=8?1:0);
   if(["tank","guardian"].some(id=>availableCard(team,id)))event.giantInHand++;
  }
  const focus=castleThreat.sort((a,b)=>front(b.x)-front(a.x))[0]||threatened?.enemies[0]||
@@ -1699,6 +1717,34 @@ function botExpertAction(team=2){
   raiders.length>0&&friends.length>=2&&
   friends.filter(u=>u.key==="sentinel"&&Math.abs(u.y-laneY)<130&&
    Math.abs(u.x-edge)<160).length===0&&spawn("sentinel",laneY,35)){
+   if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+   return true;
+ }
+ // QA-only risk/reward study: a forward fort and two already advancing units
+ // provide cover to bank the remaining energy for a 7-cost castle breaker,
+ // but only if the observed enemy cannot regenerate to a 4-cost response soon.
+ if(qaPolicy==="tempoSiege"&&!urgent&&S.elapsed>32&&
+    S.forts.some(f=>f.owner===team)&&availableCard(team,"tank")&&
+    friends.filter(u=>front(u.x)<front(edge)-30).length>=2&&
+    enemyReady4>5&&enemyReady7>11&&
+    !raiders.some(u=>front(u.x)>front(edge)-200)){
+   if(power>=7&&spawn("tank",fort?.y??laneY,38)){
+    if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+    return true;
+   }
+   if(power>=3.3&&power<7){
+    if(event)event.variantReserves=(event.variantReserves||0)+1;
+    return true;
+   }
+ }
+ // QA-only proactive defense: intercept a visible approach while there
+ // is still time to place guards; do not invent invisible enemy units.
+ if(qaPolicy==="tempoScreen"&&!urgent&&enemyReady4<=5&&power>=4&&
+    friends.length>=2&&
+    foes.some(u=>Math.abs(u.x-edge)<460&&Math.abs(u.x-edge)>245&&
+     Math.abs(u.y-laneY)<180)&&
+    friends.filter(u=>u.key==="sentinel"&&Math.abs(u.y-laneY)<150&&
+     Math.abs(u.x-edge)<180).length===0&&spawn("sentinel",laneY,35)){
    if(event)event.variantTriggers=(event.variantTriggers||0)+1;
    return true;
  }
@@ -2614,15 +2660,20 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ resourceForecast:(energy,elapsed=90)=>({
+  eta2:secondsUntilAffordable(energy,2,elapsed),
+  eta4:secondsUntilAffordable(energy,4,elapsed),
+  eta7:secondsUntilAffordable(energy,7,elapsed)
+ }),
  // Batch simulation runs the SAME 30Hz combat/energy/spell/fort code as a match,
  // with no drawing, network traffic or player input; only on localhost ?qa=1.
  runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard",mirrorTerrain=false,variantTeam=0,variant="baseline")=>{
   if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
-    !["rush","balanced","fortress","self"].includes(blueStyle)||
+    !["rush","balanced","fortress","banker","self"].includes(blueStyle)||
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
@@ -2678,6 +2729,18 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       spawn("archer",lane,55))return true;
     if(enemyUnits.some(u=>side(u.x)<700&&CLASSES[u.key].size==="large")&&
       spawn("guardian",lane,35))return true;
+    // Controlled opponent that holds publicly observable resources; it
+    // still obeys the same card, energy and unit limits as a real player.
+    if(blueStyle==="banker"){
+     if(pressure&&enemyUnits.length>=2&&spawn("sentinel",lane,30))return true;
+     if(S.energy[scriptedTeam]>=7){
+      if(spawn("tank",lane,35))return true;
+      if(spawn("guardian",lane,35))return true;
+      if(need&&spawn("scout",fort.y,32))return true;
+      if(spawn("archer",lane,55))return true;
+     }
+     return false;
+    }
     const prior=blueStyle==="rush"?["scout","engineer","drone","archer","infantry"]:
      blueStyle==="fortress"?["sentinel","archer","suppress","engineer","scout","infantry"]:
       ["scout","archer","engineer","suppress","drone","infantry"];
@@ -2692,6 +2755,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     return false;
    };
    const dt=1/30,selfThink=[0,3.1,3.1];
+   let opponentEnergyPeak=0,opponentEnergyReady4Seconds=0,
+    opponentEnergyReady7Seconds=0;
    // Existing game limits 300 seconds. More than 9000 ticks indicates a regression.
    for(let step=0;step<9100&&S.phase==="battle";step++){
     if(blueStyle==="self"){
@@ -2723,6 +2788,10 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
      }
     }
     tick(dt);
+    const opponentEnergy=S.observedEnergy[scriptedTeam];
+    opponentEnergyPeak=Math.max(opponentEnergyPeak,opponentEnergy);
+    if(opponentEnergy>=4)opponentEnergyReady4Seconds+=dt;
+    if(opponentEnergy>=7)opponentEnergyReady7Seconds+=dt;
     for(const f of S.forts)if(f.owner===1||f.owner===2)duelStats.fortSeconds[f.owner]+=dt;
     for(const team of [1,2]){
      duelStats.energyIntegral[team]+=S.energy[team]*dt;
@@ -2737,7 +2806,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    const winner=hp[1]===hp[2]?0:hp[1]>hp[2]?1:2;
    const elapsed=S.elapsed;
    return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,mirrorTerrain,
-    variantTeam,variant,decisionEvents:duelStats.decisionEvents.map(x=>x&&{...x}),
+    variantTeam,variant,opponentEnergyPeak,opponentEnergyReady4Seconds,
+    opponentEnergyReady7Seconds,decisionEvents:duelStats.decisionEvents.map(x=>x&&{...x}),
     energyEstimated:S.observedEnergy.slice(),energyActual:S.energy.slice(),winner,elapsed,
     initialHand:openingHand,openingQueue:openingQueue,
     castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],

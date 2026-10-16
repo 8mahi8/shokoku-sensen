@@ -12,13 +12,15 @@ on:
       - 'tests/online-heavy-value.cjs'
       - 'tests/online-bot-opponent-energy.cjs'
       - 'tests/online-bot-energy-opponents.cjs'
+      - 'tests/online-bot-tempo.cjs'
+      - 'online-embed.html'
       - 'online-game.js'
       - 'online-ipad.html'
   workflow_dispatch:
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 23
     permissions:
       contents: read
     steps:
@@ -37,6 +39,7 @@ jobs:
       - run: node tests/online-heavy-value.cjs
       - run: node tests/online-bot-opponent-energy.cjs
       - run: node tests/online-bot-energy-opponents.cjs
+      - run: node tests/online-bot-tempo.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -50,4 +53,5 @@ jobs:
             qa-heavy-value
             qa-bot-opponent-energy
             qa-bot-energy-opponents
+            qa-bot-tempo
           retention-days: 30
