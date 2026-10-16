@@ -8,13 +8,14 @@ on:
       - 'tests/online-bot-evaluation.cjs'
       - 'tests/online-bot-selfplay.cjs'
       - 'tests/online-bot-ab.cjs'
+      - 'tests/online-bot-holdout.cjs'
       - 'online-game.js'
       - 'online-ipad.html'
   workflow_dispatch:
 jobs:
   bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -29,6 +30,7 @@ jobs:
       - run: node tests/online-bot-evaluation.cjs
       - run: node tests/online-bot-selfplay.cjs
       - run: node tests/online-bot-ab.cjs
+      - run: node tests/online-bot-holdout.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -38,4 +40,5 @@ jobs:
             qa-bot-evaluation
             qa-bot-selfplay
             qa-bot-ab
+            qa-bot-holdout
           retention-days: 30
