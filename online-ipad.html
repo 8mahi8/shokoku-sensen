@@ -1704,6 +1704,78 @@ function botExpertAction(team=2){
   if(candidate&&candidate.score>=(hard?2:3)&&
    botUse(team,"ward",candidate.u.x,candidate.u.y))return true;
  }
+ // QA-only strategic director: evaluate *every* fort as an objective before
+ // picking the next card, rather than spending on the first affordable unit.
+ // Counters, urgent defense and real defensive wards above keep priority.
+ if(qaPolicy==="objectiveDirector"){
+  const objectives=S.forts.filter(f=>f.owner!==team).map(f=>{
+   const friendlyCapturers=friends.filter(u=>CLASSES[u.key].capture&&
+    Math.abs(u.x-f.x)<205&&Math.abs(u.y-f.y)<130);
+   const enemyDefenders=foes.filter(u=>Math.abs(u.x-f.x)<185&&Math.abs(u.y-f.y)<135);
+   const friendlyCover=friends.filter(u=>!CLASSES[u.key].capture&&
+    Math.abs(u.x-f.x)<215&&Math.abs(u.y-f.y)<155);
+   const forwardDistance=Math.abs(f.x-edge);
+   // A contested fort with a weak capture wave should not attract further
+   // unescorted scouts. Nearby objectives and insufficient coverage score high.
+   const score=170-forwardDistance*.16+(f.owner===0?20:0)+
+    (friendlyCapturers.length===0?65:0)+
+    Math.min(3,friendlyCapturers.length)*9-
+    enemyDefenders.length*16+Math.min(2,friendlyCover.length)*4;
+   return {f,score,workers:friendlyCapturers,defenders:enemyDefenders,cover:friendlyCover};
+  }).sort((a,b)=>b.score-a.score||a.f.x-b.f.x);
+  const objective=objectives[0],progress=objective?.workers.length??0;
+  const guard=S.forts.filter(f=>f.owner===team).map(f=>{
+   const attackers=foes.filter(u=>Math.abs(u.x-f.x)<245&&Math.abs(u.y-f.y)<165);
+   const defenders=friends.filter(u=>Math.abs(u.x-f.x)<190&&Math.abs(u.y-f.y)<165);
+   return {f,attackers,defenders,danger:attackers.length*2-defenders.length};
+  }).sort((a,b)=>b.danger-a.danger)[0];
+  const record=key=>{if(event)event.directorActions=(event.directorActions||{});
+   if(event)event.directorActions[key]=(event.directorActions[key]||0)+1;};
+  const deploy=(id,y,why)=>{if(spawn(id,y,id==="archer"||id==="suppress"?60:35)){
+   record(why);return true;}return false;};
+  if(guard?.attackers.length&&guard.danger>0&&
+   !friends.some(u=>u.key==="sentinel"&&Math.abs(u.x-guard.f.x)<180&&
+    Math.abs(u.y-guard.f.y)<135)&&
+   (deploy("sentinel",guard.f.y,"holdFort")||deploy("archer",guard.f.y,"holdFort")))return true;
+  if(objective){
+   const y=objective.f.y;
+   // First establish a real capture lane. If contested, send a durable
+   // capturing unit instead of blindly feeding an unguarded scout.
+   if(progress===0){
+    if(objective.defenders.length>0){
+     if(deploy("engineer",y,"captureContested")||
+        deploy("scout",y,"captureContested"))return true;
+    }else if(deploy("scout",y,"captureOpen")||
+             deploy("engineer",y,"captureOpen"))return true;
+   }
+   if(progress>=1&&objective.defenders.length>objective.cover.length&&
+     !friends.some(u=>u.key==="suppress"&&Math.abs(u.y-y)<140&&
+      Math.abs(u.x-edge)<205)&&
+     (deploy("suppress",y,"escort")||deploy("archer",y,"escort")))return true;
+   // A second capture unit is useful only for a contested or genuinely
+   // under-staffed target; already assigned workers count as committed.
+   if(progress===1&&objective.defenders.length>=1&&
+    (deploy("engineer",y,"reinforce")||deploy("scout",y,"reinforce")))return true;
+  }
+  // Once a wave is already committed, reserve a little for a meaningful
+  // follow-up rather than converting every 2 energy into more infantry.
+  // Never wait during an actual raid or when no advance troops survive.
+  if(!urgent&&friends.length>=2&&S.forts.some(f=>f.owner===team)&&
+    !raiders.some(u=>front(u.x)>front(edge)-180)&&
+    (progress>=1||!objective)){
+   const attackY=objective?.f.y??(friends.find(u=>front(u.x)<front(edge)-30)?.y??330);
+   const attacking=friends.some(u=>front(u.x)<front(edge)-20);
+   if(attacking&&
+    (deploy("tank",attackY,"siegeTank")||
+     deploy("drone",attackY,"siegeDrone")||
+     deploy("suppress",attackY,"siegeSupport")))return true;
+   if(attacking&&power>=2&&power<4&&friends.length>=3){
+    record("saveForPush");return true;
+   }
+  }
+  // No strategic opportunity worth buying right now: let the standard
+  // battle logic handle general defenses and miscellaneous cards.
+ }
  const workers=fort?friends.filter(u=>CLASSES[u.key].capture&&
   (qaPolicy==="captureCoverage"?Math.abs(u.x-fort.x)<300:
    front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
@@ -2794,7 +2866,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
