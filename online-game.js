@@ -92,7 +92,7 @@ const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elap
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
- S.energy=[0,8,8];S.observedEnergy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
+ S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  // The same randomized deck on both teams preserves symmetrical card access.
@@ -439,6 +439,8 @@ let botLastAction=null;
 let duelStats=null;
 // Development QA-only policy overrides. Standard gameplay always uses baseline.
 let qaBotVariants=[null,"baseline","baseline"];
+// Persist an explicit plan only for the QA experimental policy. Never shipped.
+let qaSiegePlans=[null,null,null];
 function botUse(team,id,x,y){
  const accepted=playCard(team,id,x,y);
  if(accepted)botLastAction={team,id,x,y,elapsed:S.elapsed};
@@ -568,22 +570,35 @@ function botExpertAction(team=2){
    front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
  const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
  if(event&&needFort)event.needFort++;
- // QA-only hypothesis D: compare the cost of one more capture card against
- // a short bank toward a siege tank behind an already covered forward fort.
- // Never let it override real emergency defense/counters handled above.
- if(qaPolicy==="stagedBudget"&&!urgent&&S.elapsed>=48&&
-    S.forts.some(f=>f.owner===team)&&availableCard(team,"tank")&&
-    power>=3&&secondsUntilAffordable(power,7)<=12&&enemyReady4>4&&
-    friends.filter(u=>CLASSES[u.key].capture&&u.hp>u.max*.4&&
-     front(u.x)<front(edge)+60).length>=2&&
-    !raiders.some(u=>front(u.x)>front(edge)-160)){
-  if(power>=7&&spawn("tank",fort?.y??laneY,38)){
-   if(event)event.budgetTank=(event.budgetTank||0)+1;
-   return true;
+ // QA-only stateful siege intent. Unlike one-turn affordability thresholds,
+ // a healthy forward capture group can protect a bounded 7-energy investment.
+ // Emergency defense, counters and wards always run before this stage.
+ if(qaPolicy==="stagedBudget"){
+  const covered=S.forts.some(f=>f.owner===team)&&
+   friends.filter(u=>CLASSES[u.key].capture&&u.hp>u.max*.4&&
+    front(u.x)<front(edge)+60).length>=2;
+  const safe=!urgent&&covered&&availableCard(team,"tank")&&
+   !raiders.some(u=>front(u.x)>front(edge)-160);
+  const plan=qaSiegePlans[team];
+  if(plan?.active&&(!safe||S.elapsed>plan.deadline)){
+   qaSiegePlans[team]={blockedUntil:S.elapsed+18};
+   if(event)event.budgetCancelled=(event.budgetCancelled||0)+1;
   }
-  if(power<7){
-   if(event)event.budgetWait=(event.budgetWait||0)+1;
-   return true;
+  const active=qaSiegePlans[team];
+  if(safe&&S.elapsed>=50&&(!active||active.blockedUntil<=S.elapsed)){
+   qaSiegePlans[team]={active:true,deadline:S.elapsed+23};
+   if(event)event.budgetStarted=(event.budgetStarted||0)+1;
+  }
+  if(qaSiegePlans[team]?.active&&safe){
+   if(power>=7&&spawn("tank",fort?.y??laneY,38)){
+    qaSiegePlans[team]={blockedUntil:S.elapsed+14};
+    if(event)event.budgetTank=(event.budgetTank||0)+1;
+    return true;
+   }
+   if(power<7){
+    if(event)event.budgetWait=(event.budgetWait||0)+1;
+    return true;
+   }
   }
  }
  // QA-only hypothesis C: a guarded economy window saves for a giant only when
