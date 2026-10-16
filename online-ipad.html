@@ -1226,12 +1226,12 @@ const rand=(min,max)=>min+(max-min)*Math.random();
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
 const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
- energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
+ energy:[0,8,8],observedEnergy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
  uid:0,botThink:0,botPrepDone:false,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
- S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
+ S.energy=[0,8,8];S.observedEnergy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  // The same randomized deck on both teams preserves symmetrical card access.
@@ -1330,6 +1330,8 @@ function playCard(team,id,x,y){
   return true;
  }
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
+ // Track only observable, legal card spending, never the hidden opponent hand.
+ if(ok)S.observedEnergy[team]=Math.max(0,S.observedEnergy[team]-CATALOG[id].cost);
  if(ok&&duelStats){
   duelStats.actions[team]++;
   duelStats.spent[team]+=CATALOG[id].cost;
@@ -1579,6 +1581,8 @@ function botPreparation(){
 function botExpertAction(team=2){
  const hard=S.difficulty==="hard",edge=border(team),power=S.energy[team];
  const qaPolicy=qaBotVariants[team];
+ // Deterministic estimate from visible plays, starting energy, known regen.
+ const opposingPower=S.observedEnergy[3-team];
  // Use RED-facing x values for identical tactical decisions on either side.
  const dir=team===2?1:-1,front=x=>team===2?x:W-x;
  const foes=S.units.filter(u=>u.team!==team&&u.hp>0),friends=S.units.filter(u=>u.team===team&&u.hp>0);
@@ -1595,6 +1599,8 @@ function botExpertAction(team=2){
   event.calls++;
   if(urgent)event.urgent++;
   if(power>=7)event.energy7++;
+  event.opponentLow=(event.opponentLow||0)+(opposingPower<=2.5?1:0);
+  event.opponentHigh=(event.opponentHigh||0)+(opposingPower>=7?1:0);
   if(["tank","guardian"].some(id=>availableCard(team,id)))event.giantInHand++;
  }
  const focus=castleThreat.sort((a,b)=>front(b.x)-front(a.x))[0]||threatened?.enemies[0]||
@@ -1677,6 +1683,17 @@ function botExpertAction(team=2){
     S.forts.some(f=>f.owner===team)&&
     friends.filter(u=>CLASSES[u.key].capture).length>=2&&
     spawn("tank",fort?.y??laneY,38))return true;
+ // A depleted opponent is unable to fund an immediate expensive counter;
+ // press only with a real forward squad and no urgent defensive problem.
+ if(qaPolicy==="opponentPunish"&&opposingPower<=2.5&&!urgent&&fort&&
+  S.elapsed>30&&power>=3&&friends.length>=2&&
+  friends.some(u=>front(u.x)<front(edge)-75)&&
+  spawn("scout",fort.y,35))return true;
+ // Do not prepare for a wealthy opponent until troops actually approach.
+ if(qaPolicy==="opponentGuard"&&opposingPower>=7&&!urgent&&
+  raiders.length>0&&friends.length>=2&&
+  friends.filter(u=>u.key==="sentinel"&&Math.abs(u.y-laneY)<130&&
+   Math.abs(u.x-edge)<160).length===0&&spawn("sentinel",laneY,35))return true;
  if(needFort&&spawn("scout",fort.y,35))return true;
  if(needFort&&spawn("engineer",fort.y,35))return true;
 
@@ -1786,7 +1803,11 @@ function finishTime(){
 function tick(dt){
  if(!NET.isHost||S.phase!=="battle")return;
  S.elapsed+=dt;S.seconds-=dt;
- for(const team of [1,2])S.energy[team]=Math.min(ENERGY_CAP,S.energy[team]+dt*rate()*(1));
+ for(const team of [1,2]){
+  const gain=dt*rate();
+  S.energy[team]=Math.min(ENERGY_CAP,S.energy[team]+gain);
+  S.observedEnergy[team]=Math.min(ENERGY_CAP,S.observedEnergy[team]+gain);
+ }
  unitStep(dt);spellStep(dt);
  for(const fallen of S.deaths)fallen.t-=dt;
  S.deaths=S.deaths.filter(fallen=>fallen.t>0);
@@ -2593,7 +2614,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
@@ -2708,7 +2729,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    const winner=hp[1]===hp[2]?0:hp[1]>hp[2]?1:2;
    const elapsed=S.elapsed;
    return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,mirrorTerrain,
-    variantTeam,variant,decisionEvents:duelStats.decisionEvents.map(x=>x&&{...x}),winner,elapsed,
+    variantTeam,variant,decisionEvents:duelStats.decisionEvents.map(x=>x&&{...x}),
+    energyEstimated:S.observedEnergy.slice(),energyActual:S.energy.slice(),winner,elapsed,
     initialHand:openingHand,openingQueue:openingQueue,
     castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],
     actions:duelStats.actions.slice(),spent:duelStats.spent.slice(),
@@ -2832,7 +2854,10 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   if(!NET.isSolo||!spec||!Array.isArray(spec.enemies)||!Array.isArray(spec.hand))return false;
   resetWorld();S.phase="battle";S.botThink=999;S.prep=0;
   S.difficulty=spec.difficulty||"hard";S.elapsed=spec.elapsed??80;
-  S.energy=[0,8,spec.energy??8];S.hand[2]=spec.hand.slice();S.queue[2]=[];
+  S.energy=[0,spec.enemyActualEnergy??spec.enemyEnergy??8,spec.energy??8];
+  S.observedEnergy=[0,spec.enemyEnergy??8,spec.energy??8];
+  qaBotVariants=[null,"baseline",spec.variant||"baseline"];
+  S.hand[2]=spec.hand.slice();S.queue[2]=[];
   if(Array.isArray(spec.fortOwners))S.forts.forEach((f,i)=>f.owner=spec.fortOwners[i]||0);
   const place=(team,u)=>{
    const d=CLASSES[u.key],x=u.x,y=u.y;
@@ -2849,7 +2874,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   if(!NET.isSolo||S.phase!=="battle")return null;
   const initial=S.energy[2],acted=botExpertAction();
   return {acted,action:botLastAction,spent:initial-S.energy[2],
-    remaining:S.energy[2],incoming:S.spells.incoming.length,wards:S.spells.zones.length,
+    remaining:S.energy[2],opponentEstimated:S.observedEnergy[1],
+    incoming:S.spells.incoming.length,wards:S.spells.zones.length,
     units:S.units.length};
  },
 
