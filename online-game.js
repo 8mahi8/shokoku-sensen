@@ -481,6 +481,10 @@ function botExpertAction(team=2){
   event.opponentCanBarrage=(event.opponentCanBarrage||0)+(opposingPower>=4?1:0);
   event.enemyRecoveryWindow=(event.enemyRecoveryWindow||0)+(enemyReady4>5?1:0);
   event.enemyGiantSoon=(event.enemyGiantSoon||0)+(enemyReady7<=8?1:0);
+  event.stagedFort=(event.stagedFort||0)+(S.forts.some(f=>f.owner===team)?1:0);
+  event.hasDrone=(event.hasDrone||0)+(availableCard(team,"drone")?1:0);
+  event.fundedDrone=(event.fundedDrone||0)+(power>=4?1:0);
+  event.safeDefense=(event.safeDefense||0)+(!urgent?1:0);
   if(["tank","guardian"].some(id=>availableCard(team,id)))event.giantInHand++;
  }
  const focus=castleThreat.sort((a,b)=>front(b.x)-front(a.x))[0]||threatened?.enemies[0]||
@@ -581,12 +585,12 @@ function botExpertAction(team=2){
    if(event)event.variantTriggers=(event.variantTriggers||0)+1;
    return true;
  }
- // QA-only opportunistic flanking: launch a fast flying unit before
- // the observed enemy economy can afford an immediate 4-cost response.
- if(qaPolicy==="tempoSiege"&&!urgent&&S.elapsed>32&&power>=4&&
+ // QA-only opportunistic flanking: low-energy enemy cannot answer a 4-cost
+ // aerial push within six seconds. Need a captured staging fort and at least
+ // one surviving friendly fighter, with no immediate defense duty.
+ if(qaPolicy==="tempoSiege"&&!urgent&&S.elapsed>18&&power>=4&&
     availableCard(team,"drone")&&S.forts.some(f=>f.owner===team)&&
-    friends.length>=2&&friends.some(u=>front(u.x)<front(edge)-30)&&
-    enemyReady4>7&&enemyReady7>15&&
+    friends.length>=1&&enemyReady4>6&&
     !raiders.some(u=>front(u.x)>front(edge)-160)&&
     spawn("drone",fort?.y??laneY,35)){
    if(event)event.variantTriggers=(event.variantTriggers||0)+1;
