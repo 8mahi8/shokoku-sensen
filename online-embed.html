@@ -1709,10 +1709,20 @@ function botExpertAction(team=2){
  // QA-only strategic director: evaluate *every* fort as an objective before
  // picking the next card, rather than spending on the first affordable unit.
  // Counters, urgent defense and real defensive wards above keep priority.
- if(["objectiveDirector","directorNoSave","directorCaptureOnly"].includes(qaPolicy)){
-  const objectives=S.forts.filter(f=>f.owner!==team).map(f=>{
+ if(["objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware"].includes(qaPolicy)){
+  const objectives=S.forts.filter(f=>f.owner!==team).filter(f=>{
+   if(qaPolicy!=="directorRouteAware")return true;
+   // A chosen lane must lead to its real in-game capture objective.
+   // In particular the human BLUE-side movement AI can intentionally skip
+   // a near fort; do not count a card spawn as a near-fort capture action.
+   const probe={team,key:"scout",x:limit(edge+dir*35,40,W-40),
+    y:limit(f.y,70,H-70)};
+   return getFort(probe)===f;
+  }).map(f=>{
    const friendlyCapturers=friends.filter(u=>CLASSES[u.key].capture&&
-    Math.abs(u.x-f.x)<205&&Math.abs(u.y-f.y)<130);
+    (qaPolicy==="directorRouteAware"
+     ?getFort(u)===f
+     :Math.abs(u.x-f.x)<205&&Math.abs(u.y-f.y)<130));
    const enemyDefenders=foes.filter(u=>Math.abs(u.x-f.x)<185&&Math.abs(u.y-f.y)<135);
    const friendlyCover=friends.filter(u=>!CLASSES[u.key].capture&&
     Math.abs(u.x-f.x)<215&&Math.abs(u.y-f.y)<155);
@@ -2868,7 +2878,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;

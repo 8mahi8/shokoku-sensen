@@ -57,7 +57,7 @@ const aggregate=rows=>({
   const run=(q,variant)=>page.evaluate(x=>window.__shokokuQa.runDuel(
    x.seed,x.style,"hard",x.team,"standard",x.mirror,
    x.variant==="baseline"?0:x.team,x.variant),{...q,variant});
-  const variants=["objectiveDirector","directorNoSave","directorCaptureOnly"];
+  const variants=["objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware"];
   const rows=[],baselines=[];
   for(const seed of seeds)for(const style of styles)for(const team of teams)
    for(const mirror of style==="self"?[false,true]:[false]){
@@ -86,12 +86,12 @@ const aggregate=rows=>({
    }
     baselines.push({...q,winner:base.winner,cardCounts:base.cards[team]});
    }
-  assert.equal(rows.length,150);assert.equal(baselines.length,50);
+  assert.equal(rows.length,200);assert.equal(baselines.length,50);
   assert.deepEqual(await run({seed:17,style:"self",team:2,mirror:false},"objectiveDirector"),
    await run({seed:17,style:"self",team:2,mirror:false},"objectiveDirector"),
    "seeded repeatability");
   assert.deepEqual(errors,[],"no browser errors");
-  const summary={kind:"TRAIN-only objective-aware strategy A/B",version:2,seeds,
+  const summary={kind:"TRAIN-only objective-aware strategy A/B",version:3,seeds,
    baselineGames:baselines.length,comparisonGames:rows.length,scenarioLaneChanged:true,
    variants:Object.fromEntries(variants.map(variant=>{
     const subset=rows.filter(r=>r.variant===variant);
