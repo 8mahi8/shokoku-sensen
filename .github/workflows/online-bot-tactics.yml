@@ -13,6 +13,7 @@ on:
       - 'tests/online-bot-opponent-energy.cjs'
       - 'tests/online-bot-energy-opponents.cjs'
       - 'tests/online-bot-tempo.cjs'
+      - 'tests/online-bot-priority-audit.cjs'
       - 'online-embed.html'
       - 'online-game.js'
       - 'online-ipad.html'
@@ -40,6 +41,7 @@ jobs:
       - run: node tests/online-bot-opponent-energy.cjs
       - run: node tests/online-bot-energy-opponents.cjs
       - run: node tests/online-bot-tempo.cjs
+      - run: node tests/online-bot-priority-audit.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -54,4 +56,5 @@ jobs:
             qa-bot-opponent-energy
             qa-bot-energy-opponents
             qa-bot-tempo
+            qa-bot-priority-audit
           retention-days: 30

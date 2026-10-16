@@ -1594,6 +1594,25 @@ function botPreparation(){
 // Expert heuristics operate within the same hand, economy and placement rules.
 // v3.9 tactical BOT. Same deck order, charges, energy rate and deployment rules as a human.
 function botExpertAction(team=2){
+ // Observe the current decision BEFORE any card is spent. This data exists
+ // only inside seeded localhost QA duels, never normal game/online matches.
+ const decisionAudit=duelStats?.decisionAudit?.[team];
+ const beforeActions=decisionAudit?duelStats.actions[team]:0;
+ const before=decisionAudit?{
+  energy:S.energy[team],enemyEnergy:S.observedEnergy[3-team],
+  enemyEta4:secondsUntilAffordable(S.observedEnergy[3-team],4),
+  ownedFort:S.forts.some(f=>f.owner===team),
+  pendingFort:S.forts.some(f=>f.owner!==team),
+  allies:S.units.filter(u=>u.team===team&&u.hp>0).length,
+  enemies:S.units.filter(u=>u.team!==team&&u.hp>0).length,
+  largeHand:availableCard(team,"tank"),
+  captureHand:availableCard(team,"scout")||availableCard(team,"engineer"),
+  forward:S.units.filter(u=>u.team===team&&u.hp>0&&
+   (team===1?u.x>border(team)-100:u.x<border(team)+100)).length,
+  underPressure:S.units.some(u=>u.team!==team&&u.hp>0&&
+   (team===1?u.x<border(team)+250:u.x>border(team)-250))
+ }:null;
+ try{
  const hard=S.difficulty==="hard",edge=border(team),power=S.energy[team];
  const qaPolicy=qaBotVariants[team];
  // Deterministic estimate from visible plays, starting energy, known regen.
@@ -1772,6 +1791,43 @@ function botExpertAction(team=2){
  }
  if((power>=10||urgent)&&spawn("infantry",laneY,35))return true;
  return false;
+ }finally{
+  if(decisionAudit){
+   const played=duelStats.actions[team]>beforeActions;
+   const card=played?botLastAction.id:"none";
+   const phase=before.underPressure?"defend":before.ownedFort&&before.forward>=2?
+    "staged":before.pendingFort?"capture":"advance";
+   const energyBucket=before.energy<2?"0-2":before.energy<4?"2-4":
+    before.energy<7?"4-7":"7-12";
+   decisionAudit.calls++;
+   decisionAudit.byPhase[phase]=(decisionAudit.byPhase[phase]||0)+1;
+   decisionAudit.byEnergy[energyBucket]=(decisionAudit.byEnergy[energyBucket]||0)+1;
+   decisionAudit.byCard[card]=(decisionAudit.byCard[card]||0)+1;
+   const perPhase=decisionAudit.phaseCards[phase]??(decisionAudit.phaseCards[phase]={});
+   perPhase[card]=(perPhase[card]||0)+1;
+   if(before.largeHand){
+    decisionAudit.tankInHand++;
+    if(before.energy<7)decisionAudit.tankUnaffordable++;
+    if(before.ownedFort&&before.forward>=2){
+     decisionAudit.tankFrontlineOpportunity++;
+     if(before.energy>=7)decisionAudit.tankFundedOpportunity++;
+     else if(played&&CATALOG[card].cost<7)decisionAudit.tankDeferredByCheapPlay++;
+    }
+   }
+   if(before.energy>=4&&before.enemyEta4>6&&before.ownedFort&&
+      before.allies>0)decisionAudit.enemyResourceWindow++;
+   if(decisionAudit.samples.length<40&&(
+      (before.largeHand&&before.ownedFort&&before.forward>=2)||
+      (before.underPressure&&before.energy>=4)
+     )){
+    decisionAudit.samples.push({time:+S.elapsed.toFixed(1),phase,energy:+before.energy.toFixed(2),
+     enemyEnergy:+before.enemyEnergy.toFixed(2),
+     enemyEta4:+before.enemyEta4.toFixed(1),allies:before.allies,
+     forward:before.forward,largeHand:before.largeHand,
+     card,chosenCost:played?CATALOG[card].cost:0});
+   }
+  }
+ }
 }
 function botAction(){
  const allies=S.units.filter(u=>u.team===2&&u.hp>0);
@@ -2683,6 +2739,11 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    duelStats={seed,blueStyle,difficulty,tacticalTeam,variantTeam,variant,actions:[0,0,0],spent:[0,0,0],
     decisionEvents:[null,{calls:0,urgent:0,energy7:0,giantInHand:0,needFort:0},
      {calls:0,urgent:0,energy7:0,giantInHand:0,needFort:0}],
+    decisionAudit:[null,1,2].map(t=>t?{
+     calls:0,byPhase:{},byEnergy:{},byCard:{},phaseCards:{},
+     tankInHand:0,tankUnaffordable:0,tankFrontlineOpportunity:0,
+     tankFundedOpportunity:0,tankDeferredByCheapPlay:0,
+     enemyResourceWindow:0,samples:[]}:null),
     cards:[null,{},{}],fortSeconds:[0,0,0],energyIntegral:[0,0,0],maxUnits:[0,0,0]};
    qaBotVariants=[null,"baseline","baseline"];
    if(variantTeam)qaBotVariants[variantTeam]=variant;
@@ -2808,6 +2869,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,mirrorTerrain,
     variantTeam,variant,opponentEnergyPeak,opponentEnergyReady4Seconds,
     opponentEnergyReady7Seconds,decisionEvents:duelStats.decisionEvents.map(x=>x&&{...x}),
+    decisionAudit:duelStats.decisionAudit,
     energyEstimated:S.observedEnergy.slice(),energyActual:S.energy.slice(),winner,elapsed,
     initialHand:openingHand,openingQueue:openingQueue,
     castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],
