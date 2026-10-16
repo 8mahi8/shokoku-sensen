@@ -15,6 +15,7 @@ on:
       - 'tests/online-bot-tempo.cjs'
       - 'tests/online-bot-priority-audit.cjs'
       - 'tests/online-bot-staged-budget.cjs'
+      - 'tests/online-bot-screen-budget.cjs'
       - 'online-embed.html'
       - 'online-game.js'
       - 'online-ipad.html'
@@ -44,6 +45,7 @@ jobs:
       - run: node tests/online-bot-tempo.cjs
       - run: node tests/online-bot-priority-audit.cjs
       - run: node tests/online-bot-staged-budget.cjs
+      - run: node tests/online-bot-screen-budget.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -60,4 +62,5 @@ jobs:
             qa-bot-tempo
             qa-bot-priority-audit
             qa-bot-staged-budget
+            qa-bot-screen-budget
           retention-days: 30

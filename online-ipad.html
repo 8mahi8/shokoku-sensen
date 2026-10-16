@@ -1712,12 +1712,23 @@ function botExpertAction(team=2){
  // QA-only stateful siege intent. Unlike one-turn affordability thresholds,
  // a healthy forward capture group can protect a bounded 7-energy investment.
  // Emergency defense, counters and wards always run before this stage.
- if(qaPolicy==="stagedBudget"){
+ if(qaPolicy==="stagedBudget"||qaPolicy==="screenBudget"){
   const covered=S.forts.some(f=>f.owner===team)&&
    friends.filter(u=>CLASSES[u.key].capture&&u.hp>u.max*.4&&
     front(u.x)<front(edge)+60).length>=2;
-  const safe=!urgent&&covered&&availableCard(team,"tank")&&
-   !raiders.some(u=>front(u.x)>front(edge)-160);
+  const closeRaiders=raiders.filter(u=>front(u.x)>front(edge)-160);
+  const screenedRaiders=closeRaiders.filter(e=>friends.some(a=>
+   a.hp>a.max*.45&&Math.abs(a.x-e.x)<135&&Math.abs(a.y-e.y)<105&&
+   front(a.x)>=front(e.x)-80&&
+   (!CLASSES[e.key].flying||CLASSES[a.key].hitAir)));
+  const exposedRaiders=closeRaiders.length-screenedRaiders.length;
+  const closeUnsafe=qaPolicy==="screenBudget"?exposedRaiders>0:closeRaiders.length>0;
+  const safe=!urgent&&covered&&availableCard(team,"tank")&&!closeUnsafe;
+  if(event&&qaPolicy==="screenBudget"){
+   event.screenChecks=(event.screenChecks||0)+1;
+   event.screenedContacts=(event.screenedContacts||0)+screenedRaiders.length;
+   event.unscreenedContacts=(event.unscreenedContacts||0)+exposedRaiders;
+  }
   const plan=qaSiegePlans[team];
   if(plan?.active&&(!safe||S.elapsed>plan.deadline)){
    // A plan may have been disrupted between BOT thoughts; classify the
@@ -1727,6 +1738,18 @@ function botExpertAction(team=2){
     !S.forts.some(f=>f.owner===team)?"lostFort":
     !availableCard(team,"tank")?"tankUnusable":
     !covered?"frontlineLost":"enemyClose";
+   if(event){
+    const snapshots=event.budgetCancelSnapshots||(event.budgetCancelSnapshots=[]);
+    if(snapshots.length<30)snapshots.push({
+     t:+S.elapsed.toFixed(1),reason:cause,energy:+power.toFixed(2),
+     closeRaiders:closeRaiders.length,screened:screenedRaiders.length,
+     exposed:exposedRaiders,allies:friends.length,
+     enemyToEdge:closeRaiders.length?
+      +Math.max(0,front(edge)-Math.max(...closeRaiders.map(u=>front(u.x)))).toFixed(1):null,
+     nearestEnemyClass:closeRaiders.sort((a,b)=>front(b.x)-front(a.x))[0]?.key||null,
+     nearestEnemySpeed:closeRaiders[0]?CLASSES[closeRaiders[0].key].speed:null
+    });
+   }
    qaSiegePlans[team]={blockedUntil:S.elapsed+18};
    if(event){
     event.budgetCancelled=(event.budgetCancelled||0)+1;
@@ -2771,7 +2794,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
