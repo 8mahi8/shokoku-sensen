@@ -1690,6 +1690,56 @@ function botExpertAction(team=2){
  }).filter(c=>c.enemies.length&&c.score>=0).sort((a,b)=>b.score-a.score)[0];
  const urgent=castleThreat.length>0||!!threatened;
  const event=duelStats?.decisionEvents?.[team];
+ // QA-only observational opportunity map. This must NOT influence card use.
+ // Read our own hand/queue, public terrain and currently visible enemy units.
+ if(qaPolicy==="opportunityAudit"&&event){
+  const ownFort=S.forts.filter(f=>f.owner===team);
+  const hand=S.hand[team].filter(id=>availableCard(team,id));
+  const funded=hand.filter(id=>canPay(team,id));
+  const pending=foes.map(u=>{
+   const cls=CLASSES[u.key],target=getFort(u);
+   return cls.behavior!=="guard"&&cls.speed>0&&target?.owner===team?
+    {u,fort:target,eta:dist(u,target)/cls.speed}:null;
+  }).filter(Boolean);
+  const near=pending.filter(x=>x.eta<=12),soon=near.filter(x=>x.eta<=6.5);
+  const lacksCover=near.filter(x=>!friends.some(v=>
+   v.hp>v.max*.4&&Math.abs(v.x-x.fort.x)<150&&
+   Math.abs(v.y-x.fort.y)<135&&
+   (!CLASSES[x.u.key].flying||CLASSES[v.key].hitAir)));
+  const tally=key=>{event[key]=(event[key]||0)+1;};
+  tally("mapDecisions");
+  if(!ownFort.length)tally("mapNoOwnedFort");
+  if(urgent)tally("mapUrgent");
+  if(power<2)tally("mapEnergyUnder2");
+  if(power>=2&&power<3)tally("mapEnergyTwoThree");
+  if(power>=3&&power<4)tally("mapEnergyThreeFour");
+  if(power>=4)tally("mapEnergyFourPlus");
+  if(!funded.length)tally("mapNoFundedHand");
+  if(power>=2&&!funded.length)tally("mapInfantryOnlyAvailable");
+  if(availableCard(team,"scout"))tally("mapScoutInHand");
+  if(S.queue[team].includes("scout"))tally("mapScoutInQueue");
+  if(fort&&S.queue[team].includes("scout"))tally("mapScoutQueueWithObjective");
+  if(fort&&availableCard(team,"scout")&&!canPay(team,"scout"))
+   tally("mapScoutEnergyBlocked");
+  if(near.length)tally("mapOwnedFortContact12s");
+  if(soon.length)tally("mapOwnedFortContact6s");
+  if(lacksCover.length)tally("mapOwnedFortWithoutScreen12s");
+  if(soon.length&&!urgent)tally("mapPreUrgent6s");
+  if(lacksCover.length&&!urgent&&power>=2&&power<3)tally("mapCheapScreenBudget");
+  if(lacksCover.length&&!urgent&&power>=2&&power<3&&
+    !canPay(team,"archer")&&!canPay(team,"sentinel"))tally("mapCheapScreenReady");
+  const histogram=event.mapPlayableHand||(event.mapPlayableHand={});
+  const key=String(funded.length);
+  histogram[key]=(histogram[key]||0)+1;
+  const examples=event.mapSamples||(event.mapSamples=[]);
+  if(examples.length<24&&(near.length||power>=2&&power<3&&!funded.length)){
+   examples.push({time:+S.elapsed.toFixed(1),power:+power.toFixed(2),
+    hand:hand.slice(),queue:S.queue[team].slice(),funded:funded.slice(),
+    ownedForts:ownFort.length,urgent,nearCount:near.length,soonCount:soon.length,
+    nearestEta:near.length?+Math.min(...near.map(v=>v.eta)).toFixed(1):null,
+    uncovered:lacksCover.length});
+  }
+ }
  if(event){
   event.calls++;
   if(urgent)event.urgent++;
@@ -3102,7 +3152,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;

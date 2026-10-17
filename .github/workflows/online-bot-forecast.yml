@@ -7,6 +7,7 @@ on:
       - 'tests/online-bot-forecast.cjs'
       - 'tests/online-bot-spend-window.cjs'
       - 'tests/online-bot-early-screen.cjs'
+      - 'tests/online-bot-opportunity-map.cjs'
       - 'online-game.js'
       - 'online-net.js'
       - 'online.html'
@@ -27,6 +28,7 @@ jobs:
       - run: node tests/online-bot-forecast.cjs
       - run: node tests/online-bot-spend-window.cjs
       - run: node tests/online-bot-early-screen.cjs
+      - run: node tests/online-bot-opportunity-map.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -35,4 +37,5 @@ jobs:
             qa-bot-forecast
             qa-bot-spend-window
             qa-bot-early-screen
+            qa-bot-opportunity-map
           retention-days: 30
