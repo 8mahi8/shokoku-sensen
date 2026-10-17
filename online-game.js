@@ -92,7 +92,7 @@ const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elap
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
- S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
+ S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  // The same randomized deck on both teams preserves symmetrical card access.
@@ -449,6 +449,9 @@ let qaBotVariants=[null,"baseline","baseline"];
 let qaSiegePlans=[null,null,null];
 // QA-only bounded affordability-window plans; never used by the regular BOT.
 let qaWindowPlans=[null,null,null];
+// QA-only deliberate concession: wait briefly instead of spending 2 energy
+// on a doomed outpost. This state is never used by the standard BOT.
+let qaConcedePlans=[null,null,null];
 function botUse(team,id,x,y){
  const accepted=playCard(team,id,x,y);
  if(accepted){
@@ -649,7 +652,63 @@ function botExpertAction(team=2){
  const giant=raiders.find(u=>CLASSES[u.key].size==="large");
  if(giant&&friends.filter(u=>u.key==="guardian"&&front(u.x)>front(edge)-175&&Math.abs(u.y-giant.y)<150).length===0&&
   spawn("guardian",giant.y,35))return true;
- if(urgent){
+ // QA-only deliberate outpost concession. Castle threats, barrage,
+ // anti-air and heavy counters have already been considered above.
+ // Holding is a real option: forego the desperate 2-energy infantry play,
+ // save for an in-hand sentinel, then counterattack after the delay.
+ let concessionHold=false;
+ if(qaPolicy==="concedeFort"){
+  const previous=qaConcedePlans[team];
+  const threatenedFort=threatened?.f;
+  const deepRaid=foes.some(u=>front(u.x)>front(WALL_FACE[team])-230);
+  const emergency=castleThreat.length>0||deepRaid;
+  if(event){
+   event.concedeConsidered=(event.concedeConsidered||0)+1;
+   if(threatenedFort)event.concedeThreatened=(event.concedeThreatened||0)+1;
+   if(emergency)event.concedeDeepEmergency=(event.concedeDeepEmergency||0)+1;
+  }
+  if(previous?.active){
+   const expired=S.elapsed>previous.deadline;
+   const unusable=!availableCard(team,"sentinel");
+   if(emergency||expired||unusable){
+    if(event){
+     const reason=emergency?"danger":expired?"expired":"missingCard";
+     const causes=event.concedeCancelled||(event.concedeCancelled={});
+     causes[reason]=(causes[reason]||0)+1;
+    }
+    qaConcedePlans[team]={blockedUntil:S.elapsed+12};
+   }else if(canPay(team,"sentinel")){
+    if(spawn("sentinel",previous.y,35)){
+     if(event)event.concedeCounterattack=(event.concedeCounterattack||0)+1;
+     qaConcedePlans[team]={blockedUntil:S.elapsed+14};
+     return true;
+    }
+    qaConcedePlans[team]={blockedUntil:S.elapsed+12};
+   }else{
+    concessionHold=true;
+    if(event)event.concedeHeld=(event.concedeHeld||0)+1;
+   }
+  }
+  const plan=qaConcedePlans[team];
+  if(!concessionHold&&!plan?.active&&
+    (!plan||S.elapsed>=plan.blockedUntil)&&
+    threatenedFort&&!emergency&&S.elapsed>=20&&S.elapsed<=235&&
+    power>=2&&power<4&&availableCard(team,"sentinel")){
+   const attackers=threatened.enemies.filter(u=>!CLASSES[u.key].flying);
+   const alliedDefense=friends.filter(u=>Math.abs(u.x-threatenedFort.x)<190&&
+    Math.abs(u.y-threatenedFort.y)<140);
+   const eta=secondsUntilAffordable(power,4);
+   if(event)event.concedeCandidates=(event.concedeCandidates||0)+1;
+   if(attackers.length>=2&&alliedDefense.length===0&&eta<=8){
+    qaConcedePlans[team]={active:true,start:S.elapsed,
+     deadline:S.elapsed+11,y:threatenedFort.y,
+     fortIndex:S.forts.indexOf(threatenedFort)};
+    concessionHold=true;
+    if(event)event.concedeStarted=(event.concedeStarted||0)+1;
+   }
+  }
+ }
+ if(urgent&&!concessionHold){
   const incoming=foes.filter(u=>front(u.x)>front(edge)-255&&Math.abs(u.y-laneY)<145);
   const defense=friends.filter(u=>front(u.x)>front(edge)-175&&Math.abs(u.y-laneY)<145);
   if(incoming.length>=2&&spawn("suppress",laneY,50))return true;
@@ -657,6 +716,9 @@ function botExpertAction(team=2){
   if(defense.length<incoming.length+1&&spawn("archer",laneY,60))return true;
   if(defense.length<incoming.length+1&&spawn("infantry",laneY,35))return true;
  }
+ // Skip non-emergency spending while the sentinel reserve is being prepared.
+ // Real castle pressure cancels the hold on the next thought.
+ if(concessionHold)return true;
 
  // Ward cannot protect the same army twice, so avoid overlapping active zones.
  if(canPay(team,"ward")){
@@ -2070,7 +2132,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
