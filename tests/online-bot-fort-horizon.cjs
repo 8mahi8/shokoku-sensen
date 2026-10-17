@@ -47,7 +47,7 @@ const metric=(rows)=>{
   winsValueVsTrade:rows.filter(r=>score(r.value,r.team)>score(r.trade,r.team)).length,
   lossesValueVsTrade:rows.filter(r=>score(r.value,r.team)<score(r.trade,r.team)).length,
   winDeltaValueVsBaseline:sum(rows,r=>score(r.value,r.team)-score(r.base,r.team)),
-  ownHpDiffValueTrade:delta("value","trade",g=>g.castleHp[rows[0]?.team||1]),
+  ownHpDiffValueTrade:avg(rows,r=>r.value.castleHp[r.team]-r.trade.castleHp[r.team]),
   enemyDamageDiffValueTrade:avg(rows,r=>r.value.damage[3-r.team]-r.trade.damage[3-r.team]),
   fortTimeDiffValueTrade:avg(rows,r=>r.value.fortSeconds[r.team]-r.trade.fortSeconds[r.team])
  };
