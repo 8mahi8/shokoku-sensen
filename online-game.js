@@ -776,12 +776,19 @@ function botExpertAction(team=2){
   // Only intervene if a stronger, already affordable guard/archer cannot
   // handle the approach. A 2-cost infantry play uses the standard hand rules.
   if(!canPay(team,"archer")&&!canPay(team,"sentinel")){
+   const spawnX=limit(edge+dir*35,40,W-40);
    const threats=foes.map(u=>{
     const d=CLASSES[u.key],target=getFort(u);
     if(d.flying||d.behavior==="guard"||d.speed<20||
-     !target||target.owner!==team||Math.abs(target.x-edge)>105)return null;
+     !target||target.owner!==team)return null;
     const eta=dist(u,target)/d.speed;
-    if(eta>6.5||eta<1.5)return null;
+    // Our inexpensive ground infantry must actually have time to move from
+    // the legal spawn line to the threatened fort. The 12s horizon is a
+    // travel-budget constraint, not a guess that an enemy is already here.
+    const distanceToFort=Math.abs(spawnX-target.x);
+    const screenEta=Math.max(0,distanceToFort-CLASSES.infantry.range)/
+     CLASSES.infantry.speed;
+    if(eta>12||eta<1.5||distanceToFort>240||screenEta>eta+1)return null;
     const covered=friends.some(v=>v.hp>v.max*.45&&
      Math.abs(v.x-target.x)<150&&Math.abs(v.y-target.y)<135&&
      (!d.flying||CLASSES[v.key].hitAir));

@@ -53,6 +53,10 @@ const agg=a=>({
   const covered=await scene({...incoming,variant:"forecastCheapScreen",
    allies:[{key:"sentinel",x:840,y:205}]});
   assert.notEqual(covered.action?.id,"infantry","no duplicate screen on guarded fort");
+  const earlier=await scene({...sceneBase,variant:"forecastCheapScreen",
+   enemies:[{key:"scout",x:470,y:205}]});
+  assert.equal(earlier.action?.id,"infantry",
+   "screen may deploy while both sides still have travel time");
   const distant=await scene({...sceneBase,variant:"forecastCheapScreen",
    enemies:[{key:"scout",x:240,y:205}]});
   assert.notEqual(distant.action?.id,"infantry","far enemies are not imminent");
