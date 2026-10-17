@@ -1807,6 +1807,19 @@ function botExpertAction(team=2){
    if(emergency)event.concedeDeepEmergency=(event.concedeDeepEmergency||0)+1;
   }
   if(previous?.active){
+   // Episode-level diagnostics, not strategy: did the fort actually fall
+   // before the held resources became a legal counterattack?
+   const resolved=()=>{
+    if(!event)return;
+    event.concedeResolved=(event.concedeResolved||0)+1;
+    const lost=S.forts[previous.fortIndex]?.owner!==team;
+    if(lost)event.concedeResolvedLost=(event.concedeResolvedLost||0)+1;
+    else event.concedeResolvedHeld=(event.concedeResolvedHeld||0)+1;
+    event.concedeResolutionSeconds=(event.concedeResolutionSeconds||0)+
+     Math.max(0,S.elapsed-previous.start);
+   };
+   if(event&&S.forts[previous.fortIndex]?.owner!==team)
+    event.concedeWaitingAfterLoss=(event.concedeWaitingAfterLoss||0)+1;
    const expired=S.elapsed>previous.deadline;
    const unusable=!availableCard(team,"sentinel");
    if(emergency||expired||unusable){
@@ -1815,13 +1828,16 @@ function botExpertAction(team=2){
      const causes=event.concedeCancelled||(event.concedeCancelled={});
      causes[reason]=(causes[reason]||0)+1;
     }
+    resolved();
     qaConcedePlans[team]={blockedUntil:S.elapsed+12};
    }else if(canPay(team,"sentinel")){
     if(spawn("sentinel",previous.y,35)){
      if(event)event.concedeCounterattack=(event.concedeCounterattack||0)+1;
+     resolved();
      qaConcedePlans[team]={blockedUntil:S.elapsed+14};
      return true;
     }
+    resolved();
     qaConcedePlans[team]={blockedUntil:S.elapsed+12};
    }else{
     concessionHold=true;
