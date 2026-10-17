@@ -59,7 +59,7 @@ const agg=a=>({
   const funded=await scene({...safe,energy:3,variant:"forecastSpendWindow"});
   assert.equal(funded.action?.id,"scout","when affordable, normal capture immediately resumes");
   assert.equal(funded.spent,3);
-  const slow=await scene({...safe,elapsed:80,variant:"forecastSpendWindow"});
+  const slow=await scene({...safe,energy:2.2,elapsed:80,variant:"forecastSpendWindow"});
   assert.equal(slow.action?.id,"archer","do not wait too long in low regen stage");
   const absent=await scene({...safe,variant:"forecastSpendWindow",
    hand:["engineer","archer","tank","sentinel"]});
