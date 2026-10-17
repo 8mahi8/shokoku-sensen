@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/online-bot-fort-concession.yml'
       - 'tests/online-bot-fort-concession.cjs'
+      - 'tests/online-bot-fort-concession-replay.cjs'
       - 'online-game.js'
   workflow_dispatch:
 jobs:
@@ -21,9 +22,12 @@ jobs:
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium
       - run: node tests/online-bot-fort-concession.cjs
+      - run: node tests/online-bot-fort-concession-replay.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: qa-bot-fort-concession
-          path: qa-bot-concede-fort
+          path: |
+            qa-bot-concede-fort
+            qa-bot-concede-fort-replay
           retention-days: 30
