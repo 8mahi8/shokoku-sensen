@@ -452,6 +452,42 @@ function botUse(team,id,x,y){
  if(accepted)botLastAction={team,id,x,y,elapsed:S.elapsed};
  return accepted;
 }
+// QA-only six-second contact forecast. This is a kinematic estimate, not a
+// replacement for combat physics: units may stop to fight sooner than predicted.
+// It reads only visible units, public class stats and real getFort routing.
+function forecastCaptureContact(team,x,y){
+ const target=getFort({team,key:"scout",x,y});
+ if(!target)return {target:null,risk:0,contacts:[]};
+ const toward=(from,to,speed,t)=>{
+  const gap=dist(from,to);
+  const fraction=gap>0?Math.min(1,speed*t/gap):0;
+  return {x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction};
+ };
+ const contacts=[];
+ for(const foe of S.units){
+  if(foe.hp<=0||foe.team===team)continue;
+  const d=CLASSES[foe.key],goal=getFort(foe)||
+   wallTarget(capital(team),foe.homeY??foe.y);
+  let earliest=null,meet=null;
+  for(const t of [2,4,6]){
+   const scout=toward({x,y},target,CLASSES.scout.speed,t);
+   const enemyPoint=d.behavior==="guard"?foe:toward(foe,goal,d.speed,t);
+   if(dist(scout,enemyPoint)<Math.min(d.vision,205)+CLASSES.scout.r+12){
+    earliest=t;meet=enemyPoint;break;
+   }
+  }
+  if(earliest===null)continue;
+  // A nearby existing fighter can contest that contact. Do not count
+  // another capture runner as a dedicated defensive screen.
+  const screened=S.units.some(u=>u.hp>u.max*.4&&u.team===team&&
+   !CLASSES[u.key].capture&&dist(u,meet)<Math.max(105,CLASSES[u.key].range+40)&&
+   (!d.flying||CLASSES[u.key].hitAir));
+  if(screened)continue;
+  const weight=d.damage>=33||d.size==="large"?2:1;
+  contacts.push({key:foe.key,eta:earliest,weight});
+ }
+ return {target,risk:contacts.reduce((n,c)=>n+c.weight,0),contacts};
+}
 function botPreparation(){
  if(!NET.botActive||S.phase!=="prep"||S.botPrepDone||S.prep>8.5)return;
  const x=limit(border(2)+40,40,W-40),fort=S.forts.find(f=>f.x===867),y=fort?.y??210;
@@ -688,6 +724,22 @@ function botExpertAction(team=2){
    .sort((a,b)=>b.enemies.length-a.enemies.length)[0];
   if(unescorted&&spawn("archer",unescorted.f.y,60)){
    surgical("escortCapturer");return true;
+  }
+ }
+ if(qaPolicy==="forecastCapture"&&needFort&&!urgent&&
+  canPay(team,"scout")&&canPay(team,"engineer")){
+  const x=limit(edge+dir*35,40,W-40),y=fort.y;
+  const forecast=forecastCaptureContact(team,x,y);
+  if(event){
+   event.forecastChecks=(event.forecastChecks||0)+1;
+   event.forecastContacts=(event.forecastContacts||0)+forecast.contacts.length;
+  }
+  // Do not sacrifice the existing deep-capture movement rule. A sturdier
+  // engineer is tried only if it will seek the SAME actual objective.
+  if(forecast.risk>=2&&
+   forecast.target===getFort({team,key:"engineer",x,y})&&
+   spawn("engineer",y,35)){
+   surgical("forecastCapture");return true;
   }
  }
  if(qaPolicy==="laneScout"&&needFort&&canPay(team,"scout")){
@@ -1806,7 +1858,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
