@@ -69,7 +69,12 @@ const agg=a=>({
    allies:[{key:"archer",x:895,y:205}]});
   assert.equal(screened.action?.id,"scout","existing frontline fire support avoids overinvestment");
   const unaffordable=await scene({...exposed,variant:"forecastCapture",energy:3});
-  assert.equal(unaffordable.action?.id,"scout","no free resources granted for upgrade");
+  assert.equal(unaffordable.action?.id,"archer",
+   "cannot buy engineer but can legally deploy a cheaper screen");
+  assert.equal(unaffordable.spent,2);
+  const noEnergy=await scene({...exposed,variant:"forecastCapture",energy:1});
+  assert.equal(noEnergy.action,null,"insufficient resources prohibit all purchases");
+  assert.equal(noEnergy.spent,0);
   const noEngineerBase=await scene({...exposed,variant:"baseline",
    hand:["scout","archer","tank","sentinel"]});
   const noEngineer=await scene({...exposed,variant:"forecastCapture",
