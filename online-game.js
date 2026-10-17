@@ -2315,6 +2315,21 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     if(opponentEnergy>=4)opponentEnergyReady4Seconds+=dt;
     if(opponentEnergy>=7)opponentEnergyReady7Seconds+=dt;
     for(const f of S.forts)if(f.owner===1||f.owner===2)duelStats.fortSeconds[f.owner]+=dt;
+    // Observational QA only: did the specific fort get reclaimed after
+    // a real route-checked engineer was deployed? Not proof of causality.
+    for(const observedTeam of [1,2]){
+     const ev=duelStats.decisionEvents[observedTeam];
+     for(const claim of ev.tradeReclaimTargets||[]){
+      if(!claim.recovered&&S.forts[claim.index]?.owner===observedTeam){
+       claim.recovered=true;
+       ev.tradeFortRecovered=(ev.tradeFortRecovered||0)+1;
+       const target=S.forts[claim.index];
+       if(S.units.some(u=>u.team===observedTeam&&u.key==="engineer"&&
+         u.hp>0&&Math.abs(u.x-target.x)<145&&Math.abs(u.y-target.y)<150))
+        ev.tradeRecoveredWithEngineerNear=(ev.tradeRecoveredWithEngineerNear||0)+1;
+      }
+     }
+    }
     for(const team of [1,2]){
      duelStats.energyIntegral[team]+=S.energy[team]*dt;
      const count=S.units.filter(u=>u.team===team).length;
@@ -2470,6 +2485,20 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   };
   spec.enemies.forEach(u=>place(1,u));(spec.allies||[]).forEach(u=>place(2,u));
   botLastAction=null;updateHUD();return true;
+ },
+ progressBotScenario:spec=>{
+  // Localhost-QA-only staged exercise of a held reserve. No public UI path.
+  if(!NET.isSolo||S.phase!=="battle"||!spec||
+   !Number.isFinite(spec.elapsed)||spec.elapsed<S.elapsed||spec.elapsed>300||
+   !Number.isFinite(spec.energy)||spec.energy<0||spec.energy>ENERGY_CAP||
+   !Array.isArray(spec.fortOwners)||spec.fortOwners.length!==3||
+   spec.fortOwners.some(owner=>![0,1,2].includes(owner)))return false;
+  S.elapsed=spec.elapsed;S.seconds=MATCH-S.elapsed;
+  S.energy[2]=spec.energy;
+  S.observedEnergy[2]=spec.energy;
+  S.forts.forEach((f,i)=>{f.owner=spec.fortOwners[i];f.hp=POST_HP;});
+  updateHUD();
+  return true;
  },
  runBotOnce:()=>{
   if(!NET.isSolo||S.phase!=="battle")return null;
