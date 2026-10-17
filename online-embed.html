@@ -1338,6 +1338,9 @@ function playCard(team,id,x,y){
   duelStats.actions[team]++;
   duelStats.spent[team]+=CATALOG[id].cost;
   duelStats.cards[team][id]=(duelStats.cards[team][id]||0)+1;
+  // Non-invasive localhost battle-spend ledger for episode outcomes.
+  if(duelStats.actionLedger)
+   duelStats.actionLedger.push({at:S.elapsed,team,id,cost:CATALOG[id].cost});
  }
  return ok;
 }
@@ -1977,9 +1980,21 @@ function botExpertAction(team=2){
     else event.riskPassed=(event.riskPassed||0)+1;
    }
    if(attackers.length>=2&&alliedDefense.length===0&&eta<=8&&castleSafe){
+    const objectiveIndex=S.forts.indexOf(threatenedFort);
     qaConcedePlans[team]={active:true,start:S.elapsed,card:reserve,
-     deadline:S.elapsed+11,y:threatenedFort.y,
-     fortIndex:S.forts.indexOf(threatenedFort)};
+     deadline:S.elapsed+11,y:threatenedFort.y,fortIndex:objectiveIndex};
+    if(duelStats?.counterEpisodes){
+     duelStats.counterEpisodes.push({
+      team,variant:qaPolicy,start:S.elapsed,fortIndex:objectiveIndex,
+      reserve,energyStart:power,ownedFortsStart:S.forts.filter(f=>f.owner===team).length,
+      fastAttackersStart:attackers.filter(u=>CLASSES[u.key].speed>=30).length,
+      enemiesStart:foes.length,castleHpStart:capital(team).hp,
+      enemyCastleHpStart:capital(3-team).hp,fortControl15:0,fortControl30:0,
+      castleDamage15:null,castleDamage30:null,
+      enemyCastleDamage15:null,enemyCastleDamage30:null,
+      ownedAt15:null,ownedAt30:null,firstLoss:null,firstRecapture:null
+     });
+    }
     concessionHold=true;
     if(event){
      event.concedeStarted=(event.concedeStarted||0)+1;
@@ -3429,7 +3444,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
      tankFundedOpportunity:0,tankDeferredByCheapPlay:0,
      enemyResourceWindow:0,samples:[]}:null),
     cards:[null,{},{}],fortSeconds:[0,0,0],energyIntegral:[0,0,0],maxUnits:[0,0,0],
-    fortLossRecords:[]};
+    fortLossRecords:[],actionLedger:[],counterEpisodes:[]};
    qaBotVariants=[null,"baseline","baseline"];
    if(variantTeam)qaBotVariants[variantTeam]=variant;
    resetWorld();S.phase="battle";S.prep=0;S.speed=1;S.difficulty=difficulty;
@@ -3565,6 +3580,26 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
      if(rec.regainSeconds===null&&S.forts[rec.fortIndex].owner===rec.team)
       rec.regainSeconds=age;
     }
+    // Post-plan real-engine 15/30s outcome windows; policy never reads this.
+    for(const ep of duelStats.counterEpisodes){
+     const age=S.elapsed-ep.start;
+     if(age<0||age>30+dt)continue;
+     const held=S.forts[ep.fortIndex]?.owner===ep.team;
+     if(age<=15+dt*.5&&held)ep.fortControl15+=dt;
+     if(age<=30+dt*.5&&held)ep.fortControl30+=dt;
+     if(!held&&ep.firstLoss===null)ep.firstLoss=age;
+     if(held&&ep.firstLoss!==null&&ep.firstRecapture===null)ep.firstRecapture=age;
+     if(age>=15&&ep.castleDamage15===null){
+      ep.castleDamage15=Math.max(0,ep.castleHpStart-capital(ep.team).hp);
+      ep.enemyCastleDamage15=Math.max(0,ep.enemyCastleHpStart-capital(3-ep.team).hp);
+      ep.ownedAt15=held;
+     }
+     if(age>=30&&ep.castleDamage30===null){
+      ep.castleDamage30=Math.max(0,ep.castleHpStart-capital(ep.team).hp);
+      ep.enemyCastleDamage30=Math.max(0,ep.enemyCastleHpStart-capital(3-ep.team).hp);
+      ep.ownedAt30=held;
+     }
+    }
     const opponentEnergy=S.observedEnergy[scriptedTeam];
     opponentEnergyPeak=Math.max(opponentEnergyPeak,opponentEnergy);
     if(opponentEnergy>=4)opponentEnergyReady4Seconds+=dt;
@@ -3608,6 +3643,18 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     cards:duelStats.cards.map(v=>v&&{...v}),
     fortSeconds:duelStats.fortSeconds.slice(),
     fortLossRecords:duelStats.fortLossRecords.map(r=>({...r})),
+    counterEpisodes:duelStats.counterEpisodes.map(ep=>{
+     const hostile=duelStats.actionLedger.filter(a=>a.team!==ep.team&&a.at>ep.start);
+     const prior=t=>hostile.filter(a=>a.at<=ep.start+t+1e-6);
+     const a15=prior(15),a30=prior(30),cost=a=>a.reduce((s,x)=>s+x.cost,0);
+     return {...ep,fortControl15:+ep.fortControl15.toFixed(2),
+      fortControl30:+ep.fortControl30.toFixed(2),
+      observedSeconds:Math.min(30,Math.max(0,elapsed-ep.start)),
+      enemyPlays15:ep.castleDamage15===null?null:a15.length,
+      enemyPlays30:ep.castleDamage30===null?null:a30.length,
+      enemySpend15:ep.castleDamage15===null?null:cost(a15),
+      enemySpend30:ep.castleDamage30===null?null:cost(a30)};
+    }),
     avgEnergy:duelStats.energyIntegral.map((v,i)=>i?v/Math.max(.0001,elapsed):0),
     maxUnits:duelStats.maxUnits.slice(),
     finished:S.phase==="result"};
