@@ -726,20 +726,40 @@ function botExpertAction(team=2){
    surgical("escortCapturer");return true;
   }
  }
- if(qaPolicy==="forecastCapture"&&needFort&&!urgent&&
-  canPay(team,"scout")&&canPay(team,"engineer")){
-  const x=limit(edge+dir*35,40,W-40),y=fort.y;
-  const forecast=forecastCaptureContact(team,x,y);
+ if(qaPolicy==="forecastCapture"&&!urgent&&fort){
+  // Instrument the entire eligibility funnel, including turns where energy
+  // or the current hand make the proposed intervention impossible.
+  const scoutReady=canPay(team,"scout");
+  const engineerReady=canPay(team,"engineer");
+  const archerReady=canPay(team,"archer");
   if(event){
-   event.forecastChecks=(event.forecastChecks||0)+1;
-   event.forecastContacts=(event.forecastContacts||0)+forecast.contacts.length;
+   event.forecastObserved=(event.forecastObserved||0)+1;
+   event.forecastNeedFort=(event.forecastNeedFort||0)+(needFort?1:0);
+   event.forecastScoutReady=(event.forecastScoutReady||0)+(needFort&&scoutReady?1:0);
+   event.forecastEngineerReady=(event.forecastEngineerReady||0)+(needFort&&engineerReady?1:0);
+   event.forecastArcherReady=(event.forecastArcherReady||0)+(needFort&&archerReady?1:0);
   }
-  // Do not sacrifice the existing deep-capture movement rule. A sturdier
-  // engineer is tried only if it will seek the SAME actual objective.
-  if(forecast.risk>=2&&
-   forecast.target===getFort({team,key:"engineer",x,y})&&
-   spawn("engineer",y,35)){
-   surgical("forecastCapture");return true;
+  if(needFort&&(scoutReady||engineerReady||archerReady)){
+   const x=limit(edge+dir*35,40,W-40),y=fort.y;
+   const forecast=forecastCaptureContact(team,x,y);
+   if(event){
+    event.forecastChecks=(event.forecastChecks||0)+1;
+    event.forecastContacts=(event.forecastContacts||0)+forecast.contacts.length;
+    event.forecastRisky=(event.forecastRisky||0)+(forecast.risk>=2?1:0);
+   }
+   if(forecast.risk>=2){
+    // A sturdy capture unit must go to the same target as the scout.
+    if(scoutReady&&engineerReady&&
+     forecast.target===getFort({team,key:"engineer",x,y})&&
+     spawn("engineer",y,35)){
+     surgical("forecastCapture");return true;
+    }
+    // If the tougher worker is not ready, establish a ranged screen before
+    // feeding a vulnerable scout into the predicted contact lane.
+    if(scoutReady&&archerReady&&spawn("archer",y,60)){
+     surgical("forecastScreen");return true;
+    }
+   }
   }
  }
  if(qaPolicy==="laneScout"&&needFort&&canPay(team,"scout")){

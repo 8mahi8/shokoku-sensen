@@ -24,6 +24,13 @@ const agg=a=>({
  triggers:sum(a,x=>x.triggers),
  forecastChecks:sum(a,x=>x.checks),
  forecastContacts:sum(a,x=>x.contacts),
+ forecastObserved:sum(a,x=>x.observed),
+ forecastNeedFort:sum(a,x=>x.needFort),
+ forecastScoutReady:sum(a,x=>x.scoutReady),
+ forecastEngineerReady:sum(a,x=>x.engineerReady),
+ forecastArcherReady:sum(a,x=>x.archerReady),
+ forecastRisky:sum(a,x=>x.risky),
+ forecastScreens:sum(a,x=>x.screens),
  cardsChanged:a.filter(x=>JSON.stringify(x.cards)!==JSON.stringify(x.baseCards)).length,
  enemyCastleDamageDelta:mean(a,x=>x.enemyDamage-x.baseEnemyDamage),
  ownCastleHpDelta:mean(a,x=>x.ownHp-x.baseOwnHp),
@@ -63,9 +70,13 @@ const agg=a=>({
   assert.equal(screened.action?.id,"scout","existing frontline fire support avoids overinvestment");
   const unaffordable=await scene({...exposed,variant:"forecastCapture",energy:3});
   assert.equal(unaffordable.action?.id,"scout","no free resources granted for upgrade");
+  const noEngineerBase=await scene({...exposed,variant:"baseline",
+   hand:["scout","archer","tank","sentinel"]});
   const noEngineer=await scene({...exposed,variant:"forecastCapture",
    hand:["scout","archer","tank","sentinel"]});
-  assert.equal(noEngineer.action?.id,"scout","non-held cards are never used");
+  assert.equal(noEngineerBase.action?.id,"scout");
+  assert.equal(noEngineer.action?.id,"archer","forecast screens an exposed capture wave");
+  assert.equal(noEngineer.spent,2,"screen pays normal archer cost");
   const run=(q,v="baseline")=>page.evaluate(x=>
    window.__shokokuQa.runDuel(x.seed,x.style,"hard",x.team,"standard",x.mirror,
     x.variant==="baseline"?0:x.team,x.variant),{...q,variant:v});
@@ -87,6 +98,10 @@ const agg=a=>({
      delta:point(trial,team)-point(base,team),
      triggers:events.surgicalChoices?.forecastCapture||0,
      checks:events.forecastChecks||0,contacts:events.forecastContacts||0,
+     observed:events.forecastObserved||0,needFort:events.forecastNeedFort||0,
+     scoutReady:events.forecastScoutReady||0,engineerReady:events.forecastEngineerReady||0,
+     archerReady:events.forecastArcherReady||0,risky:events.forecastRisky||0,
+     screens:events.surgicalChoices?.forecastScreen||0,
      cards:trial.cards[team],baseCards:base.cards[team],
      ownHp:trial.castleHp[team],baseOwnHp:base.castleHp[team],
      enemyDamage:trial.damage[3-team],baseEnemyDamage:base.damage[3-team],
@@ -96,7 +111,7 @@ const agg=a=>({
   assert.equal(rows.length,30);
   assert.deepEqual(errors,[],"no browser exceptions");
   const summary={kind:"Train-only forecast capture A/B",seeds,totalGames:60,
-   scenarios:{danger:"engineer",safe:"scout",screened:"scout",resource:"scout",hand:"scout"},
+   scenarios:{danger:"engineer",safe:"scout",screened:"scout",resource:"scout",hand:"archer"},
    overall:agg(rows),
    byTeam:Object.fromEntries(teams.map(t=>[t,agg(rows.filter(r=>r.team===t))])),
    byStyle:Object.fromEntries(styles.map(s=>[s,agg(rows.filter(r=>r.style===s))])),
