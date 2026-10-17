@@ -1,0 +1,29 @@
+name: BOT infantry opening value QA
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/workflows/online-bot-infantry-value.yml'
+      - 'tests/online-bot-infantry-value.cjs'
+      - 'online-game.js'
+  workflow_dispatch:
+jobs:
+  infantry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/online-bot-infantry-value.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-infantry-value
+          path: qa-bot-infantry-value
+          retention-days: 30
