@@ -19,6 +19,7 @@ on:
       - 'tests/online-bot-objectives.cjs'
       - 'tests/online-bot-surgical.cjs'
       - 'tests/online-bot-lane-replay.cjs'
+      - 'tests/online-bot-forecast.cjs'
       - 'online-embed.html'
       - 'online-game.js'
       - 'online-ipad.html'
@@ -52,6 +53,7 @@ jobs:
       - run: node tests/online-bot-objectives.cjs
       - run: node tests/online-bot-surgical.cjs
       - run: node tests/online-bot-lane-replay.cjs
+      - run: node tests/online-bot-forecast.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -72,4 +74,5 @@ jobs:
             qa-bot-objectives
             qa-bot-surgical
             qa-bot-lane-replay
+            qa-bot-forecast
           retention-days: 30
