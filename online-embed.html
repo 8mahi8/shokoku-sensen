@@ -1944,6 +1944,36 @@ function botExpertAction(team=2){
  }
  // QA-only 2-cost infantry as a real capture alternative for a stranded
  // four-card hand. No hidden opponent state, no movement change.
+ // QA-only opponent-cost gate: this handless infantry diversion only
+ // makes sense when publicly estimated enemy counterplay is unfunded.
+ if(qaPolicy==="captureSpendGate"&&!urgent&&fort&&power>=2&&
+    power<4&&S.elapsed<130){
+  if(event)event.spendGateConsidered=(event.spendGateConsidered||0)+1;
+  const assigned=friends.some(u=>CLASSES[u.key].capture&&
+   (getFort(u)===fort||Math.abs(u.y-fort.y)<135&&
+    Math.abs(u.x-fort.x)<250));
+  const affordable=S.hand[team].some(id=>canPay(team,id));
+  const minCost=S.hand[team].filter(id=>availableCard(team,id))
+   .reduce((best,id)=>Math.min(best,CATALOG[id].cost),Infinity);
+  const eta=secondsUntilAffordable(power,minCost);
+  const unsafe=foes.some(u=>Math.abs(u.y-fort.y)<145&&
+   (Math.abs(u.x-fort.x)<200||Math.abs(u.x-edge)<230));
+  const heavyVisible=foes.some(u=>CLASSES[u.key].size==="large");
+  const enemyCanCounter=opposingPower>=4||enemyReady7<=9;
+  const candidate=!assigned&&!affordable&&minCost<=5&&eta>=3&&!unsafe;
+  if(event){
+   event.spendGateOpportunity=(event.spendGateOpportunity||0)+(candidate?1:0);
+   event.spendGateEnemyFunds=(event.spendGateEnemyFunds||0)+
+    (candidate&&enemyCanCounter?1:0);
+   event.spendGateHeavyVisible=(event.spendGateHeavyVisible||0)+
+    (candidate&&heavyVisible?1:0);
+  }
+  if(candidate&&!enemyCanCounter&&!heavyVisible&&
+     spawn("infantry",fort.y,35)){
+   if(event)event.spendGatePlayed=(event.spendGatePlayed||0)+1;
+   return true;
+  }
+ }
  if(qaPolicy==="captureTempoInfantry"&&!urgent&&fort&&power>=2&&
     S.elapsed<130){
   if(event)event.captureTempoConsidered=(event.captureTempoConsidered||0)+1;
@@ -3181,7 +3211,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
