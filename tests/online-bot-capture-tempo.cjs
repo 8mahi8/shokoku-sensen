@@ -87,7 +87,6 @@ const agg=a=>({pairs:a.length,improved:a.filter(r=>r.delta>0).length,
      fortTime:next.fortSeconds[team],baseFortTime:base.fortSeconds[team],
      spent:next.spent[team],baseSpent:base.spent[team]});
    }
-  }
   assert.equal(rows.length,30);assert.deepEqual(errors,[]);
   const summary={kind:"Known-train-seed early affordable infantry tempo",
    seeds,baselineGames:30,trialGames:30,overall:agg(rows),
