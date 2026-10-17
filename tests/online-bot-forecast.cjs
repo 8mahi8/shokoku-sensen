@@ -116,7 +116,7 @@ const agg=a=>({
   assert.equal(rows.length,30);
   assert.deepEqual(errors,[],"no browser exceptions");
   const summary={kind:"Train-only forecast capture A/B",seeds,totalGames:60,
-   scenarios:{danger:"engineer",safe:"scout",screened:"scout",resource:"scout",hand:"archer"},
+   scenarios:{danger:"engineer",safe:"scout",screened:"scout",resource:"archer",hand:"archer",exhausted:"none"},
    overall:agg(rows),
    byTeam:Object.fromEntries(teams.map(t=>[t,agg(rows.filter(r=>r.team===t))])),
    byStyle:Object.fromEntries(styles.map(s=>[s,agg(rows.filter(r=>r.style===s))])),
