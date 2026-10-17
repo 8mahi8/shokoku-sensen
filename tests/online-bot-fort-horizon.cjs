@@ -1,0 +1,138 @@
+"use strict";
+// Real 30Hz complete battles, including opponent's legal summons.
+// 15/30s tactical episodes are observational, not causal comparisons.
+const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),
+ http=require("node:http"),{chromium}=require("playwright");
+const root=process.cwd(),out="qa-bot-trade-horizon";fs.mkdirSync(out,{recursive:true});
+const server=http.createServer((req,res)=>{
+ const file=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
+ if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){
+  res.writeHead(404);res.end("404");return;
+ }
+ res.setHeader("Content-Type",file.endsWith(".js")?"text/javascript; charset=utf-8":"text/html; charset=utf-8");
+ fs.createReadStream(file).pipe(res);
+});
+const seeds=[17,41,73,101,131,163],sides=[1,2],
+ styles=["self","rush","balanced","fortress","banker"],
+ variants=["baseline","fortTradeReclaim","fortDefenseValue"];
+const score=(g,t)=>g.winner===0?.5:g.winner===t?1:0;
+const sum=(a,f)=>a.reduce((n,x)=>n+f(x),0);
+const avg=(a,f)=>a.length?sum(a,f)/a.length:null;
+const metric=(rows)=>{
+ const eps=rows.flatMap(r=>r.episodes),e15=eps.filter(e=>e.castleDamage15!==null),
+  e30=eps.filter(e=>e.castleDamage30!==null);
+ const median=(a,f)=>{if(!a.length)return null;const z=a.map(f).sort((a,b)=>a-b);return z[Math.floor(z.length/2)]};
+ const delta=(a,b,f)=>avg(rows,r=>f(r[a])-f(r[b]));
+ return {matches:rows.length,episodes:eps.length,complete15:e15.length,complete30:e30.length,
+  reserveSentinel:eps.filter(e=>e.reserve==="sentinel").length,
+  reserveEngineer:eps.filter(e=>e.reserve==="engineer").length,
+  meanOwnCastleLoss15:avg(e15,e=>e.castleDamage15),
+  meanOwnCastleLoss30:avg(e30,e=>e.castleDamage30),
+  meanEnemyCastleLoss15:avg(e15,e=>e.enemyCastleDamage15),
+  meanEnemyCastleLoss30:avg(e30,e=>e.enemyCastleDamage30),
+  meanFortControl15:avg(e15,e=>e.fortControl15),
+  meanFortControl30:avg(e30,e=>e.fortControl30),
+  lostWithin30:e30.filter(e=>e.firstLoss!==null).length,
+  regainedWithin30:e30.filter(e=>e.firstRecapture!==null).length,
+  meanEnemyPlays15:avg(e15,e=>e.enemyPlays15),
+  meanEnemyPlays30:avg(e30,e=>e.enemyPlays30),
+  meanEnemySpend15:avg(e15,e=>e.enemySpend15),
+  meanEnemySpend30:avg(e30,e=>e.enemySpend30),
+  reinforced15:e15.filter(e=>e.enemyPlays15>0).length,
+  reinforced30:e30.filter(e=>e.enemyPlays30>0).length,
+  withReinforcementsDamage30:avg(e30.filter(e=>e.enemyPlays30>0),e=>e.castleDamage30),
+  withoutReinforcementsDamage30:avg(e30.filter(e=>e.enemyPlays30===0),e=>e.castleDamage30),
+  medianStartingEnergy:median(eps,e=>e.energyStart),
+  winDeltaValueVsTrade:sum(rows,r=>score(r.value,r.team)-score(r.trade,r.team)),
+  winsValueVsTrade:rows.filter(r=>score(r.value,r.team)>score(r.trade,r.team)).length,
+  lossesValueVsTrade:rows.filter(r=>score(r.value,r.team)<score(r.trade,r.team)).length,
+  winDeltaValueVsBaseline:sum(rows,r=>score(r.value,r.team)-score(r.base,r.team)),
+  ownHpDiffValueTrade:delta("value","trade",g=>g.castleHp[rows[0]?.team||1]),
+  enemyDamageDiffValueTrade:avg(rows,r=>r.value.damage[3-r.team]-r.trade.damage[3-r.team]),
+  fortTimeDiffValueTrade:avg(rows,r=>r.value.fortSeconds[r.team]-r.trade.fortSeconds[r.team])
+ };
+};
+(async()=>{
+ let browser;
+ try{
+  await new Promise(ok=>server.listen(8835,"127.0.0.1",ok));
+  browser=await chromium.launch({headless:true});
+  const page=await browser.newPage({viewport:{width:1194,height:834}});
+  const errors=[];page.on("pageerror",e=>errors.push(e.message));
+  await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
+  await page.goto("http://127.0.0.1:8835/online.html?qa=1",{waitUntil:"domcontentloaded"});
+  await page.locator("#netSolo").click();
+  await page.waitForFunction(()=>window.__shokokuQa?.snapshot().phase==="prep");
+  const run=(q,v)=>page.evaluate(x=>window.__shokokuQa.runDuel(x.seed,x.style,"hard",
+   x.team,x.cadence,x.mirror,x.variant==="baseline"?0:x.team,x.variant),{...q,variant:v});
+  const rows=[];
+  for(const seed of seeds)for(const team of sides)for(const style of styles){
+   const settings=style==="self"?
+    [{mirror:false,cadence:"standard"},{mirror:true,cadence:"standard"}]:
+    [{mirror:false,cadence:"standard"},{mirror:false,cadence:"fast"}];
+   for(const s of settings){
+    const q={seed,team,style,...s};
+    const base=await run(q,"baseline"),trade=await run(q,"fortTradeReclaim"),
+     value=await run(q,"fortDefenseValue");
+    for(const g of [base,trade,value]){
+     assert.ok(g?.finished&&Array.isArray(g.counterEpisodes),
+      "real 30Hz match and episode instrument must finish");
+     assert.ok(Math.abs(g.energyActual[team]-g.energyEstimated[team])<1e-6);
+    }
+    assert.deepEqual(base.initialHand,trade.initialHand);
+    assert.deepEqual(base.openingQueue,trade.openingQueue);
+    assert.deepEqual(base.initialHand,value.initialHand);
+    assert.deepEqual(base.openingQueue,value.openingQueue);
+    assert.equal(base.counterEpisodes.length,0,"regular BOT never silently creates concession plans");
+    for(const g of [trade,value])for(const e of g.counterEpisodes){
+     assert.equal(e.team,team);
+     assert.ok(e.start>=20&&e.start<=235);
+     assert.ok(e.energyStart>=2&&e.energyStart<4);
+     assert.ok(e.fortControl15>=0&&e.fortControl15<=15.1);
+     assert.ok(e.fortControl30>=0&&e.fortControl30<=30.1);
+     assert.ok(e.castleDamage15===null||e.castleDamage15>=0);
+     assert.ok(e.castleDamage30===null||e.castleDamage30>=0);
+     assert.ok(e.firstRecapture===null||e.firstLoss!==null);
+     if(e.castleDamage30!==null){
+      assert.ok(e.castleDamage15!==null,"30 sec requires a completed 15 sec");
+      assert.ok(e.enemyPlays30>=e.enemyPlays15);
+      assert.ok(e.enemySpend30>=e.enemySpend15);
+      assert.ok(e.castleDamage30>=e.castleDamage15);
+     }
+    }
+    rows.push({...q,
+     base:{winner:base.winner,castleHp:base.castleHp,damage:base.damage,fortSeconds:base.fortSeconds},
+     trade:{winner:trade.winner,castleHp:trade.castleHp,damage:trade.damage,
+      fortSeconds:trade.fortSeconds},
+     value:{winner:value.winner,castleHp:value.castleHp,damage:value.damage,
+      fortSeconds:value.fortSeconds},
+     episodes:[...trade.counterEpisodes,...value.counterEpisodes],
+     tradeEpisodes:trade.counterEpisodes,valueEpisodes:value.counterEpisodes});
+   }
+  }
+  assert.equal(rows.length,120);
+  assert.deepEqual(errors,[]);
+  const data=rows.flatMap(r=>r.episodes.map(e=>({...e,seed:r.seed,team:r.team,
+   style:r.style,cadence:r.cadence,mirror:r.mirror})));
+  const report={kind:"Observed matched full-duel fort-trade 15/30-second outcomes with actual opponent spawns",
+   seeds,pairedCases:120,fullGames:360,episodes:data.length,variants,
+   overall:metric(rows),
+   byVariant:Object.fromEntries(variants.slice(1).map(v=>[v,
+    metric(rows.map(r=>({...r,episodes:r[v==="fortDefenseValue"?"valueEpisodes":"tradeEpisodes"]})))])),
+   byTeam:Object.fromEntries(sides.map(t=>[t,metric(rows.filter(r=>r.team===t))])),
+   byStyle:Object.fromEntries(styles.map(s=>[s,metric(rows.filter(r=>r.style===s))])),
+   byReserve:Object.fromEntries(["engineer","sentinel"].map(k=>[k,
+    metric(rows.map(r=>({...r,episodes:r.episodes.filter(e=>e.reserve===k)})))])),
+   caveats:["Opponent actions are real in-game plays, including both scripted and hard-BOT reinforcement.",
+    "Episodes are endogenous decisions; compare 15/30s observations descriptively, NOT as if randomized.",
+    "Truncated horizons are excluded separately for each endpoint.",
+    "Matched full-game results are paired by exact seed, team, opponent style and cadence.",
+    "All six seeds were previously explored; independent holdout untouched.",
+    "Primary objective is castle survival, followed by actionable fort control and attack tempo.",
+    "No change was made to the live standard BOT, combat rules, or main branch."]};
+  fs.writeFileSync(path.join(out,"episodes.json"),JSON.stringify(data,null,2));
+  fs.writeFileSync(path.join(out,"matches.json"),JSON.stringify(rows,null,2));
+  fs.writeFileSync(path.join(out,"summary.json"),JSON.stringify(report,null,2));
+  console.log("FORT HORIZON SUMMARY",JSON.stringify(report));
+ }finally{if(browser)await browser.close();await new Promise(ok=>server.close(ok));}
+})().catch(e=>{console.error(e);process.exitCode=1});
