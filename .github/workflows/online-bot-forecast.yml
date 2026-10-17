@@ -9,6 +9,7 @@ on:
       - 'tests/online-bot-early-screen.cjs'
       - 'tests/online-bot-opportunity-map.cjs'
       - 'tests/online-bot-early-screen-replay.cjs'
+      - 'tests/online-bot-capture-tempo.cjs'
       - 'online-game.js'
       - 'online-net.js'
       - 'online.html'
@@ -31,6 +32,7 @@ jobs:
       - run: node tests/online-bot-early-screen.cjs
       - run: node tests/online-bot-opportunity-map.cjs
       - run: node tests/online-bot-early-screen-replay.cjs
+      - run: node tests/online-bot-capture-tempo.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -41,4 +43,5 @@ jobs:
             qa-bot-early-screen
             qa-bot-opportunity-map
             qa-bot-early-screen-replay
+            qa-bot-capture-tempo
           retention-days: 30

@@ -1940,6 +1940,28 @@ function botExpertAction(team=2){
    }
   }
  }
+ // QA-only 2-cost infantry as a real capture alternative for a stranded
+ // four-card hand. No hidden opponent state, no movement change.
+ if(qaPolicy==="captureTempoInfantry"&&!urgent&&fort&&power>=2&&
+    S.elapsed<130){
+  if(event)event.captureTempoConsidered=(event.captureTempoConsidered||0)+1;
+  const deployed=friends.some(u=>CLASSES[u.key].capture&&
+   (getFort(u)===fort||Math.abs(u.y-fort.y)<135&&
+    Math.abs(u.x-fort.x)<250));
+  const handPlayable=S.hand[team].some(id=>canPay(team,id));
+  const cheapest=S.hand[team].filter(id=>availableCard(team,id))
+   .reduce((best,id)=>Math.min(best,CATALOG[id].cost),Infinity);
+  const wait=secondsUntilAffordable(power,cheapest);
+  if(event&&!handPlayable&&wait>=3)
+   event.captureTempoWindow=(event.captureTempoWindow||0)+1;
+  const unsafe=foes.some(u=>Math.abs(u.y-fort.y)<145&&
+   (Math.abs(u.x-fort.x)<200||Math.abs(u.x-edge)<230));
+  if(!deployed&&!handPlayable&&wait>=3&&!unsafe&&
+   spawn("infantry",fort.y,35)){
+   if(event)event.captureTempoPlayed=(event.captureTempoPlayed||0)+1;
+   return true;
+  }
+ }
  if(qaPolicy==="forecastSpendWindow"){
   const previous=qaWindowPlans[team];
   if(previous&&S.elapsed>previous.deadline){
@@ -3157,7 +3179,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
