@@ -3730,6 +3730,68 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   updateHUD();
   return true;
  },
+ // Localhost-only deterministic 30Hz counterfactual from an identical
+ // threatened-fort scene. This is an isolation test, not a full game winner.
+ simulateFortDecision:(seed,spec,variant="baseline",duration=45)=>{
+  if(!NET.isSolo||!Number.isInteger(seed)||seed<1||seed>2147483647||
+   !["baseline","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine"].includes(variant)||
+   !spec||!Array.isArray(spec.hand)||spec.hand.length!==4||
+   !spec.hand.every(id=>DECK_IDS.includes(id))||
+   !Array.isArray(spec.enemies)||spec.enemies.length>15||
+   !spec.enemies.every(u=>CLASSES[u.key]&&Number.isFinite(u.x)&&Number.isFinite(u.y))||
+   !Array.isArray(spec.fortOwners)||spec.fortOwners.length!==3||
+   spec.fortOwners.some(v=>![0,1,2].includes(v))||
+   (spec.allies&&!Array.isArray(spec.allies))||
+   !Number.isFinite(spec.energy)||spec.energy<0||spec.energy>ENERGY_CAP||
+   !Number.isFinite(duration)||duration<5||duration>60)return null;
+  const oldRandom=Math.random,oldStats=duelStats,oldVariants=qaBotVariants;
+  let state=seed>>>0;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+  try{
+   duelStats=null;
+   if(!window.__shokokuQa.setBotScenario({...spec,variant}))return null;
+   S.seconds=MATCH-S.elapsed;S.botThink=99999;
+   const fortIndex=spec.fortOwners.findIndex(v=>v===2);
+   if(fortIndex<0)return null;
+   const owned=S.forts.map(f=>f.owner);
+   const startHp=capital(2).hp,startEnemyHp=capital(1).hp;
+   const dt=1/30,steps=Math.round(duration/dt);
+   let controlled=0,lost=false,recaptured=false,enemyEntered=false;
+   let firstCastleDamage=null,firstCastleRaider=null,actual=0,peakOwnUnits=0;
+   const actions=[],snapshots=[];
+   for(let step=0;step<steps&&S.phase==="battle";step++){
+    if(step%45===0){
+     const initial=S.energy[2];botLastAction=null;botExpertAction(2);
+     if(initial>S.energy[2]+.001)
+      actions.push({time:+(step*dt).toFixed(2),card:botLastAction?.id||null,
+       cost:+(initial-S.energy[2]).toFixed(2)});
+    }
+    tick(dt);
+    actual++;
+    if(S.forts[fortIndex].owner===2)controlled+=dt;
+    if(S.forts[fortIndex].owner!==2)lost=true;
+    if(lost&&S.forts[fortIndex].owner===2)recaptured=true;
+    if(S.units.some(u=>u.team===1&&u.hp>0&&u.x>WALL_FACE[2]-180)){
+     enemyEntered=true;
+     if(firstCastleRaider===null)firstCastleRaider=+(step*dt).toFixed(2);
+    }
+    if(firstCastleDamage===null&&capital(2).hp<startHp-.001)
+     firstCastleDamage=+(step*dt).toFixed(2);
+    peakOwnUnits=Math.max(peakOwnUnits,S.units.filter(u=>u.team===2&&u.hp>0).length);
+    if(step%300===299)snapshots.push({at:+((step+1)*dt).toFixed(1),
+     hp:capital(2).hp,fortOwner:S.forts[fortIndex].owner,
+     energy:+S.energy[2].toFixed(2)});
+    for(const t of [1,2])if(!Number.isFinite(S.energy[t])||
+     S.energy[t]<0||S.energy[t]>ENERGY_CAP+.001)throw Error("counterfactual invalid economy");
+   }
+   return {seed,variant,duration,elapsed:actual*dt,
+    openingFortOwners:owned,fortIndex,controlledSeconds:controlled,lost,recaptured,
+    castleDamage:startHp-capital(2).hp,enemyCastleDamage:startEnemyHp-capital(1).hp,
+    ownCastleHp:capital(2).hp,enemyEntered,firstCastleRaider,firstCastleDamage,
+    ownLivingUnits:S.units.filter(u=>u.team===2&&u.hp>0).length,
+    peakOwnUnits,energy:S.energy[2],actions,snapshots,seeded:true};
+  }finally{duelStats=oldStats;qaBotVariants=oldVariants;Math.random=oldRandom;}
+ },
  runBotOnce:()=>{
   if(!NET.isSolo||S.phase!=="battle")return null;
   const initial=S.energy[2],acted=botExpertAction();
