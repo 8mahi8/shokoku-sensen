@@ -1231,7 +1231,7 @@ const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elap
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
- S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
+ S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  // The same randomized deck on both teams preserves symmetrical card access.
@@ -1586,9 +1586,23 @@ let duelStats=null;
 let qaBotVariants=[null,"baseline","baseline"];
 // Persist an explicit plan only for the QA experimental policy. Never shipped.
 let qaSiegePlans=[null,null,null];
+// QA-only bounded affordability-window plans; never used by the regular BOT.
+let qaWindowPlans=[null,null,null];
 function botUse(team,id,x,y){
  const accepted=playCard(team,id,x,y);
- if(accepted)botLastAction={team,id,x,y,elapsed:S.elapsed};
+ if(accepted){
+  botLastAction={team,id,x,y,elapsed:S.elapsed};
+  // Measure whether a short wait yielded the intended capture card.
+  // This accounting only runs in localhost QA duels.
+  const plan=qaBotVariants[team]==="forecastSpendWindow"?qaWindowPlans[team]:null;
+  if(plan){
+   const ev=duelStats?.decisionEvents?.[team];
+   const key=S.elapsed>plan.deadline?"windowExpired":
+    id==="scout"?"windowScoutAfterWait":"windowInterrupted";
+   if(ev)ev[key]=(ev[key]||0)+1;
+   qaWindowPlans[team]=null;
+  }
+ }
  return accepted;
 }
 // QA-only six-second contact forecast. This is a kinematic estimate, not a
@@ -1839,6 +1853,49 @@ function botExpertAction(team=2){
   const counts=event.surgicalChoices||(event.surgicalChoices={});
   counts[reason]=(counts[reason]||0)+1;
  }};
+ // QA-only short affordability window. Unlike a 7-cost giant saving plan,
+ // this requires a scout ALREADY in our four-card hand (not hidden in the
+ // queue), a real unclaimed fort, and at most 2.5s to three energy.
+ // If forecast contacts are likely, immediately fall back to normal tactics.
+ if(qaPolicy==="forecastSpendWindow"){
+  const previous=qaWindowPlans[team];
+  if(previous&&S.elapsed>previous.deadline){
+   if(event)event.windowExpired=(event.windowExpired||0)+1;
+   qaWindowPlans[team]=null;
+  }
+  if(event){
+   event.windowDecisions=(event.windowDecisions||0)+1;
+   event.windowNeedFort=(event.windowNeedFort||0)+(needFort?1:0);
+   event.windowScoutInHand=(event.windowScoutInHand||0)+
+    (needFort&&availableCard(team,"scout")?1:0);
+   event.windowScoutInQueue=(event.windowScoutInQueue||0)+
+    (needFort&&S.queue[team].includes("scout")?1:0);
+  }
+  if(needFort&&!urgent&&availableCard(team,"scout")&&
+   power>=2&&power<CLASSES.scout.cost){
+   const eta=secondsUntilAffordable(power,CLASSES.scout.cost);
+   if(event){
+    event.windowAffordableSoon=(event.windowAffordableSoon||0)+(eta<=2.5?1:0);
+   }
+   if(eta<=2.5){
+    const x=limit(edge+dir*35,40,W-40),forecast=forecastCaptureContact(team,x,fort.y);
+    const nearby=foes.some(u=>Math.abs(u.x-edge)<210&&
+     Math.abs(u.y-fort.y)<145);
+    if(event){
+     event.windowForecastChecks=(event.windowForecastChecks||0)+1;
+     event.windowUnsafe=(event.windowUnsafe||0)+(forecast.risk>0||nearby?1:0);
+    }
+    if(forecast.target&&forecast.risk===0&&!nearby){
+     if(!qaWindowPlans[team]){
+      qaWindowPlans[team]={deadline:S.elapsed+5};
+      if(event)event.windowStarted=(event.windowStarted||0)+1;
+     }
+     if(event)event.windowWaiting=(event.windowWaiting||0)+1;
+     return true;
+    }
+   }
+  }
+ }
  if(qaPolicy==="preemptFort"&&!urgent&&power>=4){
   const threatenedSoon=S.forts.filter(f=>f.owner===team).map(f=>{
    const enemies=foes.filter(u=>Math.abs(u.x-f.x)<330&&Math.abs(u.y-f.y)<140);
@@ -3017,7 +3074,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;

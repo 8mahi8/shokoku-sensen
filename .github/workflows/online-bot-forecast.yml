@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/online-bot-forecast.yml'
       - 'tests/online-bot-forecast.cjs'
+      - 'tests/online-bot-spend-window.cjs'
       - 'online-game.js'
       - 'online-net.js'
       - 'online.html'
@@ -23,9 +24,12 @@ jobs:
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium
       - run: node tests/online-bot-forecast.cjs
+      - run: node tests/online-bot-spend-window.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: qa-forecast-report
-          path: qa-bot-forecast
+          path: |
+            qa-bot-forecast
+            qa-bot-spend-window
           retention-days: 30
