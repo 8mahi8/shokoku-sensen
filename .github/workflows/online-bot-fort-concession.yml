@@ -1,0 +1,29 @@
+name: BOT fort concession QA
+on:
+  push:
+    branches: [develop]
+    paths:
+      - '.github/workflows/online-bot-fort-concession.yml'
+      - 'tests/online-bot-fort-concession.cjs'
+      - 'online-game.js'
+  workflow_dispatch:
+jobs:
+  concession:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/online-bot-fort-concession.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-bot-fort-concession
+          path: qa-bot-concede-fort
+          retention-days: 30
