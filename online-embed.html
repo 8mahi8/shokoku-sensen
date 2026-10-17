@@ -1798,9 +1798,27 @@ function botExpertAction(team=2){
  // Holding is a real option: forego the desperate 2-energy infantry play,
  // save for an in-hand sentinel, then counterattack after the delay.
  let concessionHold=false;
- if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"){
-  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget";
-  const assessRisk=qaPolicy==="fortRiskBudget";
+ if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"){
+  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
+  const assessRisk=qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
+  const assessLastLine=qaPolicy==="fortLastLine";
+  // Strategic criticality: losing the home-side outpost when only one
+  // controlled fort remains can directly expose the capital. A deep fort
+  // can be traded if visible enemies are still far from our own castle.
+  // Only friendly fort ownership, own HP and visible units are used.
+  const hostileCastleEta=units=>units.filter(u=>!CLASSES[u.key].flying&&
+    CLASSES[u.key].speed>0).reduce((best,u)=>Math.min(best,Math.max(0,
+    front(WALL_FACE[team])-front(u.x)-70)/CLASSES[u.key].speed),Infinity);
+  const criticalOutpost=(target,units)=>{
+   if(!assessLastLine||!target)return false;
+   const ownedCount=S.forts.filter(f=>f.owner===team).length;
+   const castleUncovered=!friends.some(u=>u.hp>0&&
+    front(u.x)>front(WALL_FACE[team])-195&&
+    (!CLASSES[u.key].capture||u.key==="engineer"));
+   const horizon=ownedCount<=1?24:16;
+   const eta=hostileCastleEta(units);
+   return capital(team).hp<=1500||castleUncovered&&eta<=horizon;
+  };
   const previous=qaConcedePlans[team];
   const threatenedFort=threatened?.f;
   // The regular capturer AI selects the highest-x reachable unowned fort;
@@ -1846,12 +1864,15 @@ function botExpertAction(team=2){
     CLASSES.engineer.speed:Infinity;
    const threatenedBeforeResponse=assessRisk&&reserved==="engineer"&&
     threatTime<=Math.min(8,recaptureTravel*.6)+1;
+   const lastLineAlert=criticalOutpost(target,foes);
    if(event&&threatenedBeforeResponse)
     event.riskLateRecapture=(event.riskLateRecapture||0)+1;
-   if(emergency||expired||unusable||threatenedBeforeResponse){
+   if(event&&lastLineAlert)
+    event.lastLineAbort=(event.lastLineAbort||0)+1;
+   if(emergency||expired||unusable||threatenedBeforeResponse||lastLineAlert){
     if(event){
      const reason=emergency?"danger":expired?"expired":
-      unusable?"missingCard":"lateRecapture";
+      unusable?"missingCard":lastLineAlert?"lastLine":"lateRecapture";
      const causes=event.concedeCancelled||(event.concedeCancelled={});
      causes[reason]=(causes[reason]||0)+1;
     }
@@ -1917,7 +1938,13 @@ function botExpertAction(team=2){
    const recaptureTime=Math.abs(projectedSpawn-threatenedFort.x)/CLASSES.engineer.speed;
    const requiredWindow=eta+(reserve==="engineer"
     ?Math.min(8,recaptureTime*.6):4);
-   const castleSafe=!assessRisk||threatEta>requiredWindow;
+   const lastLineCritical=criticalOutpost(threatenedFort,attackers);
+   const castleSafe=(!assessRisk||threatEta>requiredWindow)&&!lastLineCritical;
+   if(event&&assessLastLine){
+    event.lastLineEvaluated=(event.lastLineEvaluated||0)+1;
+    if(lastLineCritical)event.lastLineDenied=(event.lastLineDenied||0)+1;
+    else event.lastLineAllowed=(event.lastLineAllowed||0)+1;
+   }
    if(event&&assessRisk){
     event.riskWindowsChecked=(event.riskWindowsChecked||0)+1;
     if(!castleSafe)event.riskRejected=(event.riskRejected||0)+1;
@@ -3360,7 +3387,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
