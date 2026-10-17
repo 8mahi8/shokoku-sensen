@@ -6,6 +6,7 @@ on:
       - '.github/workflows/online-bot-forecast.yml'
       - 'tests/online-bot-forecast.cjs'
       - 'tests/online-bot-spend-window.cjs'
+      - 'tests/online-bot-early-screen.cjs'
       - 'online-game.js'
       - 'online-net.js'
       - 'online.html'
@@ -25,6 +26,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/online-bot-forecast.cjs
       - run: node tests/online-bot-spend-window.cjs
+      - run: node tests/online-bot-early-screen.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -32,4 +34,5 @@ jobs:
           path: |
             qa-bot-forecast
             qa-bot-spend-window
+            qa-bot-early-screen
           retention-days: 30
