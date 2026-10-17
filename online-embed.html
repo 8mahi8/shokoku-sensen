@@ -1467,6 +1467,20 @@ function attackUnit(target,value){
 }
 function fire(u,target){
  const d=CLASSES[u.key],ref=target.ref;
+ // Read-only battle instrumentation. Never affects target selection or damage.
+ if(qaOpeningAudit?.uids.has(u.uid)){
+  const m=qaOpeningAudit;
+  m.attacks++;
+  if(target.kind==="unit"&&ref.hp>0){
+   m.unitHits++;
+   m.unitDamage+=Math.min(ref.hp,d.damage*shieldMultiplier(ref.team,ref.x,ref.y));
+  }else if(target.kind==="fort"&&ref.owner!==u.team){
+   m.fortHits++;
+   m.fortProgress+=Math.min(ref.hp,d.capture);
+  }else if(target.kind==="capital"){
+   m.castleHits++;
+  }
+ }
  u.attack=d.cool;
  // Longer artwork poses; hit resolution and combat cooldown are unchanged.
  u.attackAnimMax=MOTION.attack[u.key];
@@ -1584,6 +1598,8 @@ function secondsUntilAffordable(energy,cost,elapsed=S.elapsed){
 let botLastAction=null;
 // Only populated by the localhost ?qa=1 tournament harness.
 let duelStats=null;
+// Localhost QA-only source effectiveness audit for one explicitly played wave.
+let qaOpeningAudit=null;
 // Development QA-only policy overrides. Standard gameplay always uses baseline.
 let qaBotVariants=[null,"baseline","baseline"];
 // Persist an explicit plan only for the QA experimental policy. Never shipped.
@@ -3791,6 +3807,129 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     ownLivingUnits:S.units.filter(u=>u.team===2&&u.hp>0).length,
     peakOwnUnits,energy:S.energy[2],actions,snapshots,seeded:true};
   }finally{duelStats=oldStats;qaBotVariants=oldVariants;Math.random=oldRandom;}
+ },
+ // Paired local-only opening-spend experiment. Identical visible units,
+ // resources and random seed; only the first emergency purchase differs.
+ simulateDefenseOpening:(seed,spec,choice="infantryNow",duration=50)=>{
+  if(!NET.isSolo||!Number.isInteger(seed)||seed<1||seed>2147483647||
+   !["baseline","infantryNow","skipFirst","saveFor4"].includes(choice)||
+   !spec||!Array.isArray(spec.hand)||spec.hand.length!==4||
+   !spec.hand.every(id=>DECK_IDS.includes(id))||
+   !Array.isArray(spec.enemies)||spec.enemies.length>15||
+   !spec.enemies.every(u=>CLASSES[u.key]&&Number.isFinite(u.x)&&Number.isFinite(u.y))||
+   !Array.isArray(spec.fortOwners)||spec.fortOwners.length!==3||
+   spec.fortOwners.some(v=>![0,1,2].includes(v))||
+   (spec.allies&&!Array.isArray(spec.allies))||
+   !Number.isFinite(spec.energy)||spec.energy<2||spec.energy>=4||
+   !["engineer","sentinel"].includes(spec.reserve)||
+   !Number.isFinite(duration)||duration<10||duration>60)return null;
+  const oldRandom=Math.random,oldDuel=duelStats,oldVariants=qaBotVariants,
+   oldAudit=qaOpeningAudit;
+  let state=seed>>>0;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+  try{
+   duelStats=null;qaOpeningAudit=null;
+   if(!window.__shokokuQa.setBotScenario({...spec,variant:"baseline"}))return null;
+   S.seconds=MATCH-S.elapsed;S.botThink=99999;
+   const firstFort=spec.fortOwners.findIndex(v=>v===2);
+   if(firstFort<0)return null;
+   const y=S.forts[firstFort].y,originalOwners=S.forts.map(f=>f.owner),
+    initially=S.units.filter(u=>u.team===1&&u.hp>0).map(u=>u.uid),
+    castleStart=capital(2).hp;
+   const stepDt=1/30,steps=Math.round(duration/stepDt);
+   let firstAction=null,firstCost=0,firstTime=null,spentOpening=0,
+    reservePaid=false,openingCount=0,controlled=0,lost=false,
+    recaptured=false,enemyEntered=false,initialThreatsAlive=0,
+    firstCastleHit=null,firstFortLoss=null;
+   const actions=[],snapshots=[];
+   const stamp=step=>+(step*stepDt).toFixed(2);
+   const spawnX=()=>limit(border(2)+35,40,W-40);
+   const spend=(id,time)=>{
+    const before=S.energy[2],uidBefore=S.uid;
+    botLastAction=null;
+    const ok=botUse(2,id,spawnX(),y);
+    if(ok){
+     const cost=before-S.energy[2];
+     actions.push({time,card:id,cost:+cost.toFixed(2)});
+     if(firstTime===null){
+      firstTime=time;firstAction=id;firstCost=cost;
+      if(id==="infantry"){
+       qaOpeningAudit={uids:new Set(S.units.filter(u=>u.team===2&&u.uid>uidBefore)
+        .map(u=>u.uid)),attacks:0,unitHits:0,unitDamage:0,
+        fortHits:0,fortProgress:0,castleHits:0};
+       openingCount=qaOpeningAudit.uids.size;
+      }
+     }
+     return true;
+    }
+    return false;
+   };
+   for(let step=0;step<steps&&S.phase==="battle";step++){
+    if(step===0){
+     if(choice==="baseline"){
+      const initial=S.energy[2],firstUid=S.uid;
+      botLastAction=null;botExpertAction(2);
+      if(initial>S.energy[2]+.001){
+       const id=botLastAction?.id||null,cost=initial-S.energy[2];
+       actions.push({time:0,card:id,cost:+cost.toFixed(2)});
+       firstAction=id;firstCost=cost;firstTime=0;
+       if(id==="infantry"){
+        qaOpeningAudit={uids:new Set(S.units.filter(u=>u.team===2&&u.uid>firstUid).map(u=>u.uid)),
+         attacks:0,unitHits:0,unitDamage:0,fortHits:0,fortProgress:0,castleHits:0};
+        openingCount=qaOpeningAudit.uids.size;
+       }
+      }
+     }else if(choice==="infantryNow"){
+      spend("infantry",0);
+     }
+    }else if(choice==="saveFor4"&&!reservePaid){
+     if(canPay(2,spec.reserve)){
+      if(spend(spec.reserve,stamp(step)))reservePaid=true;
+     }
+    }else if(step%45===0){
+     const before=S.energy[2],uidBefore=S.uid;
+     botLastAction=null;botExpertAction(2);
+     if(before>S.energy[2]+.001){
+      const id=botLastAction?.id||null,cost=before-S.energy[2],now=stamp(step);
+      actions.push({time:now,card:id,cost:+cost.toFixed(2)});
+      if(firstTime===null){
+       firstTime=now;firstAction=id;firstCost=cost;
+       if(id==="infantry"){
+        qaOpeningAudit={uids:new Set(S.units.filter(u=>u.team===2&&u.uid>uidBefore).map(u=>u.uid)),
+         attacks:0,unitHits:0,unitDamage:0,fortHits:0,fortProgress:0,castleHits:0};
+        openingCount=qaOpeningAudit.uids.size;
+       }
+      }
+     }
+    }
+    // In a reserve-only opening, baseline decisions resume next regular
+    // cadence tick. A skipped first turn resumes at 1.5s.
+    tick(stepDt);
+    if(S.forts[firstFort].owner===2)controlled+=stepDt;
+    if(S.forts[firstFort].owner!==2){
+     if(!lost)firstFortLoss=stamp(step);
+     lost=true;
+    }
+    if(lost&&S.forts[firstFort].owner===2)recaptured=true;
+    if(S.units.some(u=>u.team===1&&u.hp>0&&u.x>WALL_FACE[2]-180))enemyEntered=true;
+    if(firstCastleHit===null&&capital(2).hp<castleStart-.001)firstCastleHit=stamp(step);
+    if(step%300===299)snapshots.push({at:stamp(step+1),hp:capital(2).hp,
+     energy:+S.energy[2].toFixed(3),owner:S.forts[firstFort].owner});
+    if(S.energy[2]<-1e-6||S.energy[2]>ENERGY_CAP+1e-5)throw Error("illegal energy");
+   }
+   const audited=qaOpeningAudit,initialUnits=S.units.filter(u=>audited?.uids.has(u.uid));
+   initialThreatsAlive=S.units.filter(u=>initially.includes(u.uid)&&u.hp>0).length;
+   return {seed,choice,elapsed:S.elapsed-spec.elapsed,firstAction,firstTime,firstCost,
+    openingUnits:openingCount,openingStillAlive:initialUnits.filter(u=>u.hp>0).length,
+    initialThreatsAlive,initialThreatsTotal:initially.length,
+    openingCombat:audited?{attacks:audited.attacks,unitHits:audited.unitHits,
+     unitDamage:+audited.unitDamage.toFixed(2),fortHits:audited.fortHits,
+     fortProgress:audited.fortProgress,castleHits:audited.castleHits}:null,
+    fortIndex:firstFort,openingOwners:originalOwners,
+    castleDamage:castleStart-capital(2).hp,fortOwnedSeconds:controlled,
+    lost,recaptured,firstFortLoss,firstCastleHit,enemyEntered,
+    energy:S.energy[2],actions,snapshots,seeded:true};
+  }finally{qaOpeningAudit=oldAudit;duelStats=oldDuel;qaBotVariants=oldVariants;Math.random=oldRandom;}
  },
  runBotOnce:()=>{
   if(!NET.isSolo||S.phase!=="battle")return null;
