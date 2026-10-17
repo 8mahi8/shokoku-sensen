@@ -1814,8 +1814,9 @@ function botExpertAction(team=2){
  // Holding is a real option: forego the desperate 2-energy infantry play,
  // save for an in-hand sentinel, then counterattack after the delay.
  let concessionHold=false;
- if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"){
-  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
+ if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"){
+  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue";
+  const weighCounter=qaPolicy==="fortDefenseValue";
   const assessRisk=qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
   const assessLastLine=qaPolicy==="fortLastLine";
   // Strategic criticality: losing the home-side outpost when only one
@@ -1935,8 +1936,17 @@ function botExpertAction(team=2){
      (trade&&availableCard(team,"engineer")&&
       engineerCanReachAfterLoss(threatenedFort)))){
    const attackers=threatened.enemies.filter(u=>!CLASSES[u.key].flying);
-   const reserve=trade&&availableCard(team,"engineer")&&
-    engineerCanReachAfterLoss(threatenedFort)?"engineer":"sentinel";
+   const fastBreakthrough=attackers.some(u=>CLASSES[u.key].speed>=30);
+   // QA-only counter-value comparison. An in-hand stationary splash
+   // defender may protect the castle better than a slow capturer.
+   const counterGuard=weighCounter&&fastBreakthrough&&availableCard(team,"sentinel");
+   const reserve=counterGuard?"sentinel":
+    trade&&availableCard(team,"engineer")&&
+     engineerCanReachAfterLoss(threatenedFort)?"engineer":"sentinel";
+   if(event&&weighCounter){
+    event.valueFastScenarios=(event.valueFastScenarios||0)+(fastBreakthrough?1:0);
+    event.valueSentinelPriorities=(event.valueSentinelPriorities||0)+(counterGuard?1:0);
+   }
    if(event&&trade){
     event.tradeEngineerOptions=(event.tradeEngineerOptions||0)+
      (reserve==="engineer"?1:0);
@@ -3403,7 +3413,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
@@ -3750,7 +3760,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  // threatened-fort scene. This is an isolation test, not a full game winner.
  simulateFortDecision:(seed,spec,variant="baseline",duration=45)=>{
   if(!NET.isSolo||!Number.isInteger(seed)||seed<1||seed>2147483647||
-   !["baseline","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine"].includes(variant)||
+   !["baseline","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue"].includes(variant)||
    !spec||!Array.isArray(spec.hand)||spec.hand.length!==4||
    !spec.hand.every(id=>DECK_IDS.includes(id))||
    !Array.isArray(spec.enemies)||spec.enemies.length>15||
