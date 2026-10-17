@@ -1,6 +1,6 @@
 "use strict";
 // Real 30Hz complete battles, including opponent's legal summons.
-// 15/30s tactical episodes are observational, not causal comparisons.
+// 15/30/60/90s tactical episodes are observational, not causal comparisons.
 const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path"),
  http=require("node:http"),{chromium}=require("playwright");
 const root=process.cwd(),out="qa-bot-trade-horizon";fs.mkdirSync(out,{recursive:true});
@@ -20,26 +20,47 @@ const sum=(a,f)=>a.reduce((n,x)=>n+f(x),0);
 const avg=(a,f)=>a.length?sum(a,f)/a.length:null;
 const metric=(rows)=>{
  const eps=rows.flatMap(r=>r.episodes),e15=eps.filter(e=>e.castleDamage15!==null),
-  e30=eps.filter(e=>e.castleDamage30!==null);
+  e30=eps.filter(e=>e.castleDamage30!==null),
+  e60=eps.filter(e=>e.castleDamage60!==null),
+  e90=eps.filter(e=>e.castleDamage90!==null);
  const median=(a,f)=>{if(!a.length)return null;const z=a.map(f).sort((a,b)=>a-b);return z[Math.floor(z.length/2)]};
  const delta=(a,b,f)=>avg(rows,r=>f(r[a])-f(r[b]));
  return {matches:rows.length,episodes:eps.length,complete15:e15.length,complete30:e30.length,
+  complete60:e60.length,complete90:e90.length,
   reserveSentinel:eps.filter(e=>e.reserve==="sentinel").length,
   reserveEngineer:eps.filter(e=>e.reserve==="engineer").length,
   meanOwnCastleLoss15:avg(e15,e=>e.castleDamage15),
   meanOwnCastleLoss30:avg(e30,e=>e.castleDamage30),
+  meanOwnCastleLoss60:avg(e60,e=>e.castleDamage60),
+  meanOwnCastleLoss90:avg(e90,e=>e.castleDamage90),
   meanEnemyCastleLoss15:avg(e15,e=>e.enemyCastleDamage15),
   meanEnemyCastleLoss30:avg(e30,e=>e.enemyCastleDamage30),
+  meanEnemyCastleLoss60:avg(e60,e=>e.enemyCastleDamage60),
+  meanEnemyCastleLoss90:avg(e90,e=>e.enemyCastleDamage90),
   meanFortControl15:avg(e15,e=>e.fortControl15),
   meanFortControl30:avg(e30,e=>e.fortControl30),
+  meanFortControl60:avg(e60,e=>e.fortControl60),
+  meanFortControl90:avg(e90,e=>e.fortControl90),
   lostWithin30:e30.filter(e=>e.firstLoss!==null).length,
-  regainedWithin30:e30.filter(e=>e.firstRecapture!==null).length,
+  regainedWithin30:e30.filter(e=>e.firstRecapture!==null&&e.firstRecapture<=30).length,
+  regainedWithin60:e60.filter(e=>e.firstRecapture!==null&&e.firstRecapture<=60).length,
+  regainedWithin90:e90.filter(e=>e.firstRecapture!==null&&e.firstRecapture<=90).length,
+  ownedAt60:e60.filter(e=>e.ownedAt60).length,
+  ownedAt90:e90.filter(e=>e.ownedAt90).length,
+  avgFrontline60:avg(e60,e=>e.fortFrontier60),
+  avgFrontline90:avg(e90,e=>e.fortFrontier90),
   meanEnemyPlays15:avg(e15,e=>e.enemyPlays15),
   meanEnemyPlays30:avg(e30,e=>e.enemyPlays30),
+  meanEnemyPlays60:avg(e60,e=>e.enemyPlays60),
+  meanEnemyPlays90:avg(e90,e=>e.enemyPlays90),
   meanEnemySpend15:avg(e15,e=>e.enemySpend15),
   meanEnemySpend30:avg(e30,e=>e.enemySpend30),
+  meanEnemySpend60:avg(e60,e=>e.enemySpend60),
+  meanEnemySpend90:avg(e90,e=>e.enemySpend90),
   reinforced15:e15.filter(e=>e.enemyPlays15>0).length,
   reinforced30:e30.filter(e=>e.enemyPlays30>0).length,
+  reinforced60:e60.filter(e=>e.enemyPlays60>0).length,
+  reinforced90:e90.filter(e=>e.enemyPlays90>0).length,
   withReinforcementsDamage30:avg(e30.filter(e=>e.enemyPlays30>0),e=>e.castleDamage30),
   withoutReinforcementsDamage30:avg(e30.filter(e=>e.enemyPlays30===0),e=>e.castleDamage30),
   medianStartingEnergy:median(eps,e=>e.energyStart),
@@ -90,6 +111,8 @@ const metric=(rows)=>{
      assert.ok(e.energyStart>=2&&e.energyStart<4);
      assert.ok(e.fortControl15>=0&&e.fortControl15<=15.1);
      assert.ok(e.fortControl30>=0&&e.fortControl30<=30.1);
+     assert.ok(e.fortControl60>=0&&e.fortControl60<=60.1);
+     assert.ok(e.fortControl90>=0&&e.fortControl90<=90.1);
      assert.ok(e.castleDamage15===null||e.castleDamage15>=0);
      assert.ok(e.castleDamage30===null||e.castleDamage30>=0);
      assert.ok(e.firstRecapture===null||e.firstLoss!==null);
@@ -98,6 +121,18 @@ const metric=(rows)=>{
       assert.ok(e.enemyPlays30>=e.enemyPlays15);
       assert.ok(e.enemySpend30>=e.enemySpend15);
       assert.ok(e.castleDamage30>=e.castleDamage15);
+     }
+     if(e.castleDamage60!==null){
+      assert.ok(e.castleDamage30!==null,"60sec requires 30sec");
+      assert.ok(e.enemyPlays60>=e.enemyPlays30);
+      assert.ok(e.enemySpend60>=e.enemySpend30);
+      assert.ok(e.castleDamage60>=e.castleDamage30);
+     }
+     if(e.castleDamage90!==null){
+      assert.ok(e.castleDamage60!==null,"90sec requires 60sec");
+      assert.ok(e.enemyPlays90>=e.enemyPlays60);
+      assert.ok(e.enemySpend90>=e.enemySpend60);
+      assert.ok(e.castleDamage90>=e.castleDamage60);
      }
     }
     rows.push({...q,
