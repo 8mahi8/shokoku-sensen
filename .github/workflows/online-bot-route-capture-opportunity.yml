@@ -1,0 +1,29 @@
+name: BOT route-matched capture QA
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'online-game.js'
+      - 'tests/online-bot-route-capture-opportunity.cjs'
+      - '.github/workflows/online-bot-route-capture-opportunity.yml'
+  workflow_dispatch:
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/online-bot-route-capture-opportunity.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-bot-route-capture-opportunity
+          path: qa-bot-route-capture-opportunity
+          retention-days: 30
