@@ -8,9 +8,8 @@ const game=fs.readFileSync(path.join(root,"online-game.js"),"utf8"),
 const anchor=" window.__shokokuQa={\n",expert="function botExpertAction(team=2){";
 assert.equal(game.split(anchor).length,2);
 assert.equal(game.split(expert).length,2);
-const patched=game.replace(expert,expert+"\n qaGateOnDecision(team);")
- .replace(anchor,"\n"+helper+"\n"+
-  " window.__shokokuQa={\n gateAssess:qaGateAssess,\n gatePaired:qaGateRunPaired,\n");
+const patched=game.replace(expert,"\n"+helper+"\n"+expert+"\n qaGateOnDecision(team);")
+ .replace(anchor," window.__shokokuQa={\n gateAssess:qaGateAssess,\n gatePaired:qaGateRunPaired,\n");
 const server=http.createServer((req,res)=>{
  const p=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
  if(!p.startsWith(root+path.sep)||!fs.existsSync(p)||!fs.statSync(p).isFile()){
