@@ -1,7 +1,7 @@
 "use strict";
 // QA-only worker bridge injected into the same closure as the game.
 // It NEVER changes card choices, player input, game tick, or network traffic.
-let qaWorker=null,qaWorkerUrl=null,qaWorkerSeq=0,qaWorkerPending=new Map();
+let qaWorker=null,qaWorkerUrl=null,qaWorkerSeq=0,qaWorkerPending=new Map(),qaWorkerQaFrozen=false;
 function qaWorkerStop(){
  if(qaWorker){qaWorker.terminate();qaWorker=null;}
  if(qaWorkerUrl){URL.revokeObjectURL(qaWorkerUrl);qaWorkerUrl=null;}
@@ -91,7 +91,7 @@ function qaWorkerScene(team){
 }
 function qaWorkerFreeze(){
  if(!NET.isSolo)return false;
- S.speed=0;S.botThink=1e6;return true;
+ S.speed=0;S.botThink=1e6;qaWorkerQaFrozen=true;return true;
 }
 function qaWorkerSubmit(team=2,spinMs=0,deadlineMs=1100,requireGate=true){
  if(!qaWorker)return Promise.resolve({status:"unavailable"});
