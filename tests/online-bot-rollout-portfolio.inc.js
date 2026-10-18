@@ -69,7 +69,7 @@ function qaRolloutPortfolioSearch(spec,horizon=20,seeds=[17,41,73],responses=["i
    }
   }
   const generatedOptions=options.length;
-  if(mode==="bounded"||mode==="budget"){
+  if(mode==="bounded"||mode==="budget"||mode==="portfolio"){
    // Safety-first beam: preserve WAIT, then at most 4 other legal
    // choices, ranked by observable current threat and objective.
    // No future action labels, unknown enemy cards, or rollout rewards.
