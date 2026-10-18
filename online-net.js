@@ -120,7 +120,7 @@ function receiveGuestWorld(packet){
 // REST fallback bypasses RTDB's local event cache: once("value") can replay
 // a stale locally cached snapshot when an SDK listener is stalled.
 function restRecoverGuest(){
- if(restReadPending||host||!room||!roomCode||!connected)return;
+ if(restReadPending||host||!room||!roomCode)return;
  const epoch=remoteEpoch,code=roomCode,ref=room;
  restReadPending=true;
  const controller=typeof AbortController!=="undefined"?new AbortController():null;
@@ -146,7 +146,7 @@ function restRecoverGuest(){
   });
 }
 function checkGuestSync(){
- if(host||!room||phase!=="playing"||!connected)return;
+ if(host||!room||phase!=="playing")return;
  const now=performance.now();
  if(!lastRemoteAppliedAt)lastRemoteAppliedAt=now;
  if(now-lastRemoteAppliedAt<3500)return;
@@ -331,8 +331,10 @@ function maybePublish(force=false){
   // A Firebase set() promise can remain unresolved during network stalls,
   // while the guest keeps rendering a frozen snapshot. Retry at a bounded
   // pace rather than permanently locking the one-snapshot publisher.
-  if(now-publishStartedAt<2800||(publishRetryAt&&now-publishRetryAt<4800)||publishRetryCount>=8)return;
-  publishRetryAt=now;publishRetryCount++;
+  if(now-publishStartedAt<2800||(publishRetryAt&&
+    now-publishRetryAt<(publishRetryCount>=8?18000:4800)))return;
+  // At 8 retries switch to a slower watch, not a permanent deadlock.
+  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);
  }else if(!force&&now-lastSend<180)return;
  lastSend=now;publishing=true;publishStartedAt=now;
  const current=room,epoch=networkEpoch,serial=++publishSerial;
