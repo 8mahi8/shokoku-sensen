@@ -222,7 +222,7 @@ function qaRolloutTwoStep(spec,horizon=20,seeds=[17,41,73],responses=["idle"],mo
       .32*enemyUnitDamage-.30*ownInitialLoss+
       8*(ownFortSeconds-enemyFortSeconds)+
       22*(owned-opposed)+.03*newUnitSurvivor-
-      12*option.cost;
+      12*(option.cost+(secondAction?.cost||0));
     runs.push({seed,response,responsePlays,secondAction,secondOptions,
      score:+score.toFixed(3),ownDamage:+ownDamage.toFixed(2),
      enemyCastleDamage:+enemyCastleDamage.toFixed(2),
