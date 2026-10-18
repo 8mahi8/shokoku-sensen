@@ -36,11 +36,25 @@ function qaRolloutSearch(spec,horizon=20,seeds=[17,41,73]){
   const choices=[{id:"wait",x:null,y:null,cost:0}];
   const legalIds=["infantry",...S.hand[team]].filter(id=>CLASSES[id]&&canPay(team,id));
   for(const id of new Set(legalIds)){
-   const points=[id==="scout"||id==="engineer"||id==="tank"?objectiveY:threatY];
-   if(threat&&target&&Math.abs(threatY-objectiveY)>115)points.push(objectiveY);
-   for(const y of points){
-    if(!canPlace(team,x,y))continue;
-    choices.push({id,x,y,cost:CLASSES[id].cost});
+   const primaryY=id==="scout"||id==="engineer"||id==="tank"?
+    objectiveY:threatY;
+   const locations=[{x,y:primaryY,role:"forward"}];
+   if(threat&&target&&Math.abs(threatY-objectiveY)>115)
+    locations.push({x,y:objectiveY,role:"objective"});
+   // Prevent a failure mode of greedy lane spawn: a guard dropped BEHIND
+   // fast hostile raiders may never engage before they reach the castle.
+   // Include one legal interception placement closer to the threatened wall.
+   if(threat&&["infantry","archer","sentinel","suppress","guardian"].includes(id)){
+    const interceptX=limit(threat.x+(team===2?75:-75),40,W-40);
+    if(canPlace(team,interceptX,threatY))
+     locations.push({x:interceptX,y:threatY,role:"intercept"});
+   }
+   const unique=new Set();
+   for(const point of locations){
+    if(!canPlace(team,point.x,point.y))continue;
+    const key=point.x+","+point.y;
+    if(unique.has(key))continue;unique.add(key);
+    choices.push({id,x:point.x,y:point.y,role:point.role,cost:CLASSES[id].cost});
    }
   }
   // Reference only: what the existing BOT would actually do on this scene.
@@ -95,7 +109,7 @@ function qaRolloutSearch(spec,horizon=20,seeds=[17,41,73]){
       .32*enemyUnitDamage-.30*ownInitialLoss+
       8*(ownFortSeconds-enemyFortSeconds)+
       22*(owned-opposed)+.03*newUnitSurvivor-
-      12*(preEnergy-S.energy[team]<0?option.cost:option.cost);
+      12*option.cost;
     runs.push({seed,score:+score.toFixed(3),ownDamage:+ownDamage.toFixed(2),
      enemyCastleDamage:+enemyCastleDamage.toFixed(2),
      enemyUnitDamage:+enemyUnitDamage.toFixed(2),
