@@ -367,6 +367,16 @@ function fire(u,target){
  }else if(target.kind==="capital"){
   const priorHp=ref.hp;
   ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE*(d.siege??1));
+  // QA-only observation: real castle hits by UIDs present at forecast time.
+  const audit=duelStats?.forecastAudit;
+  const window=audit?.active;
+  if(window&&ref.team===3-audit.team&&S.elapsed>=window.at&&
+    S.elapsed<window.at+12+1e-6){
+   const damage=priorHp-ref.hp;
+   window.allDamage+=damage;
+   if(window.uids.includes(u.uid)){window.actual+=damage;window.hits++;}
+   else window.otherDamage+=damage;
+  }
   if(["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue"].includes(qaBotVariants[u.team])||
      ["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue"].includes(qaBotVariants[ref.team])){
    qaCastleHitEvents.push({at:S.elapsed,targetTeam:ref.team,damage:priorHp-ref.hp});
@@ -2498,12 +2508,12 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  }),
  // Batch simulation runs the SAME 30Hz combat/energy/spell/fort code as a match,
  // with no drawing, network traffic or player input; only on localhost ?qa=1.
- runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard",mirrorTerrain=false,variantTeam=0,variant="baseline")=>{
+ runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard",mirrorTerrain=false,variantTeam=0,variant="baseline",auditForecast=false)=>{
   if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
     !["rush","balanced","fortress","banker","self"].includes(blueStyle)||
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
-    (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
+    (blueStyle!=="self"&&mirrorTerrain)||typeof auditForecast!=="boolean"||![0,1,2].includes(variantTeam)||
     !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
@@ -2520,7 +2530,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
      tankFundedOpportunity:0,tankDeferredByCheapPlay:0,
      enemyResourceWindow:0,samples:[]}:null),
     cards:[null,{},{}],fortSeconds:[0,0,0],energyIntegral:[0,0,0],maxUnits:[0,0,0],
-    fortLossRecords:[],actionLedger:[],counterEpisodes:[]};
+    fortLossRecords:[],actionLedger:[],counterEpisodes:[],
+    forecastAudit:auditForecast?{team:tacticalTeam,records:[],active:null}:null};
    qaBotVariants=[null,"baseline","baseline"];
    if(variantTeam)qaBotVariants[variantTeam]=variant;
    resetWorld();S.phase="battle";S.prep=0;S.speed=1;S.difficulty=difficulty;
@@ -2592,6 +2603,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     return false;
    };
    const dt=1/30,selfThink=[0,3.1,3.1];
+   let nextForecastAt=60;
    let opponentEnergyPeak=0,opponentEnergyReady4Seconds=0,
     opponentEnergyReady7Seconds=0;
    // Existing game limits 300 seconds. More than 9000 ticks indicates a regression.
@@ -2623,6 +2635,37 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
        tacticalThink=rand(...(difficulty==="hard"?[1.2,1.9]:[2.5,3.8]));
       }
      }
+    }
+    // QA-only prospective audit. Fixed clock times, snapshot pre-tick; no
+    // strategic actions or randomness changed. New units receive zero credit.
+    const audit=duelStats.forecastAudit;
+    if(audit&&S.elapsed+1e-5>=nextForecastAt&&nextForecastAt<=228){
+     const team=audit.team,enemyTeam=3-team;
+     const wave=S.units.filter(u=>u.team===team&&u.hp>0&&
+      CLASSES[u.key].behavior==="normal"&&u.hp>=u.max*.5&&
+      Math.abs(u.x-WALL_FACE[enemyTeam])<=510);
+     const predicted=wave.reduce((sum,u)=>{
+      const d=CLASSES[u.key];
+      const eta=Math.max(0,Math.abs(u.x-WALL_FACE[enemyTeam])-
+       d.range-15)/d.speed;
+      return sum+(eta<=12?d.damage*(d.siege??1)*CASTLE_DAMAGE/d.cool*
+       (12-eta)*u.hp/u.max:0);
+     },0);
+     const sample={at:S.elapsed,team,enemyTeam,predicted,actual:0,
+      allDamage:0,otherDamage:0,hits:0,
+      enemyHpAtStart:capital(enemyTeam).hp,
+      uids:wave.map(u=>u.uid),classes:wave.map(u=>u.key),
+      etaMin:wave.length?Math.min(...wave.map(u=>{
+       const d=CLASSES[u.key];
+       return Math.max(0,Math.abs(u.x-WALL_FACE[enemyTeam])-
+        d.range-15)/d.speed;
+      })):null,
+      enemyDefendersNearWall:S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
+       Math.abs(u.x-WALL_FACE[enemyTeam])<230).length,
+      enemyUnitsNearWave:S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
+       wave.some(v=>dist(u,v)<170)).length};
+     audit.records.push(sample);audit.active=sample;
+     nextForecastAt+=12;
     }
     // QA observation of actual post-fort-loss castle exposure, without
     // changing any tactical decision or battle simulation.
@@ -2723,12 +2766,33 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    const hp=[null,Math.max(0,capital(1).hp),Math.max(0,capital(2).hp)];
    const winner=hp[1]===hp[2]?0:hp[1]>hp[2]?1:2;
    const elapsed=S.elapsed;
+   const forecastAudit=duelStats.forecastAudit?
+    duelStats.forecastAudit.records.map(r=>{
+     const observedSeconds=Math.min(12,Math.max(0,elapsed-r.at));
+     const completed=observedSeconds>=12-1/30-1e-4;
+     const alive=new Set(S.units.filter(u=>u.hp>0).map(u=>u.uid));
+     const newFriendPlays=duelStats.actionLedger.filter(x=>
+      x.team===r.team&&x.at>r.at+1e-6&&x.at<=r.at+observedSeconds+1e-6).length;
+     return {at:+r.at.toFixed(3),observedSeconds:+observedSeconds.toFixed(3),
+      completed,censored:!completed,
+      predicted:+r.predicted.toFixed(3),actual:+r.actual.toFixed(3),
+      error:+(r.predicted-r.actual).toFixed(3),
+      enemyHpAtStart:r.enemyHpAtStart,
+      otherDamage:+r.otherDamage.toFixed(3),
+      allDamage:+r.allDamage.toFixed(3),
+      hits:r.hits,trackedCount:r.uids.length,
+      survivorsAtGameEnd:r.uids.filter(id=>alive.has(id)).length,
+      classes:r.classes,etaMin:r.etaMin,
+      defenders:r.enemyDefendersNearWall,nearbyEnemy:r.enemyUnitsNearWave,
+      newFriendlyPlays:newFriendPlays};
+    }):null;
    return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,mirrorTerrain,
     variantTeam,variant,opponentEnergyPeak,opponentEnergyReady4Seconds,
     opponentEnergyReady7Seconds,decisionEvents:duelStats.decisionEvents.map(x=>x&&{...x}),
     decisionAudit:duelStats.decisionAudit,
     energyEstimated:S.observedEnergy.slice(),energyActual:S.energy.slice(),winner,elapsed,
     initialHand:openingHand,openingQueue:openingQueue,
+    forecastAudit,
     castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],
     actions:duelStats.actions.slice(),spent:duelStats.spent.slice(),
     cards:duelStats.cards.map(v=>v&&{...v}),
