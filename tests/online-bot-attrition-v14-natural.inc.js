@@ -26,6 +26,14 @@ function qaAttritionNaturalTick(){
    const own=remain(a.team)/sample.startOwn,
     enemy=remain(3-a.team)/sample.startEnemy;
    const actual=own-enemy;
+   const futurePlays=(duelStats?.actionLedger||[]).slice(sample.ledgerAt)
+    .filter(x=>x.at>sample.at+1e-5&&x.at<=sample.at+a.horizon+1e-5);
+   const enemyPlays=futurePlays.filter(x=>x.team!==a.team),
+    ownPlays=futurePlays.filter(x=>x.team===a.team);
+   const newUnitsNearFort=S.units.filter(u=>u.hp>0&&
+    !sample.tracked.some(x=>x.ref.uid===u.uid)&&
+    Math.abs(u.x-S.forts[sample.fortIndex].x)<=300&&
+    Math.abs(u.y-S.forts[sample.fortIndex].y)<=215).length;
    a.results.push({
     at:+sample.at.toFixed(3),fortIndex:sample.fortIndex,
     pre:sample.prediction,
@@ -35,8 +43,10 @@ function qaAttritionNaturalTick(){
      hp:S.forts[sample.fortIndex].hp},
     contextual:{initialOwnUnits:sample.tracked.filter(x=>x.team===a.team).length,
      initialEnemyUnits:sample.tracked.filter(x=>x.team!==a.team).length,
-     unitsAlive:S.units.length,
-     newAndOtherEventsPossible:true}
+     unitsAlive:S.units.length,newUnitsNearFort,
+     enemyCardsPlayed:enemyPlays.length,ownCardsPlayed:ownPlays.length,
+     enemySpellsPlayed:enemyPlays.filter(x=>isSpell(x.id)).length,
+     ownSpellsPlayed:ownPlays.filter(x=>isSpell(x.id)).length}
    });
   }
   a.pending=pending;
@@ -62,6 +72,7 @@ function qaAttritionNaturalTick(){
   const prediction=qaAttritionForecast(snapshot,a.horizon);
   a.started++;
   a.pending.push({at:S.elapsed,fortIndex,tracked,
+   ledgerAt:duelStats?.actionLedger?.length??0,
    startOwn,startEnemy,prediction});
  }
 }
