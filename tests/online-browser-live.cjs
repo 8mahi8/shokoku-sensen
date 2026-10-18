@@ -30,7 +30,7 @@ const deadline=async (f,label,timeout=18000)=>{
   const host=await hostCtx.newPage(),guest=await guestCtx.newPage();
   pages=[host,guest];const errors=[];
   for(const [name,p] of [["host",host],["guest",guest]])p.on("pageerror",err=>errors.push(name+": "+err.message));
-  await Promise.all([host.goto("http://127.0.0.1:8765/online.html"),guest.goto("http://127.0.0.1:8765/online-ipad.html?perf=1")]);
+  await Promise.all([host.goto("http://127.0.0.1:8765/online.html?qa=1&perf=1"),guest.goto("http://127.0.0.1:8765/online-ipad.html?qa=1&perf=1")]);
   for(const p of pages)await deadline(async()=>((await p.locator("#netStatus").innerText()).includes("接続OK")), "Firebase connection",30000);
   await host.locator("#netCreate").click();
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
@@ -92,6 +92,38 @@ const deadline=async (f,label,timeout=18000)=>{
   // Firebase having state is not enough: the WebKit receiver must apply it.
   await deadline(async()=>(await guest.evaluate(()=>window.__onlineSeq||0))>=afterManual.seq,
    "WebKit guest receives and applies manual guest summon",18000);
+  // Regression: guest remains interactive but battle snapshots cease,
+  // including the minute around a host-fired barrage ("ファイヤー").
+  // Keep the real RTDB test room as the only temporary write target.
+  await deadline(async()=>await host.evaluate(()=>window.__shokokuQa?.snapshot().phase==="battle"),
+   "host battle start",20000);
+  await host.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
+  await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(true));
+  // Drain any listener callback already queued before the mute was enabled.
+  await delay(300);
+  const seqBefore=await guest.evaluate(()=>window.__onlineSeq||0);
+  const beforeFire=await state();
+  const fire=await host.evaluate(()=>window.__shokokuQa.fireStress(1,650,330));
+  assert.equal(fire,true,"host should be able to fire a real barrage in the battle simulation");
+  const firedState=await deadline(async()=>{
+   const d=await state();
+   return d?.seq>beforeFire.seq&&d.world?.elapsed>beforeFire.world.elapsed+0.15?d:null;
+  },"host battle continues after barrage",15000);
+  assert.ok(firedState.world.spells,"world contains spells after barrage");
+  // Without listener delivery, WebKit still paints but retains an old world.
+  await delay(650);
+  assert.equal(await guest.evaluate(()=>window.__onlineSeq||0),seqBefore,
+   "muted guest listener should keep a frozen visual world");
+  // Fast-forward only the staleness watchdog; the subsequent REST read
+  // still hits real Firebase, so the test cannot pass on a cached SDK state.
+  await guest.evaluate(()=>window.__shokokuNetQa.triggerRecovery());
+  const recovered=await deadline(async()=>{
+   const diag=await guest.evaluate(()=>window.__shokokuNetQa.stats());
+   return diag.restSeq>=firedState.seq&&diag.seq>=firedState.seq?diag:null;
+  },"WebKit guest recovers barrage-era state via Firebase REST",15000);
+  assert.ok(recovered.restSeq>seqBefore,"REST recovered a newer guest world");
+  await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
+  console.log("GUEST REST RECOVERY",JSON.stringify({from:seqBefore,to:recovered.seq,rest:recovered.restSeq}));
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
   console.log("PASS: Chromium host + WebKit iPad inline guest, real Firebase BOT auto-ready, auto-deploy, manual override and sync in room "+code);
  }finally{
