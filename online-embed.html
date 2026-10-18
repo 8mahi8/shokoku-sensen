@@ -1508,7 +1508,8 @@ function fire(u,target){
  }else if(target.kind==="capital"){
   const priorHp=ref.hp;
   ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE*(d.siege??1));
-  if(qaBotVariants[u.team]==="castleDamageRace"||qaBotVariants[ref.team]==="castleDamageRace"){
+  if(["castleDamageRace","castleRaceArrival"].includes(qaBotVariants[u.team])||
+     ["castleDamageRace","castleRaceArrival"].includes(qaBotVariants[ref.team])){
    qaCastleHitEvents.push({at:S.elapsed,targetTeam:ref.team,damage:priorHp-ref.hp});
    qaCastleHitEvents=qaCastleHitEvents.filter(v=>S.elapsed-v.at<=13);
   }
@@ -1791,7 +1792,7 @@ function botExpertAction(team=2){
   limit(edge+dir*margin,40,W-40),limit(y,70,H-70));
 
  // QA-only damage race: actual prior castle hits, not HP gap or future data.
- if(qaPolicy==="castleDamageRace"){
+ if(qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"){
   if(event)event.raceChecks=(event.raceChecks||0)+1;
   const hits=qaCastleHitEvents.filter(h=>S.elapsed-h.at<=10&&h.damage>0);
   const incoming=hits.filter(h=>h.targetTeam===team),
@@ -1814,13 +1815,48 @@ function botExpertAction(team=2){
    }
    const frontUnit=push.sort((a,b)=>Math.abs(a.x-WALL_FACE[3-team])-
     Math.abs(b.x-WALL_FACE[3-team]))[0];
-   for(const id of ["tank","drone","suppress","archer","scout","infantry"])
-    if(spawn(id,frontUnit.y,id==="archer"||id==="suppress"?60:35)){
-     if(event)event.raceOffense=(event.raceOffense||0)+1;
+   if(qaPolicy==="castleRaceArrival"){
+    const healthyPush=push.some(u=>u.hp>=u.max*.35);
+    // Optimistic no-combat travel time to firing position. No hidden data.
+    const offers=["drone","archer","suppress","tank"].filter(id=>canPay(team,id))
+     .map(id=>{
+      const margin=id==="archer"||id==="suppress"?60:35;
+      const x=limit(edge+dir*margin,40,W-40);
+      const eta=Math.max(0,Math.abs(x-WALL_FACE[3-team])-CLASSES[id].range-15)/
+       CLASSES[id].speed;
+      return {id,margin,eta};
+     }).sort((a,b)=>a.eta-b.eta);
+    const timely=offers.filter(v=>v.eta+3<enemyTtk&&
+     v.eta+6<ownTtk&&v.eta+4<MATCH-S.elapsed);
+    if(event){
+     event.raceArrivalEvaluated=(event.raceArrivalEvaluated||0)+1;
+     if(!healthyPush)event.raceArrivalWeakFront=(event.raceArrivalWeakFront||0)+1;
+     if(!offers.length)event.raceArrivalNoAffordable=(event.raceArrivalNoAffordable||0)+1;
+     if(offers.length&&!timely.length)event.raceArrivalTooLate=(event.raceArrivalTooLate||0)+1;
+     const examples=event.raceArrivalSamples||(event.raceArrivalSamples=[]);
+     if(examples.length<16)examples.push({at:+S.elapsed.toFixed(2),
+      ownTtk:+ownTtk.toFixed(2),enemyTtk:+enemyTtk.toFixed(2),healthyPush,
+      offers:offers.map(x=>({id:x.id,eta:+x.eta.toFixed(2)})),
+      timely:timely.map(x=>x.id)});
+    }
+    if(healthyPush)for(const choice of timely)if(spawn(choice.id,frontUnit.y,choice.margin)){
+     if(event){
+      event.raceOffense=(event.raceOffense||0)+1;
+      event.raceArrivalDeployed=(event.raceArrivalDeployed||0)+1;
+     }
      return true;
     }
-   if(event)event.raceBanked=(event.raceBanked||0)+1;
-   return true;
+    // Reinforcements too late: return to existing defensive/capture policy.
+    if(event)event.raceArrivalFallback=(event.raceArrivalFallback||0)+1;
+   }else{
+    for(const id of ["tank","drone","suppress","archer","scout","infantry"])
+     if(spawn(id,frontUnit.y,id==="archer"||id==="suppress"?60:35)){
+      if(event)event.raceOffense=(event.raceOffense||0)+1;
+      return true;
+     }
+    if(event)event.raceBanked=(event.raceBanked||0)+1;
+    return true;
+   }
   }
  }
  // Aim the 1.3s delayed barrage where walking enemies will roughly be at impact.
@@ -1856,9 +1892,9 @@ function botExpertAction(team=2){
  // Holding is a real option: forego the desperate 2-energy infantry play,
  // save for an in-hand sentinel, then counterattack after the delay.
  let concessionHold=false;
- if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"){
-  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace";
-  const weighCounter=qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace";
+ if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"){
+  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival";
+  const weighCounter=qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival";
   const assessRisk=qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
   const assessLastLine=qaPolicy==="fortLastLine";
   // Strategic criticality: losing the home-side outpost when only one
@@ -3496,7 +3532,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
