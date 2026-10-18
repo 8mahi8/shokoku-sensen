@@ -1,0 +1,85 @@
+name: Online release quality gate
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'online*'
+      - 'gald-render.js'
+      - 'v3-art.js'
+      - 'tests/online-*'
+      - '.github/workflows/online-release-gate.yml'
+  push:
+    branches: [develop, 'release/**', 'feature/online-release-gate-*']
+    paths:
+      - 'online*'
+      - 'gald-render.js'
+      - 'v3-art.js'
+      - 'tests/online-*'
+      - '.github/workflows/online-release-gate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: online-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  transport-and-package:
+    name: Online gate / transport + bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate game syntax, bundle alignment, independent decks, and transport failures
+        run: |
+          node tests/online-smoke.cjs
+          node tests/online-sim.cjs
+  sites-iframe:
+    name: Online gate / Sites iframe + combat
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser QA dependencies
+        run: npm install --no-save playwright@1.56.1
+      - name: Install Chromium + WebKit
+        run: npx playwright install --with-deps chromium webkit
+      - name: Test literal Google Sites paste HTML as a sandboxed iframe
+        run: node tests/online-release-iframe.cjs
+      - name: Regression test guest snapshot hydration, drawing and high load
+        run: node tests/online-guest-performance-v15.cjs
+      - name: Upload failure screenshots and regression results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: online-release-sites-qa
+          path: |
+            qa-release-iframe/
+            qa-guest-v15/
+          if-no-files-found: ignore
+          retention-days: 14
+  firebase-e2e:
+    name: Online gate / real Firebase 1v1
+    # Avoid writing temporary test rooms for every dev iteration. Required
+    # by the release process for any main candidate (release/* or same-repo PR).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/')) ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Host + guest real RTDB play, barrage, broken listener, REST recovery
+        run: node tests/online-browser-live.cjs
