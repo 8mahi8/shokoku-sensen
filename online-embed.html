@@ -3832,6 +3832,44 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
        threatPairs.push({eta,enemyEta,separation});
       }
      }
+     // QA-only snapshot of currently visible effective combat strength.
+     // Do not use opponents' hands/energy or any future movement/hits.
+     const defenderUnits=S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
+      Math.abs(u.x-WALL_FACE[enemyTeam])<230);
+     const activeThreats=S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
+      wave.some(v=>{
+       const vd=CLASSES[v.key],ed=CLASSES[u.key];
+       if(ed.flying&&!vd.hitAir)return false;
+       if((team===1?u.x-v.x:v.x-u.x)<-(vd.range+ed.r+5))return false;
+       return dist(v,u)<Math.max(165,vd.vision+Math.min(120,ed.speed*3));
+      }));
+     const pressureTeamDps=activeThreats.reduce((sum,u)=>{
+      const d=CLASSES[u.key];
+      const canHit=wave.some(v=>!CLASSES[v.key].flying||d.hitAir);
+      return sum+(canHit?d.damage/d.cool:0);
+     },0);
+     const pressureTeamHp=activeThreats.reduce((sum,u)=>sum+u.hp,0);
+     const alliedHp=wave.reduce((sum,u)=>sum+u.hp,0);
+     const alliedAntiUnitDps=wave.reduce((sum,u)=>{
+      const d=CLASSES[u.key];
+      return sum+d.damage/d.cool;
+     },0);
+     const defenderHp=defenderUnits.reduce((sum,u)=>sum+u.hp,0);
+     const defenderDps=defenderUnits.reduce((sum,u)=>{
+      const d=CLASSES[u.key];
+      return sum+(wave.some(v=>!CLASSES[v.key].flying||d.hitAir)?
+       d.damage/d.cool:0);
+     },0);
+     const prePower={
+      waveUnits:wave.length,waveHp:alliedHp,alliedDps:alliedAntiUnitDps,
+      activeThreatUnits:activeThreats.length,
+      activeThreatHp:pressureTeamHp,activeThreatDps:pressureTeamDps,
+      defenderUnits:defenderUnits.length,defenderHp,defenderDps,
+      pressurePerWaveHp:alliedHp>0?pressureTeamDps*12/alliedHp:0,
+      defensePerWaveHp:alliedHp>0?defenderDps*12/alliedHp:0,
+      threatClearTime:alliedAntiUnitDps>0?pressureTeamHp/alliedAntiUnitDps:null,
+      wallClearTime:alliedAntiUnitDps>0?defenderHp/alliedAntiUnitDps:null
+     };
      const preThreat={
       eligiblePairs:threatPairs.length,
       inFriendlyVision:threatPairs.filter(x=>x.eta===0).length,
@@ -3861,7 +3899,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       enemyDefendersNearWall:S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
        Math.abs(u.x-WALL_FACE[enemyTeam])<230).length,
       enemyUnitsNearWave:S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
-       wave.some(v=>dist(u,v)<170)).length,preThreat};
+       wave.some(v=>dist(u,v)<170)).length,preThreat,prePower};
      audit.records.push(sample);audit.active=sample;
      nextForecastAt+=12;
     }
@@ -4001,7 +4039,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       survivorsAtGameEnd:r.uids.filter(id=>alive.has(id)).length,
       classes:r.classes,etaMin:r.etaMin,
       defenders:r.enemyDefendersNearWall,nearbyEnemy:r.enemyUnitsNearWave,
-      preThreat:r.preThreat,
+      preThreat:r.preThreat,prePower:r.prePower,
       newFriendlyPlays:newFriendPlays,enemyPlays,
       activity,covered:+covered.toFixed(3),
       deadOrGone:+deadOrGone.toFixed(3),
