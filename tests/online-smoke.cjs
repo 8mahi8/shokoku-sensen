@@ -58,4 +58,28 @@ assert.ok(!ai.includes('deploy(2,')&&!ai.includes('castSpell(2,'),"guest AI must
 assert.ok(ai.includes('botUse(team,')&&ai.includes('canPay(team,'),"AI must use validated team-aware dispatch adapter");
 
 
+// Smooth both position and walk/attack animation, not just Canvas frames.
+const presentSource=game.match(/function presentRemoteUnit\\(u\\)\\{[\\s\\S]*?\\n\\}/)?.[0];
+assert.ok(presentSource,"guest sprite interpolation function missing");
+let now=1100;
+const netStub={isHost:false},unit={uid:1,x:30,y:20,walkPhase:2,walking:true,attackAnim:.4,flash:.3};
+const view={remoteSprites:new Map([[1,{
+ x:10,y:20,targetX:30,targetY:20,vx:23,vy:0,updatedAt:1000,lastFrame:1000
+}]])};
+const present=new Function("NET","S","performance","Math",presentSource+";return presentRemoteUnit");
+const animate=present(netStub,view,{now:()=>now},Math);
+const output=animate(unit);
+assert.ok(output.x>10&&output.x<35,"guest visual position should interpolate");
+assert.ok(output.walkPhase>2&&output.walkPhase<4,"walk cycle advances smoothly between snapshots");
+assert.ok(output.attackAnim<.4&&output.attackAnim>0,"attack animation progresses between snapshots");
+assert.ok(output.flash<.3&&output.flash>0,"hit effect decays between snapshots");
+assert.equal(unit.walkPhase,2,"authoritative snapshot must remain unchanged");
+now=1400;
+const aged=animate(unit);
+assert.ok(aged.walkPhase<=2+23*.31*.251,"extrapolation must be bounded after stalled packets");
+netStub.isHost=true;
+assert.equal(animate(unit),unit,"host visuals must remain authoritative");
+assert.ok(net.includes("syncDiagnostics"),"network performance sampling must exist");
+assert.ok(game.includes("setupPerfPanel()"),"opt-in performance overlay must exist");
+
 console.log("PASS: syntax, round isolation, reconnect, rematch, independent host/guest decks and 64 shuffle checks, offline BOT, guest BOT, tablet UI and bundles");
