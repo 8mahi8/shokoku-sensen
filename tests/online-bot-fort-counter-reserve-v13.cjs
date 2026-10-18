@@ -38,7 +38,7 @@ const result=(g,team)=>g.winner===0?.5:g.winner===team?1:0;
   const fixed={
    difficulty:"hard",elapsed:82,energy:3.5,enemyEnergy:6,
    hand:["sentinel","archer","scout","tank"],fortOwners:[2,0,2],
-   enemies:[{key:"engineer",x:849,y:205}],allies:[]
+   enemies:[{key:"engineer",x:815,y:205}],allies:[]
   };
   const setup=async(variant,updates)=>page.evaluate(({variant,spec,updates})=>{
    const q=window.__shokokuQa;
