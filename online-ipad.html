@@ -2437,6 +2437,36 @@ function botExpertAction(team=2){
    front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
  const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
  if(event&&needFort)event.needFort++;
+ // QA-only: repair a demonstrated wrong-target capture coverage claim.
+ // Do NOT retarget units or force the nearest fort: check real getFort
+ // for each candidate spawn before spending any resources.
+ if(qaPolicy==="captureRouteOpportunity"&&!urgent&&fort&&S.elapsed<=180){
+  const minWorkers=S.elapsed<40?1:2;
+  if(workers.length>=minWorkers){
+   const routed=friends.filter(u=>CLASSES[u.key].capture&&u.hp>u.max*.35&&
+    getFort(u)===fort);
+   if(routed.length<minWorkers){
+    if(event)event.routeOpportunity=(event.routeOpportunity||0)+1;
+    const x=limit(edge+dir*35,40,W-40),y=fort.y;
+    const enemyDefenders=foes.some(u=>Math.abs(u.x-fort.x)<180&&
+     Math.abs(u.y-fort.y)<145);
+    const offers=enemyDefenders?["engineer"]:["scout","engineer"];
+    for(const id of offers){
+     if(!canPay(team,id)||getFort({team,key:id,x,y})!==fort)continue;
+     if(spawn(id,y,35)){
+      if(event){
+       event.routeOpportunityPlays=(event.routeOpportunityPlays||0)+1;
+       const xs=event.routeOpportunitySamples||(event.routeOpportunitySamples=[]);
+       if(xs.length<16)xs.push({at:+S.elapsed.toFixed(2),fort:fort.x,
+        oldWorkers:workers.length,actualWorkers:routed.length,
+        id,enemyDefenders});
+      }
+      return true;
+     }
+    }
+   }
+  }
+ }
  // Independent QA-only policy probes. Do not alter existing movement,
  // high-priority counters or base decisions unless conditions truly apply.
  const surgical=reason=>{if(event){
@@ -3749,7 +3779,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||typeof auditForecast!=="boolean"||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","captureRouteOpportunity","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
