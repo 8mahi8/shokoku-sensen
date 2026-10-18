@@ -1877,6 +1877,7 @@ function clampCamera(){
 // Keep Retina quality on fast devices; switch to a cheaper Canvas raster on
 // consistently slow tablet displays. A one-way change avoids resolution flicker.
 let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
+let guestLowPower=false,guestLastPaint=0;
 function adaptCanvasQuality(now){
  if(qualityMeasured||!(S.phase==="battle"||S.phase==="prep")||document.hidden){
   if(document.hidden){qualityWindowStart=0;qualityFrames=0;}
@@ -1888,7 +1889,9 @@ function adaptCanvasQuality(now){
  if(elapsed<3400)return;
  const fps=qualityFrames/(elapsed/1000);
  qualityWindowStart=now;qualityFrames=0;
- if(fps<38&&S.view.dpr>1.02){
+ if(fps<42&&!NET.isHost&&S.view.dpr<=1.02){
+  guestLowPower=true;qualityMeasured=true;
+ }else if(fps<38&&S.view.dpr>1.02){
   tabletDprCap=1.0;qualityMeasured=true;fit();
  }
 }
@@ -1897,7 +1900,9 @@ function fit(){
  v.w=Math.max(1,rect.width);v.h=Math.max(1,rect.height);
  // Reduce Retina tablet raster overdraw; simulation coordinates remain untouched.
  const tablet=(window.innerWidth||v.w)>=700&&(window.matchMedia?.("(pointer: coarse)").matches||/iPad/i.test(navigator.userAgent||""));
- v.dpr=Math.min(window.devicePixelRatio||1,tablet?tabletDprCap:2);
+ // Guest iPads can render one CSS pixel per backing pixel, avoiding Retina overdraw.
+ v.dpr=Math.min(window.devicePixelRatio||1,
+  tablet?(!NET.isHost?1.0:tabletDprCap):2);
  cv.width=Math.max(1,Math.round(v.w*v.dpr));cv.height=Math.max(1,Math.round(v.h*v.dpr));
  cv.style.width=v.w+"px";cv.style.height=v.h+"px";
  // Show roughly two thirds of the field horizontally, instead of the entire arena.
@@ -2558,7 +2563,8 @@ function start(){
    for(const id of sprites.keys())if(!seen.has(id))sprites.delete(id);
    const sig=JSON.stringify([S.hand[ME()],S.queue[ME()],S.left[ME()]]);
    if(sig!==window.__onlineHandSig){window.__onlineHandSig=sig;buildCards();}
-   updateHUD();
+   // Frame loop handles normal HUD refresh; avoid extra DOM layout for each packet.
+   if(was!==S.phase)updateHUD();
   }
  });
  // Refresh card and gallery portraits once the high-quality Gald atlas is built.
@@ -2641,6 +2647,10 @@ function start(){
   S.hudTick+=delta;
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();}
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
+  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30){
+   requestAnimationFrame(frame);return;
+  }
+  guestLastPaint=now;
   draw();requestAnimationFrame(frame);
  }
  requestAnimationFrame(frame);
