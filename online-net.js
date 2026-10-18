@@ -13,6 +13,8 @@ let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
 let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal';
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
+// Browser-only measurements: never upload these metrics to Firebase.
+let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
 // snapshots together. Apply only the newest on the next visible frame.
 let pendingRemote=null,remoteScheduled=false,remoteEpoch=0;
@@ -95,7 +97,12 @@ function receiveGuestWorld(packet){
   if(!latest||latest.round!==meta?.round)return;
   try{
    game?.apply(latest.world,latest.seq);
-   lastRemoteSeq=latest.seq;lastRemoteAppliedAt=performance.now();
+   const appliedAt=performance.now();
+   if(lastRemoteAppliedAt>0){
+    appliedGaps.push(Math.max(0,appliedAt-lastRemoteAppliedAt));
+    if(appliedGaps.length>32)appliedGaps.shift();
+   }
+   appliedPackets++;lastRemoteSeq=latest.seq;lastRemoteAppliedAt=appliedAt;
    if(syncWarning){syncWarning=false;updateUI();}
   }catch(e){setError(e)}
  });
@@ -120,8 +127,17 @@ function checkGuestSync(){
   if(epoch===remoteEpoch&&current===room&&!host)receiveGuestWorld(snap.val());
  }).catch(setError);
 }
+function syncDiagnostics(){
+ const gaps=appliedGaps,avg=gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:0;
+ return {connected,phase,role:solo?"solo":host?"host":"guest",
+  packets:appliedPackets,seq:lastRemoteSeq,
+  gapMs:Math.round(avg),maxGapMs:Math.round(gaps.length?Math.max(...gaps):0),
+  updatesHz:avg?Math.round(10000/avg)/10:0,
+  ageMs:Math.round(lastRemoteAppliedAt?performance.now()-lastRemoteAppliedAt:0)};
+}
 function setupRoom(code,isHost){
  solo=false;guestBot=false;
+ appliedGaps=[];appliedPackets=0;
  remoteEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
@@ -136,6 +152,7 @@ function setupRoom(code,isHost){
   const before=meta?.status;meta=snap.val();
   if(meta?.status==="lobby"&&before==="finished"){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
@@ -335,7 +352,7 @@ const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
- registerGame(x){game=x},maybePublish,checkGuestSync,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
+ registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;
