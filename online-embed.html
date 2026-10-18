@@ -1652,6 +1652,30 @@ let qaWindowPlans=[null,null,null];
 let qaConcedePlans=[null,null,null];
 let qaCastleHitEvents=[];
 let qaRaceBudgetPlans=[null,null,null]; // QA-only short savings plan
+// V7: fixed coefficients learned from explored seeds before preregistered
+// holdout #39112334826. No training on live match or evaluation outcomes.
+const QA_SIEGE_FORCE_FACTORS={
+ defended:{none:.5050536812872694,light:.3167089643266956,
+  medium:.3167089643266956,heavy:.16389999697335111},
+ clear:{none:1.0316168304750135,light:.9550732223414593,
+  medium:.9903921820252971,heavy:.5777059370022273}
+};
+function qaSiegeForceEstimate(team,wave,foes,projected12){
+ const hp=wave.reduce((n,u)=>n+u.hp,0);
+ const threat=foes.filter(u=>wave.some(v=>{
+  const d=CLASSES[v.key],ed=CLASSES[u.key];
+  if(ed.flying&&!d.hitAir)return false;
+  if((team===1?u.x-v.x:v.x-u.x)<-(d.range+ed.r+5))return false;
+  return dist(v,u)<Math.max(165,d.vision+Math.min(120,ed.speed*3));
+ }));
+ const enemyHp=threat.reduce((n,u)=>n+u.hp,0);
+ const ratio=hp>0?enemyHp/hp:0;
+ const bucket=ratio===0?"none":ratio<.5?"light":ratio<1?"medium":"heavy";
+ const wall=foes.some(u=>Math.abs(u.x-WALL_FACE[3-team])<230)?"defended":"clear";
+ const factor=QA_SIEGE_FORCE_FACTORS[wall][bucket];
+ return {wall,bucket,ratio,factor,forecast:projected12*factor,
+  enemyHp,alliedHp:hp,threatCount:threat.length};
+}
 function botUse(team,id,x,y){
  const accepted=playCard(team,id,x,y);
  if(accepted){
@@ -2177,7 +2201,8 @@ function botExpertAction(team=2){
  }
  // QA-only: conserve four energy shortly *before* our siege becomes a
  // damage race. Critical defense, emergency spells and fort holds run earlier.
- if(qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"){
+ if(qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||
+   qaPolicy==="castleRaceValue"||qaPolicy==="castleRaceForce"){
   const prior=qaRaceBudgetPlans[team];
   const wave=friends.filter(u=>CLASSES[u.key].behavior==="normal"&&
    u.hp>=u.max*.5&&Math.abs(u.x-WALL_FACE[3-team])<=510)
@@ -2205,7 +2230,11 @@ function botExpertAction(team=2){
   const projected12=active.reduce((n,x)=>
    n+x.dps*(12-x.eta)*(x.u.hp/x.u.max),0);
   const enemyWallCovered=foes.some(u=>Math.abs(u.x-WALL_FACE[3-team])<230);
-  const alreadyEnough=!enemyWallCovered&&projected12>=capital(3-team).hp*1.25;
+  const force=qaPolicy==="castleRaceForce"?
+   qaSiegeForceEstimate(team,wave,foes,projected12):null;
+  const alreadyEnough=force?
+   force.forecast>=capital(3-team).hp*1.25:
+   !enemyWallCovered&&projected12>=capital(3-team).hp*1.25;
   const nearLead=lead?foes.filter(u=>u.hp>0&&dist(u,lead)<165&&
    (!CLASSES[lead.key].flying||CLASSES[u.key].hitAir)):[];
   const hostileDps=nearLead.reduce((n,u)=>n+CLASSES[u.key].damage/CLASSES[u.key].cool,0);
@@ -2215,11 +2244,31 @@ function botExpertAction(team=2){
   const droneEta=Math.max(0,Math.abs(droneX-WALL_FACE[3-team])-
    CLASSES.drone.range-15)/CLASSES.drone.speed;
   const late=droneEta>Math.min(18,leadEta+8);
-  const valueSafe=qaPolicy!=="castleRaceValue"||(!alreadyEnough&&!fragile&&!late);
+  // When the visible hostile frontline has more HP than our whole wave,
+  // an exposed 135-HP drone is a poor reserve goal. Revert to legal
+  // ordinary card spending rather than bank for such a marginal attack.
+  const forceOutmatched=!!force&&force.bucket==="heavy"&&
+   force.forecast<capital(3-team).hp*.9;
+  const valueSafe=!["castleRaceValue","castleRaceForce"].includes(qaPolicy)||
+   (!alreadyEnough&&!fragile&&!late&&!forceOutmatched);
   const eligible=safe&&secondsUntilAffordable(power,4)<=10.5&&valueSafe;
   if(event){
    event.raceBudgetChecks=(event.raceBudgetChecks||0)+1;
    if(eligible)event.raceBudgetEligible=(event.raceBudgetEligible||0)+1;
+   if(qaPolicy==="castleRaceForce"&&lead&&supported){
+    event.forceChecks=(event.forceChecks||0)+1;
+    if(forceOutmatched)event.forceVetoOutmatched=(event.forceVetoOutmatched||0)+1;
+    if(safe&&forceOutmatched)event.forceSafeVeto=(event.forceSafeVeto||0)+1;
+    if(safe&&!forceOutmatched)event.forceSafeOpen=(event.forceSafeOpen||0)+1;
+    const samples=event.forceSamples||(event.forceSamples=[]);
+    if(safe&&samples.length<24)samples.push({
+     t:+S.elapsed.toFixed(2),wave:wave.map(u=>u.key),
+     wall:force.wall,bucket:force.bucket,
+     enemyHp:Math.round(force.enemyHp),waveHp:Math.round(force.alliedHp),
+     factor:+force.factor.toFixed(3),raw:+projected12.toFixed(1),
+     expected:+force.forecast.toFixed(1),enemyCastle:capital(3-team).hp,
+     outmatched:forceOutmatched,eligible});
+   }
    if(qaPolicy==="castleRaceValue"&&lead&&supported){
     event.raceValueChecks=(event.raceValueChecks||0)+1;
     if(alreadyEnough)event.raceValueEnough=(event.raceValueEnough||0)+1;
@@ -3677,7 +3726,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||typeof auditForecast!=="boolean"||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
