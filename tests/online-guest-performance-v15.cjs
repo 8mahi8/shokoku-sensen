@@ -29,8 +29,8 @@ const extra=[
  ' },(k,v)=>v===Infinity?1000000000:v)),'
 ].join("\n");
 const patchedGame=g.replace(qaKey,qaKey+extra+"\n").replace(
- "  draw();\\n  if(perfPanel)samplePerf(now,performance.now()-paintStart);",
- "  window.__qaRenderedFrames=(window.__qaRenderedFrames||0)+1;draw();\\n  if(perfPanel)samplePerf(now,performance.now()-paintStart);"
+ "  draw();\n  if(perfPanel)samplePerf(now,performance.now()-paintStart);",
+ "  window.__qaRenderedFrames=(window.__qaRenderedFrames||0)+1;draw();\n  if(perfPanel)samplePerf(now,performance.now()-paintStart);"
 );
 assert.notEqual(patchedGame,g,"QA game injection missing");
 assert.ok(patchedGame.includes("window.__qaRenderedFrames="));
