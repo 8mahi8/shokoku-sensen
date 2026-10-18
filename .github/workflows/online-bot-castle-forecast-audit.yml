@@ -7,6 +7,7 @@ on:
       - 'tests/online-bot-castle-forecast-audit.cjs'
       - 'tests/analyze-castle-forecast.cjs'
       - 'tests/analyze-castle-interception.cjs'
+      - 'tests/analyze-castle-precontact.cjs'
       - 'online-game.js'
   workflow_dispatch:
 jobs:
@@ -25,6 +26,7 @@ jobs:
       - run: node tests/online-bot-castle-forecast-audit.cjs
       - run: node tests/analyze-castle-forecast.cjs
       - run: node tests/analyze-castle-interception.cjs
+      - run: node tests/analyze-castle-precontact.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
