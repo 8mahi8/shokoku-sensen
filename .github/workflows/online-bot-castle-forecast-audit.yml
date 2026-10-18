@@ -6,6 +6,7 @@ on:
       - '.github/workflows/online-bot-castle-forecast-audit.yml'
       - 'tests/online-bot-castle-forecast-audit.cjs'
       - 'tests/analyze-castle-forecast.cjs'
+      - 'tests/analyze-castle-interception.cjs'
       - 'online-game.js'
   workflow_dispatch:
 jobs:
@@ -23,6 +24,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/online-bot-castle-forecast-audit.cjs
       - run: node tests/analyze-castle-forecast.cjs
+      - run: node tests/analyze-castle-interception.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
