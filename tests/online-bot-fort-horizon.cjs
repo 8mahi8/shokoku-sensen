@@ -73,6 +73,78 @@ const metric=(rows)=>{
   fortTimeDiffValueTrade:avg(rows,r=>r.value.fortSeconds[r.team]-r.trade.fortSeconds[r.team])
  };
 };
+
+const raceOutcome=(ep,g)=>{
+ const duration=Math.max(0,g.elapsed-ep.start),ended=duration<90-1e-4;
+ if(ep.firstLoss===null)return ended?"endedBeforeFortLoss":"fortNeverLost90";
+ if(ep.firstRecapture!==null&&ep.firstRecapture<=Math.min(90,duration)+1e-3)
+  return "recapturedBefore90";
+ if(!ended)return "stillLost90";
+ return g.winner===ep.team?"wonBeforeRecapture":
+  g.winner===3-ep.team?"lostBeforeRecapture":"drewBeforeRecapture";
+};
+const raceLabels=["endedBeforeFortLoss","fortNeverLost90","recapturedBefore90",
+ "stillLost90","wonBeforeRecapture","lostBeforeRecapture","drewBeforeRecapture"];
+const raceSummary=(rows)=>{
+ const all=which=>rows.flatMap(r=>r[which+"Episodes"].map(ep=>({ep,g:r[which]})));
+ const group=entries=>{
+  const states=Object.fromEntries(raceLabels.map(k=>[k,0]));
+  entries.forEach(({ep,g})=>states[raceOutcome(ep,g)]++);
+  const engineers=entries.filter(({ep})=>ep.reserve==="engineer");
+  const possible=engineers.filter(({ep})=>ep.engineerRecaptureFloorSeconds<=90&&
+   ep.engineerRecaptureFloorSeconds<=ep.timeLeftAtPlanSeconds);
+  const threatBefore=engineers.filter(({ep})=>ep.visibleHostileCastleEtaSeconds!==null&&
+   ep.visibleHostileCastleEtaSeconds<ep.engineerRecaptureFloorSeconds);
+  return {episodes:entries.length,fortLost:entries.filter(({ep})=>ep.firstLoss!==null).length,
+   states,engineerPlans:engineers.length,optimisticEngineerFloorFits90AndClock:possible.length,
+   visibleCastleThreatSoonerThanEngineerFloor:threatBefore.length,
+   meanEngineerFloorSeconds:avg(engineers,({ep})=>ep.engineerRecaptureFloorSeconds),
+   meanTimeLeftAtPlan:avg(entries,({ep})=>ep.timeLeftAtPlanSeconds)};
+ };
+ const pairs=[];
+ for(const r of rows){
+  const taken=new Set();
+  for(const t of r.tradeEpisodes){
+   const i=r.valueEpisodes.findIndex((v,j)=>!taken.has(j)&&v.fortIndex===t.fortIndex&&
+    Math.abs(v.start-t.start)<=.25);
+   if(i<0)continue;
+   taken.add(i);
+   const v=r.valueEpisodes[i];
+   pairs.push({seed:r.seed,team:r.team,fortIndex:t.fortIndex,
+    startDifferenceSeconds:+Math.abs(v.start-t.start).toFixed(3),
+    engineerPolicyOutcome:raceOutcome(t,r.trade),
+    defensePolicyOutcome:raceOutcome(v,r.value),
+    engineerReserve:t.reserve,defenseReserve:v.reserve});
+  }
+ }
+ const trade=all("trade"),value=all("value");
+ return {kind:"Competing match-end versus fort recapture, descriptive known-seed episodes",
+  horizonSeconds:90,matchedFullGames:rows.length,byVariant:{
+   fortTradeReclaim:group(trade),fortDefenseValue:group(value)},
+  matchedPlanStarts:pairs.length,unmatchedEngineerPlans:trade.length-pairs.length,
+  unmatchedDefensePlans:value.length-pairs.length,
+  differentPairedOutcomeCategories:pairs.filter(p=>p.engineerPolicyOutcome!==p.defensePolicyOutcome).length,
+  pairedEpisodes:pairs,
+  caveats:["A match ending before 90 seconds is a competing event, not random censoring.",
+   "Fort never lost is distinct from lost then recaptured.",
+   "First recapture does not guarantee retention through 90 seconds.",
+   "Engineer ETA is an optimistic no-opposition floor and is not observed success.",
+   "Plan episodes are endogenous, matched starts are not randomized comparisons.",
+   "Previously explored six seeds only; unused holdouts remain untouched."]};
+};
+// Pure-data edge cases, verified before launching the 360-match browser audit.
+{
+ const ep={start:100,team:2,firstLoss:5,firstRecapture:null};
+ const g=(elapsed,winner)=>({elapsed,winner});
+ assert.equal(raceOutcome(ep,g(120,1)),"lostBeforeRecapture");
+ assert.equal(raceOutcome(ep,g(120,2)),"wonBeforeRecapture");
+ assert.equal(raceOutcome(ep,g(120,0)),"drewBeforeRecapture");
+ assert.equal(raceOutcome(ep,g(195,1)),"stillLost90");
+ assert.equal(raceOutcome({...ep,firstRecapture:70},g(175,1)),"recapturedBefore90");
+ assert.equal(raceOutcome({...ep,firstLoss:null},g(195,1)),"fortNeverLost90");
+ assert.equal(raceOutcome({...ep,firstLoss:null},g(130,1)),"endedBeforeFortLoss");
+}
+
 (async()=>{
  let browser;
  try{
@@ -109,6 +181,12 @@ const metric=(rows)=>{
      assert.equal(e.team,team);
      assert.ok(e.start>=20&&e.start<=235);
      assert.ok(e.energyStart>=2&&e.energyStart<4);
+     assert.ok(e.waitForFourSeconds>=0&&e.waitForFourSeconds<=8);
+     assert.ok(e.engineerTravelFloorSeconds>=0);
+     assert.ok(e.engineerCaptureFloorSeconds>=0);
+     assert.ok(e.engineerRecaptureFloorSeconds>=e.waitForFourSeconds+
+      e.engineerCaptureFloorSeconds-.002);
+     assert.ok(e.timeLeftAtPlanSeconds>=0&&e.timeLeftAtPlanSeconds<=300);
      assert.ok(e.fortControl15>=0&&e.fortControl15<=15.1);
      assert.ok(e.fortControl30>=0&&e.fortControl30<=30.1);
      assert.ok(e.fortControl60>=0&&e.fortControl60<=60.1);
@@ -136,10 +214,10 @@ const metric=(rows)=>{
      }
     }
     rows.push({...q,
-     base:{winner:base.winner,castleHp:base.castleHp,damage:base.damage,fortSeconds:base.fortSeconds},
-     trade:{winner:trade.winner,castleHp:trade.castleHp,damage:trade.damage,
+     base:{winner:base.winner,elapsed:base.elapsed,castleHp:base.castleHp,damage:base.damage,fortSeconds:base.fortSeconds},
+     trade:{winner:trade.winner,elapsed:trade.elapsed,castleHp:trade.castleHp,damage:trade.damage,
       fortSeconds:trade.fortSeconds},
-     value:{winner:value.winner,castleHp:value.castleHp,damage:value.damage,
+     value:{winner:value.winner,elapsed:value.elapsed,castleHp:value.castleHp,damage:value.damage,
       fortSeconds:value.fortSeconds},
      episodes:[...trade.counterEpisodes,...value.counterEpisodes],
      tradeEpisodes:trade.counterEpisodes,valueEpisodes:value.counterEpisodes});
@@ -165,6 +243,9 @@ const metric=(rows)=>{
     "All six seeds were previously explored; independent holdout untouched.",
     "Primary objective is castle survival, followed by actionable fort control and attack tempo.",
     "No change was made to the live standard BOT, combat rules, or main branch."]};
+  const race=raceSummary(rows);
+  fs.writeFileSync(path.join(out,"recapture-race.json"),JSON.stringify(race,null,2));
+  console.log("FORT RECAPTURE RACE",JSON.stringify({...race,pairedEpisodes:"in artifact"}));
   fs.writeFileSync(path.join(out,"episodes.json"),JSON.stringify(data,null,2));
   fs.writeFileSync(path.join(out,"matches.json"),JSON.stringify(rows,null,2));
   fs.writeFileSync(path.join(out,"summary.json"),JSON.stringify(report,null,2));

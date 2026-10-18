@@ -1965,6 +1965,13 @@ function botExpertAction(team=2){
     front(WALL_FACE[team])-front(u.x)-70)/Math.max(1,CLASSES[u.key].speed)),Infinity);
    const projectedSpawn=limit(edge+dir*35,40,W-40);
    const recaptureTime=Math.abs(projectedSpawn-threatenedFort.x)/CLASSES.engineer.speed;
+   // Measurement only: uncontested engineer travel to firing range plus five cooldowns.
+   // This optimistic floor ignores combat, route changes, fort loss timing and enemy spawns.
+   const engineerTravelFloor=Math.max(0,Math.abs(projectedSpawn-threatenedFort.x)-
+    (CLASSES.engineer.range+26))/CLASSES.engineer.speed;
+   const engineerCaptureFloor=(Math.ceil(POST_HP/CLASSES.engineer.capture)-1)*
+    CLASSES.engineer.cool;
+   const engineerRecaptureFloor=eta+engineerTravelFloor+engineerCaptureFloor;
    const requiredWindow=eta+(reserve==="engineer"
     ?Math.min(8,recaptureTime*.6):4);
    const lastLineCritical=criticalOutpost(threatenedFort,attackers);
@@ -1986,7 +1993,14 @@ function botExpertAction(team=2){
     if(duelStats?.counterEpisodes){
      duelStats.counterEpisodes.push({
       team,variant:qaPolicy,start:S.elapsed,fortIndex:objectiveIndex,
-      reserve,energyStart:power,ownedFortsStart:S.forts.filter(f=>f.owner===team).length,
+      reserve,energyStart:power,
+       waitForFourSeconds:+eta.toFixed(3),
+       engineerTravelFloorSeconds:+engineerTravelFloor.toFixed(3),
+       engineerCaptureFloorSeconds:+engineerCaptureFloor.toFixed(3),
+       engineerRecaptureFloorSeconds:+engineerRecaptureFloor.toFixed(3),
+       timeLeftAtPlanSeconds:+(MATCH-S.elapsed).toFixed(3),
+       visibleHostileCastleEtaSeconds:Number.isFinite(threatEta)?+threatEta.toFixed(3):null,
+       ownedFortsStart:S.forts.filter(f=>f.owner===team).length,
       fastAttackersStart:attackers.filter(u=>CLASSES[u.key].speed>=30).length,
       enemiesStart:foes.length,castleHpStart:capital(team).hp,
       enemyCastleHpStart:capital(3-team).hp,
