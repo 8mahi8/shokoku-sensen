@@ -53,6 +53,7 @@ const scenes=[
    {spec,horizon,seeds});
   const summary=[];
   for(const scene of scenes){
+   const started=Date.now();
    const first=await search(scene.spec,20,[17,41,73]);
    assert.ok(first&&first.best&&first.options.length>=2,"must evaluate alternatives");
    assert.ok(Number.isFinite(first.best.meanScore),"score must be finite");
@@ -67,9 +68,26 @@ const scenes=[
    }
    const again=await search(scene.spec,20,[17,41,73]);
    assert.deepEqual(first,again,"seeded fixed-scene search repeatable");
+   const expected={ground-raiders:"sentinel",air-threat:"archer",
+    armored-raider:"guardian"};
+   if(expected[scene.name]){
+    assert.equal(first.best.id,expected[scene.name],
+     "simple concrete defensive scenarios must be correctly recognized");
+    assert.ok(first.best.runs.every(x=>x.ownDamage===0),
+     "the selected correct defense must protect the castle in the fixed scene");
+   }
+   const legacyResult=first.options.find(x=>x.id===first.legacy.id&&
+    x.x===first.legacy.x&&x.y===first.legacy.y);
+   const metrics=option=>({
+    castleDamage:option.runs.reduce((sum,r)=>sum+r.ownDamage,0)/option.runs.length,
+    enemyUnitDamage:option.runs.reduce((sum,r)=>sum+r.enemyUnitDamage,0)/option.runs.length,
+    enemyCastleDamage:option.runs.reduce((sum,r)=>sum+r.enemyCastleDamage,0)/option.runs.length
+   });
    summary.push({scene:scene.name,legacy:first.legacy,
-    legacyScore:first.legacyScore,
-    chosen:{id:first.best.id,y:first.best.y,score:first.best.meanScore},
+    legacyScore:first.legacyScore,legacyMetrics:metrics(legacyResult),
+    chosen:{id:first.best.id,x:first.best.x,y:first.best.y,
+     score:first.best.meanScore,metrics:metrics(first.best)},
+    evaluationMillis:Date.now()-started,
     comparisons:first.options.length,
     ranking:first.options.slice(0,5).map(x=>({id:x.id,y:x.y,
      meanScore:x.meanScore,averageOwnCastleDamage:
