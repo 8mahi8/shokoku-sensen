@@ -100,7 +100,10 @@ const workloadMs=[35,90,170,270],samples=[];
     "unexpected candidate status "+JSON.stringify(data));
    else assert.equal(data.outcome,"gateSkip",
     "no-strategy or urgent scenes should bypass Worker");
-   assert.ok(data.frames>0,"render callbacks must stay responsive");
+   // Gate-suppressed requests resolve synchronously, legitimately before
+   // the browser can schedule a single render frame.
+   if(data.gateEligible)assert.ok(data.frames>0,
+    "render callbacks must stay responsive on workload "+JSON.stringify(data));
   }
   await page.evaluate(()=>window.__shokokuQa.workerStop());
   assert.deepEqual(errors,[]);
