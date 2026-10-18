@@ -95,10 +95,18 @@ function resetWorld(){
  S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];qaRaceBudgetPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
- // The same randomized deck on both teams preserves symmetrical card access.
- const deck=shuffledDeck();
+ // Both teams draw their own shuffled cycle from the same card pool.
+ // Reroll a matching opening order so the two sides never start identically.
+ let blueOpening="";
  for(const team of [1,2]){
   for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
+  let deck=shuffledDeck();
+  if(team===1)blueOpening=deck.slice(0,HAND_SIZE).join(",");
+  else{
+   for(let attempt=0;attempt<8&&deck.slice(0,HAND_SIZE).join(",")===blueOpening;attempt++)
+    deck=shuffledDeck();
+   if(deck.slice(0,HAND_SIZE).join(",")===blueOpening)deck.push(deck.shift());
+  }
   S.hand[team]=deck.slice(0,HAND_SIZE);
   S.queue[team]=deck.slice(HAND_SIZE);
  }
