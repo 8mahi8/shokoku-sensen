@@ -10,6 +10,8 @@ on:
       - 'tests/analyze-castle-precontact.cjs'
       - 'tests/analyze-castle-precontact-damage.cjs'
       - 'tests/analyze-castle-force-model.cjs'
+      - 'tests/online-bot-castle-force-holdout.cjs'
+      - 'tests/evaluate-castle-force-holdout.cjs'
       - 'online-game.js'
   workflow_dispatch:
 jobs:
@@ -31,9 +33,17 @@ jobs:
       - run: node tests/analyze-castle-precontact.cjs
       - run: node tests/analyze-castle-precontact-damage.cjs
       - run: node tests/analyze-castle-force-model.cjs
+      - run: node tests/online-bot-castle-force-holdout.cjs
+      - run: node tests/evaluate-castle-force-holdout.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: qa-bot-castle-forecast-audit
           path: qa-bot-castle-forecast-audit
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-bot-castle-force-holdout
+          path: qa-bot-castle-force-holdout
           retention-days: 30
