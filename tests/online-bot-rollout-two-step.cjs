@@ -20,7 +20,7 @@ const server=http.createServer((req,res)=>{
  if(f===path.join(root,"online-game.js")){res.end(patched);return;}
  fs.createReadStream(f).pipe(res);
 });
-const seeds=[17,41],responses=["idle","counterpush"],horizon=20;
+const seeds=[17,41],responses=["idle","counterpush","latePush"],horizon=20;
 const cases=[
  {name:"capture-opening",spec:{difficulty:"hard",elapsed:20,energy:4,enemyEnergy:4,
   hand:["scout","engineer","archer","drone"],fortOwners:[0,0,0],
@@ -64,6 +64,15 @@ const cases=[
     "two-step plans re-evaluate own legal second decision exactly at 6s");
    assert.ok(one.options.every(x=>x.runs.every(r=>r.secondAction===null)),
     "one-step control never uses follow-up action");
+   // Crucial leakage check: idle and latePush diverge ONLY after t+9,
+   // while our follow-up is decided at t+6. Both futures must cause the
+   // exact same choice at t+6 for the same first action and random seed.
+   for(const opt of two.options)for(const seed of seeds){
+    const idle=opt.runs.find(r=>r.seed===seed&&r.response==="idle");
+    const late=opt.runs.find(r=>r.seed===seed&&r.response==="latePush");
+    assert.deepEqual(idle.secondAction,late.secondAction,
+     "a t+6 planner may not know or react to unobserved t+9 opponent cards");
+   }
    assert.ok(two.options.every(x=>x.runs.every(r=>r.secondAction.id==="wait"||
     r.secondAction.charged===r.secondAction.cost)),
     "real purchase deducted exact cost at second step");
