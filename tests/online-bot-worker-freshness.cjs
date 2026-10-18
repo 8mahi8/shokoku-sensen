@@ -31,6 +31,8 @@ const scene={difficulty:"hard",elapsed:90,energy:7,enemyEnergy:7,
 const quiet={difficulty:"hard",elapsed:48,energy:8,enemyEnergy:8,
  hand:["tank","guardian","scout","archer"],fortOwners:[0,0,0],
  enemies:[],allies:[]};
+const benignScene={...quiet,enemies:[{key:"scout",x:905,y:444}],
+ allies:[{key:"sentinel",x:700,y:205}]};
 (async()=>{
  let browser;
  try{
@@ -58,8 +60,9 @@ const quiet={difficulty:"hard",elapsed:48,energy:8,enemyEnergy:8,
   },{name,mutation,mode});
   const rows=[];
   for(const entry of [
-   {label:"benign drift strict",mutation:"benign",mode:"strict",expected:"stale",reason:"strictSignatureChanged"},
-   {label:"benign movement and regen",mutation:"benign",mode:"conservative",expected:"acceptedRevalidated",reason:"benignMovementAndRegen"},
+   {label:"benign drift strict",mutation:"benign",mode:"strict",fixture:"benignScene",expected:"stale",reason:"strictSignatureChanged"},
+   {label:"benign movement and regen",mutation:"benign",mode:"conservative",fixture:"benignScene",expected:"acceptedRevalidated",reason:"benignMovementAndRegen"},
+   {label:"contact without immediate hit",mutation:"benign",fixture:"scene",expected:"stale",reason:"combatContact"},
    {label:"fort capture",mutation:"fort",expected:"stale",reason:"fortChanged"},
    {label:"castle hit",mutation:"castle",expected:"stale",reason:"castleChanged"},
    {label:"card rotation",mutation:"card",expected:"stale",reason:"cardsChanged"},
@@ -69,12 +72,24 @@ const quiet={difficulty:"hard",elapsed:48,energy:8,enemyEnergy:8,
    {label:"enemy fast reposition",mutation:"largeMove",expected:"stale",reason:"unitMovement"},
    {label:"old proposal",mutation:"age",expected:"stale",reason:"age"}
   ]){
-   await prep(scene);
+   await prep(entry.fixture==="benignScene"?benignScene:scene);
    const result=await attempt(entry.label,entry.mutation,entry.mode);
    assert.equal(result.status,entry.expected,entry.label+" status: "+JSON.stringify(result));
    assert.equal(result.reason||result.freshness,entry.reason,entry.label);
    rows.push({...entry,actual:result.status,latencyMs:result.elapsed});
   }
+  // A live, actively contested fort is too unstable for the short
+  // relaxation; contact must be rejected EVEN BEFORE HP actually changes.
+  await prep(scene);
+  const combatLive=await page.evaluate(async()=>{
+   const q=window.__shokokuQa;
+   q.workerUnfreeze();
+   const result=await q.workerSubmit(2,120,900,true,"conservative");
+   q.workerFreeze();
+   return result;
+  });
+  assert.equal(combatLive.status,"stale",
+   "active contact during a real battle must never be reused");
   // Realtime: DO NOT freeze tick. The battle clock & energy genuinely
   // advance every 1/30s, while the worker computes. There is no HP clash.
   const live=[];
@@ -98,7 +113,7 @@ const quiet={difficulty:"hard",elapsed:48,energy:8,enemyEnergy:8,
   await page.evaluate(()=>window.__shokokuQa.workerStop());
   assert.deepEqual(errors,[]);
   const report={kind:"Host-side conservative Worker freshness contract on real game engine",
-   entries:rows.length,rows,naturalLiveTicks:live,
+   entries:rows.length,rows,naturalLiveTicks:live,activeCombatLive:combatLive,
    safety:["All critical HP/fort/hand/energy/roster changes vetoed",
     "Short benign deterministic movement and naturally regenerated energy allowed",
     "Worker did not purchase, spend, move, or issue any online commands",
