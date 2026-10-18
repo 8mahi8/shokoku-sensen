@@ -5,7 +5,7 @@ const assert=require("node:assert/strict"),fs=require("node:fs"),
 const root=process.cwd(),out="qa-bot-route-coverage-audit";
 fs.mkdirSync(out,{recursive:true});
 const source=fs.readFileSync(path.join(root,"online-game.js"),"utf8");
-const needle='   tally("mapDecisions");';
+const needle='  tally("mapDecisions");';
 assert.equal(source.split(needle).length,2,"QA instrumentation anchor changed");
 const injected=source.replace(needle,needle+`
    // QA audit only: report whether the current X/Y capture-unit heuristic
