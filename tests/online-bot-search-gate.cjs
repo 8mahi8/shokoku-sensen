@@ -44,7 +44,7 @@ const server=http.createServer((req,res)=>{
     expected:"candidate"},
    {name:"mixed-threats",spec:{elapsed:110,difficulty:"hard",energy:8,enemyEnergy:7,
     hand:["guardian","archer","scout","sentinel"],fortOwners:[0,0,2],
-    enemies:[{key:"drone",x:980,y:444},{key:"scout",x:965,y:205}],allies:[]},
+    enemies:[{key:"drone",x:920,y:444},{key:"scout",x:925,y:205}],allies:[]},
     expected:"candidate"},
    {name:"large-versus-capture",spec:{elapsed:30,difficulty:"hard",energy:8,enemyEnergy:5,
     hand:["tank","guardian","scout","archer"],fortOwners:[0,0,0],
