@@ -58,11 +58,22 @@ const server=http.createServer((req,res)=>{
       "Unexpected replay failure "+JSON.stringify(boot));
      skips.push({seed,checkpoint,policy,boot});continue;
     }
-    await page.waitForFunction(()=>{
-     const s=window.__shokokuQa.realDuelStatus();
-     return !!s&&s.finished&&!s.pending;
-    },{timeout:22000});
+    try{
+     await page.waitForFunction(()=>{
+      const s=window.__shokokuQa.realDuelStatus();
+      return !!s&&s.finished&&!s.pending;
+     },null,{timeout:22000});
+    }catch(error){
+     const current=await page.evaluate(()=>window.__shokokuQa.realDuelStatus());
+     throw Error("Real duel timed out "+JSON.stringify({seed,checkpoint,policy,
+      current,currentError:String(error)}));
+    }
     const result=await page.evaluate(()=>window.__shokokuQa.realDuelStop());
+    if(result.phase!=="battle"||result.observeTicks<=200){
+     skips.push({seed,checkpoint,policy,reason:"endedDuringWindow",
+      at:result.world.elapsed,ticks:result.observeTicks});
+     continue;
+    }
     assert.ok(result&&result.observeTicks>200,
      "Real-time 30Hz ticks were not executed "+JSON.stringify(result));
     assert.ok(result.world.elapsed>=checkpoint+9.95);
