@@ -54,8 +54,9 @@ const cases=[
    assert.ok(one?.best&&two?.best,"both planners produce legal choice");
    assert.equal(one.mode,"one");assert.equal(two.mode,"two");
    assert.equal(two.followUpAt,6);
-   assert.deepEqual(one.options.map(x=>[x.id,x.x,x.y]),
-    two.options.map(x=>[x.id,x.x,x.y]),"all first choices are same");
+   const keys=r=>r.options.map(x=>JSON.stringify([x.id,x.x,x.y])).sort();
+   assert.deepEqual(keys(one),keys(two),
+    "all first choices are same regardless of ranking");
    assert.equal(one.best.runs.length,seeds.length*responses.length);
    assert.equal(two.best.runs.length,seeds.length*responses.length);
    assert.ok(two.options.every(x=>x.runs.every(r=>r.secondAction&&
