@@ -5,8 +5,8 @@ const assert=require("node:assert/strict"),fs=require("node:fs"),
 path=require("node:path"),http=require("node:http"),{chromium}=require("playwright");
 const root=process.cwd(),out="qa-bot-early-spend-audit";fs.mkdirSync(out,{recursive:true});
 let src=fs.readFileSync(path.join(root,"online-game.js"),"utf8");
-const head='  const before=decisionAudit?{\n   energy:S.energy[team]';
-const after='  const played=duelStats.actions[team]>beforeActions;\n   const card=played?botLastAction.id:"none";';
+const head=' const before=decisionAudit?{\n  energy:S.energy[team]';
+const after='   const played=duelStats.actions[team]>beforeActions;\n   const card=played?botLastAction.id:"none";';
 assert.equal(src.split(head).length,2,"early snapshot source changed");
 assert.equal(src.split(after).length,2,"action telemetry source changed");
 src=src.replace(head,[
