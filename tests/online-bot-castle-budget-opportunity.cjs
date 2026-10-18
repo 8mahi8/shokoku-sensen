@@ -6,11 +6,11 @@ const assert=require("node:assert/strict"),fs=require("node:fs"),
 const root=process.cwd(),out="qa-bot-castle-budget-opportunity";
 fs.mkdirSync(out,{recursive:true});
 const original=fs.readFileSync(path.join(root,"online-game.js"),"utf8");
-const anchor="     forecastAudit,\n     castleHp:hp,";
+const anchor="    forecastAudit,\n    castleHp:hp,";
 assert.equal(original.split(anchor).length,2,"unexpected runDuel QA API structure");
 const instrumented=original.replace(anchor,
- '     forecastAudit,\n     qaActionLedger:duelStats.actionLedger.map(a=>'+
- '({at:+a.at.toFixed(3),team:a.team,id:a.id,cost:a.cost})),\n     castleHp:hp,');
+ '    forecastAudit,\n    qaActionLedger:duelStats.actionLedger.map(a=>'+
+ '({at:+a.at.toFixed(3),team:a.team,id:a.id,cost:a.cost})),\n    castleHp:hp,');
 const srv=http.createServer((req,res)=>{
  const file=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
  if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){
