@@ -55,6 +55,20 @@ const sum=(a,f)=>a.reduce((n,x)=>n+f(x),0),
      assert.ok(w.trackedCount===w.classes.length);
      assert.ok(w.censored===!w.completed);
      assert.ok(w.hits===0||w.actual>0);
+     assert.ok(w.activity&&Number.isFinite(w.activity.alive));
+     assert.ok(w.activity.alive>=0);
+     assert.ok(Math.abs(w.activity.alive-w.covered)<.025,
+      "unit seconds must partition selected targets");
+     assert.ok(w.covered<=w.trackedCount*w.observedSeconds+w.trackedCount*.05,
+      "unit seconds cannot exceed potential exposure");
+     assert.ok(w.deadOrGone>=0);
+     assert.ok(w.activity.enemyNearby<=w.activity.alive+.02);
+     assert.ok(w.activity.inCastleRange<=w.activity.castleTarget+.02);
+     assert.ok(w.defenderObservedSeconds<=w.observedSeconds+.05);
+     assert.ok(w.nearbyEnemyObservedSeconds<=w.observedSeconds+.05);
+     if(w.hits>0)assert.ok(w.firstCastleHitAt!==null);
+     if(w.firstEnemyTargetAt!==null)assert.ok(w.activity.enemyTarget>0);
+     if(w.firstFortTargetAt!==null)assert.ok(w.activity.fortTarget>0);
     }
     rows.push({...q,winner:audited.winner,elapsed:audited.elapsed,
      windows:audited.forecastAudit});
