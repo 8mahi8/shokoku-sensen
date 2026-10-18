@@ -1877,7 +1877,7 @@ function clampCamera(){
 // Keep Retina quality on fast devices; switch to a cheaper Canvas raster on
 // consistently slow tablet displays. A one-way change avoids resolution flicker.
 let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
-let guestLowPower=false,guestLastPaint=0;
+let guestLowPower=false,guestLastPaint=0,guestDprCap=1.0;
 function adaptCanvasQuality(now){
  if(qualityMeasured||!(S.phase==="battle"||S.phase==="prep")||document.hidden){
   if(document.hidden){qualityWindowStart=0;qualityFrames=0;}
@@ -1889,7 +1889,14 @@ function adaptCanvasQuality(now){
  if(elapsed<3400)return;
  const fps=qualityFrames/(elapsed/1000);
  qualityWindowStart=now;qualityFrames=0;
- if(fps<42&&!NET.isHost&&S.view.dpr<=1.02){
+ // In sustained dense fights on tablet guests, a lower backing resolution
+ // reduces raster work without altering unit coordinates or combat logic.
+ // Use this only as an emergency quality tier, not on every slow frame.
+ const tabletGuest=!NET.isHost&&(window.innerWidth||S.view.w)>=700&&
+  (window.matchMedia?.("(pointer: coarse)")?.matches||/iPad/i.test(navigator.userAgent||""));
+ if(fps<27&&tabletGuest&&S.units.length>=55&&S.view.dpr<=1.02){
+  guestDprCap=.8;guestLowPower=true;qualityMeasured=true;fit();
+ }else if(fps<42&&!NET.isHost&&S.view.dpr<=1.02){
   guestLowPower=true;qualityMeasured=true;
  }else if(fps<38&&S.view.dpr>1.02){
   tabletDprCap=1.0;qualityMeasured=true;fit();
@@ -1902,7 +1909,7 @@ function fit(){
  const tablet=(window.innerWidth||v.w)>=700&&(window.matchMedia?.("(pointer: coarse)").matches||/iPad/i.test(navigator.userAgent||""));
  // Guest iPads can render one CSS pixel per backing pixel, avoiding Retina overdraw.
  v.dpr=Math.min(window.devicePixelRatio||1,
-  tablet?(!NET.isHost?1.0:tabletDprCap):2);
+  tablet?(!NET.isHost?guestDprCap:tabletDprCap):2);
  cv.width=Math.max(1,Math.round(v.w*v.dpr));cv.height=Math.max(1,Math.round(v.h*v.dpr));
  cv.style.width=v.w+"px";cv.style.height=v.h+"px";
  // Show roughly two thirds of the field horizontally, instead of the entire arena.
@@ -3519,7 +3526,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   if(!Number.isFinite(d)||d<.6||d>2)return;
   S.view.dpr=d;cv.width=Math.round(S.view.w*d);cv.height=Math.round(S.view.h*d);
  },
- quality:()=>({tabletDprCap,qualityMeasured,qualityFrames}),
+ quality:()=>({tabletDprCap,guestDprCap,guestLowPower,qualityMeasured,qualityFrames}),
  snapshot:()=>({
   phase:S.phase,selected:S.selected,prep:S.prep,elapsed:S.elapsed,
   energy:S.energy.slice(),camera:{x:S.cam.x,y:S.cam.y},
