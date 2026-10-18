@@ -29,8 +29,8 @@ const extra=[
  ' },(k,v)=>v===Infinity?1000000000:v)),'
 ].join("\n");
 const patchedGame=g.replace(qaKey,qaKey+extra+"\n").replace(
- "draw();requestAnimationFrame(frame);",
- "window.__qaRenderedFrames=(window.__qaRenderedFrames||0)+1;draw();requestAnimationFrame(frame);"
+ "  draw();\\n  if(perfPanel)samplePerf(now,performance.now()-paintStart);",
+ "  window.__qaRenderedFrames=(window.__qaRenderedFrames||0)+1;draw();\\n  if(perfPanel)samplePerf(now,performance.now()-paintStart);"
 );
 assert.notEqual(patchedGame,g,"QA game injection missing");
 assert.ok(patchedGame.includes("window.__qaRenderedFrames="));
@@ -41,7 +41,7 @@ const netExtra=[
  ' enter:()=>{remoteEpoch++;pendingRemote=null;remoteScheduled=false;room={};host=false;solo=false;guestBot=false;team=2;phase="playing";meta={round:1,status:"playing"};lastRemoteSeq=0;window.__onlineSeq=0;return true;},',
  ' send:packet=>receiveGuestWorld(packet),',
  ' nextRound:r=>{remoteEpoch++;pendingRemote=null;remoteScheduled=false;meta={...meta,round:r};lastRemoteSeq=0;window.__onlineSeq=0;},',
- ' stats:()=>({received:lastRemoteSeq,applied:window.__onlineSeq||0,pending:pendingRemote?.seq??null,scheduled:remoteScheduled})',
+ ' stats:()=>({received:Math.max(lastRemoteSeq,pendingRemote?.seq||0),applied:window.__onlineSeq||0,pending:pendingRemote?.seq??null,scheduled:remoteScheduled})',
  '};'
 ].join("\n");
 const patchedNet=n.replace(setup,netExtra+"\n"+setup);
