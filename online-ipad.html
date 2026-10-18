@@ -3311,11 +3311,17 @@ function cachedSprite(u,pose){
   return tile;
  }catch(error){denseCacheBroken=true;denseSpriteCache.clear();return null;}
 }
+function guestSimplifyVisuals(){
+ // Tablet guests are playback clients; offload dense decorative rendering
+ // instead of risking delayed inputs and dropped RTDB updates.
+ return !NET.isHost&&S.view.dpr<=1.01&&S.units.length>=55;
+}
 function renderCrowdedUnit(u){
- // Keep dramatic large units, their unique Gald sprite atlas, and normal
- // fights at full detail. Only small/medium sprites get a cheap crowded LOD.
+ // Host and small fights retain full artwork. Densely populated guest iPads
+ // use pose tiles for even their heavyweight units.
  if(!useDenseSpriteCache||denseCacheBroken||S.units.length<40||
-   u.key==="guardian"||u.key==="tank"||!window.KokokuArt){
+   ((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals())||
+   !window.KokokuArt){
   fullSpritesRendered++;drawUnit(u);return;
  }
  const pose=(u.attackAnim||0)>.12?3:!u.walking?0:Math.sin(u.walkPhase||0)>0?1:2;
@@ -3433,7 +3439,7 @@ function draw(){
   const color=spell?"#ffe2a3":e.type==="archer"?"#d3abff":e.type==="drone"?"#98fff1":TEAM[e.team];
   ctx.strokeStyle=color;ctx.lineWidth=boom?4:2.5;
   ctx.beginPath();ctx.arc(e.x,e.y,Math.max(3,e.r*(1.26-.66*f)),0,Math.PI*2);ctx.stroke();
-  if(boom||e.type==="slash"){
+  if((boom||e.type==="slash")&&!guestSimplifyVisuals()){
    const n=boom?8:4,base=e.r*(1-f)*.86;
    for(let k=0;k<n;k++){
     const angle=k*Math.PI*2/n+(e.x*0.19%1),px=e.x+Math.cos(angle)*base,py=e.y+Math.sin(angle)*base;
@@ -3450,7 +3456,9 @@ function draw(){
   ctx.save();ctx.globalAlpha=Math.min(1,shot.t/.09);
   ctx.strokeStyle=shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
   ctx.lineWidth=shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
-  ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=shot.kind==="tank"?15:10;ctx.lineCap="round";
+  ctx.shadowColor=ctx.strokeStyle;
+  ctx.shadowBlur=guestSimplifyVisuals()?0:shot.kind==="tank"?15:10;
+  ctx.lineCap="round";
   ctx.beginPath();ctx.moveTo(x-Math.cos(a)*len,y-Math.sin(a)*len);ctx.lineTo(x,y);ctx.stroke();
   ctx.restore();
  }
