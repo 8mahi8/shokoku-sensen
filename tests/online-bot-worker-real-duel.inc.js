@@ -4,7 +4,7 @@
 let qaRealDuel=null;
 function qaRealDuelStart(seed,checkpoint,liveSeconds,workMs=90,policy="conservativePreflight"){
  if(!NET.isSolo||!Number.isInteger(seed)||seed<1||seed>9999999||
-  ![30,105,190].includes(checkpoint)||
+  ![0,30,105,190].includes(checkpoint)||
   !Number.isFinite(liveSeconds)||liveSeconds<6||liveSeconds>30||
   ![40,120,250].includes(workMs)||
   !["conservativePreflight","conservative","off"].includes(policy)||
@@ -63,6 +63,25 @@ function qaRealDuelTick(dt){
   d.think[team]-=dt;
   if(d.think[team]<=0){
    d.decisions[team]++;
+   if(d.audit&&team===2){
+    const g=qaGateAssess(2);
+    const a=d.audit;
+    a.decisions++;
+    const reason=g?.reason||"unknown";
+    a.gates[reason]=(a.gates[reason]||0)+1;
+    if(g?.eligible){
+     a.eligible++;
+     const skip=qaWorkerPreflight(2,qaWorkerCapture(2));
+     if(skip.skip)a.preflight++;
+     else a.predictedRequest++;
+     if(a.samples.length<50)a.samples.push({at:+S.elapsed.toFixed(2),
+      reason:skip.reason||"request",
+      energy:+S.energy[2].toFixed(2),
+      units:S.units.length,
+      contested:g.contestedForts,
+      threatened:g.threatenedForts});
+    }
+   }
    botExpertAction(team);
    d.think[team]=rand(1.2,1.9);
   }
@@ -124,4 +143,24 @@ function qaRealDuelStop(){
  // A late non-authoritative result is prevented from updating the next duel.
  qaWorkerStop();
  return s;
+}
+
+function qaRealDuelAudit(seed,observe=true){
+ // Complete seeded matches, full identical hard BOT both sides.
+ // Every tick uses real physics; no Worker request, no synthetic enemies.
+ const start=qaRealDuelStart(seed,0,6,40,"off");
+ if(!start.ok)return {error:start.reason};
+ const d=qaRealDuel;
+ d.mode="audit";
+ d.audit=observe?{decisions:0,eligible:0,preflight:0,
+  predictedRequest:0,gates:{},samples:[]}:null;
+ try{
+  for(let i=0;i<9100&&S.phase==="battle";i++)tick(1/30);
+  return {seed,observed:observe,finished:S.phase==="result",
+   world:qaRealDuelWorld(),decisions:d.decisions.slice(),
+   audit:d.audit?structuredClone(d.audit):null};
+ }finally{
+  Math.random=d.oldRandom;
+  qaRealDuel=null;
+ }
 }
