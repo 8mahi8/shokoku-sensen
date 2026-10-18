@@ -19,8 +19,11 @@ const server=http.createServer((req,res)=>{
    const errors=[];page.on("pageerror",err=>errors.push(err.message));
    // Block just Firebase, not the game scripts or original Gald character art.
    await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
-   await page.goto("http://127.0.0.1:8771/"+source,{waitUntil:"domcontentloaded"});
+   await page.goto("http://127.0.0.1:8771/"+source+"?qa=1",{waitUntil:"domcontentloaded"});
+   await page.locator('[data-solo-level="hard"]').click();
+   assert.equal(await page.locator('[data-solo-level="hard"]').getAttribute("aria-pressed"),"true");
    await page.locator("#netSolo").click();
+   assert.equal(await page.evaluate(()=>window.ShokokuNet.soloDifficulty),"hard");
    await page.waitForFunction(()=>window.ShokokuNet?.isSolo===true&&window.ShokokuNet?.isOnline===false&&window.ShokokuNet?.isHost===true);
    await page.locator("#onlinePanel").waitFor({state:"hidden"});
    const badge=await page.locator("#networkBar").innerText();assert.match(badge,/OFFLINE/);
@@ -34,7 +37,13 @@ const server=http.createServer((req,res)=>{
      return old.call(this,ctx,unit,clock);
     };
    });
+   // The opening red BOT spawns off the blue player's screen. Culling is valid:
+   // verify its presence in simulation, move the QA camera, then require rendering.
+   await page.waitForFunction(()=>window.__shokokuQa.snapshot().units.some(u=>u.team===2),null,{timeout:9000});
+   await page.evaluate(()=>window.__shokokuQa.setCamera(1015,220));
    await page.waitForFunction(()=>window.__offlineRender.red>0,null,{timeout:9000});
+   await page.evaluate(()=>window.__shokokuQa.setCamera(300,330));
+   await page.waitForFunction(()=>window.__shokokuQa.snapshot().camera.x<600);
    // Unit rendering alone isn't enough: tick locally, not using Firebase.
    const first=await page.locator("#prepTime").innerText();
    await delay(1600);
