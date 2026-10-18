@@ -22,6 +22,7 @@ const extra=[
  '  for(let i=0;i<170&&drone.hp>0;i++)tick(1/30);',
  '  return {id,first,after:drone.hp,attacked:drone.hp<first};',
  ' },',
+ ' remoteSpritePositions:()=>S.remoteSprites?Array.from(S.remoteSprites.entries()).map(([id,v])=>({id,x:v.x,targetX:v.targetX})):[],',
  ' remoteWorld:()=>JSON.parse(JSON.stringify({',
  '  phase:S.phase,prep:S.prep,seconds:S.seconds,elapsed:S.elapsed,clock:S.clock,energy:S.energy,left:S.left,hand:S.hand,queue:S.queue,',
  '  units:S.units,forts:S.forts,capitals:S.capitals,spells:S.spells,effects:S.effects,projectiles:S.projectiles,deaths:S.deaths,uid:S.uid,speed:S.speed',
@@ -92,6 +93,21 @@ async function measure(engineName,engine){
    }));
    assert.equal(initial.phase,"battle");
    assert.ok(initial.dpr<=1.01,"guest tablet DPR too high: "+initial.dpr);
+   // A raw-position-only sprite cache used to make guest units teleport at
+   // network packet frequency, even when the page rendered at 60 fps.
+   const beforeSmooth=await page.evaluate(()=>window.__shokokuQa.remoteSpritePositions());
+   const movedId=world.units.find(u=>u.team===1&&u.key==="infantry").uid;
+   const initial=beforeSmooth.find(x=>x.id===movedId);
+   assert.ok(initial,"must have visible infantry sprite");
+   const movedWorld={...world,units:world.units.map(u=>u.uid===movedId?{...u,x:u.x+50}:u)};
+   await page.evaluate(world=>window.__qaGuestNet.send({seq:121,round:1,world}),movedWorld);
+   await page.waitForFunction(()=>window.__qaGuestNet.stats().applied===121);
+   await page.waitForTimeout(125);
+   const afterSmooth=await page.evaluate(id=>window.__shokokuQa.remoteSpritePositions().find(x=>x.id===id),movedId);
+   assert.ok(afterSmooth.x>initial.x+1,
+    "cached guest sprite must actually interpolate between network updates "+JSON.stringify({initial,afterSmooth}));
+   assert.ok(afterSmooth.x<afterSmooth.targetX+4,
+    "interpolation overshot network authority "+JSON.stringify({initial,afterSmooth}));
    const fps=await page.evaluate(async world=>{
     const q=window.__qaGuestNet;
     let frames=0,stutters=0,last=null,first=null,active=true;
@@ -99,7 +115,7 @@ async function measure(engineName,engine){
      if(last!==null&&t-last>170)stutters++;last=t;frames++;
      requestAnimationFrame(count);};
     requestAnimationFrame(count);
-    for(let i=121;i<=149;i++){
+    for(let i=122;i<=149;i++){
      await new Promise(done=>setTimeout(done,75));
      q.send({seq:i,round:1,world:{...world,clock:world.clock+i*.06}});
     }
@@ -112,6 +128,7 @@ async function measure(engineName,engine){
    assert.ok(fps.stutters<=4,"main-thread stalled "+JSON.stringify(fps));
    assert.deepEqual(errors,[]);
    rows.push({browser:engineName,layout:entry.name,dpr:initial.dpr,fps,
+    interpolation:{from:initial.x,to:afterSmooth.x,target:afterSmooth.targetX},
     air:balance.stats,fire:balance.fire,targets:balance.ranged});
    await page.close();await context.close();
   }
