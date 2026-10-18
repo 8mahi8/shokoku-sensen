@@ -10,7 +10,10 @@ const game=fs.readFileSync(path.join(root,"online-game.js"),"utf8"),
  workerSource=fs.readFileSync(path.join(root,"tests/online-bot-worker-prototype.js"),"utf8");
 const anchor=" window.__shokokuQa={\n",expert="function botExpertAction(team=2){";
 assert.equal(game.split(anchor).length,2);assert.equal(game.split(expert).length,2);
+const tickAnchor="function tick(dt){";
+assert.equal(game.split(tickAnchor).length,2);
 const patched=game.replace(expert,"\n"+gate+"\n"+bridge+"\n"+expert)
+ .replace(tickAnchor,tickAnchor+"\n if(qaWorkerQaFrozen)return;")
  .replace(anchor," window.__shokokuQa={\n workerStart:qaWorkerStart,\n workerStop:qaWorkerStop,\n workerSubmit:qaWorkerSubmit,\n workerFreeze:qaWorkerFreeze,\n workerSignature:qaWorkerSignature,\n gateAssess:qaGateAssess,\n");
 const server=http.createServer((req,res)=>{
  const url=new URL(req.url,"http://localhost:8890"),
