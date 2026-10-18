@@ -24,6 +24,18 @@ const server=http.createServer((req,res)=>{
    assert.equal(await page.locator('[data-solo-level="hard"]').getAttribute("aria-pressed"),"true");
    await page.locator("#netSolo").click();
    assert.equal(await page.evaluate(()=>window.ShokokuNet.soloDifficulty),"hard");
+   const verifySeparateDecks=()=>page.evaluate(()=>{
+    const snapshot=window.__shokokuQa.snapshot();
+    const blue=snapshot.hand[1],red=snapshot.hand[2];
+    return {blue,red,unique:new Set(blue).size===4&&new Set(red).size===4,
+      different:blue.join(",")!==red.join(",")};
+   });
+   for(let i=0;i<12;i++){
+    const hands=await verifySeparateDecks();
+    assert.ok(hands.unique,source+" duplicate card in opening draw");
+    assert.ok(hands.different,source+" identical host and guest opening draws");
+    if(i<11)await page.evaluate(()=>window.ShokokuNet.rematch());
+   }
    await page.waitForFunction(()=>window.ShokokuNet?.isSolo===true&&window.ShokokuNet?.isOnline===false&&window.ShokokuNet?.isHost===true);
    await page.locator("#onlinePanel").waitFor({state:"hidden"});
    const badge=await page.locator("#networkBar").innerText();assert.match(badge,/OFFLINE/);

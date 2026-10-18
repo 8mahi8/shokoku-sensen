@@ -3,7 +3,7 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const {webcrypto}=require("node:crypto"),{performance}=require("node:perf_hooks");
 const source=fs.readFileSync("online-net.js","utf8");
-const store={},listeners=[],writes=[];let pushId=0;
+const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false;
 const clone=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
 const parts=p=>p.split("/").filter(Boolean);
 function read(path){
@@ -22,6 +22,7 @@ function notify(paths){
  const touched=new Set();
  for(const w of listeners){
   if(w.event==="value"&&paths.some(p=>p===w.path||p.startsWith(w.path+"/")||w.path.startsWith(p+"/"))&&!touched.has(w)){
+   if(holdStateListener&&w.path.endsWith("/state"))continue;
    touched.add(w);w.fn(new Snapshot(new Ref(w.path),read(w.path)));
   }
   if(w.event==="child_added")for(const p of paths){
@@ -46,7 +47,13 @@ class Ref{
   });
  }
  off(event,fn){for(let i=listeners.length-1;i>=0;i--)if(listeners[i].path===this.path&&listeners[i].event===event&&listeners[i].fn===fn)listeners.splice(i,1)}
- async set(value){write(this.path,value);notify([this.path])}
+ async set(value){
+  if(holdNextStateWrite&&this.path.endsWith("/state")){
+   holdNextStateWrite=false;
+   await new Promise(()=>{}); // Firebase write acknowledgement remains unresolved.
+  }
+  write(this.path,value);notify([this.path]);
+ }
  async remove(){return this.set(null)}
  async update(fields){const paths=[];for(const [k,value] of Object.entries(fields)){const p=this.path+"/"+k;write(p,value);paths.push(p)}notify(paths)}
  async transaction(fn){const old=read(this.path),value=fn(old);if(value===undefined)return {committed:false};await this.set(value);return {committed:true}}
@@ -69,7 +76,7 @@ function client(){
  };
  const document={getElementById:get,querySelectorAll:()=>[],body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
  const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
-  console,Date,Math,Uint32Array,Promise,performance,
+  console,Date,Math,Uint32Array,Promise,performance:{now:()=>virtualNow},
   navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){}},setTimeout,clearTimeout,
   requestAnimationFrame:fn=>queueMicrotask(()=>fn(performance.now()))};
  vm.runInNewContext(source,context,{filename:"online-net.js"});
@@ -120,6 +127,29 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await host.click("netReady");await guest.click("netReady");await settle();
  await host.click("netStart");await settle();
  assert.equal(host.game.starts,2);
+ // A stuck Firebase .set() promise must not silence all future host snapshots.
+ const beforeFreeze=guest.game.received.at(-1).seq;
+ holdNextStateWrite=true;
+ virtualNow+=250;
+ host.game.data.elapsed=13;
+ host.api.maybePublish(true);await settle();
+ assert.equal(guest.game.received.at(-1).seq,beforeFreeze,"simulated blocked write should not reach guest");
+ virtualNow+=3200;
+ host.game.data.elapsed=17;
+ host.api.maybePublish();await settle();
+ assert.ok(guest.game.received.at(-1).seq>beforeFreeze,"publisher must recover after a stuck acknowledgement");
+ assert.equal(guest.game.received.at(-1).data.elapsed,17);
+ // A stalled Firebase listener with fresh server state must recover via a
+ // bounded one-shot read while the Canvas/game loop continues independently.
+ const beforeListenerPause=guest.game.received.at(-1).seq;
+ holdStateListener=true;
+ virtualNow+=5000;
+ host.game.data.elapsed=22;
+ host.api.maybePublish(true);await settle();
+ assert.equal(guest.game.received.at(-1).seq,beforeListenerPause,"listener stalls are simulated");
+ guest.api.checkGuestSync();await settle();
+ assert.equal(guest.game.received.at(-1).data.elapsed,22,"guest fallback read fetches the latest world");
+ holdStateListener=false;
  const receivedCount=guest.game.received.length;
  await new Ref("shokokuRooms1v1/"+code+"/state").set({seq:999,round:1,world:{phase:"battle",units:[{key:"stale"}]}});
  await settle();
@@ -127,5 +157,5 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await guest.api.resetLobby();await settle();
  assert.equal(read("shokokuRooms1v1/"+code+"/players/guest/online"),false,"explicit leave must mark guest offline");
  assert.ok(writes.every(p=>p.startsWith("shokokuRooms1v1/")),"must never write BRAWL rooms");
- console.log("PASS: two-player create/join, ready/start, commands/snapshot, winner, rematch, stale packet, isolated path");
+ console.log("PASS: two-player create/join, ready/start, commands/snapshot, winner, rematch, stale packet, frozen Firebase publisher/listener recovery, isolated path");
 })().catch(e=>{console.error(e);process.exitCode=1});

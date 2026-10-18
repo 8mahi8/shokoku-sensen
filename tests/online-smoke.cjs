@@ -16,7 +16,7 @@ for(const p of ["online-embed.html","online-ipad.html"]){
  assert.ok(html.includes('id="newRoom"'),p+" lacks new room button");
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=5')&&page.includes('./online-game.js?v=5'));
+assert.ok(page.includes('./online-net.js?v=6')&&page.includes('./online-game.js?v=6'));
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
 assert.ok(net.includes('packet.round!==meta?.round'));
@@ -36,8 +36,11 @@ for(let i=0;i<64;i++){
  orders.add(d.join(','));
 }
 assert.ok(orders.size>=3,'Shuffled decks must vary across matches');
-assert.ok(game.includes('const deck=shuffledDeck()'),'Match reset uses shuffle');
-assert.ok(game.includes('S.hand[team]=deck.slice(0,HAND_SIZE)')&&game.includes('S.queue[team]=deck.slice(HAND_SIZE)'),'Team deck draw fairness');
+assert.ok(game.includes('let deck=shuffledDeck()'),'Each team gets its own shuffled deck');
+assert.ok(game.includes('for(const team of [1,2])')&&game.indexOf('let deck=shuffledDeck()')>game.indexOf('for(const team of [1,2])'),'Shuffle must happen inside the team initialization loop');
+assert.ok(game.includes('blueOpening=deck.slice(0,HAND_SIZE).join(",")'),'Host opening is captured');
+assert.ok(game.includes('deck.slice(0,HAND_SIZE).join(",")===blueOpening'),'Guest identical opening is rerolled');
+assert.ok(game.includes('S.hand[team]=deck.slice(0,HAND_SIZE)')&&game.includes('S.queue[team]=deck.slice(HAND_SIZE)'),'Team draw uses independent deck and queue');
 assert.ok(page.includes('object-fit:contain'),'Portraits must not stretch');
 for(const id of ["netSolo","netGuestBot","guestBotLive"]){
  assert.ok(page.includes('id="'+id+'"'),id+" control missing");
@@ -55,4 +58,4 @@ assert.ok(!ai.includes('deploy(2,')&&!ai.includes('castSpell(2,'),"guest AI must
 assert.ok(ai.includes('botUse(team,')&&ai.includes('canPay(team,'),"AI must use validated team-aware dispatch adapter");
 
 
-console.log("PASS: syntax, round isolation, reconnect, rematch, 64 deck shuffles, offline BOT, guest BOT, tablet UI and bundles");
+console.log("PASS: syntax, round isolation, reconnect, rematch, independent host/guest decks and 64 shuffle checks, offline BOT, guest BOT, tablet UI and bundles");
