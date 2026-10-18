@@ -130,7 +130,9 @@ function metrics(xs){
   const spec={...dev[0],...healthVariants[0]};
   const repeated=await page.evaluate(x=>window.__shokokuQa.attritionTrial(
    113,{...x,name:"archer-versus-infantry/undamaged"},18),spec);
-  assert.deepEqual(repeated,first,"identical initial conditions must be deterministic");
+  const withoutTiming=({predictionMs,...rest})=>rest;
+  assert.deepEqual(withoutTiming(repeated),withoutTiming(first),
+   "identical initial conditions must be deterministic apart from CPU measurement");
   assert.deepEqual(errors,[]);
   const devMetrics=metrics(output.dev),holdoutMetrics=metrics(output.heldout);
   const prereg={primaryMetric:"MAE of normalized own-vs-enemy remaining army HP-fraction difference at 18 simulated seconds",
