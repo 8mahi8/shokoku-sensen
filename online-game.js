@@ -2046,11 +2046,18 @@ function presentRemoteUnit(u){
   if(v){
    const now=performance.now(),dt=Math.max(0,Math.min(.07,(now-v.lastFrame)/1000));
    v.lastFrame=now;
-   const age=Math.max(0,Math.min(.17,(now-v.updatedAt)/1000));
+   const since=Math.max(0,Math.min(.25,(now-v.updatedAt)/1000));
+   const age=Math.min(.17,since);
    const alpha=1-Math.exp(-dt*13);
    v.x+=(v.targetX+v.vx*age-v.x)*alpha;
    v.y+=(v.targetY+v.vy*age-v.y)*alpha;
-   u={...u,x:v.x,y:v.y};
+   // Network snapshots update at ~5.6Hz. Advance transient artwork
+   // phases locally between snapshots, without changing hitboxes or AI.
+   const walking=!!u.walking,walkingSpeed=Math.hypot(v.vx,v.vy);
+   u={...u,x:v.x,y:v.y,
+    walkPhase:walking?(u.walkPhase||0)+since*walkingSpeed*.31:u.walkPhase,
+    attackAnim:Math.max(0,(u.attackAnim||0)-since),
+    flash:Math.max(0,(u.flash||0)-since)};
   }
  }
  return u;
@@ -2522,8 +2529,46 @@ function resumeButton(){
  if(S.phase==="battle"){S.phase="paused";$("pause").textContent="▶ 再開";}
  else if(S.phase==="paused"){S.phase="battle";$("pause").textContent="Ⅱ 停止";}
 }
+// Opt-in, local-only guest diagnostics. Triple-tap the game title to show/hide.
+let perfPanel=null,perfStart=0,perfFrames=0,perfDrawTotal=0,perfDrawWorst=0,perfMaxGap=0,perfLastFrame=0;
+function togglePerfPanel(){
+ if(perfPanel){perfPanel.remove();perfPanel=null;return;}
+ perfPanel=document.createElement("div");
+ perfPanel.setAttribute("role","status");
+ perfPanel.setAttribute("aria-label","通信・描画の診断");
+ perfPanel.style.cssText="position:fixed;top:66px;right:8px;z-index:2000;pointer-events:none;background:#06171de9;border:1px solid #76b5bf;padding:9px 11px;border-radius:8px;color:#f0ffed;font:12px/1.5 monospace;white-space:pre;max-width:95vw";
+ document.body.appendChild(perfPanel);
+ perfStart=0;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;perfLastFrame=0;
+ perfPanel.textContent="通信と描画の計測中…";
+}
+function setupPerfPanel(){
+ let titleTaps=0,lastTap=0;
+ $("logo").addEventListener("click",()=>{
+  const now=performance.now();
+  titleTaps=now-lastTap<=850?titleTaps+1:1;lastTap=now;
+  if(titleTaps>=3){titleTaps=0;togglePerfPanel();}
+ });
+ if(new URLSearchParams(location.search).has("perf"))togglePerfPanel();
+}
+function samplePerf(now,drawMs){
+ if(!perfPanel)return;
+ if(perfLastFrame>0)perfMaxGap=Math.max(perfMaxGap,now-perfLastFrame);
+ perfLastFrame=now;
+ if(!perfStart)perfStart=now;
+ perfFrames++;perfDrawTotal+=drawMs;perfDrawWorst=Math.max(perfDrawWorst,drawMs);
+ if(now-perfStart<1200)return;
+ const n=NET.syncDiagnostics?.()||{},fps=perfFrames*1000/(now-perfStart);
+ const lines=["描画 "+fps.toFixed(0)+" FPS  / 平均 "+(perfDrawTotal/perfFrames).toFixed(1)+"ms",
+  "最大描画 "+perfDrawWorst.toFixed(1)+"ms / フレーム間隔最大 "+perfMaxGap.toFixed(0)+"ms",
+  "通信 "+(n.role||"---")+" "+(n.updatesHz||0)+"更新/秒",
+  "受信間隔 平均 "+(n.gapMs||0)+"ms / 最大 "+(n.maxGapMs||0)+"ms",
+  "最終同期 "+(n.ageMs||0)+"ms前 / seq "+(n.seq||0),
+  "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
+ perfPanel.textContent=lines.join("\n");
+ perfStart=now;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;
+}
 function start(){
- resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
+ resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  NET.registerGame({
   begin,setDifficulty:level=>{
     if(["easy","normal","hard"].includes(level)){
@@ -2674,7 +2719,10 @@ function start(){
    requestAnimationFrame(frame);return;
   }
   guestLastPaint=now;
-  draw();requestAnimationFrame(frame);
+  const paintStart=perfPanel?performance.now():0;
+  draw();
+  if(perfPanel)samplePerf(now,performance.now()-paintStart);
+  requestAnimationFrame(frame);
  }
  requestAnimationFrame(frame);
 }
