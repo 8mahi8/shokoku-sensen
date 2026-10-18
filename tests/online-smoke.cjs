@@ -49,9 +49,10 @@ assert.ok(net.includes('get botActive(){return solo||guestBot}'),"both BOT modes
 assert.ok(game.includes('botPreparation()'),"BOT must enter preparation phase");
 assert.ok(game.includes('if(NET.isSolo&&S.phase==="battle")botStep(dt)'),"solo BOT must think in simulation");
 assert.ok(game.includes('if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle"))'),"guest BOT must think from client frame");
-const ai=game.slice(game.indexOf('function botExpertAction(){'),game.indexOf('function botStep(dt){'));
+const ai=game.slice(game.indexOf('function botExpertAction(team=2){'),game.indexOf('function botStep(dt){'));
+assert.ok(ai.startsWith('function botExpertAction(team=2){'),"expert tactical AI must be present");
 assert.ok(!ai.includes('deploy(2,')&&!ai.includes('castSpell(2,'),"guest AI must use normal validated commands");
-assert.ok(ai.includes('botUse(2,'),"AI must use dispatch adapter");
+assert.ok(ai.includes('botUse(team,')&&ai.includes('canPay(team,'),"AI must use validated team-aware dispatch adapter");
 
 
 console.log("PASS: syntax, round isolation, reconnect, rematch, 64 deck shuffles, offline BOT, guest BOT, tablet UI and bundles");

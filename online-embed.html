@@ -19,6 +19,19 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #headerButtons{display:flex;gap:6px}.topButton{background:#1d3543;border:1px solid #527987;border-radius:9px;padding:9px 10px;font-size:11px;font-weight:800;white-space:nowrap}
 #fieldArea{position:relative;flex:1;min-height:0;background:#142629;overflow:hidden}
 #field{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+/* Readable objectives, compact enough to avoid the center event banner. */
+#fortNav{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:5px;z-index:3;padding:5px 6px;background:#0b242ee8;border:1px solid #617d89a3;border-radius:11px;box-shadow:0 3px 12px #08192266}
+#fortNav[hidden]{display:none}
+#fortSummary{font-size:10px;font-weight:900;color:#c6dce2;white-space:nowrap;padding:0 6px 0 1px}
+#fortNav button{min-height:35px;min-width:53px;padding:3px 5px;border:1px solid #8c9d97;background:#37443f;border-radius:7px;display:flex;flex-direction:column;justify-content:center;gap:2px;align-items:center}
+#fortNav button .fortName{font-size:10px;font-weight:900;line-height:1}
+#fortNav button .fortState{font-size:9px;font-weight:800;line-height:1;color:#f5deb0}
+#fortNav button.owner-blue{border-color:#69cbe7;background:#194658}
+#fortNav button.owner-red{border-color:#ef8699;background:#60303e}
+#fortNav button.contested{outline:2px solid #ffe5a4;outline-offset:0}
+#fortNav button.under-pressure .fortState{color:#ffe6a4}
+#fortNav button:focus-visible{outline:2px solid #fff0a5;outline-offset:2px}
+@media(max-width:710px){#fortNav{top:6px;left:5px;gap:3px;padding:4px}#fortSummary{font-size:8px;padding-right:2px}#fortNav button{min-width:41px;min-height:33px;padding:2px 3px}#fortNav button .fortName{font-size:9px}#fortNav button .fortState{font-size:8px}}
 #cameraNav{position:absolute;right:10px;bottom:10px;display:flex;gap:7px;z-index:3}
 .cameraButton{border:1px solid #92b8bca6;background:#132e39e9;min-width:60px;min-height:37px;border-radius:9px;padding:7px 10px;color:#edf7ee;font-size:11px;font-weight:900;box-shadow:0 3px 9px #07151a66}
 .cameraButton:active{transform:translateY(1px);background:#30566a}
@@ -216,6 +229,13 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #difficulties,#speed,#pause{display:none!important}
 body.soloMode #difficulties{display:flex!important}
 #netSolo{background:linear-gradient(100deg,#56744b,#2a625c);border-color:#acd18e}
+.netPractice{margin:12px 0 6px;padding:10px;background:#0c2530;border:1px solid #476d78;border-radius:12px;display:flex;flex-direction:column;gap:8px}
+.netPracticeHeading{font-weight:800;color:#d7e9e2;font-size:12px}
+#netSoloLevels{display:flex;gap:8px;justify-content:center}
+#netSoloLevels button{flex:1;border:1px solid #5b8390;border-radius:9px;padding:9px 5px;background:#1b3a46;color:#cee2eb;font-size:12px;font-weight:800;min-height:40px}
+#netSoloLevels button.selected{background:#476e45;color:#fcffe5;border-color:#c5e78b;box-shadow:inset 0 0 0 1px #a5cf84}
+.netPractice #netSolo{min-height:45px;border-radius:9px;padding:11px;font-weight:900;color:white;border:1px solid #92c4a5}
+@media(max-height:500px){.netPractice{margin:5px 0;padding:6px;gap:5px}#netSoloLevels button{min-height:32px;padding:5px}#onlineDialog{padding:10px}}
 #netGuestBot[aria-pressed="true"],#guestBotLive[aria-pressed="true"]{background:#1c6b52;border-color:#9cf5a8;color:white}
 #guestBotLive{position:fixed;right:9px;top:69px;z-index:26;border-radius:9px;padding:7px 11px;font-size:11px;
  font-weight:800;background:#1c3543;border:1px solid #82b3c8;color:#e9f9ff;touch-action:manipulation}
@@ -234,6 +254,12 @@ body.soloMode #difficulties{display:flex!important}
 <div id="headerButtons"><button class="topButton" id="galleryButton" aria-label="部隊図鑑を開く">✧ 図鑑</button><button class="topButton" id="speed">速度 0.85×</button><button class="topButton" id="pause">Ⅱ 停止</button></div>
 </header>
 <main id="fieldArea">
+<nav id="fortNav" aria-label="前哨基地の状況と移動" hidden>
+<div id="fortSummary" aria-live="off">基地 青0・赤0</div>
+<button type="button" data-fort="0" aria-label="第1前哨基地を見る"><span class="fortName">第1</span><span class="fortState">中立</span></button>
+<button type="button" data-fort="1" aria-label="第2前哨基地を見る"><span class="fortName">第2</span><span class="fortState">中立</span></button>
+<button type="button" data-fort="2" aria-label="第3前哨基地を見る"><span class="fortName">第3</span><span class="fortState">中立</span></button>
+</nav>
 <canvas id="field" aria-label="横スクロールできる戦場。タップで召喚・スペル発動、スワイプで戦場を移動できます。"></canvas>
 <div id="cameraNav"><button type="button" id="homeCam" class="cameraButton" aria-label="自軍の城壁を見る">⌂ 自城</button><button type="button" id="frontCam" class="cameraButton" aria-label="戦闘中の前線を見る">⌖ 前線</button></div>
 <div id="announcement" aria-live="polite"></div>
@@ -308,7 +334,11 @@ const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)cr
 const clientId=token(), ROOM_VERSION=1;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
-let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false;
+let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal';
+// When reconnecting after a stall Firebase can deliver several obsolete
+// snapshots together. Apply only the newest on the next visible frame.
+let pendingRemote=null,remoteScheduled=false,remoteEpoch=0;
+let publishing=false,publishPending=false,networkEpoch=0;
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
@@ -374,8 +404,26 @@ async function registerPresence(){
   await playerRef.child("online").set(true);
  }catch(e){setError(e)}finally{presencePending=false;}
 }
+function receiveGuestWorld(packet){
+ if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||
+  !packet.world||packet.seq<=lastRemoteSeq)return;
+ lastRemoteSeq=packet.seq;
+ pendingRemote=packet;
+ if(remoteScheduled)return;
+ remoteScheduled=true;const epoch=remoteEpoch;
+ requestAnimationFrame(()=>{
+  remoteScheduled=false;
+  if(epoch!==remoteEpoch||host||!room)return;
+  const latest=pendingRemote;pendingRemote=null;
+  if(!latest||latest.round!==meta?.round)return;
+  try{game?.apply(latest.world,latest.seq);}
+  catch(e){setError(e)}
+ });
+}
 function setupRoom(code,isHost){
  solo=false;guestBot=false;
+ remoteEpoch++;pendingRemote=null;remoteScheduled=false;
+ networkEpoch++;publishing=false;publishPending=false;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
@@ -388,6 +436,8 @@ function setupRoom(code,isHost){
   const before=meta?.status;meta=snap.val();
   if(meta?.status==="lobby"&&before==="finished"){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   remoteEpoch++;pendingRemote=null;remoteScheduled=false;
+   networkEpoch++;publishing=false;publishPending=false;
    window.__onlineSeq=0;window.__onlineHandSig="";
    game?.resetForLobby?.();onlinePanel(true);$("networkBar").classList.add("hidden");
    show("再戦の準備をしてください。2人とも準備完了で開始できます");
@@ -423,11 +473,7 @@ function setupRoom(code,isHost){
    try{await snap.ref.remove()}catch(e){setError(e)}
   });
  }else{
-  attach(room.child("state"),"value",snap=>{
-   const packet=snap.val();
-   if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||!packet.world||packet.seq<=lastRemoteSeq)return;
-   lastRemoteSeq=packet.seq;game?.apply(packet.world,packet.seq);
-  });
+  attach(room.child("state"),"value",snap=>receiveGuestWorld(snap.val()));
   attach(room.child("feedback"),"value",snap=>{
    const feedback=snap.val();
    if(feedback?.seq===commandSeq)show(feedback.message);
@@ -486,6 +532,7 @@ async function toggleGuestBot(){
 }
 function startSolo(){
  if(room||solo)return;
+ game?.setDifficulty?.(soloDifficulty);
  solo=true;guestBot=false;team=1;host=false;
  document.body.classList.add("soloMode");
  $("onlinePanel").classList.add("hidden");
@@ -519,10 +566,19 @@ function sendCommand(c){
 }
 function maybePublish(force=false){
  if(!host||!room||phase!=="playing"||!game)return;
+ // Skip stale frames instead of creating an unlimited Firebase write queue
+ // when connection quality degrades. The host remains authoritative.
+ if(publishing){if(force)publishPending=true;return;}
  const now=performance.now();if(!force&&now-lastSend<180)return;
- lastSend=now;
+ lastSend=now;publishing=true;
+ const current=room,epoch=networkEpoch;
  const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
- room.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset}).catch(setError);
+ current.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset})
+  .catch(setError).finally(()=>{
+   if(epoch!==networkEpoch||current!==room)return;
+   publishing=false;
+   if(publishPending){publishPending=false;maybePublish(true)}
+  });
 }
 function finish(data){
  if(solo)return;
@@ -558,6 +614,8 @@ async function resetLobby(){
  // Write offline before navigating, and leave onDisconnect armed as a fallback.
  // Never write another player's seat after their ID has changed.
  room=null;phase="none";
+ remoteEpoch++;pendingRemote=null;remoteScheduled=false;
+ networkEpoch++;publishing=false;publishPending=false;
  if(leaving&&connected){
   try{
    const ref=leaving.child("players/"+seat),current=(await ref.once("value")).val();
@@ -571,7 +629,7 @@ async function resetLobby(){
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
-  get botActive(){return solo||guestBot},
+  get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
  registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
@@ -579,6 +637,17 @@ window.ShokokuNet=api;
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
   $("netSolo").addEventListener("click",startSolo);
+  document.querySelectorAll("[data-solo-level]").forEach(button=>button.addEventListener("click",()=>{
+    if(room||solo)return;
+    const level=button.dataset.soloLevel;
+    if(!["easy","normal","hard"].includes(level))return;
+    soloDifficulty=level;
+    document.querySelectorAll("[data-solo-level]").forEach(b=>{
+      const selected=b.dataset.soloLevel===level;
+      b.classList.toggle("selected",selected);
+      b.setAttribute("aria-pressed",String(selected));
+    });
+  }));
   $("netGuestBot").addEventListener("click",toggleGuestBot);
   $("guestBotLive").addEventListener("click",toggleGuestBot);
  $("netJoin").addEventListener("click",join);
@@ -1108,7 +1177,7 @@ const NET=window.ShokokuNet;
 if(!NET)throw Error("online-net.js must load first");
 const ME=()=>NET.team||1;
 const $=id=>document.getElementById(id);
-const cv=$("field"),ctx=cv.getContext("2d"),area=$("fieldArea"),cards=$("cards");
+const cv=$("field"),ctx=cv.getContext("2d",{alpha:false}),area=$("fieldArea"),cards=$("cards");
 const W=1280,H=660,START_HP=3000,POST_HP=12,MATCH=300,PREP=10,CASTLE_DAMAGE=1.0;
 // Separate camera presets for phones, tablets, and desktop, considering orientation.
 const VIEW_PRESETS={
@@ -1147,10 +1216,10 @@ const CLASSES={
  engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:420,damage:34,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,note:"中型・高耐久・近接・占領"},
  archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,note:"小型・遠距離・対空"},
  sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:540,damage:62,cool:1.45,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
- suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:445,damage:76,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:false,splash:70,splashScale:.8,note:"中型・密集対策・範囲砲撃"},
+ suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:445,damage:76,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,note:"中型・密集対策・対空対応の範囲砲撃"},
  guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,note:"大型・対大型迎撃・強力な範囲衝撃波"},
- drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:135,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:false,flying:true,note:"中型・飛行・突破"},
- tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:false,splash:72,splashScale:.67,siege:2,note:"大型・長射程・範囲重砲・対城200%"},
+ drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
+ tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,note:"大型・長射程・対空対応の範囲重砲・対城200%"},
 };
 const IDS=Object.keys(CLASSES);
 const SPELLS={
@@ -1190,12 +1259,12 @@ const rand=(min,max)=>min+(max-min)*Math.random();
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
 const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
- energy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
+ energy:[0,8,8],observedEnergy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
  uid:0,botThink:0,botPrepDone:false,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
- S.energy=[0,8,8];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
+ S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];qaRaceBudgetPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  // The same randomized deck on both teams preserves symmetrical card access.
@@ -1293,7 +1362,18 @@ function playCard(team,id,x,y){
   NET.sendCommand({id,x,y});
   return true;
  }
- return isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
+ const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
+ // Track only observable, legal card spending, never the hidden opponent hand.
+ if(ok)S.observedEnergy[team]=Math.max(0,S.observedEnergy[team]-CATALOG[id].cost);
+ if(ok&&duelStats){
+  duelStats.actions[team]++;
+  duelStats.spent[team]+=CATALOG[id].cost;
+  duelStats.cards[team][id]=(duelStats.cards[team][id]||0)+1;
+  // Non-invasive localhost battle-spend ledger for episode outcomes.
+  if(duelStats.actionLedger)
+   duelStats.actionLedger.push({at:S.elapsed,team,id,cost:CATALOG[id].cost});
+ }
+ return ok;
 }
 function shieldMultiplier(team,x,y){
  return S.spells.zones.some(z=>z.team===team&&z.time>0&&Math.hypot(z.x-x,z.y-y)<=z.r)?SPELLS.ward.mult:1;
@@ -1339,6 +1419,12 @@ function getFort(u){
    Math.abs(f.y-u.y)<(d.behavior==="capture"?220:150));
  if(!options.length)return null;
  if(d.behavior==="capture"){
+  // Trial-only nearest capture targeting for AI sides. Normal player and
+  // standard BOT movement are unchanged.
+  if(["nearestCapture","directorPathAligned"].includes(qaBotVariants[u.team])){
+   options.sort((a,b)=>Math.abs(a.x-u.x)-Math.abs(b.x-u.x));
+   return options[0];
+  }
   // Objective troops can skip intermediate forts for a high-risk deep capture.
   // The experienced BOT secures the nearest fort first to advance its summon line.
   // Keep the player's original deep-capture behavior unchanged.
@@ -1415,6 +1501,20 @@ function attackUnit(target,value){
 }
 function fire(u,target){
  const d=CLASSES[u.key],ref=target.ref;
+ // Read-only battle instrumentation. Never affects target selection or damage.
+ if(qaOpeningAudit?.uids.has(u.uid)){
+  const m=qaOpeningAudit;
+  m.attacks++;
+  if(target.kind==="unit"&&ref.hp>0){
+   m.unitHits++;
+   m.unitDamage+=Math.min(ref.hp,d.damage*shieldMultiplier(ref.team,ref.x,ref.y));
+  }else if(target.kind==="fort"&&ref.owner!==u.team){
+   m.fortHits++;
+   m.fortProgress+=Math.min(ref.hp,d.capture);
+  }else if(target.kind==="capital"){
+   m.castleHits++;
+  }
+ }
  u.attack=d.cool;
  // Longer artwork poses; hit resolution and combat cooldown are unchanged.
  u.attackAnimMax=MOTION.attack[u.key];
@@ -1437,7 +1537,26 @@ function fire(u,target){
    notice(u.team===1?"前哨基地を確保！ 召喚ラインが前進":"敵が前哨基地を占領！");
   }
  }else if(target.kind==="capital"){
+  const priorHp=ref.hp;
   ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE*(d.siege??1));
+  // QA-only observation: real castle hits by UIDs present at forecast time.
+  const audit=duelStats?.forecastAudit;
+  const window=audit?.active;
+  if(window&&ref.team===3-audit.team&&S.elapsed>=window.at&&
+    S.elapsed<window.at+12+1e-6){
+   const damage=priorHp-ref.hp;
+   window.allDamage+=damage;
+   if(window.uids.includes(u.uid)){
+    window.actual+=damage;window.hits++;
+    if(window.firstCastleHitAt===null)window.firstCastleHitAt=S.elapsed-window.at;
+   }
+   else window.otherDamage+=damage;
+  }
+  if(["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice"].includes(qaBotVariants[u.team])||
+     ["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice"].includes(qaBotVariants[ref.team])){
+   qaCastleHitEvents.push({at:S.elapsed,targetTeam:ref.team,damage:priorHp-ref.hp});
+   qaCastleHitEvents=qaCastleHitEvents.filter(v=>S.elapsed-v.at<=13);
+  }
   if(ref.team===1){
    S.underAttackUntil=S.clock+3.5;
    if(S.clock-S.lastAlert>5){S.lastAlert=S.clock;notice("自軍城壁が攻撃中！ 自城ボタンで防衛を確認");}
@@ -1461,6 +1580,25 @@ function unitStep(dt){
   u.attack=Math.max(0,u.attack-dt);u.flash=Math.max(0,u.flash-dt);
   u.attackAnim=Math.max(0,(u.attackAnim||0)-dt);u.walking=false;
   const foe=nearbyEnemy(u),fort=getFort(u);
+  // QA-only: classify the REAL target choice made by the engine this tick.
+  // This runs after target selection; it never changes combat targeting.
+  const forecast=duelStats?.forecastAudit?.active;
+  if(forecast&&S.elapsed>=forecast.at-1e-6&&S.elapsed<forecast.at+12-1e-6&&
+    u.team===forecast.team&&d.behavior==="normal"&&forecast.uids.includes(u.uid)){
+   const activity=foe?.kind==="unit"?"enemyTarget":
+    foe?.kind==="capital"?"castleTarget":
+    fort&&Math.abs(fort.x-u.x)<245?"fortTarget":"approach";
+   forecast.activity[activity]+=dt;
+   forecast.activity.alive+=dt;
+   if(activity==="castleTarget"&&dist(u,foe)<d.range+foe.r)
+    forecast.activity.inCastleRange+=dt;
+   const enemiesNear=S.units.some(v=>v.team!==u.team&&v.hp>0&&dist(u,v)<170);
+   if(enemiesNear)forecast.activity.enemyNearby+=dt;
+   if(activity==="enemyTarget"&&forecast.firstEnemyTargetAt===null)
+    forecast.firstEnemyTargetAt=S.elapsed-forecast.at;
+   if(activity==="fortTarget"&&forecast.firstFortTargetAt===null)
+    forecast.firstFortTargetAt=S.elapsed-forecast.at;
+  }
   // Readable visual anticipation on the last fraction of an existing cooldown.
   // It never delays an actual strike or changes target selection.
   const inReach=foe&&dist(u,foe)<d.range+foe.r+9;
@@ -1515,76 +1653,1286 @@ function rate(){
  if(S.elapsed<270)return .53;
  return .7;
 }
+// Known regeneration timeline: forecast affordability without hidden cards/energy.
+function secondsUntilAffordable(energy,cost,elapsed=S.elapsed){
+ if(!Number.isFinite(energy)||!Number.isFinite(cost)||!Number.isFinite(elapsed)||
+    energy<0||cost>ENERGY_CAP||cost<0||elapsed<0)return Infinity;
+ let needed=Math.max(0,cost-Math.min(ENERGY_CAP,energy)),clock=elapsed,total=0;
+ for(const [limitTime,perSecond] of [[100,.25],[210,.36],[270,.53],[Infinity,.7]]){
+  if(clock>=limitTime)continue;
+  const availableTime=limitTime-clock,wait=needed/perSecond;
+  if(wait<=availableTime)return total+wait;
+  total+=availableTime;needed-=availableTime*perSecond;clock=limitTime;
+ }
+ return total;
+}
 // Guest BOT uses normal guest commands; only the host changes world state.
-function botUse(team,id,x,y){return playCard(team,id,x,y);}
+let botLastAction=null;
+// Only populated by the localhost ?qa=1 tournament harness.
+let duelStats=null;
+// Localhost QA-only source effectiveness audit for one explicitly played wave.
+let qaOpeningAudit=null;
+// Development QA-only policy overrides. Standard gameplay always uses baseline.
+let qaBotVariants=[null,"baseline","baseline"];
+// Persist an explicit plan only for the QA experimental policy. Never shipped.
+let qaSiegePlans=[null,null,null];
+// QA-only bounded affordability-window plans; never used by the regular BOT.
+let qaWindowPlans=[null,null,null];
+// QA-only deliberate concession: wait briefly instead of spending 2 energy
+// on a doomed outpost. This state is never used by the standard BOT.
+let qaConcedePlans=[null,null,null];
+let qaCastleHitEvents=[];
+let qaRaceBudgetPlans=[null,null,null]; // QA-only short savings plan
+// V7: fixed coefficients learned from explored seeds before preregistered
+// holdout #39112334826. No training on live match or evaluation outcomes.
+const QA_SIEGE_FORCE_FACTORS={
+ defended:{none:.5050536812872694,light:.3167089643266956,
+  medium:.3167089643266956,heavy:.16389999697335111},
+ clear:{none:1.0316168304750135,light:.9550732223414593,
+  medium:.9903921820252971,heavy:.5777059370022273}
+};
+function qaSiegeForceEstimate(team,wave,foes,projected12){
+ const hp=wave.reduce((n,u)=>n+u.hp,0);
+ const threat=foes.filter(u=>wave.some(v=>{
+  const d=CLASSES[v.key],ed=CLASSES[u.key];
+  if(ed.flying&&!d.hitAir)return false;
+  if((team===1?u.x-v.x:v.x-u.x)<-(d.range+ed.r+5))return false;
+  return dist(v,u)<Math.max(165,d.vision+Math.min(120,ed.speed*3));
+ }));
+ const enemyHp=threat.reduce((n,u)=>n+u.hp,0);
+ const ratio=hp>0?enemyHp/hp:0;
+ const bucket=ratio===0?"none":ratio<.5?"light":ratio<1?"medium":"heavy";
+ const wall=foes.some(u=>Math.abs(u.x-WALL_FACE[3-team])<230)?"defended":"clear";
+ const factor=QA_SIEGE_FORCE_FACTORS[wall][bucket];
+ return {wall,bucket,ratio,factor,forecast:projected12*factor,
+  enemyHp,alliedHp:hp,threatCount:threat.length};
+}
+function botUse(team,id,x,y){
+ const accepted=playCard(team,id,x,y);
+ if(accepted){
+  botLastAction={team,id,x,y,elapsed:S.elapsed};
+  // Measure whether a short wait yielded the intended capture card.
+  // This accounting only runs in localhost QA duels.
+  const plan=qaBotVariants[team]==="forecastSpendWindow"?qaWindowPlans[team]:null;
+  if(plan){
+   const ev=duelStats?.decisionEvents?.[team];
+   const key=S.elapsed>plan.deadline?"windowExpired":
+    id==="scout"?"windowScoutAfterWait":"windowInterrupted";
+   if(ev)ev[key]=(ev[key]||0)+1;
+   qaWindowPlans[team]=null;
+  }
+ }
+ return accepted;
+}
+// QA-only six-second contact forecast. This is a kinematic estimate, not a
+// replacement for combat physics: units may stop to fight sooner than predicted.
+// It reads only visible units, public class stats and real getFort routing.
+function forecastCaptureContact(team,x,y){
+ const target=getFort({team,key:"scout",x,y});
+ if(!target)return {target:null,risk:0,contacts:[]};
+ const toward=(from,to,speed,t)=>{
+  const gap=dist(from,to);
+  const fraction=gap>0?Math.min(1,speed*t/gap):0;
+  return {x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction};
+ };
+ const contacts=[];
+ for(const foe of S.units){
+  if(foe.hp<=0||foe.team===team)continue;
+  const d=CLASSES[foe.key],goal=getFort(foe)||
+   wallTarget(capital(team),foe.homeY??foe.y);
+  let earliest=null,meet=null;
+  for(const t of [2,4,6]){
+   const scout=toward({x,y},target,CLASSES.scout.speed,t);
+   const enemyPoint=d.behavior==="guard"?foe:toward(foe,goal,d.speed,t);
+   if(dist(scout,enemyPoint)<Math.min(d.vision,205)+CLASSES.scout.r+12){
+    earliest=t;meet=enemyPoint;break;
+   }
+  }
+  if(earliest===null)continue;
+  // A nearby existing fighter can contest that contact. Do not count
+  // another capture runner as a dedicated defensive screen.
+  const screened=S.units.some(u=>u.hp>u.max*.4&&u.team===team&&
+   !CLASSES[u.key].capture&&dist(u,meet)<Math.max(105,CLASSES[u.key].range+40)&&
+   (!d.flying||CLASSES[u.key].hitAir));
+  if(screened)continue;
+  const weight=d.damage>=33||d.size==="large"?2:1;
+  contacts.push({key:foe.key,eta:earliest,weight});
+ }
+ return {target,risk:contacts.reduce((n,c)=>n+c.weight,0),contacts};
+}
 function botPreparation(){
  if(!NET.botActive||S.phase!=="prep"||S.botPrepDone||S.prep>8.5)return;
- S.botPrepDone=true;
  const x=limit(border(2)+40,40,W-40),fort=S.forts.find(f=>f.x===867),y=fort?.y??210;
  for(const id of ["scout","engineer","archer","infantry"])
-  if(canPay(2,id)&&botUse(2,id,x,y))break;
+  if(canPay(2,id)&&botUse(2,id,x,y)){S.botPrepDone=true;break;}
 }
 // Expert heuristics operate within the same hand, economy and placement rules.
 // v3.9 tactical BOT. Same deck order, charges, energy rate and deployment rules as a human.
-function botExpertAction(){
- const hard=S.difficulty==="hard",edge=border(2),power=S.energy[2];
- const foes=S.units.filter(u=>u.team===1&&u.hp>0),friends=S.units.filter(u=>u.team===2&&u.hp>0);
- const raiders=foes.filter(u=>u.x>edge-380);
- const desperate=foes.filter(u=>u.x>1035);
- const fort=S.forts.filter(f=>f.owner!==2).sort((a,b)=>b.x-a.x)[0];
- const focus=raiders.slice().sort((a,b)=>b.x-a.x)[0];
- const have=id=>availableCard(2,id),pay=id=>canPay(2,id);
- const group=raiders.map(u=>({u,neighbors:raiders.filter(v=>dist(v,u)<70)}))
-  .sort((a,b)=>b.neighbors.length-a.neighbors.length)[0];
- const groupSize=group?.neighbors.length??0;
- const yFocus=focus?.y??fort?.y??330;
- const spawn=(id,y,margin=35)=>
-   pay(id)&&botUse(2,id,limit(edge+margin,40,W-40),limit(y,70,H-70));
- // Use meaningful counters early. The BOT never receives free units or bonus damage.
- if(groupSize>=3&&pay("barrage")&&botUse(2,"barrage",group.u.x,group.u.y))return true;
- if(groupSize>=3&&spawn("suppress",group.u.y,50))return true;
- if(raiders.some(u=>CLASSES[u.key].flying)&&spawn("archer",yFocus,58))return true;
- if(raiders.some(u=>CLASSES[u.key].size==="large")&&spawn("guardian",yFocus,34))return true;
- if(desperate.length){
-  if(groupSize>=2&&spawn("sentinel",yFocus,32))return true;
-  if(groupSize>=2&&spawn("suppress",yFocus,52))return true;
-  const defenders=friends.filter(u=>u.x>850&&Math.abs(u.y-yFocus)<140);
-  if(defenders.length<3&&spawn("archer",yFocus,65))return true;
-  if(defenders.length<3&&spawn("infantry",yFocus,32))return true;
+function botExpertAction(team=2){
+ // Observe the current decision BEFORE any card is spent. This data exists
+ // only inside seeded localhost QA duels, never normal game/online matches.
+ const decisionAudit=duelStats?.decisionAudit?.[team];
+ const beforeActions=decisionAudit?duelStats.actions[team]:0;
+ const before=decisionAudit?{
+  energy:S.energy[team],enemyEnergy:S.observedEnergy[3-team],
+  enemyEta4:secondsUntilAffordable(S.observedEnergy[3-team],4),
+  ownedFort:S.forts.some(f=>f.owner===team),
+  pendingFort:S.forts.some(f=>f.owner!==team),
+  allies:S.units.filter(u=>u.team===team&&u.hp>0).length,
+  enemies:S.units.filter(u=>u.team!==team&&u.hp>0).length,
+  largeHand:availableCard(team,"tank"),
+  captureHand:availableCard(team,"scout")||availableCard(team,"engineer"),
+  forward:S.units.filter(u=>u.team===team&&u.hp>0&&
+   (team===1?u.x>border(team)-100:u.x<border(team)+100)).length,
+  underPressure:S.units.some(u=>u.team!==team&&u.hp>0&&
+   (team===1?u.x<border(team)+250:u.x>border(team)-250))
+ }:null;
+ try{
+ const hard=S.difficulty==="hard",edge=border(team),power=S.energy[team];
+ const qaPolicy=qaBotVariants[team];
+ // Deterministic estimate from visible plays, starting energy, known regen.
+ const opposingPower=S.observedEnergy[3-team];
+ const enemyReady2=secondsUntilAffordable(opposingPower,2);
+ const enemyReady4=secondsUntilAffordable(opposingPower,4);
+ const enemyReady7=secondsUntilAffordable(opposingPower,7);
+ // Use RED-facing x values for identical tactical decisions on either side.
+ const dir=team===2?1:-1,front=x=>team===2?x:W-x;
+ const foes=S.units.filter(u=>u.team!==team&&u.hp>0),friends=S.units.filter(u=>u.team===team&&u.hp>0);
+ const raiders=foes.filter(u=>front(u.x)>front(edge)-380),castleThreat=foes.filter(u=>front(u.x)>front(WALL_FACE[team])-180);
+ const fort=S.forts.filter(f=>f.owner!==team).sort((a,b)=>front(b.x)-front(a.x))[0];
+ const threatened=S.forts.filter(f=>f.owner===team).map(f=>{
+  const enemies=foes.filter(u=>Math.abs(u.x-f.x)<155&&Math.abs(u.y-f.y)<135);
+  const allies=friends.filter(u=>Math.abs(u.x-f.x)<155&&Math.abs(u.y-f.y)<135);
+  return {f,enemies,score:2*enemies.length-allies.length};
+ }).filter(c=>c.enemies.length&&c.score>=0).sort((a,b)=>b.score-a.score)[0];
+ const urgent=castleThreat.length>0||!!threatened;
+ const event=duelStats?.decisionEvents?.[team];
+ // QA-only observational opportunity map. This must NOT influence card use.
+ // Read our own hand/queue, public terrain and currently visible enemy units.
+ if(qaPolicy==="opportunityAudit"&&event){
+  const ownFort=S.forts.filter(f=>f.owner===team);
+  const hand=S.hand[team].filter(id=>availableCard(team,id));
+  const funded=hand.filter(id=>canPay(team,id));
+  const pending=foes.map(u=>{
+   const cls=CLASSES[u.key],target=getFort(u);
+   return cls.behavior!=="guard"&&cls.speed>0&&target?.owner===team?
+    {u,fort:target,eta:dist(u,target)/cls.speed}:null;
+  }).filter(Boolean);
+  const near=pending.filter(x=>x.eta<=12),soon=near.filter(x=>x.eta<=6.5);
+  const lacksCover=near.filter(x=>!friends.some(v=>
+   v.hp>v.max*.4&&Math.abs(v.x-x.fort.x)<150&&
+   Math.abs(v.y-x.fort.y)<135&&
+   (!CLASSES[x.u.key].flying||CLASSES[v.key].hitAir)));
+  const tally=key=>{event[key]=(event[key]||0)+1;};
+  tally("mapDecisions");
+  if(!ownFort.length)tally("mapNoOwnedFort");
+  if(urgent)tally("mapUrgent");
+  if(power<2)tally("mapEnergyUnder2");
+  if(power>=2&&power<3)tally("mapEnergyTwoThree");
+  if(power>=3&&power<4)tally("mapEnergyThreeFour");
+  if(power>=4)tally("mapEnergyFourPlus");
+  if(!funded.length)tally("mapNoFundedHand");
+  if(power>=2&&!funded.length)tally("mapInfantryOnlyAvailable");
+  if(availableCard(team,"scout"))tally("mapScoutInHand");
+  if(S.queue[team].includes("scout"))tally("mapScoutInQueue");
+  if(fort&&S.queue[team].includes("scout"))tally("mapScoutQueueWithObjective");
+  if(fort&&availableCard(team,"scout")&&!canPay(team,"scout"))
+   tally("mapScoutEnergyBlocked");
+  if(near.length)tally("mapOwnedFortContact12s");
+  if(soon.length)tally("mapOwnedFortContact6s");
+  if(lacksCover.length)tally("mapOwnedFortWithoutScreen12s");
+  if(soon.length&&!urgent)tally("mapPreUrgent6s");
+  if(lacksCover.length&&!urgent&&power>=2&&power<3)tally("mapCheapScreenBudget");
+  if(lacksCover.length&&!urgent&&power>=2&&power<3&&
+    !canPay(team,"archer")&&!canPay(team,"sentinel"))tally("mapCheapScreenReady");
+  const histogram=event.mapPlayableHand||(event.mapPlayableHand={});
+  const key=String(funded.length);
+  histogram[key]=(histogram[key]||0)+1;
+  const examples=event.mapSamples||(event.mapSamples=[]);
+  if(examples.length<24&&(near.length||power>=2&&power<3&&!funded.length)){
+   examples.push({time:+S.elapsed.toFixed(1),power:+power.toFixed(2),
+    hand:hand.slice(),queue:S.queue[team].slice(),funded:funded.slice(),
+    ownedForts:ownFort.length,urgent,nearCount:near.length,soonCount:soon.length,
+    nearestEta:near.length?+Math.min(...near.map(v=>v.eta)).toFixed(1):null,
+    uncovered:lacksCover.length});
+  }
  }
- const giant=["tank","guardian"].filter(have);
- const workers=fort?friends.filter(u=>CLASSES[u.key].capture&&Math.abs(u.y-fort.y)<145&&u.x>fort.x-130):[];
- const needFort=!!fort&&workers.length<(S.elapsed<48?1:2);
- // The first meaningful plays must cycle the 4-card hand; infantry doesn't rotate it.
- if(S.elapsed<37&&needFort&&spawn("scout",fort.y,35))return true;
- if(S.elapsed<40&&friends.filter(u=>u.key==="archer").length<3&&spawn("archer",yFocus,64))return true;
- // A drawn giant is an explicit seven-energy investment, unless the castle is in danger.
- if(giant.length&&S.elapsed>18){
-  const id=giant.includes("tank")&&!desperate.length?"tank":
-   giant.includes("guardian")?"guardian":giant[0];
-  if(power>=7&&spawn(id,id==="guardian"?yFocus:fort?.y??yFocus,38))return true;
-  if(!desperate.length)return true;
+ if(event){
+  event.calls++;
+  if(urgent)event.urgent++;
+  if(power>=7)event.energy7++;
+  event.opponentLow=(event.opponentLow||0)+(opposingPower<=2.5?1:0);
+  event.opponentHigh=(event.opponentHigh||0)+(opposingPower>=7?1:0);
+  event.opponentCanBarrage=(event.opponentCanBarrage||0)+(opposingPower>=4?1:0);
+  event.enemyRecoveryWindow=(event.enemyRecoveryWindow||0)+(enemyReady4>5?1:0);
+  event.enemyGiantSoon=(event.enemyGiantSoon||0)+(enemyReady7<=8?1:0);
+  event.stagedFort=(event.stagedFort||0)+(S.forts.some(f=>f.owner===team)?1:0);
+  event.hasDrone=(event.hasDrone||0)+(availableCard(team,"drone")?1:0);
+  event.fundedDrone=(event.fundedDrone||0)+(power>=4?1:0);
+  event.safeDefense=(event.safeDefense||0)+(!urgent?1:0);
+  if(["tank","guardian"].some(id=>availableCard(team,id)))event.giantInHand++;
  }
- if(needFort&&spawn("scout",fort.y,33))return true;
+ const focus=castleThreat.sort((a,b)=>front(b.x)-front(a.x))[0]||threatened?.enemies[0]||
+  raiders.sort((a,b)=>front(b.x)-front(a.x))[0];
+ const defendY=castleThreat.length?focus?.y:threatened?.f.y;
+ const laneY=defendY??focus?.y??fort?.y??330;
+ const spawn=(id,y,margin=35)=>canPay(team,id)&&botUse(team,id,
+  limit(edge+dir*margin,40,W-40),limit(y,70,H-70));
+ // QA-only: a nearby defender can hold a contested owned fort for the short
+ // time needed to fund an already-in-hand scout. Avoid a 2-cost infantry
+ // expenditure if it delays a legal 3-cost capture runner by several seconds.
+ // Never skip immediate castle defense, never infer the enemy's hidden hand.
+ const scoutReadyGeometry=qaPolicy==="scoutTempoPreserve"&&S.elapsed>=18&&S.elapsed<=130&&
+  power>=2&&power<4&&availableCard(team,"scout")&&!!fort&&!!threatened&&
+  S.forts.some(f=>f.owner===team)&&!castleThreat.length&&
+  secondsUntilAffordable(power,3)<=4&&
+  !foes.some(u=>Math.abs(u.x-WALL_FACE[team])<330)&&
+  friends.some(u=>!CLASSES[u.key].capture&&u.hp>u.max*.45&&
+   Math.abs(u.x-threatened.f.x)<170&&Math.abs(u.y-threatened.f.y)<135)&&
+  getFort({team,key:"scout",x:limit(edge+dir*35,40,W-40),y:fort.y})===fort;
+ const scoutHold=scoutReadyGeometry&&power<3;
+ const scoutRelease=scoutReadyGeometry&&power>=3;
+ if(scoutHold&&event)event.scoutTempoOpportunities=(event.scoutTempoOpportunities||0)+1;
+
+ // QA-only damage race: actual prior castle hits, not HP gap or future data.
+ if(qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||(qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice")){
+  if(event)event.raceChecks=(event.raceChecks||0)+1;
+  const hits=qaCastleHitEvents.filter(h=>S.elapsed-h.at<=10&&h.damage>0);
+  const incoming=hits.filter(h=>h.targetTeam===team),
+   outgoing=hits.filter(h=>h.targetTeam===3-team);
+  const taken=incoming.reduce((n,h)=>n+h.damage,0),dealt=outgoing.reduce((n,h)=>n+h.damage,0),
+   ownHp=capital(team).hp,enemyHp=capital(3-team).hp,
+   ownTtk=taken?ownHp*10/taken:Infinity,
+   enemyTtk=dealt?enemyHp*10/dealt:Infinity;
+  const sustained=arr=>arr.length>=2&&arr[arr.length-1].at-arr[0].at>=3;
+  const push=friends.filter(u=>CLASSES[u.key].behavior!=="guard"&&
+   Math.abs(u.x-WALL_FACE[3-team])<245);
+  if(sustained(incoming)&&sustained(outgoing)&&taken>=45&&dealt>=90&&
+   ownHp>250&&push.length&&enemyTtk<=30&&enemyTtk+6<ownTtk*.8&&
+   enemyTtk+8<ownTtk&&enemyTtk+4<MATCH-S.elapsed){
+   if(event){
+    event.raceQualified=(event.raceQualified||0)+1;
+    const examples=event.raceExamples||(event.raceExamples=[]);
+    if(examples.length<16)examples.push({at:S.elapsed,taken,dealt,ownHp,enemyHp,
+     ownTtk,enemyTtk});
+   }
+   const frontUnit=push.sort((a,b)=>Math.abs(a.x-WALL_FACE[3-team])-
+    Math.abs(b.x-WALL_FACE[3-team]))[0];
+   if(qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||(qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice")){
+    const healthyPush=push.some(u=>u.hp>=u.max*.35);
+    // Optimistic no-combat travel time to firing position. No hidden data.
+    const attackCards=["drone","archer","suppress","tank"];
+    const inHand=attackCards.filter(id=>availableCard(team,id));
+    const offers=attackCards.filter(id=>canPay(team,id))
+     .map(id=>{
+      const margin=id==="archer"||id==="suppress"?60:35;
+      const x=limit(edge+dir*margin,40,W-40);
+      const eta=Math.max(0,Math.abs(x-WALL_FACE[3-team])-CLASSES[id].range-15)/
+       CLASSES[id].speed;
+      return {id,margin,eta};
+     }).sort((a,b)=>a.eta-b.eta);
+    const timely=offers.filter(v=>v.eta+3<enemyTtk&&
+     v.eta+6<ownTtk&&v.eta+4<MATCH-S.elapsed);
+    if(event){
+     event.raceArrivalEvaluated=(event.raceArrivalEvaluated||0)+1;
+     if(!healthyPush)event.raceArrivalWeakFront=(event.raceArrivalWeakFront||0)+1;
+     if(!offers.length)event.raceArrivalNoAffordable=(event.raceArrivalNoAffordable||0)+1;
+     if(!inHand.length)event.raceArrivalMissingHand=(event.raceArrivalMissingHand||0)+1;
+     if(inHand.length&&!offers.length)event.raceArrivalUnderfunded=(event.raceArrivalUnderfunded||0)+1;
+     if(canPay(team,"infantry"))event.raceArrivalInfantryAffordable=(event.raceArrivalInfantryAffordable||0)+1;
+     const bucket=power<2?"under2":power<4?"2to4":power<7?"4to7":"7plus";
+     const bins=event.raceArrivalEnergyBuckets||(event.raceArrivalEnergyBuckets={});
+     bins[bucket]=(bins[bucket]||0)+1;
+     if(offers.length&&!timely.length)event.raceArrivalTooLate=(event.raceArrivalTooLate||0)+1;
+     const examples=event.raceArrivalSamples||(event.raceArrivalSamples=[]);
+     if(examples.length<16)examples.push({at:+S.elapsed.toFixed(2),
+      ownTtk:+ownTtk.toFixed(2),enemyTtk:+enemyTtk.toFixed(2),healthyPush,
+      inHand:inHand.slice(),energy:+power.toFixed(2),infantryReady:canPay(team,"infantry"),
+      offers:offers.map(x=>({id:x.id,eta:+x.eta.toFixed(2)})),
+      timely:timely.map(x=>x.id)});
+    }
+    if(healthyPush)for(const choice of timely)if(spawn(choice.id,frontUnit.y,choice.margin)){
+     if(event){
+      event.raceOffense=(event.raceOffense||0)+1;
+      event.raceArrivalDeployed=(event.raceArrivalDeployed||0)+1;
+     }
+     return true;
+    }
+    // Reinforcements too late: return to existing defensive/capture policy.
+    if(event)event.raceArrivalFallback=(event.raceArrivalFallback||0)+1;
+   }else{
+    for(const id of ["tank","drone","suppress","archer","scout","infantry"])
+     if(spawn(id,frontUnit.y,id==="archer"||id==="suppress"?60:35)){
+      if(event)event.raceOffense=(event.raceOffense||0)+1;
+      return true;
+     }
+    if(event)event.raceBanked=(event.raceBanked||0)+1;
+    return true;
+   }
+  }
+ }
+ // Aim the 1.3s delayed barrage where walking enemies will roughly be at impact.
+ // Do not stack an expensive cast over a still-incoming allied barrage.
+ const projected=u=>{
+  const speed=u.walking?CLASSES[u.key].speed*SPELLS.barrage.delay*.7:0;
+  return {x:limit(u.x+Math.cos(u.facing||0)*speed,30,W-30),
+   y:limit(u.y+Math.sin(u.facing||0)*speed,40,H-35)};
+ };
+ const targets=raiders.map(u=>{
+  const center=projected(u),hits=raiders.filter(v=>{
+   const p=projected(v);return Math.hypot(p.x-center.x,p.y-center.y)<SPELLS.barrage.radius*.94;
+  });
+  return {center,hits:hits.length,value:hits.reduce((sum,v)=>
+   sum+1+(CLASSES[v.key].size==="large"?.85:0),0)};
+ }).sort((a,b)=>b.value-a.value)[0];
+ const groupSize=targets?.hits??0;
+ const alreadyTargeted=targets&&S.spells.incoming.some(shot=>shot.team===team&&shot.time>0&&
+  Math.hypot(shot.x-targets.center.x,shot.y-targets.center.y)<SPELLS.barrage.radius*.85);
+ if(targets&&(groupSize>=(hard?2:3)||urgent&&groupSize===2)&&
+  canPay(team,"barrage")&&!alreadyTargeted&&
+  botUse(team,"barrage",targets.center.x,targets.center.y))return true;
+
+ // Counters are only useful if a real target and a gap in coverage exist.
+ const flyer=raiders.find(u=>CLASSES[u.key].flying);
+ if(flyer&&friends.filter(u=>u.key==="archer"&&front(u.x)>front(edge)-175&&Math.abs(u.y-flyer.y)<130).length<2&&
+  spawn("archer",flyer.y,60))return true;
+ const giant=raiders.find(u=>CLASSES[u.key].size==="large");
+ if(giant&&friends.filter(u=>u.key==="guardian"&&front(u.x)>front(edge)-175&&Math.abs(u.y-giant.y)<150).length===0&&
+  spawn("guardian",giant.y,35))return true;
+ // QA-only deliberate outpost concession. Castle threats, barrage,
+ // anti-air and heavy counters have already been considered above.
+ // Holding is a real option: forego the desperate 2-energy infantry play,
+ // save for an in-hand sentinel, then counterattack after the delay.
+ let concessionHold=false;
+ if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||(qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice")){
+  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||(qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice");
+  const weighCounter=qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||(qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice");
+  const assessRisk=qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
+  const assessLastLine=qaPolicy==="fortLastLine";
+  // Strategic criticality: losing the home-side outpost when only one
+  // controlled fort remains can directly expose the capital. A deep fort
+  // can be traded if visible enemies are still far from our own castle.
+  // Only friendly fort ownership, own HP and visible units are used.
+  const hostileCastleEta=units=>units.filter(u=>!CLASSES[u.key].flying&&
+    CLASSES[u.key].speed>0).reduce((best,u)=>Math.min(best,Math.max(0,
+    front(WALL_FACE[team])-front(u.x)-70)/CLASSES[u.key].speed),Infinity);
+  const criticalOutpost=(target,units)=>{
+   if(!assessLastLine||!target)return false;
+   const ownedCount=S.forts.filter(f=>f.owner===team).length;
+   const castleUncovered=!friends.some(u=>u.hp>0&&
+    front(u.x)>front(WALL_FACE[team])-195&&
+    (!CLASSES[u.key].capture||u.key==="engineer"));
+   const horizon=ownedCount<=1?24:16;
+   const eta=hostileCastleEta(units);
+   return capital(team).hp<=1500||castleUncovered&&eta<=horizon;
+  };
+  const previous=qaConcedePlans[team];
+  const threatenedFort=threatened?.f;
+  // The regular capturer AI selects the highest-x reachable unowned fort;
+  // predict the *actual* route after losing this owned fort. No unit retargeting.
+  const engineerCanReachAfterLoss=target=>{
+   if(!target)return false;
+   const from=limit(edge+dir*35,40,W-40),movement=team===1?1:-1;
+   return S.forts.filter(f=>(f.owner!==team||f===target)&&
+    movement*(f.x-from)>=-42&&Math.abs(f.y-target.y)<220)
+    .sort((a,b)=>b.x-a.x)[0]===target;
+  };
+  const deepRaid=foes.some(u=>front(u.x)>front(WALL_FACE[team])-230);
+  const emergency=castleThreat.length>0||deepRaid;
+  if(event){
+   event.concedeConsidered=(event.concedeConsidered||0)+1;
+   if(threatenedFort)event.concedeThreatened=(event.concedeThreatened||0)+1;
+   if(emergency)event.concedeDeepEmergency=(event.concedeDeepEmergency||0)+1;
+  }
+  if(previous?.active){
+   // Episode-level diagnostics, not strategy: did the fort actually fall
+   // before the held resources became a legal counterattack?
+   const resolved=()=>{
+    if(!event)return;
+    event.concedeResolved=(event.concedeResolved||0)+1;
+    const lost=S.forts[previous.fortIndex]?.owner!==team;
+    if(lost)event.concedeResolvedLost=(event.concedeResolvedLost||0)+1;
+    else event.concedeResolvedHeld=(event.concedeResolvedHeld||0)+1;
+    event.concedeResolutionSeconds=(event.concedeResolutionSeconds||0)+
+     Math.max(0,S.elapsed-previous.start);
+   };
+   if(event&&S.forts[previous.fortIndex]?.owner!==team)
+    event.concedeWaitingAfterLoss=(event.concedeWaitingAfterLoss||0)+1;
+   const expired=S.elapsed>previous.deadline;
+   const reserved=previous.card||"sentinel";
+   const unusable=!availableCard(team,reserved);
+   // Public, geometry-based clock: can the visible assault reach our capital
+   // sooner than the held counter can influence the battle?
+   const threatTime=foes.filter(u=>!CLASSES[u.key].flying&&CLASSES[u.key].speed>0)
+    .reduce((best,u)=>Math.min(best,Math.max(0,
+     front(WALL_FACE[team])-front(u.x)-70)/CLASSES[u.key].speed),Infinity);
+   const target=S.forts[previous.fortIndex];
+   const recaptureTravel=target?Math.abs(limit(edge+dir*35,40,W-40)-target.x)/
+    CLASSES.engineer.speed:Infinity;
+   const threatenedBeforeResponse=assessRisk&&reserved==="engineer"&&
+    threatTime<=Math.min(8,recaptureTravel*.6)+1;
+   const lastLineAlert=criticalOutpost(target,foes);
+   if(event&&threatenedBeforeResponse)
+    event.riskLateRecapture=(event.riskLateRecapture||0)+1;
+   if(event&&lastLineAlert)
+    event.lastLineAbort=(event.lastLineAbort||0)+1;
+   if(emergency||expired||unusable||threatenedBeforeResponse||lastLineAlert){
+    if(event){
+     const reason=emergency?"danger":expired?"expired":
+      unusable?"missingCard":lastLineAlert?"lastLine":"lateRecapture";
+     const causes=event.concedeCancelled||(event.concedeCancelled={});
+     causes[reason]=(causes[reason]||0)+1;
+    }
+    resolved();
+    qaConcedePlans[team]={blockedUntil:S.elapsed+12};
+   }else if(canPay(team,reserved)){
+    // Capturers must really route back to the lost outpost; engineers sent
+    // to a different fort do not count as an intentional recapture.
+    const target=S.forts[previous.fortIndex];
+    const takeBack=reserved==="engineer"&&target?.owner!==team&&
+     getFort({team,key:"engineer",x:limit(edge+dir*35,40,W-40),
+      y:previous.y})===target;
+    const play=reserved==="engineer"&&!takeBack
+     ? (canPay(team,"sentinel")?"sentinel":null):reserved;
+    if(play&&spawn(play,previous.y,35)){
+     if(event){
+      event.concedeCounterattack=(event.concedeCounterattack||0)+1;
+      if(trade&&play==="engineer"){
+       event.tradeReclaimDeployed=(event.tradeReclaimDeployed||0)+1;
+       const claims=event.tradeReclaimTargets||(event.tradeReclaimTargets=[]);
+       claims.push({index:previous.fortIndex,at:S.elapsed});
+      }else if(trade){
+       event.tradeDefenderDeployed=(event.tradeDefenderDeployed||0)+1;
+      }
+     }
+     resolved();
+     qaConcedePlans[team]={blockedUntil:S.elapsed+14};
+     return true;
+    }
+    if(event&&trade)event.tradeRouteOrCardInvalid=(event.tradeRouteOrCardInvalid||0)+1;
+    resolved();
+    qaConcedePlans[team]={blockedUntil:S.elapsed+12};
+   }else{
+    concessionHold=true;
+    if(event)event.concedeHeld=(event.concedeHeld||0)+1;
+   }
+  }
+  const plan=qaConcedePlans[team];
+  if(!concessionHold&&!plan?.active&&
+    (!plan||S.elapsed>=plan.blockedUntil)&&
+    threatenedFort&&!emergency&&S.elapsed>=20&&S.elapsed<=235&&
+    power>=2&&power<4&&
+    (availableCard(team,"sentinel")||
+     (trade&&availableCard(team,"engineer")&&
+      engineerCanReachAfterLoss(threatenedFort)))){
+   const attackers=threatened.enemies.filter(u=>!CLASSES[u.key].flying);
+   const fastBreakthrough=attackers.some(u=>CLASSES[u.key].speed>=30);
+   // QA-only counter-value comparison. An in-hand stationary splash
+   // defender may protect the castle better than a slow capturer.
+   const counterGuard=weighCounter&&fastBreakthrough&&availableCard(team,"sentinel");
+   const reserve=counterGuard?"sentinel":
+    trade&&availableCard(team,"engineer")&&
+     engineerCanReachAfterLoss(threatenedFort)?"engineer":"sentinel";
+   if(event&&weighCounter){
+    event.valueFastScenarios=(event.valueFastScenarios||0)+(fastBreakthrough?1:0);
+    event.valueSentinelPriorities=(event.valueSentinelPriorities||0)+(counterGuard?1:0);
+   }
+   if(event&&trade){
+    event.tradeEngineerOptions=(event.tradeEngineerOptions||0)+
+     (reserve==="engineer"?1:0);
+   }
+   const alliedDefense=friends.filter(u=>Math.abs(u.x-threatenedFort.x)<190&&
+    Math.abs(u.y-threatenedFort.y)<140);
+   const eta=secondsUntilAffordable(power,4);
+   if(event)event.concedeCandidates=(event.concedeCandidates||0)+1;
+   // Compare the resource-wait window with the arrival of visible enemies at
+   // our capital. This is deliberately pessimistic (straight-line movement).
+   // Low-value recapture is rejected if castle defense would be too late.
+   const threatEta=attackers.reduce((best,u)=>Math.min(best,Math.max(0,
+    front(WALL_FACE[team])-front(u.x)-70)/Math.max(1,CLASSES[u.key].speed)),Infinity);
+   const projectedSpawn=limit(edge+dir*35,40,W-40);
+   const recaptureTime=Math.abs(projectedSpawn-threatenedFort.x)/CLASSES.engineer.speed;
+   // Measurement only: uncontested engineer travel to firing range plus five cooldowns.
+   // This optimistic floor ignores combat, route changes, fort loss timing and enemy spawns.
+   const engineerTravelFloor=Math.max(0,Math.abs(projectedSpawn-threatenedFort.x)-
+    (CLASSES.engineer.range+26))/CLASSES.engineer.speed;
+   const engineerCaptureFloor=(Math.ceil(POST_HP/CLASSES.engineer.capture)-1)*
+    CLASSES.engineer.cool;
+   const engineerRecaptureFloor=eta+engineerTravelFloor+engineerCaptureFloor;
+   const requiredWindow=eta+(reserve==="engineer"
+    ?Math.min(8,recaptureTime*.6):4);
+   const lastLineCritical=criticalOutpost(threatenedFort,attackers);
+   const castleSafe=(!assessRisk||threatEta>requiredWindow)&&!lastLineCritical;
+   if(event&&assessLastLine){
+    event.lastLineEvaluated=(event.lastLineEvaluated||0)+1;
+    if(lastLineCritical)event.lastLineDenied=(event.lastLineDenied||0)+1;
+    else event.lastLineAllowed=(event.lastLineAllowed||0)+1;
+   }
+   if(event&&assessRisk){
+    event.riskWindowsChecked=(event.riskWindowsChecked||0)+1;
+    if(!castleSafe)event.riskRejected=(event.riskRejected||0)+1;
+    else event.riskPassed=(event.riskPassed||0)+1;
+   }
+   if(attackers.length>=2&&alliedDefense.length===0&&eta<=8&&castleSafe){
+    const objectiveIndex=S.forts.indexOf(threatenedFort);
+    qaConcedePlans[team]={active:true,start:S.elapsed,card:reserve,
+     deadline:S.elapsed+11,y:threatenedFort.y,fortIndex:objectiveIndex};
+    if(duelStats?.counterEpisodes){
+     duelStats.counterEpisodes.push({
+      team,variant:qaPolicy,start:S.elapsed,fortIndex:objectiveIndex,
+      reserve,energyStart:power,
+       waitForFourSeconds:+eta.toFixed(3),
+       engineerTravelFloorSeconds:+engineerTravelFloor.toFixed(3),
+       engineerCaptureFloorSeconds:+engineerCaptureFloor.toFixed(3),
+       engineerRecaptureFloorSeconds:+engineerRecaptureFloor.toFixed(3),
+       timeLeftAtPlanSeconds:+(MATCH-S.elapsed).toFixed(3),
+       visibleHostileCastleEtaSeconds:Number.isFinite(threatEta)?+threatEta.toFixed(3):null,
+       ownedFortsStart:S.forts.filter(f=>f.owner===team).length,
+      fastAttackersStart:attackers.filter(u=>CLASSES[u.key].speed>=30).length,
+      enemiesStart:foes.length,castleHpStart:capital(team).hp,
+      enemyCastleHpStart:capital(3-team).hp,
+      // QA-only and pre-action: no future events and never read by the policy.
+      castleHpLeadAtPlan:capital(team).hp-capital(3-team).hp,
+      alliesAtPlan:friends.length,hostilesAtPlan:foes.length,
+      alliedPressureAtEnemyCastle:friends.filter(u=>
+       Math.abs(u.x-WALL_FACE[3-team])<=300&&CLASSES[u.key].behavior!=="guard").length,
+      hostilePressureAtOwnCastle:foes.filter(u=>
+       Math.abs(u.x-WALL_FACE[team])<=300).length,
+      nearestAlliedToEnemyWall:friends.length
+       ?Math.min(...friends.map(u=>Math.abs(u.x-WALL_FACE[3-team]))):null,
+      nearestHostileToOwnWall:foes.length
+       ?Math.min(...foes.map(u=>Math.abs(u.x-WALL_FACE[team]))):null,
+      fortControl15:0,fortControl30:0,fortControl60:0,fortControl90:0,
+      castleDamage15:null,castleDamage30:null,castleDamage60:null,castleDamage90:null,
+      enemyCastleDamage15:null,enemyCastleDamage30:null,
+      enemyCastleDamage60:null,enemyCastleDamage90:null,
+      ownedAt15:null,ownedAt30:null,ownedAt60:null,ownedAt90:null,
+      fortFrontier30:null,fortFrontier60:null,fortFrontier90:null,
+      firstLoss:null,firstRecapture:null
+     });
+    }
+    concessionHold=true;
+    if(event){
+     event.concedeStarted=(event.concedeStarted||0)+1;
+     if(trade)event.tradeEngineerPlans=(event.tradeEngineerPlans||0)+
+      (reserve==="engineer"?1:0);
+    }
+   }
+  }
+ }
+ if(urgent&&!concessionHold){
+  const incoming=foes.filter(u=>front(u.x)>front(edge)-255&&Math.abs(u.y-laneY)<145);
+  const defense=friends.filter(u=>front(u.x)>front(edge)-175&&Math.abs(u.y-laneY)<145);
+  if(incoming.length>=2&&spawn("suppress",laneY,50))return true;
+  if(incoming.length&&defense.length<incoming.length+1&&spawn("sentinel",laneY,35))return true;
+  if(defense.length<incoming.length+1&&spawn("archer",laneY,60))return true;
+  if(scoutRelease&&spawn("scout",fort.y,35)){
+   if(event)event.scoutTempoReleased=(event.scoutTempoReleased||0)+1;
+   return true;
+  }
+  if(defense.length<incoming.length+1){
+   if(scoutHold){
+    if(event)event.scoutTempoEmergencyDeferred=(event.scoutTempoEmergencyDeferred||0)+1;
+   }else if(spawn("infantry",laneY,35))return true;
+  }
+ }
+ // Skip non-emergency spending while the 4-cost counter is being prepared.
+ // Real castle pressure cancels the hold on the next thought.
+ if(concessionHold)return true;
+
+ // Ward cannot protect the same army twice, so avoid overlapping active zones.
+ if(canPay(team,"ward")){
+  const candidate=friends.map(u=>{
+   const close=friends.filter(v=>dist(v,u)<SPELLS.ward.radius*.85);
+   const threatenedAllies=close.filter(v=>foes.some(e=>dist(e,v)<CLASSES[e.key].vision+35));
+   const existing=S.spells.zones.some(z=>z.team===team&&z.time>1.5&&
+    Math.hypot(z.x-u.x,z.y-u.y)<SPELLS.ward.radius*.70);
+   return {u,score:threatenedAllies.length+
+    (threatenedAllies.some(v=>CLASSES[v.key].size==="large")?1:0),existing};
+  }).filter(p=>!p.existing).sort((a,b)=>b.score-a.score)[0];
+  if(candidate&&candidate.score>=(hard?2:3)&&
+   botUse(team,"ward",candidate.u.x,candidate.u.y))return true;
+ }
+ // QA-only: conserve four energy shortly *before* our siege becomes a
+ // damage race. Critical defense, emergency spells and fort holds run earlier.
+ if(qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||
+   qaPolicy==="castleRaceValue"||(qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice")){
+  const prior=qaRaceBudgetPlans[team];
+  const wave=friends.filter(u=>CLASSES[u.key].behavior==="normal"&&
+   u.hp>=u.max*.5&&Math.abs(u.x-WALL_FACE[3-team])<=510)
+   .sort((a,b)=>Math.abs(a.x-WALL_FACE[3-team])-
+    Math.abs(b.x-WALL_FACE[3-team]));
+  const lead=wave[0];
+  // Castle approach is an optimistic physical floor, not eventual victory.
+  // Guarded trial cannot reserve for a wave still many seconds away.
+  const leadEta=lead?Math.max(0,Math.abs(lead.x-WALL_FACE[3-team])-
+   CLASSES[lead.key].range-15)/CLASSES[lead.key].speed:Infinity;
+  const approachReady=qaPolicy==="castleRaceBudget"||leadEta<=12;
+  const supported=lead&&friends.some(u=>u.uid!==lead.uid&&u.hp>=u.max*.45&&
+   Math.abs(u.x-lead.x)<230&&Math.abs(u.y-lead.y)<145);
+  const nearOwnCastle=foes.some(u=>Math.abs(u.x-WALL_FACE[team])<330);
+  const safe=!urgent&&!nearOwnCastle&&capital(team).hp>850&&
+   S.forts.some(f=>f.owner===team)&&availableCard(team,"drone")&&supported&&approachReady&&
+   S.elapsed>=35&&S.elapsed<=240;
+  // Upper bound on existing wave damage during the next 12 seconds.
+  // Enemies can interrupt attacks, so this is not a guaranteed outcome.
+  const active=wave.map(u=>{
+   const d=CLASSES[u.key];
+   const eta=Math.max(0,Math.abs(u.x-WALL_FACE[3-team])-d.range-15)/d.speed;
+   return {u,eta,dps:d.damage*(d.siege??1)*CASTLE_DAMAGE/d.cool};
+  }).filter(x=>x.eta<=12);
+  const projected12=active.reduce((n,x)=>
+   n+x.dps*(12-x.eta)*(x.u.hp/x.u.max),0);
+  const enemyWallCovered=foes.some(u=>Math.abs(u.x-WALL_FACE[3-team])<230);
+  const force=(qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice")?
+   qaSiegeForceEstimate(team,wave,foes,projected12):null;
+  const alreadyEnough=force?
+   force.forecast>=capital(3-team).hp*1.25:
+   !enemyWallCovered&&projected12>=capital(3-team).hp*1.25;
+  const nearLead=lead?foes.filter(u=>u.hp>0&&dist(u,lead)<165&&
+   (!CLASSES[lead.key].flying||CLASSES[u.key].hitAir)):[];
+  const hostileDps=nearLead.reduce((n,u)=>n+CLASSES[u.key].damage/CLASSES[u.key].cool,0);
+  const leadLife=hostileDps>0?lead.hp/hostileDps:Infinity;
+  const fragile=leadLife<6;
+  const droneX=limit(edge+dir*35,40,W-40);
+  const droneEta=Math.max(0,Math.abs(droneX-WALL_FACE[3-team])-
+   CLASSES.drone.range-15)/CLASSES.drone.speed;
+  const late=droneEta>Math.min(18,leadEta+8);
+  // When the visible hostile frontline has more HP than our whole wave,
+  // an exposed 135-HP drone is a poor reserve goal. Revert to legal
+  // ordinary card spending rather than bank for such a marginal attack.
+  const forceOutmatched=!!force&&force.bucket==="heavy"&&
+   force.forecast<capital(3-team).hp*.9;
+  // QA-only opportunity-cost guard: do not convert an immediately legal
+  // 7-energy giant, missing fort capturer, or uncovered approaching threat
+  // into an automatic 4-energy drone. All checks use public visible state,
+  // own available hand and legal card rules. Original V7 is kept as control.
+  const noCapturerForFort=!!fort&&!friends.some(u=>CLASSES[u.key].capture&&getFort(u)===fort);
+  const actionableCapture=noCapturerForFort&&
+   (canPay(team,"scout")||canPay(team,"engineer"));
+  const actionableGiant=["tank","guardian"].some(id=>canPay(team,id));
+  const actionableFortDefense=S.forts.some(f=>f.owner===team&&
+   foes.some(u=>Math.abs(u.x-f.x)<270&&Math.abs(u.y-f.y)<145)&&
+   !friends.some(u=>!CLASSES[u.key].capture&&Math.abs(u.x-f.x)<160&&
+    Math.abs(u.y-f.y)<135))&&
+   (canPay(team,"sentinel")||canPay(team,"archer"));
+  const opportunityVeto=qaPolicy==="castleRaceChoice"&&
+   (actionableGiant||actionableCapture||actionableFortDefense);
+  const valueSafe=!["castleRaceValue","castleRaceForce","castleRaceChoice"].includes(qaPolicy)||
+   (!alreadyEnough&&!fragile&&!late&&!forceOutmatched&&!opportunityVeto);
+  const eligible=safe&&secondsUntilAffordable(power,4)<=10.5&&valueSafe;
+  if(event){
+   event.raceBudgetChecks=(event.raceBudgetChecks||0)+1;
+   if(eligible)event.raceBudgetEligible=(event.raceBudgetEligible||0)+1;
+   if(opportunityVeto&&safe){
+    event.choiceOpportunityVeto=(event.choiceOpportunityVeto||0)+1;
+    const reasons=event.choiceOpportunityReasons||(event.choiceOpportunityReasons={});
+    for(const reason of [actionableGiant?"giant":null,actionableCapture?"capture":null,
+     actionableFortDefense?"defense":null].filter(Boolean))
+     reasons[reason]=(reasons[reason]||0)+1;
+    const examples=event.choiceOpportunitySamples||(event.choiceOpportunitySamples=[]);
+    if(examples.length<16)examples.push({at:+S.elapsed.toFixed(2),energy:+power.toFixed(2),
+     giant:actionableGiant,capture:actionableCapture,defense:actionableFortDefense});
+   }
+   if((qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice")&&lead&&supported){
+    event.forceChecks=(event.forceChecks||0)+1;
+    if(forceOutmatched)event.forceVetoOutmatched=(event.forceVetoOutmatched||0)+1;
+    if(safe&&forceOutmatched)event.forceSafeVeto=(event.forceSafeVeto||0)+1;
+    if(safe&&!forceOutmatched)event.forceSafeOpen=(event.forceSafeOpen||0)+1;
+    const samples=event.forceSamples||(event.forceSamples=[]);
+    if(safe&&samples.length<24)samples.push({
+     t:+S.elapsed.toFixed(2),wave:wave.map(u=>u.key),
+     wall:force.wall,bucket:force.bucket,
+     enemyHp:Math.round(force.enemyHp),waveHp:Math.round(force.alliedHp),
+     factor:+force.factor.toFixed(3),raw:+projected12.toFixed(1),
+     expected:+force.forecast.toFixed(1),enemyCastle:capital(3-team).hp,
+     outmatched:forceOutmatched,eligible});
+   }
+   if(qaPolicy==="castleRaceValue"&&lead&&supported){
+    event.raceValueChecks=(event.raceValueChecks||0)+1;
+    if(alreadyEnough)event.raceValueEnough=(event.raceValueEnough||0)+1;
+    if(fragile)event.raceValueFragile=(event.raceValueFragile||0)+1;
+    if(late)event.raceValueLate=(event.raceValueLate||0)+1;
+    if(safe&&!valueSafe)event.raceValueRejected=(event.raceValueRejected||0)+1;
+    const audit=event.raceValueSamples||(event.raceValueSamples=[]);
+    if(safe&&audit.length<24)audit.push({t:+S.elapsed.toFixed(2),lead:lead.key,
+     projected12:+projected12.toFixed(1),enemyHp:capital(3-team).hp,
+     leadLife:Number.isFinite(leadLife)?+leadLife.toFixed(1):null,
+     leadEta:+leadEta.toFixed(1),droneEta:+droneEta.toFixed(1),
+     alreadyEnough,fragile,late,eligible});
+   }
+   if(qaPolicy!=="castleRaceBudget"&&lead&&supported&&!approachReady)
+    event.raceBudgetTooFar=(event.raceBudgetTooFar||0)+1;
+  }
+  if(prior?.active){
+   const expired=S.elapsed>prior.deadline;
+   if(!safe||expired||!valueSafe){
+    if(event){
+     event.raceBudgetAborted=(event.raceBudgetAborted||0)+1;
+     const why=expired?"expired":urgent||nearOwnCastle?"defense":
+      !valueSafe?"valueLost":"lostWindow";
+     const totals=event.raceBudgetAbortReasons||(event.raceBudgetAbortReasons={});
+     totals[why]=(totals[why]||0)+1;
+    }
+    qaRaceBudgetPlans[team]={blockedUntil:S.elapsed+12};
+   }else if(power>=4){
+    if(spawn("drone",lead.y,35)){
+     qaRaceBudgetPlans[team]={blockedUntil:S.elapsed+16};
+     if(event)event.raceBudgetDeployed=(event.raceBudgetDeployed||0)+1;
+     return true;
+    }
+    qaRaceBudgetPlans[team]={blockedUntil:S.elapsed+12};
+   }else{
+    if(event)event.raceBudgetWait=(event.raceBudgetWait||0)+1;
+    return true;
+   }
+  }else if((!prior||S.elapsed>=prior.blockedUntil)&&eligible){
+   if(event){
+    event.raceBudgetStarted=(event.raceBudgetStarted||0)+1;
+    const sample=event.raceBudgetSamples||(event.raceBudgetSamples=[]);
+    if(sample.length<20)sample.push({at:+S.elapsed.toFixed(2),
+     energy:+power.toFixed(2),leadDistance:+Math.abs(lead.x-WALL_FACE[3-team]).toFixed(2),
+     lead:lead.key,leadEta:+leadEta.toFixed(2),
+     projected12:+projected12.toFixed(1),ownHp:capital(team).hp,
+     waitTo4:+secondsUntilAffordable(power,4).toFixed(2)});
+   }
+   if(power>=4&&spawn("drone",lead.y,35)){
+    qaRaceBudgetPlans[team]={blockedUntil:S.elapsed+16};
+    if(event)event.raceBudgetDeployed=(event.raceBudgetDeployed||0)+1;
+    return true;
+   }
+   qaRaceBudgetPlans[team]={active:true,start:S.elapsed,deadline:S.elapsed+12};
+   if(event)event.raceBudgetWait=(event.raceBudgetWait||0)+1;
+   return true;
+  }
+ }
+ // QA-only strategic director: evaluate *every* fort as an objective before
+ // picking the next card, rather than spending on the first affordable unit.
+ // Counters, urgent defense and real defensive wards above keep priority.
+ if(["objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","directorPathAligned"].includes(qaPolicy)){
+  const objectives=S.forts.filter(f=>f.owner!==team).filter(f=>{
+   if(!["directorRouteAware","directorPathAligned"].includes(qaPolicy))return true;
+   // A chosen lane must lead to its real in-game capture objective.
+   // In particular the human BLUE-side movement AI can intentionally skip
+   // a near fort; do not count a card spawn as a near-fort capture action.
+   const probe={team,key:"scout",x:limit(edge+dir*35,40,W-40),
+    y:limit(f.y,70,H-70)};
+   return getFort(probe)===f;
+  }).map(f=>{
+   const friendlyCapturers=friends.filter(u=>CLASSES[u.key].capture&&
+    (["directorRouteAware","directorPathAligned"].includes(qaPolicy)
+     ?getFort(u)===f
+     :Math.abs(u.x-f.x)<205&&Math.abs(u.y-f.y)<130));
+   const enemyDefenders=foes.filter(u=>Math.abs(u.x-f.x)<185&&Math.abs(u.y-f.y)<135);
+   const friendlyCover=friends.filter(u=>!CLASSES[u.key].capture&&
+    Math.abs(u.x-f.x)<215&&Math.abs(u.y-f.y)<155);
+   const forwardDistance=Math.abs(f.x-edge);
+   // A contested fort with a weak capture wave should not attract further
+   // unescorted scouts. Nearby objectives and insufficient coverage score high.
+   const score=170-forwardDistance*.16+(f.owner===0?20:0)+
+    (friendlyCapturers.length===0?65:0)+
+    Math.min(3,friendlyCapturers.length)*9-
+    enemyDefenders.length*16+Math.min(2,friendlyCover.length)*4;
+   return {f,score,workers:friendlyCapturers,defenders:enemyDefenders,cover:friendlyCover};
+  }).sort((a,b)=>b.score-a.score||a.f.x-b.f.x);
+  const objective=objectives[0],progress=objective?.workers.length??0;
+  const guard=S.forts.filter(f=>f.owner===team).map(f=>{
+   const attackers=foes.filter(u=>Math.abs(u.x-f.x)<245&&Math.abs(u.y-f.y)<165);
+   const defenders=friends.filter(u=>Math.abs(u.x-f.x)<190&&Math.abs(u.y-f.y)<165);
+   return {f,attackers,defenders,danger:attackers.length*2-defenders.length};
+  }).sort((a,b)=>b.danger-a.danger)[0];
+  const record=key=>{if(event)event.directorActions=(event.directorActions||{});
+   if(event)event.directorActions[key]=(event.directorActions[key]||0)+1;};
+  const deploy=(id,y,why)=>{if(spawn(id,y,id==="archer"||id==="suppress"?60:35)){
+   record(why);return true;}return false;};
+  if(guard?.attackers.length&&guard.danger>0&&
+   !friends.some(u=>u.key==="sentinel"&&Math.abs(u.x-guard.f.x)<180&&
+    Math.abs(u.y-guard.f.y)<135)&&
+   (deploy("sentinel",guard.f.y,"holdFort")||deploy("archer",guard.f.y,"holdFort")))return true;
+  if(objective){
+   const y=objective.f.y;
+   // First establish a real capture lane. If contested, send a durable
+   // capturing unit instead of blindly feeding an unguarded scout.
+   if(progress===0){
+    if(objective.defenders.length>0){
+     if(deploy("engineer",y,"captureContested")||
+        deploy("scout",y,"captureContested"))return true;
+    }else if(deploy("scout",y,"captureOpen")||
+             deploy("engineer",y,"captureOpen"))return true;
+   }
+   if(progress>=1&&objective.defenders.length>objective.cover.length&&
+     !friends.some(u=>u.key==="suppress"&&Math.abs(u.y-y)<140&&
+      Math.abs(u.x-edge)<205)&&
+     (deploy("suppress",y,"escort")||deploy("archer",y,"escort")))return true;
+   // A second capture unit is useful only for a contested or genuinely
+   // under-staffed target; already assigned workers count as committed.
+   if(progress===1&&objective.defenders.length>=1&&
+    (deploy("engineer",y,"reinforce")||deploy("scout",y,"reinforce")))return true;
+  }
+  // Once a wave is already committed, reserve a little for a meaningful
+  // follow-up rather than converting every 2 energy into more infantry.
+  // Never wait during an actual raid or when no advance troops survive.
+  if(qaPolicy!=="directorCaptureOnly"&&!urgent&&friends.length>=2&&S.forts.some(f=>f.owner===team)&&
+    !raiders.some(u=>front(u.x)>front(edge)-180)&&
+    (progress>=1||!objective)){
+   const attackY=objective?.f.y??(friends.find(u=>front(u.x)<front(edge)-30)?.y??330);
+   const attacking=friends.some(u=>front(u.x)<front(edge)-20);
+   if(attacking&&
+    (deploy("tank",attackY,"siegeTank")||
+     deploy("drone",attackY,"siegeDrone")||
+     deploy("suppress",attackY,"siegeSupport")))return true;
+   if(qaPolicy==="objectiveDirector"&&attacking&&power>=2&&power<4&&friends.length>=3){
+    record("saveForPush");return true;
+   }
+  }
+  // No strategic opportunity worth buying right now: let the standard
+  // battle logic handle general defenses and miscellaneous cards.
+ }
+ const workers=fort?friends.filter(u=>CLASSES[u.key].capture&&
+  (qaPolicy==="captureCoverage"?Math.abs(u.x-fort.x)<300:
+   front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
+ const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
+ if(event&&needFort)event.needFort++;
+ if(scoutRelease&&spawn("scout",fort.y,35)){
+  if(event)event.scoutTempoReleased=(event.scoutTempoReleased||0)+1;
+  return true;
+ }
+ // Only if no more important anti-air, barrage, ward, or fort-defense action
+ // has already happened this turn: delay cheap fallback until scout affordable.
+ if(scoutHold){
+  if(event)event.scoutTempoHeld=(event.scoutTempoHeld||0)+1;
+  return true;
+ }
+ // QA-only: repair a demonstrated wrong-target capture coverage claim.
+ // Do NOT retarget units or force the nearest fort: check real getFort
+ // for each candidate spawn before spending any resources.
+ if(qaPolicy==="captureRouteOpportunity"&&!urgent&&fort&&S.elapsed<=180){
+  const minWorkers=S.elapsed<40?1:2;
+  if(workers.length>=minWorkers){
+   const routed=friends.filter(u=>CLASSES[u.key].capture&&u.hp>u.max*.35&&
+    getFort(u)===fort);
+   if(routed.length<minWorkers){
+    if(event)event.routeOpportunity=(event.routeOpportunity||0)+1;
+    const x=limit(edge+dir*35,40,W-40),y=fort.y;
+    const enemyDefenders=foes.some(u=>Math.abs(u.x-fort.x)<180&&
+     Math.abs(u.y-fort.y)<145);
+    const offers=enemyDefenders?["engineer"]:["scout","engineer"];
+    for(const id of offers){
+     if(!canPay(team,id)||getFort({team,key:id,x,y})!==fort)continue;
+     if(spawn(id,y,35)){
+      if(event){
+       event.routeOpportunityPlays=(event.routeOpportunityPlays||0)+1;
+       const xs=event.routeOpportunitySamples||(event.routeOpportunitySamples=[]);
+       if(xs.length<16)xs.push({at:+S.elapsed.toFixed(2),fort:fort.x,
+        oldWorkers:workers.length,actualWorkers:routed.length,
+        id,enemyDefenders});
+      }
+      return true;
+     }
+    }
+   }
+  }
+ }
+ // Independent QA-only policy probes. Do not alter existing movement,
+ // high-priority counters or base decisions unless conditions truly apply.
+ const surgical=reason=>{if(event){
+  const counts=event.surgicalChoices||(event.surgicalChoices={});
+  counts[reason]=(counts[reason]||0)+1;
+ }};
+ // QA-only short affordability window. Unlike a 7-cost giant saving plan,
+ // this requires a scout ALREADY in our four-card hand (not hidden in the
+ // queue), a real unclaimed fort, and at most 2.5s to three energy.
+ // If forecast contacts are likely, immediately fall back to normal tactics.
+ // QA-only economical forward interception. Forecast an actual capture
+ // unit reaching an owned fort within six seconds, but keep the established
+ // high-priority emergency, anti-air, barrage and ward branches untouched.
+ if(qaPolicy==="forecastCheapScreen"&&!urgent&&power>=2&&power<3){
+  if(event)event.cheapScreenChecks=(event.cheapScreenChecks||0)+1;
+  // Only intervene if a stronger, already affordable guard/archer cannot
+  // handle the approach. A 2-cost infantry play uses the standard hand rules.
+  if(!canPay(team,"archer")&&!canPay(team,"sentinel")){
+   const spawnX=limit(edge+dir*35,40,W-40);
+   const threats=foes.map(u=>{
+    const d=CLASSES[u.key],target=getFort(u);
+    if(d.flying||d.behavior==="guard"||d.speed<20||
+     !target||target.owner!==team)return null;
+    const eta=dist(u,target)/d.speed;
+    // Our inexpensive ground infantry must actually have time to move from
+    // the legal spawn line to the threatened fort. The 12s horizon is a
+    // travel-budget constraint, not a guess that an enemy is already here.
+    const distanceToFort=Math.abs(spawnX-target.x);
+    const screenEta=Math.max(0,distanceToFort-CLASSES.infantry.range)/
+     CLASSES.infantry.speed;
+    if(eta>12||eta<1.5||distanceToFort>240||screenEta>eta+1)return null;
+    const covered=friends.some(v=>v.hp>v.max*.45&&
+     Math.abs(v.x-target.x)<150&&Math.abs(v.y-target.y)<135&&
+     (!d.flying||CLASSES[v.key].hitAir));
+    return !covered?{target,eta,source:u}:null;
+   }).filter(Boolean).sort((a,b)=>a.eta-b.eta);
+   if(event)event.cheapScreenThreats=(event.cheapScreenThreats||0)+threats.length;
+   if(threats.length&&spawn("infantry",threats[0].target.y,35)){
+    if(event)event.cheapScreenPlays=(event.cheapScreenPlays||0)+1;
+    return true;
+   }
+  }
+ }
+ // QA-only 2-cost infantry as a real capture alternative for a stranded
+ // four-card hand. No hidden opponent state, no movement change.
+ // QA-only opponent-cost gate: this handless infantry diversion only
+ // makes sense when publicly estimated enemy counterplay is unfunded.
+ if(qaPolicy==="captureSpendGate"&&!urgent&&fort&&power>=2&&
+    power<4&&S.elapsed<130){
+  if(event)event.spendGateConsidered=(event.spendGateConsidered||0)+1;
+  const assigned=friends.some(u=>CLASSES[u.key].capture&&
+   (getFort(u)===fort||Math.abs(u.y-fort.y)<135&&
+    Math.abs(u.x-fort.x)<250));
+  const affordable=S.hand[team].some(id=>canPay(team,id));
+  const minCost=S.hand[team].filter(id=>availableCard(team,id))
+   .reduce((best,id)=>Math.min(best,CATALOG[id].cost),Infinity);
+  const eta=secondsUntilAffordable(power,minCost);
+  const unsafe=foes.some(u=>Math.abs(u.y-fort.y)<145&&
+   (Math.abs(u.x-fort.x)<200||Math.abs(u.x-edge)<230));
+  const heavyVisible=foes.some(u=>CLASSES[u.key].size==="large");
+  const enemyCanCounter=opposingPower>=4||enemyReady7<=9;
+  const candidate=!assigned&&!affordable&&minCost<=5&&eta>=3&&!unsafe;
+  if(event){
+   event.spendGateOpportunity=(event.spendGateOpportunity||0)+(candidate?1:0);
+   event.spendGateEnemyFunds=(event.spendGateEnemyFunds||0)+
+    (candidate&&enemyCanCounter?1:0);
+   event.spendGateHeavyVisible=(event.spendGateHeavyVisible||0)+
+    (candidate&&heavyVisible?1:0);
+  }
+  if(candidate&&!enemyCanCounter&&!heavyVisible&&
+     spawn("infantry",fort.y,35)){
+   if(event)event.spendGatePlayed=(event.spendGatePlayed||0)+1;
+   return true;
+  }
+ }
+ if(qaPolicy==="captureTempoInfantry"&&!urgent&&fort&&power>=2&&
+    S.elapsed<130){
+  if(event)event.captureTempoConsidered=(event.captureTempoConsidered||0)+1;
+  const deployed=friends.some(u=>CLASSES[u.key].capture&&
+   (getFort(u)===fort||Math.abs(u.y-fort.y)<135&&
+    Math.abs(u.x-fort.x)<250));
+  const handPlayable=S.hand[team].some(id=>canPay(team,id));
+  const cheapest=S.hand[team].filter(id=>availableCard(team,id))
+   .reduce((best,id)=>Math.min(best,CATALOG[id].cost),Infinity);
+  const wait=secondsUntilAffordable(power,cheapest);
+  if(event&&!handPlayable&&wait>=3)
+   event.captureTempoWindow=(event.captureTempoWindow||0)+1;
+  const unsafe=foes.some(u=>Math.abs(u.y-fort.y)<145&&
+   (Math.abs(u.x-fort.x)<200||Math.abs(u.x-edge)<230));
+  if(!deployed&&!handPlayable&&wait>=3&&!unsafe&&
+   spawn("infantry",fort.y,35)){
+   if(event)event.captureTempoPlayed=(event.captureTempoPlayed||0)+1;
+   return true;
+  }
+ }
+ if(qaPolicy==="forecastSpendWindow"){
+  const previous=qaWindowPlans[team];
+  if(previous&&S.elapsed>previous.deadline){
+   if(event)event.windowExpired=(event.windowExpired||0)+1;
+   qaWindowPlans[team]=null;
+  }
+  if(event){
+   event.windowDecisions=(event.windowDecisions||0)+1;
+   event.windowNeedFort=(event.windowNeedFort||0)+(needFort?1:0);
+   event.windowScoutInHand=(event.windowScoutInHand||0)+
+    (needFort&&availableCard(team,"scout")?1:0);
+   event.windowScoutInQueue=(event.windowScoutInQueue||0)+
+    (needFort&&S.queue[team].includes("scout")?1:0);
+  }
+  if(needFort&&!urgent&&availableCard(team,"scout")&&
+   power>=2&&power<CLASSES.scout.cost){
+   const eta=secondsUntilAffordable(power,CLASSES.scout.cost);
+   if(event){
+    event.windowAffordableSoon=(event.windowAffordableSoon||0)+(eta<=2.5?1:0);
+   }
+   if(eta<=2.5){
+    const x=limit(edge+dir*35,40,W-40),forecast=forecastCaptureContact(team,x,fort.y);
+    const nearby=foes.some(u=>Math.abs(u.x-edge)<210&&
+     Math.abs(u.y-fort.y)<145);
+    if(event){
+     event.windowForecastChecks=(event.windowForecastChecks||0)+1;
+     event.windowUnsafe=(event.windowUnsafe||0)+(forecast.risk>0||nearby?1:0);
+    }
+    if(forecast.target&&forecast.risk===0&&!nearby){
+     if(!qaWindowPlans[team]){
+      qaWindowPlans[team]={deadline:S.elapsed+5};
+      if(event)event.windowStarted=(event.windowStarted||0)+1;
+     }
+     if(event)event.windowWaiting=(event.windowWaiting||0)+1;
+     return true;
+    }
+   }
+  }
+ }
+ if(qaPolicy==="preemptFort"&&!urgent&&power>=4){
+  const threatenedSoon=S.forts.filter(f=>f.owner===team).map(f=>{
+   const enemies=foes.filter(u=>Math.abs(u.x-f.x)<330&&Math.abs(u.y-f.y)<140);
+   const cover=friends.filter(u=>Math.abs(u.x-f.x)<195&&Math.abs(u.y-f.y)<140);
+   return {f,enemies,cover};
+  }).filter(a=>a.enemies.length&&a.enemies.length>a.cover.length)
+   .sort((a,b)=>b.enemies.length-a.enemies.length)[0];
+  if(threatenedSoon&&!threatenedSoon.cover.some(u=>u.key==="sentinel")&&
+     spawn("sentinel",threatenedSoon.f.y,35)){
+   surgical("preemptFort");return true;
+  }
+ }
+ if(qaPolicy==="escortCapturer"&&!urgent&&power>=2){
+  const unescorted=S.forts.filter(f=>f.owner!==team).map(f=>{
+   const units=friends.filter(u=>CLASSES[u.key].capture&&
+    Math.abs(u.x-f.x)<205&&Math.abs(u.y-f.y)<110);
+   const enemies=foes.filter(u=>Math.abs(u.x-f.x)<210&&Math.abs(u.y-f.y)<130);
+   const support=friends.filter(u=>!CLASSES[u.key].capture&&
+    Math.abs(u.x-f.x)<180&&Math.abs(u.y-f.y)<120);
+   return {f,units,enemies,support};
+  }).filter(v=>v.units.length&&v.enemies.length&&!v.support.length)
+   .sort((a,b)=>b.enemies.length-a.enemies.length)[0];
+  if(unescorted&&spawn("archer",unescorted.f.y,60)){
+   surgical("escortCapturer");return true;
+  }
+ }
+ if(qaPolicy==="forecastCapture"&&!urgent&&fort){
+  // Instrument the entire eligibility funnel, including turns where energy
+  // or the current hand make the proposed intervention impossible.
+  const scoutReady=canPay(team,"scout");
+  const engineerReady=canPay(team,"engineer");
+  const archerReady=canPay(team,"archer");
+  if(event){
+   event.forecastObserved=(event.forecastObserved||0)+1;
+   event.forecastNeedFort=(event.forecastNeedFort||0)+(needFort?1:0);
+   event.forecastScoutReady=(event.forecastScoutReady||0)+(needFort&&scoutReady?1:0);
+   event.forecastEngineerReady=(event.forecastEngineerReady||0)+(needFort&&engineerReady?1:0);
+   event.forecastArcherReady=(event.forecastArcherReady||0)+(needFort&&archerReady?1:0);
+  }
+  if(needFort&&(scoutReady||engineerReady||archerReady)){
+   const x=limit(edge+dir*35,40,W-40),y=fort.y;
+   const forecast=forecastCaptureContact(team,x,y);
+   if(event){
+    event.forecastChecks=(event.forecastChecks||0)+1;
+    event.forecastContacts=(event.forecastContacts||0)+forecast.contacts.length;
+    event.forecastRisky=(event.forecastRisky||0)+(forecast.risk>=2?1:0);
+   }
+   if(forecast.risk>=2){
+    // A sturdy capture unit must go to the same target as the scout.
+    if(scoutReady&&engineerReady&&
+     forecast.target===getFort({team,key:"engineer",x,y})&&
+     spawn("engineer",y,35)){
+     surgical("forecastCapture");return true;
+    }
+    // If the tougher worker is not ready, establish a ranged screen before
+    // feeding a vulnerable scout into the predicted contact lane.
+    if(scoutReady&&archerReady&&spawn("archer",y,60)){
+     surgical("forecastScreen");return true;
+    }
+   }
+  }
+ }
+ if(qaPolicy==="laneScout"&&needFort&&canPay(team,"scout")){
+  // Score actual card destination using existing getFort, never retarget units.
+  const options=S.forts.filter(f=>f.owner!==team).map(f=>{
+   const x=limit(edge+dir*35,40,W-40),y=f.y;
+   const target=getFort({key:"scout",team,x,y});
+   if(!target)return null;
+   const foesNear=foes.filter(u=>Math.abs(u.x-target.x)<185&&
+    Math.abs(u.y-target.y)<145).length;
+   const assigned=friends.filter(u=>CLASSES[u.key].capture&&
+    getFort(u)===target).length;
+   return {y,target,score:foesNear*3+assigned*2+Math.abs(target.x-edge)/450};
+  }).filter(Boolean).sort((a,b)=>a.score-b.score);
+  if(options.length){
+   const current=getFort({key:"scout",team,
+    x:limit(edge+dir*35,40,W-40),y:fort.y});
+   if(options[0].target!==current&&spawn("scout",options[0].y,35)){
+    surgical("laneScout");return true;
+   }
+  }
+ }
+ // QA-only stateful siege intent. Unlike one-turn affordability thresholds,
+ // a healthy forward capture group can protect a bounded 7-energy investment.
+ // Emergency defense, counters and wards always run before this stage.
+ if(qaPolicy==="stagedBudget"||qaPolicy==="screenBudget"){
+  const covered=S.forts.some(f=>f.owner===team)&&
+   friends.filter(u=>CLASSES[u.key].capture&&u.hp>u.max*.4&&
+    front(u.x)<front(edge)+60).length>=2;
+  const closeRaiders=raiders.filter(u=>front(u.x)>front(edge)-160);
+  const screenedRaiders=closeRaiders.filter(e=>friends.some(a=>
+   a.hp>a.max*.45&&Math.abs(a.x-e.x)<135&&Math.abs(a.y-e.y)<105&&
+   front(a.x)>=front(e.x)-80&&
+   (!CLASSES[e.key].flying||CLASSES[a.key].hitAir)));
+  const exposedRaiders=closeRaiders.length-screenedRaiders.length;
+  const closeUnsafe=qaPolicy==="screenBudget"?exposedRaiders>0:closeRaiders.length>0;
+  const safe=!urgent&&covered&&availableCard(team,"tank")&&!closeUnsafe;
+  if(event&&qaPolicy==="screenBudget"){
+   event.screenChecks=(event.screenChecks||0)+1;
+   event.screenedContacts=(event.screenedContacts||0)+screenedRaiders.length;
+   event.unscreenedContacts=(event.unscreenedContacts||0)+exposedRaiders;
+  }
+  const plan=qaSiegePlans[team];
+  if(plan?.active&&(!safe||S.elapsed>plan.deadline)){
+   // A plan may have been disrupted between BOT thoughts; classify the
+   // observable reason at its next evaluation, not a causal claim.
+   const cause=S.elapsed>plan.deadline?"expired":
+    urgent?"emergency":
+    !S.forts.some(f=>f.owner===team)?"lostFort":
+    !availableCard(team,"tank")?"tankUnusable":
+    !covered?"frontlineLost":"enemyClose";
+   if(event){
+    const snapshots=event.budgetCancelSnapshots||(event.budgetCancelSnapshots=[]);
+    if(snapshots.length<30)snapshots.push({
+     t:+S.elapsed.toFixed(1),reason:cause,energy:+power.toFixed(2),
+     closeRaiders:closeRaiders.length,screened:screenedRaiders.length,
+     exposed:exposedRaiders,allies:friends.length,
+     enemyToEdge:closeRaiders.length?
+      +Math.max(0,front(edge)-Math.max(...closeRaiders.map(u=>front(u.x)))).toFixed(1):null,
+     nearestEnemyClass:closeRaiders.sort((a,b)=>front(b.x)-front(a.x))[0]?.key||null,
+     nearestEnemySpeed:closeRaiders[0]?CLASSES[closeRaiders[0].key].speed:null
+    });
+   }
+   qaSiegePlans[team]={blockedUntil:S.elapsed+18};
+   if(event){
+    event.budgetCancelled=(event.budgetCancelled||0)+1;
+    const counts=event.budgetCancelReasons||(event.budgetCancelReasons={});
+    counts[cause]=(counts[cause]||0)+1;
+   }
+  }
+  const active=qaSiegePlans[team];
+  if(safe&&S.elapsed>=50&&(!active||active.blockedUntil<=S.elapsed)){
+   qaSiegePlans[team]={active:true,deadline:S.elapsed+23};
+   if(event)event.budgetStarted=(event.budgetStarted||0)+1;
+  }
+  if(qaSiegePlans[team]?.active&&safe){
+   if(power>=7&&spawn("tank",fort?.y??laneY,38)){
+    qaSiegePlans[team]={blockedUntil:S.elapsed+14};
+    if(event)event.budgetTank=(event.budgetTank||0)+1;
+    return true;
+   }
+   if(power<7){
+    if(event)event.budgetWait=(event.budgetWait||0)+1;
+    return true;
+   }
+  }
+ }
+ // QA-only hypothesis C: a guarded economy window saves for a giant only when
+ // there is a healthy capture group and the frontline is not being raided.
+ const reserveGiants=["tank","guardian"].filter(id=>availableCard(team,id));
+ const reserveReady=S.elapsed>25&&!urgent&&reserveGiants.length>0&&
+  friends.length>=3&&friends.some(u=>CLASSES[u.key].capture)&&
+  !raiders.some(u=>front(u.x)>front(edge)-160);
+ if(event&&reserveReady)event.reserveReady=(event.reserveReady||0)+1;
+ if(qaPolicy==="reserveEarly"&&reserveReady){
+  if(power>=7&&spawn(reserveGiants.includes("tank")?"tank":"guardian",
+    fort?.y??laneY,38))return true;
+  if(power>=2.5&&power<7)return true;
+ }
+ // QA-only hypothesis A: after securing a fort and having two capture troops,
+ // spend a real 7-energy tank window on offense before making more capture troops.
+ if(qaPolicy==="siegeWindow"&&!urgent&&S.elapsed>45&&power>=7&&
+    S.forts.some(f=>f.owner===team)&&
+    friends.filter(u=>CLASSES[u.key].capture).length>=2&&
+    spawn("tank",fort?.y??laneY,38))return true;
+ // A depleted opponent is unable to fund an immediate expensive counter;
+ // press only with a real forward squad and no urgent defensive problem.
+ if(qaPolicy==="opponentPunish"&&opposingPower<=2.5&&!urgent&&fort&&
+  S.elapsed>30&&power>=3&&friends.length>=2&&
+  friends.some(u=>front(u.x)<front(edge)-75)&&
+  spawn("scout",fort.y,35)){
+   if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+   return true;
+ }
+ // Four public energy is sufficient to afford a barrage, if in hand.
+ // A high-cost defense is only justified by visible enemies in a threatened lane.
+ if(qaPolicy==="opponentGuard"&&opposingPower>=4&&!urgent&&
+  raiders.length>0&&friends.length>=2&&
+  friends.filter(u=>u.key==="sentinel"&&Math.abs(u.y-laneY)<130&&
+   Math.abs(u.x-edge)<160).length===0&&spawn("sentinel",laneY,35)){
+   if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+   return true;
+ }
+ // QA-only opportunistic flanking: low-energy enemy cannot answer a 4-cost
+ // aerial push within six seconds. Need a captured staging fort and at least
+ // one surviving friendly fighter, with no immediate defense duty.
+ if(qaPolicy==="tempoSiege"&&!urgent&&S.elapsed>18&&power>=4&&
+    availableCard(team,"drone")&&S.forts.some(f=>f.owner===team)&&
+    friends.length>=1&&enemyReady4>6&&
+    !raiders.some(u=>front(u.x)>front(edge)-160)&&
+    spawn("drone",fort?.y??laneY,35)){
+   if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+   return true;
+ }
+ // QA-only proactive defense: intercept a visible approach while there
+ // is still time to place guards; do not invent invisible enemy units.
+ if(qaPolicy==="tempoScreen"&&!urgent&&enemyReady4<=5&&power>=4&&
+    friends.length>=2&&
+    foes.some(u=>Math.abs(u.x-edge)<460&&Math.abs(u.x-edge)>245&&
+     Math.abs(u.y-laneY)<180)&&
+    friends.filter(u=>u.key==="sentinel"&&Math.abs(u.y-laneY)<150&&
+     Math.abs(u.x-edge)<180).length===0&&spawn("sentinel",laneY,35)){
+   if(event)event.variantTriggers=(event.variantTriggers||0)+1;
+   return true;
+ }
+ if(needFort&&spawn("scout",fort.y,35))return true;
  if(needFort&&spawn("engineer",fort.y,35))return true;
- if(raiders.length>=2&&spawn("sentinel",yFocus,36))return true;
- if(groupSize>=2&&spawn("suppress",group.u.y,50))return true;
- if(friends.filter(u=>u.key==="archer").length<2&&spawn("archer",yFocus,70))return true;
- if(pay("ward")){
-  const team=friends.map(u=>({u,value:friends.filter(v=>dist(v,u)<90&&raiders.some(e=>dist(e,v)<175)).length}))
-   .sort((a,b)=>b.value-a.value)[0];
-  if(team&&team.value>=2&&botUse(2,"ward",team.u.x,team.u.y))return true;
+
+ const archers=friends.filter(u=>u.key==="archer").length;
+ if(S.elapsed<45&&archers<2&&spawn("archer",laneY,60))return true;
+
+ // Save for giants only if owned lanes are not under pressure, and the
+ // objective capture line already has troops. No hidden energy advantages.
+ const giants=["tank","guardian"].filter(id=>availableCard(team,id));
+ if(giants.length&&S.elapsed>18&&!urgent){
+  const chosen=giants.includes("tank")?"tank":giants[0];
+  if(power>=7&&spawn(chosen,chosen==="tank"?fort?.y??laneY:laneY,38))return true;
+  if(power>=4&&!needFort&&friends.length>=2&&
+   !raiders.some(u=>front(u.x)>front(edge)-160))return true;
  }
- if(groupSize>=2&&pay("barrage")&&botUse(2,"barrage",group.u.x,group.u.y))return true;
- // Rotate non-permanent cards for the next tactical option; hold energy if necessary.
- for(const id of ["scout","archer","engineer","sentinel","suppress","drone"]){
-  if(spawn(id,id==="scout"||id==="engineer"?fort?.y??330:yFocus,
-   id==="archer"||id==="suppress"?64:36))return true;
+ if(groupSize>=2&&spawn("suppress",targets.center.y,50))return true;
+ if(raiders.length>=2&&spawn("sentinel",laneY,35))return true;
+ if(archers<3&&spawn("archer",laneY,62))return true;
+ for(const id of ["scout","engineer","archer","suppress","drone","sentinel","tank","guardian"]){
+  const y=id==="scout"||id==="engineer"||id==="tank"?fort?.y??laneY:laneY;
+  if(spawn(id,y,id==="archer"||id==="suppress"?60:35))return true;
  }
- // Basic infantry remains the low-cost emergency choice, not the default policy.
- if(power>=11&&spawn("infantry",yFocus,36))return true;
- if(desperate.length&&spawn("infantry",yFocus,36))return true;
- return true;
+ if((power>=10||urgent)&&spawn("infantry",laneY,35))return true;
+ return false;
+ }finally{
+  if(decisionAudit){
+   const played=duelStats.actions[team]>beforeActions;
+   const card=played?botLastAction.id:"none";
+   const phase=before.underPressure?"defend":before.ownedFort&&before.forward>=2?
+    "staged":before.pendingFort?"capture":"advance";
+   const energyBucket=before.energy<2?"0-2":before.energy<4?"2-4":
+    before.energy<7?"4-7":"7-12";
+   decisionAudit.calls++;
+   decisionAudit.byPhase[phase]=(decisionAudit.byPhase[phase]||0)+1;
+   decisionAudit.byEnergy[energyBucket]=(decisionAudit.byEnergy[energyBucket]||0)+1;
+   decisionAudit.byCard[card]=(decisionAudit.byCard[card]||0)+1;
+   const perPhase=decisionAudit.phaseCards[phase]??(decisionAudit.phaseCards[phase]={});
+   perPhase[card]=(perPhase[card]||0)+1;
+   if(before.largeHand){
+    decisionAudit.tankInHand++;
+    if(before.energy<7)decisionAudit.tankUnaffordable++;
+    if(before.ownedFort&&before.forward>=2){
+     decisionAudit.tankFrontlineOpportunity++;
+     if(before.energy>=7)decisionAudit.tankFundedOpportunity++;
+     else if(played&&CATALOG[card].cost<7)decisionAudit.tankDeferredByCheapPlay++;
+    }
+   }
+   if(before.energy>=4&&before.enemyEta4>6&&before.ownedFort&&
+      before.allies>0)decisionAudit.enemyResourceWindow++;
+   if(decisionAudit.samples.length<40&&(
+      (before.largeHand&&before.ownedFort&&before.forward>=2)||
+      (before.underPressure&&before.energy>=4)
+     )){
+    decisionAudit.samples.push({time:+S.elapsed.toFixed(1),phase,energy:+before.energy.toFixed(2),
+     enemyEnergy:+before.enemyEnergy.toFixed(2),
+     enemyEta4:+before.enemyEta4.toFixed(1),allies:before.allies,
+     forward:before.forward,largeHand:before.largeHand,
+     card,chosenCost:played?CATALOG[card].cost:0});
+   }
+  }
+ }
 }
 function botAction(){
  const allies=S.units.filter(u=>u.team===2&&u.hp>0);
@@ -1670,7 +3018,11 @@ function finishTime(){
 function tick(dt){
  if(!NET.isHost||S.phase!=="battle")return;
  S.elapsed+=dt;S.seconds-=dt;
- for(const team of [1,2])S.energy[team]=Math.min(ENERGY_CAP,S.energy[team]+dt*rate()*(1));
+ for(const team of [1,2]){
+  const gain=dt*rate();
+  S.energy[team]=Math.min(ENERGY_CAP,S.energy[team]+gain);
+  S.observedEnergy[team]=Math.min(ENERGY_CAP,S.observedEnergy[team]+gain);
+ }
  unitStep(dt);spellStep(dt);
  for(const fallen of S.deaths)fallen.t-=dt;
  S.deaths=S.deaths.filter(fallen=>fallen.t>0);
@@ -1694,12 +3046,35 @@ function clampCamera(){
  c.tx=limit(c.tx,minX,maxX);c.ty=limit(c.ty,minY,maxY);
  v.ox=v.w/2-c.x*v.s;v.oy=v.h/2-c.y*v.s;
 }
+// Keep Retina quality on fast devices; switch to a cheaper Canvas raster on
+// consistently slow tablet displays. A one-way change avoids resolution flicker.
+let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
+let guestLowPower=false,guestLastPaint=0;
+function adaptCanvasQuality(now){
+ if(qualityMeasured||!(S.phase==="battle"||S.phase==="prep")||document.hidden){
+  if(document.hidden){qualityWindowStart=0;qualityFrames=0;}
+  return;
+ }
+ if(!qualityWindowStart){qualityWindowStart=now;return;}
+ qualityFrames++;
+ const elapsed=now-qualityWindowStart;
+ if(elapsed<3400)return;
+ const fps=qualityFrames/(elapsed/1000);
+ qualityWindowStart=now;qualityFrames=0;
+ if(fps<42&&!NET.isHost&&S.view.dpr<=1.02){
+  guestLowPower=true;qualityMeasured=true;
+ }else if(fps<38&&S.view.dpr>1.02){
+  tabletDprCap=1.0;qualityMeasured=true;fit();
+ }
+}
 function fit(){
  const rect=area.getBoundingClientRect(),v=S.view;
  v.w=Math.max(1,rect.width);v.h=Math.max(1,rect.height);
  // Reduce Retina tablet raster overdraw; simulation coordinates remain untouched.
  const tablet=(window.innerWidth||v.w)>=700&&(window.matchMedia?.("(pointer: coarse)").matches||/iPad/i.test(navigator.userAgent||""));
- v.dpr=Math.min(window.devicePixelRatio||1,tablet?1.45:2);
+ // Guest iPads can render one CSS pixel per backing pixel, avoiding Retina overdraw.
+ v.dpr=Math.min(window.devicePixelRatio||1,
+  tablet?(!NET.isHost?1.0:tabletDprCap):2);
  cv.width=Math.max(1,Math.round(v.w*v.dpr));cv.height=Math.max(1,Math.round(v.h*v.dpr));
  cv.style.width=v.w+"px";cv.style.height=v.h+"px";
  // Show roughly two thirds of the field horizontally, instead of the entire arena.
@@ -1746,18 +3121,29 @@ function rounded(g,x,y,w,h,r){
  g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);
  g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();
 }
-function terrain(){
- ctx.fillStyle="#2b4e42";ctx.fillRect(0,0,W,H);
- const ground=ctx.createLinearGradient(0,0,0,H);
+function renderTerrainBackdrop(g){
+ g.fillStyle="#2b4e42";g.fillRect(0,0,W,H);
+ const ground=g.createLinearGradient(0,0,0,H);
  ground.addColorStop(0,"#35604e");ground.addColorStop(.5,"#335a4c");ground.addColorStop(1,"#1f3c36");
- ctx.fillStyle=ground;ctx.fillRect(0,0,W,H);
- ctx.fillStyle="#73957e16";ctx.fillRect(35,260,1210,126);
+ g.fillStyle=ground;g.fillRect(0,0,W,H);
+ g.fillStyle="#73957e16";g.fillRect(35,260,1210,126);
  // Natural path details rather than discrete lanes.
  for(let i=0;i<75;i++){
   const x=(i*167+84)%W,y=(i*131+63)%H;
-  ctx.strokeStyle=i%3===0?"#b0be8e25":"#092b272c";ctx.lineWidth=2.5;
-  ctx.beginPath();ctx.moveTo(x-10,y+5);ctx.quadraticCurveTo(x,y-5,x+12,y+2);ctx.stroke();
+  g.strokeStyle=i%3===0?"#b0be8e25":"#092b272c";g.lineWidth=2.5;
+  g.beginPath();g.moveTo(x-10,y+5);g.quadraticCurveTo(x,y-5,x+12,y+2);g.stroke();
  }
+}
+// Fixed ground is rasterized once; deploy lines stay dynamic.
+let terrainBase=null,terrainCacheEnabled=true;
+function terrain(){
+ if(terrainCacheEnabled){
+  if(!terrainBase){
+   terrainBase=document.createElement("canvas");terrainBase.width=W;terrainBase.height=H;
+   renderTerrainBackdrop(terrainBase.getContext("2d"));
+  }
+  ctx.drawImage(terrainBase,0,0);
+ }else renderTerrainBackdrop(ctx);
  ctx.fillStyle="#84dcfa12";ctx.fillRect(0,0,border(1),H);
  ctx.fillStyle="#ff9ca911";ctx.fillRect(border(2),0,W-border(2),H);
  ctx.lineWidth=2.5;ctx.setLineDash([10,10]);
@@ -1815,8 +3201,10 @@ function drawFort(f){
  ctx.fillText(f.owner===0?"中立基地":f.owner===1?"自軍基地":"敵軍基地",0,48);
  ctx.restore();
 }
-function drawUnit(u){
- // Smooth presentation only. Combat physics and Firebase state stay authoritative.
+// Both full-art and cached sprites must share the same guest interpolation.
+// Previously the crowded sprite cache painted raw 180ms network positions,
+// making guest troops jump even when the canvas frame rate was high.
+function presentRemoteUnit(u){
  if(!NET.isHost&&S.remoteSprites){
   const v=S.remoteSprites.get(u.uid);
   if(v){
@@ -1829,6 +3217,10 @@ function drawUnit(u){
    u={...u,x:v.x,y:v.y};
   }
  }
+ return u;
+}
+function drawUnit(u){
+ u=presentRemoteUnit(u);
  if(window.KokokuArt){window.KokokuArt.drawUnit(ctx,u,S.clock);return;}
  const d=CLASSES[u.key],col=TEAM[u.team],isAir=!!d.flying;
  const bob=isAir?18+Math.sin(S.clock*4+u.drift)*4:3;
@@ -1906,18 +3298,136 @@ function drawPreview(){
  ctx.font="bold 13px system-ui";ctx.textAlign="center";ctx.fillStyle="#fff";
  ctx.fillText(legal?(isSpell(item)?SPELLS[item].name:"召喚可能"):"使用不可",p.x,p.y-radius-13);
 }
+// Inspired by the readability of silhouette-led realtime strategy battles:
+// cache recognizable character artwork under heavy crowding, never gameplay state.
+const denseSpriteCache=new Map(),FAST_W=164,FAST_H=190,FAST_AX=82,FAST_AY=155;
+let useDenseSpriteCache=true,denseCacheBroken=false,denseSpritesRendered=0,fullSpritesRendered=0;
+function cachedSprite(u,pose){
+ const key=u.key+"/"+u.team+"/"+pose;
+ if(denseSpriteCache.has(key))return denseSpriteCache.get(key);
+ if(denseCacheBroken||!window.KokokuArt?.drawUnit)return null;
+ try{
+  const tile=document.createElement("canvas");tile.width=FAST_W;tile.height=FAST_H;
+  const g=tile.getContext("2d");if(!g)throw Error("Canvas2D unavailable");
+  const sample={...u,x:FAST_AX,y:FAST_AY,hp:100,max:100,
+   spawnAt:-100,spawnDuration:.4,deathProgress:0,flash:0,hitAt:-100,drift:0,
+   walking:pose===1||pose===2,walkPhase:pose===2?3.2:.4,windup:0,
+   attackAnim:pose===3?(MOTION.attack[u.key]||.5)*.6:0,
+   attackAnimMax:MOTION.attack[u.key]||.5};
+  window.KokokuArt.drawUnit(g,sample,Math.max(300,S.clock));
+  denseSpriteCache.set(key,tile);
+  return tile;
+ }catch(error){denseCacheBroken=true;denseSpriteCache.clear();return null;}
+}
+function guestSimplifyVisuals(){
+ // Tablet guests are playback clients; offload dense decorative rendering
+ // instead of risking delayed inputs and dropped RTDB updates.
+ return !NET.isHost&&S.view.dpr<=1.01&&S.units.length>=55;
+}
+function renderCrowdedUnit(u){
+ // Host and small fights retain full artwork. Densely populated guest iPads
+ // use pose tiles for even their heavyweight units.
+ if(!useDenseSpriteCache||denseCacheBroken||S.units.length<40||
+   ((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals())||
+   !window.KokokuArt){
+  fullSpritesRendered++;drawUnit(u);return;
+ }
+ u=presentRemoteUnit(u);
+ const pose=(u.attackAnim||0)>.12?3:!u.walking?0:Math.sin(u.walkPhase||0)>0?1:2;
+ const sprite=cachedSprite(u,pose);
+ if(!sprite){fullSpritesRendered++;drawUnit(u);return;}
+ denseSpritesRendered++;
+ // Small colored ground indicator separates friend and foe in overlapping crowds.
+ ctx.strokeStyle=u.team===1?"#7fe4ffad":"#ff879bac";ctx.lineWidth=1.65;
+ ctx.beginPath();ctx.ellipse(u.x,u.y+1,Math.max(14,CLASSES[u.key].r+6),7,0,0,Math.PI*2);ctx.stroke();
+ ctx.drawImage(sprite,Math.round(u.x-FAST_AX),Math.round(u.y-FAST_AY));
+ if(u.flash>0){
+  ctx.save();ctx.globalAlpha=Math.min(.42,u.flash*.85);ctx.fillStyle="#fff";
+  ctx.beginPath();ctx.arc(u.x,u.y-38,14,0,Math.PI*2);ctx.fill();ctx.restore();
+ }
+ if(u.hp<u.max){
+  const ratio=Math.max(0,Math.min(1,u.hp/u.max)),y=u.y-(u.key==="drone"?100:105);
+  ctx.fillStyle="#10242b";ctx.fillRect(u.x-22,y,44,6);
+  ctx.fillStyle=TEAM[u.team];ctx.fillRect(u.x-21,y+1,42*ratio,4);
+ }
+}
+// Large-unit arrival: short, non-blocking battlefield atmosphere cue.
+// A newly seen large unit is enough to synchronize this visual on host and guest;
+// no Firebase messages, gameplay timestamps, combat rules or additional DOM layers.
+const GRAND_DURATION=880,grandSeen=new Set();
+let grandInBattle=false,grandArrival=null,grandEffectEnabled=true;
+function observeGrandArrival(now){
+ if(S.phase!=="battle"){
+  grandInBattle=false;grandArrival=null;grandSeen.clear();return;
+ }
+ // Do not replay entrances for units already on the field when joining/restarting.
+ if(!grandInBattle){
+  grandInBattle=true;
+  for(const u of S.units)if(u.key==="guardian"||u.key==="tank")grandSeen.add(u.uid);
+  return;
+ }
+ for(const u of S.units){
+  if(u.key!=="guardian"&&u.key!=="tank" || grandSeen.has(u.uid))continue;
+  grandSeen.add(u.uid);
+  // The new UID is authoritative. Avoid comparing local and remote clocks:
+  // a guest who waited in a room may be many seconds ahead of the host.
+  // Units existing on battle entry were already registered in grandSeen.
+  if(grandEffectEnabled)grandArrival={uid:u.uid,team:u.team,key:u.key,x:u.x,y:u.y,started:now};
+ }
+ if(grandArrival&&now-grandArrival.started>=GRAND_DURATION)grandArrival=null;
+}
+function paintGrandArrival(now){
+ const a=grandArrival;if(!a||!grandEffectEnabled)return;
+ const elapsed=Math.max(0,now-a.started);
+ if(elapsed>=GRAND_DURATION)return;
+ // Ease up then out, avoiding flashes, heavy CSS filters, camera shake and blur.
+ const phase=elapsed/GRAND_DURATION,amplitude=Math.sin(phase*Math.PI);
+ const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+ const intensity=amplitude*(reduced?.28:1);
+ if(intensity<.002)return;
+ const v=S.view,color=a.team===1?"#79dbff":"#ff8c9a";
+ ctx.save();
+ ctx.setTransform(v.dpr,0,0,v.dpr,0,0);
+ ctx.fillStyle=a.team===1?"#2b6478":"#703544";
+ ctx.globalAlpha=intensity*.085;ctx.fillRect(0,0,v.w,v.h);
+ ctx.strokeStyle=color;
+ ctx.globalAlpha=intensity*.30;ctx.lineWidth=7;
+ ctx.strokeRect(5,5,Math.max(0,v.w-10),Math.max(0,v.h-10));
+ ctx.globalAlpha=intensity*.15;ctx.lineWidth=21;
+ ctx.strokeRect(15,15,Math.max(0,v.w-30),Math.max(0,v.h-30));
+ // The source is world-relative. If the summon point is off-camera, the subtle
+ // screen tint still warns of a heavy enemy without disclosing their position.
+ if(!reduced){
+  const px=v.ox+a.x*v.s,py=v.oy+a.y*v.s;
+  if(px>-110&&px<v.w+110&&py>-110&&py<v.h+110){
+   ctx.globalAlpha=intensity*.65;
+   ctx.lineWidth=3.2;
+   const radius=20+phase*125;
+   ctx.beginPath();ctx.arc(px,py,radius,0,Math.PI*2);ctx.stroke();
+  }
+ }
+ ctx.restore();
+}
+// Visual-only rejection of entirely off-camera sprite work.
+let drawCullingEnabled=true;
 function draw(){
+ const now=performance.now();observeGrandArrival(now);
+ denseSpritesRendered=0;fullSpritesRendered=0;
  const v=S.view,d=v.dpr;
+ const minX=-v.ox/v.s,maxX=(v.w-v.ox)/v.s,minY=-v.oy/v.s,maxY=(v.h-v.oy)/v.s;
+ const visible=(x,y,rx=155,above=225,below=85)=>
+  !drawCullingEnabled||(x>=minX-rx&&x<=maxX+rx&&y>=minY-below&&y<=maxY+above);
  ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,v.w,v.h);
  ctx.fillStyle="#0d2426";ctx.fillRect(0,0,v.w,v.h);
  ctx.save();ctx.translate(v.ox,v.oy);ctx.scale(v.s,v.s);
  terrain();drawSpellFields();
  // Walls occupy the full vertical edge; render behind units regardless of center Y.
- for(const c of S.capitals)drawCapital(c);
+ for(const c of S.capitals)if(visible(WALL_FACE[c.team],H/2,115,H/2,H/2))drawCapital(c);
  const objects=[];
- for(const p of S.forts)objects.push({y:p.y+20,draw:()=>drawFort(p)});
- for(const u of S.units)objects.push({y:u.y,draw:()=>drawUnit(u)});
+ for(const p of S.forts)if(visible(p.x,p.y,60,100,55))objects.push({y:p.y+20,draw:()=>drawFort(p)});
+ for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>renderCrowdedUnit(u)});
  for(const gone of S.deaths){
+  if(!visible(gone.x,gone.y))continue;
   objects.push({y:gone.y,draw:()=>{
    if(window.KokokuArt){
     window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-gone.t/gone.maxTime},S.clock);
@@ -1931,13 +3441,14 @@ function draw(){
  objects.sort((a,b)=>a.y-b.y);
  for(const obj of objects)obj.draw();
  for(const e of S.effects){
+  if(!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
   const f=e.t/e.max;
   ctx.save();ctx.globalAlpha=Math.min(1,f*1.4);
   const boom=e.type==="barrage"||e.type==="tank"||e.type==="suppress",spell=e.type==="barrage";
   const color=spell?"#ffe2a3":e.type==="archer"?"#d3abff":e.type==="drone"?"#98fff1":TEAM[e.team];
   ctx.strokeStyle=color;ctx.lineWidth=boom?4:2.5;
   ctx.beginPath();ctx.arc(e.x,e.y,Math.max(3,e.r*(1.26-.66*f)),0,Math.PI*2);ctx.stroke();
-  if(boom||e.type==="slash"){
+  if((boom||e.type==="slash")&&!guestSimplifyVisuals()){
    const n=boom?8:4,base=e.r*(1-f)*.86;
    for(let k=0;k<n;k++){
     const angle=k*Math.PI*2/n+(e.x*0.19%1),px=e.x+Math.cos(angle)*base,py=e.y+Math.sin(angle)*base;
@@ -1949,16 +3460,20 @@ function draw(){
  for(const shot of S.projectiles){
   const f=1-shot.t/shot.max;
   const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f;
+  if(!visible(x,y,35,45,45))continue;
   const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
   ctx.save();ctx.globalAlpha=Math.min(1,shot.t/.09);
   ctx.strokeStyle=shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
   ctx.lineWidth=shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
-  ctx.shadowColor=ctx.strokeStyle;ctx.shadowBlur=shot.kind==="tank"?15:10;ctx.lineCap="round";
+  ctx.shadowColor=ctx.strokeStyle;
+  ctx.shadowBlur=guestSimplifyVisuals()?0:shot.kind==="tank"?15:10;
+  ctx.lineCap="round";
   ctx.beginPath();ctx.moveTo(x-Math.cos(a)*len,y-Math.sin(a)*len);ctx.lineTo(x,y);ctx.stroke();
   ctx.restore();
  }
  ctx.globalAlpha=1;drawPreview();
  ctx.restore();
+ paintGrandArrival(now);
 }
 function buildEnergyMeter(){
  const rail=$("resourceRail");rail.replaceChildren();
@@ -2059,8 +3574,38 @@ function closeGallery(){
  if(S.phase!=="gallery")return;
  S.phase=galleryResume;$("galleryOverlay").classList.add("hidden");
 }
+// Read-only objective overview; color matches the fixed blue/red HUD sides.
+function updateFortNavigation(){
+ const nav=$("fortNav");
+ nav.hidden=!(S.phase==="battle"||S.phase==="prep");
+ if(nav.hidden||S.forts.length!==3)return;
+ let blue=0,red=0;
+ const buttons=nav.querySelectorAll("button[data-fort]");
+ for(let i=0;i<3;i++){
+  const fort=S.forts[i],button=buttons[i];
+  if(fort.owner===1)blue++;else if(fort.owner===2)red++;
+  const blueNear=S.units.some(u=>u.hp>0&&u.team===1&&Math.abs(u.x-fort.x)<110&&Math.abs(u.y-fort.y)<105);
+  const redNear=S.units.some(u=>u.hp>0&&u.team===2&&Math.abs(u.x-fort.x)<110&&Math.abs(u.y-fort.y)<105);
+  const contested=blueNear&&redNear;
+  const threatened=(fort.owner===1&&redNear)||(fort.owner===2&&blueNear);
+  const advancing=(fort.owner!==1&&blueNear)||(fort.owner!==2&&redNear);
+  const owner=fort.owner===1?"青軍":fort.owner===2?"赤軍":"中立";
+  const state=contested?"争奪":threatened?"警戒":advancing?"攻略":owner;
+  button.classList.toggle("owner-blue",fort.owner===1);
+  button.classList.toggle("owner-red",fort.owner===2);
+  button.classList.toggle("contested",contested);
+  button.classList.toggle("under-pressure",threatened);
+  const label=button.querySelector(".fortState");
+  if(label.textContent!==state)label.textContent=state;
+  const description="第"+(i+1)+"前哨基地 "+owner+(contested?"、争奪中":threatened?"、敵接近":advancing?"、攻略中":"")+"。タップで確認";
+  if(button.getAttribute("aria-label")!==description)button.setAttribute("aria-label",description);
+ }
+ const summary="基地 青"+blue+"・赤"+red;
+ if($("fortSummary").textContent!==summary)$("fortSummary").textContent=summary;
+}
 function updateHUD(){
  if(!S.capitals.length)return;
+ updateFortNavigation();
  $("clock").textContent=S.phase==="prep"?numTime(S.prep):numTime(S.seconds);
  $("phaseLabel").textContent=S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊";
  $("blueText").textContent=Math.ceil(capital(1).hp)+" / "+START_HP;
@@ -2144,7 +3689,12 @@ function resumeButton(){
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
  NET.registerGame({
-  begin,setBotControl:active=>{
+  begin,setDifficulty:level=>{
+    if(["easy","normal","hard"].includes(level)){
+      S.difficulty=level;
+      document.querySelectorAll("[data-level]").forEach(b=>b.classList.toggle("active",b.dataset.level===level));
+    }
+   },setBotControl:active=>{
     if(active){S.selected=null;S.drag=null;S.pointer=null;S.botThink=2.5;S.botPrepDone=false;}
     buildCards();updateHUD();
    },resetForLobby:()=>{
@@ -2200,7 +3750,8 @@ function start(){
    for(const id of sprites.keys())if(!seen.has(id))sprites.delete(id);
    const sig=JSON.stringify([S.hand[ME()],S.queue[ME()],S.left[ME()]]);
    if(sig!==window.__onlineHandSig){window.__onlineHandSig=sig;buildCards();}
-   updateHUD();
+   // Frame loop handles normal HUD refresh; avoid extra DOM layout for each packet.
+   if(was!==S.phase)updateHUD();
   }
  });
  // Refresh card and gallery portraits once the high-quality Gald atlas is built.
@@ -2223,6 +3774,11 @@ function start(){
  $("cardInfoClose").addEventListener("click",closeCardInfo);
  $("homeCam").addEventListener("click",()=>cameraTo(WALL_FACE[ME()]+(ME()===1?115:-115),H/2));
  $("frontCam").addEventListener("click",frontlineCamera);
+ $("fortNav").querySelectorAll("button[data-fort]").forEach(button=>button.addEventListener("click",()=>{
+  if(S.phase!=="battle"&&S.phase!=="prep")return;
+  const fort=S.forts[Number(button.dataset.fort)];
+  if(fort)cameraTo(fort.x,fort.y);
+ }));
  $("speed").addEventListener("click",()=>{
   notice("オンライン対戦は速度固定です");return;
   const options=[.85,.65,1];S.speed=options[(options.indexOf(S.speed)+1)%options.length];
@@ -2250,6 +3806,7 @@ function start(){
  let previous=performance.now(),acc=0;
  function frame(now){
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
+  adaptCanvasQuality(now);
   S.clock+=delta;
   updateCamera(delta);
   inspectHold(now);
@@ -2277,9 +3834,870 @@ function start(){
   S.hudTick+=delta;
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();}
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
+  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30){
+   requestAnimationFrame(frame);return;
+  }
+  guestLastPaint=now;
   draw();requestAnimationFrame(frame);
  }
  requestAnimationFrame(frame);
+}
+
+// Test-only readback. Enabled only on loopback via ?qa=1.
+if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
+ window.__shokokuQa={
+ captureObjective:(team,x,y,variant="baseline",kind="scout")=>{
+  if(!NET.isSolo||![1,2].includes(team)||!["scout","engineer"].includes(kind)||
+    !Number.isFinite(x)||!Number.isFinite(y)||
+    !["baseline","nearestCapture","directorPathAligned"].includes(variant))return null;
+  const previous=qaBotVariants[team];
+  try{
+   qaBotVariants[team]=variant;
+   const target=getFort({team,x,y,key:kind});
+   return target?{x:target.x,y:target.y,owner:target.owner}:null;
+  }finally{qaBotVariants[team]=previous;}
+ },
+ resourceForecast:(energy,elapsed=90)=>({
+  eta2:secondsUntilAffordable(energy,2,elapsed),
+  eta4:secondsUntilAffordable(energy,4,elapsed),
+  eta7:secondsUntilAffordable(energy,7,elapsed)
+ }),
+ // Batch simulation runs the SAME 30Hz combat/energy/spell/fort code as a match,
+ // with no drawing, network traffic or player input; only on localhost ?qa=1.
+ runDuel:(seed,blueStyle="balanced",difficulty="hard",tacticalTeam=2,scriptedCadence="standard",mirrorTerrain=false,variantTeam=0,variant="baseline",auditForecast=false)=>{
+  if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
+    !["rush","balanced","fortress","banker","self"].includes(blueStyle)||
+    !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
+    !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
+    (blueStyle!=="self"&&mirrorTerrain)||typeof auditForecast!=="boolean"||![0,1,2].includes(variantTeam)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","captureRouteOpportunity","scoutTempoPreserve","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice"].includes(variant)||
+    (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
+    (variantTeam===0&&variant!=="baseline"))return null;
+  const originalRandom=Math.random,originalVariants=qaBotVariants;
+  let state=(seed>>>0)||1;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+  try{
+   duelStats={seed,blueStyle,difficulty,tacticalTeam,variantTeam,variant,actions:[0,0,0],spent:[0,0,0],
+    decisionEvents:[null,{calls:0,urgent:0,energy7:0,giantInHand:0,needFort:0},
+     {calls:0,urgent:0,energy7:0,giantInHand:0,needFort:0}],
+    decisionAudit:[null,1,2].map(t=>t?{
+     calls:0,byPhase:{},byEnergy:{},byCard:{},phaseCards:{},
+     tankInHand:0,tankUnaffordable:0,tankFrontlineOpportunity:0,
+     tankFundedOpportunity:0,tankDeferredByCheapPlay:0,
+     enemyResourceWindow:0,samples:[]}:null),
+    cards:[null,{},{}],fortSeconds:[0,0,0],energyIntegral:[0,0,0],maxUnits:[0,0,0],
+    fortLossRecords:[],actionLedger:[],counterEpisodes:[],
+    forecastAudit:auditForecast?{team:tacticalTeam,records:[],active:null}:null};
+   qaBotVariants=[null,"baseline","baseline"];
+   if(variantTeam)qaBotVariants[variantTeam]=variant;
+   resetWorld();S.phase="battle";S.prep=0;S.speed=1;S.difficulty=difficulty;
+   // This switches only the QA map; it does not modify game map or balance.
+   if(mirrorTerrain)S.forts.forEach(f=>{f.x=W-f.x;});
+   S.botThink=blueStyle==="self"?1000:(tacticalTeam===2?3.1:1000);
+   S.botPrepDone=true;
+   $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
+   // Identical starting resources, shared randomized deck, symmetrical opening.
+   const openingHand=S.hand[1].slice(),openingQueue=S.queue[1].slice();
+   const open=(team)=>{
+    const id=["scout","engineer","archer","infantry"].find(c=>canPay(team,c));
+    if(id){
+     const openingY=blueStyle==="self"
+      ?S.forts.slice().sort((a,b)=>Math.abs(a.x-border(team))-Math.abs(b.x-border(team)))[0].y
+      :(team===1?190:205);
+     botUse(team,id,limit(border(team)+(team===1?-35:35),35,W-35),openingY);
+    }
+   };
+   open(1);open(2);
+   let opponentThink=3.1,tacticalThink=3.1;
+   const scriptedTeam=3-tacticalTeam;
+   const side=x=>scriptedTeam===1?x:W-x;
+   const blueAction=()=>{
+    const allies=S.units.filter(u=>u.team===scriptedTeam&&u.hp>0);
+    const enemyUnits=S.units.filter(u=>u.team===tacticalTeam&&u.hp>0);
+    const raider=enemyUnits.filter(u=>side(u.x)<side(border(scriptedTeam))+255).sort((a,b)=>side(a.x)-side(b.x))[0];
+    const fort=S.forts.filter(f=>f.owner!==scriptedTeam).sort((a,b)=>side(a.x)-side(b.x))[0];
+    const workers=fort?allies.filter(u=>CLASSES[u.key].capture&&side(u.x)<side(fort.x)+145&&Math.abs(u.y-fort.y)<135):[];
+    const need=fort&&workers.length<1;
+    const pressure=enemyUnits.some(u=>side(u.x)<490);
+    const lane=pressure?raider?.y??330:fort?.y??330;
+    const spawn=(id,y,margin=32)=>canPay(scriptedTeam,id)&&botUse(scriptedTeam,id,
+     limit(border(scriptedTeam)+(scriptedTeam===1?-margin:margin),35,W-35),limit(y,70,H-70));
+    const pack=raider&&enemyUnits.filter(u=>dist(u,raider)<80);
+    if(pack?.length>=3&&canPay(scriptedTeam,"barrage")&&
+     botUse(scriptedTeam,"barrage",raider.x,raider.y))return true;
+    if(pressure){
+     if(spawn("suppress",lane,45))return true;
+     if(spawn("sentinel",lane,30))return true;
+    }
+    if(enemyUnits.some(u=>side(u.x)<720&&CLASSES[u.key].flying)&&
+      spawn("archer",lane,55))return true;
+    if(enemyUnits.some(u=>side(u.x)<700&&CLASSES[u.key].size==="large")&&
+      spawn("guardian",lane,35))return true;
+    // Controlled opponent that holds publicly observable resources; it
+    // still obeys the same card, energy and unit limits as a real player.
+    if(blueStyle==="banker"){
+     if(pressure&&enemyUnits.length>=2&&spawn("sentinel",lane,30))return true;
+     if(S.energy[scriptedTeam]>=7){
+      if(spawn("tank",lane,35))return true;
+      if(spawn("guardian",lane,35))return true;
+      if(need&&spawn("scout",fort.y,32))return true;
+      if(spawn("archer",lane,55))return true;
+     }
+     return false;
+    }
+    const prior=blueStyle==="rush"?["scout","engineer","drone","archer","infantry"]:
+     blueStyle==="fortress"?["sentinel","archer","suppress","engineer","scout","infantry"]:
+      ["scout","archer","engineer","suppress","drone","infantry"];
+    if(need){
+     if(spawn("scout",fort.y,32))return true;
+     if(spawn("engineer",fort.y,34))return true;
+    }
+    if(blueStyle!=="rush"&&S.energy[scriptedTeam]>=7&&spawn("tank",lane,35))return true;
+    for(const id of prior)if(spawn(id,id==="engineer"||id==="scout"?fort?.y??lane:lane,
+     id==="archer"||id==="suppress"?60:32))return true;
+    if(S.energy[scriptedTeam]>=10&&spawn("infantry",lane,35))return true;
+    return false;
+   };
+   const dt=1/30,selfThink=[0,3.1,3.1];
+   let nextForecastAt=60;
+   let opponentEnergyPeak=0,opponentEnergyReady4Seconds=0,
+    opponentEnergyReady7Seconds=0;
+   // Existing game limits 300 seconds. More than 9000 ticks indicates a regression.
+   for(let step=0;step<9100&&S.phase==="battle";step++){
+    if(blueStyle==="self"){
+     // Both teams use precisely the SAME hard/normal expert policy, resources
+     // and thought cadence. The first-to-think side is explicit and paired.
+     for(const team of [tacticalTeam,3-tacticalTeam]){
+      selfThink[team]-=dt;
+      if(selfThink[team]<=0){
+       botExpertAction(team);
+       const mod=difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
+       selfThink[team]=rand(mod[0],mod[1]);
+      }
+     }
+    }else{
+     opponentThink-=dt;
+     if(opponentThink<=0){
+      blueAction();
+      const pace=blueStyle==="rush"?2.6:blueStyle==="fortress"?3.4:3.0;
+      const factor=scriptedCadence==="fast"?.65:1;
+      opponentThink=(pace+Math.random()*.6)*factor;
+     }
+     // QA-only: when expert plays BLUE, suppress RED's normal botStep.
+     if(tacticalTeam===1){
+      tacticalThink-=dt;
+      if(tacticalThink<=0){
+       botExpertAction(1);
+       tacticalThink=rand(...(difficulty==="hard"?[1.2,1.9]:[2.5,3.8]));
+      }
+     }
+    }
+    // QA-only prospective audit. Fixed clock times, snapshot pre-tick; no
+    // strategic actions or randomness changed. New units receive zero credit.
+    const audit=duelStats.forecastAudit;
+    if(audit&&S.elapsed+1e-5>=nextForecastAt&&nextForecastAt<=228){
+     const team=audit.team,enemyTeam=3-team;
+     const wave=S.units.filter(u=>u.team===team&&u.hp>0&&
+      CLASSES[u.key].behavior==="normal"&&u.hp>=u.max*.5&&
+      Math.abs(u.x-WALL_FACE[enemyTeam])<=510);
+     const predicted=wave.reduce((sum,u)=>{
+      const d=CLASSES[u.key];
+      const eta=Math.max(0,Math.abs(u.x-WALL_FACE[enemyTeam])-
+       d.range-15)/d.speed;
+      return sum+(eta<=12?d.damage*(d.siege??1)*CASTLE_DAMAGE/d.cool*
+       (12-eta)*u.hp/u.max:0);
+     },0);
+     // PRE-forecast only: accessible current-unit geometry and known class stats.
+     // Never use future plays, target selection or damage as risk inputs.
+     const threatPairs=[];
+     for(const ally of wave){
+      const d=CLASSES[ally.key],forward=team===1?1:-1;
+      for(const foe of S.units){
+       if(foe.team!==enemyTeam||foe.hp<=0)continue;
+       const ed=CLASSES[foe.key];
+       if(ed.flying&&!d.hitAir)continue;
+       if(forward*(foe.x-ally.x)<-(d.range+ed.r+5))continue;
+       const separation=dist(ally,foe);
+       const eta=Math.max(0,separation-d.vision)/Math.max(1,d.speed+ed.speed);
+       const enemyCanAttack=!d.flying||ed.hitAir;
+       const enemyEta=enemyCanAttack?
+        Math.max(0,separation-ed.vision)/Math.max(1,d.speed+ed.speed):Infinity;
+       threatPairs.push({eta,enemyEta,separation});
+      }
+     }
+     // QA-only snapshot of currently visible effective combat strength.
+     // Do not use opponents' hands/energy or any future movement/hits.
+     const defenderUnits=S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
+      Math.abs(u.x-WALL_FACE[enemyTeam])<230);
+     const activeThreats=S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
+      wave.some(v=>{
+       const vd=CLASSES[v.key],ed=CLASSES[u.key];
+       if(ed.flying&&!vd.hitAir)return false;
+       if((team===1?u.x-v.x:v.x-u.x)<-(vd.range+ed.r+5))return false;
+       return dist(v,u)<Math.max(165,vd.vision+Math.min(120,ed.speed*3));
+      }));
+     const pressureTeamDps=activeThreats.reduce((sum,u)=>{
+      const d=CLASSES[u.key];
+      const canHit=wave.some(v=>!CLASSES[v.key].flying||d.hitAir);
+      return sum+(canHit?d.damage/d.cool:0);
+     },0);
+     const pressureTeamHp=activeThreats.reduce((sum,u)=>sum+u.hp,0);
+     const alliedHp=wave.reduce((sum,u)=>sum+u.hp,0);
+     const alliedAntiUnitDps=wave.reduce((sum,u)=>{
+      const d=CLASSES[u.key];
+      return sum+d.damage/d.cool;
+     },0);
+     const defenderHp=defenderUnits.reduce((sum,u)=>sum+u.hp,0);
+     const defenderDps=defenderUnits.reduce((sum,u)=>{
+      const d=CLASSES[u.key];
+      return sum+(wave.some(v=>!CLASSES[v.key].flying||d.hitAir)?
+       d.damage/d.cool:0);
+     },0);
+     const prePower={
+      waveUnits:wave.length,waveHp:alliedHp,alliedDps:alliedAntiUnitDps,
+      activeThreatUnits:activeThreats.length,
+      activeThreatHp:pressureTeamHp,activeThreatDps:pressureTeamDps,
+      defenderUnits:defenderUnits.length,defenderHp,defenderDps,
+      pressurePerWaveHp:alliedHp>0?pressureTeamDps*12/alliedHp:0,
+      defensePerWaveHp:alliedHp>0?defenderDps*12/alliedHp:0,
+      threatClearTime:alliedAntiUnitDps>0?pressureTeamHp/alliedAntiUnitDps:null,
+      wallClearTime:alliedAntiUnitDps>0?defenderHp/alliedAntiUnitDps:null
+     };
+     const preThreat={
+      eligiblePairs:threatPairs.length,
+      inFriendlyVision:threatPairs.filter(x=>x.eta===0).length,
+      contactWithin3:threatPairs.filter(x=>x.eta<=3).length,
+      contactWithin6:threatPairs.filter(x=>x.eta<=6).length,
+      vulnerableWithin3:threatPairs.filter(x=>x.enemyEta<=3).length,
+      minVisionEta:threatPairs.length?
+       Math.min(...threatPairs.map(x=>x.eta)):null,
+      minEnemyAttackEta:threatPairs.some(x=>Number.isFinite(x.enemyEta))?
+       Math.min(...threatPairs.map(x=>x.enemyEta)):null,
+      minDistance:threatPairs.length?
+       Math.min(...threatPairs.map(x=>x.separation)):null
+     };
+     const sample={at:S.elapsed,team,enemyTeam,predicted,actual:0,
+      allDamage:0,otherDamage:0,hits:0,
+      enemyHpAtStart:capital(enemyTeam).hp,
+      uids:wave.map(u=>u.uid),classes:wave.map(u=>u.key),
+      activity:{alive:0,enemyTarget:0,castleTarget:0,fortTarget:0,
+       approach:0,inCastleRange:0,enemyNearby:0},
+      firstEnemyTargetAt:null,firstFortTargetAt:null,firstCastleHitAt:null,
+      defenderObservedSeconds:0,defenderMax:0,nearbyEnemyObservedSeconds:0,
+      etaMin:wave.length?Math.min(...wave.map(u=>{
+       const d=CLASSES[u.key];
+       return Math.max(0,Math.abs(u.x-WALL_FACE[enemyTeam])-
+        d.range-15)/d.speed;
+      })):null,
+      enemyDefendersNearWall:S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
+       Math.abs(u.x-WALL_FACE[enemyTeam])<230).length,
+      enemyUnitsNearWave:S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
+       wave.some(v=>dist(u,v)<170)).length,preThreat,prePower};
+     audit.records.push(sample);audit.active=sample;
+     nextForecastAt+=12;
+    }
+    // QA observation of actual post-fort-loss castle exposure, without
+    // changing any tactical decision or battle simulation.
+    const priorOwners=S.forts.map(f=>f.owner);
+    tick(dt);
+    // Check real enemy reinforcement/pressure during the follow-up period.
+    // These post-outcome fields are diagnostics, never future-visible input.
+    if(audit?.active&&S.elapsed-audit.active.at<=12+1e-5){
+     const rec=audit.active,enemies=S.units.filter(u=>u.team===rec.enemyTeam&&u.hp>0);
+     const defenders=enemies.filter(u=>Math.abs(u.x-WALL_FACE[rec.enemyTeam])<230).length;
+     rec.defenderMax=Math.max(rec.defenderMax,defenders);
+     if(defenders>0)rec.defenderObservedSeconds+=dt;
+     if(enemies.some(u=>S.units.some(v=>v.hp>0&&rec.uids.includes(v.uid)&&dist(u,v)<170)))
+      rec.nearbyEnemyObservedSeconds+=dt;
+    }
+    const losses=duelStats.fortLossRecords;
+    for(let i=0;i<S.forts.length;i++){
+     const lostTeam=priorOwners[i];
+     if(!lostTeam||S.forts[i].owner===lostTeam)continue;
+     const face=lostTeam===2?x=>x:x=>W-x;
+     const contenders=S.units.filter(u=>u.team!==lostTeam&&u.hp>0&&
+      CLASSES[u.key].speed>0);
+     const predicted=contenders.reduce((best,u)=>Math.min(best,
+      Math.max(0,face(WALL_FACE[lostTeam])-face(u.x)-70)/CLASSES[u.key].speed),Infinity);
+     losses.push({team:lostTeam,fortIndex:i,time:S.elapsed,
+      ownerAfter:S.forts[i].owner,hpAtLoss:capital(lostTeam).hp,
+      predictedCastleETA:Number.isFinite(predicted)?predicted:null,
+      firstCastleRaider:null,firstCastleDamage:null,
+      regainSeconds:null,actualCastleDamage30:0,observedSeconds:0});
+    }
+    for(const rec of losses){
+     const age=S.elapsed-rec.time;
+     if(age>30)continue;
+     rec.observedSeconds=Math.max(0,age);
+     rec.actualCastleDamage30=Math.max(0,rec.hpAtLoss-capital(rec.team).hp);
+     if(rec.firstCastleDamage===null&&rec.actualCastleDamage30>0)
+      rec.firstCastleDamage=age;
+     if(rec.firstCastleRaider===null&&S.units.some(u=>u.team!==rec.team&&u.hp>0&&
+      (rec.team===2?u.x:W-u.x)>1154-180))
+      rec.firstCastleRaider=age;
+     if(rec.regainSeconds===null&&S.forts[rec.fortIndex].owner===rec.team)
+      rec.regainSeconds=age;
+    }
+    // Post-plan real-engine 15/30s outcome windows; policy never reads this.
+    for(const ep of duelStats.counterEpisodes){
+     const age=S.elapsed-ep.start;
+     if(age<0||age>90+dt)continue;
+     const held=S.forts[ep.fortIndex]?.owner===ep.team;
+     if(age<=15+dt*.5&&held)ep.fortControl15+=dt;
+     if(age<=30+dt*.5&&held)ep.fortControl30+=dt;
+     if(age<=60+dt*.5&&held)ep.fortControl60+=dt;
+     if(age<=90+dt*.5&&held)ep.fortControl90+=dt;
+     if(!held&&ep.firstLoss===null)ep.firstLoss=age;
+     if(held&&ep.firstLoss!==null&&ep.firstRecapture===null)ep.firstRecapture=age;
+     if(age>=15&&ep.castleDamage15===null){
+      ep.castleDamage15=Math.max(0,ep.castleHpStart-capital(ep.team).hp);
+      ep.enemyCastleDamage15=Math.max(0,ep.enemyCastleHpStart-capital(3-ep.team).hp);
+      ep.ownedAt15=held;
+     }
+     if(age>=30&&ep.castleDamage30===null){
+      ep.castleDamage30=Math.max(0,ep.castleHpStart-capital(ep.team).hp);
+      ep.enemyCastleDamage30=Math.max(0,ep.enemyCastleHpStart-capital(3-ep.team).hp);
+      ep.ownedAt30=held;
+      ep.fortFrontier30=ep.team===1?border(1)-244:1036-border(2);
+     }
+     if(age>=60&&ep.castleDamage60===null){
+      ep.castleDamage60=Math.max(0,ep.castleHpStart-capital(ep.team).hp);
+      ep.enemyCastleDamage60=Math.max(0,ep.enemyCastleHpStart-capital(3-ep.team).hp);
+      ep.ownedAt60=held;
+      ep.fortFrontier60=ep.team===1?border(1)-244:1036-border(2);
+     }
+     if(age>=90&&ep.castleDamage90===null){
+      ep.castleDamage90=Math.max(0,ep.castleHpStart-capital(ep.team).hp);
+      ep.enemyCastleDamage90=Math.max(0,ep.enemyCastleHpStart-capital(3-ep.team).hp);
+      ep.ownedAt90=held;
+      ep.fortFrontier90=ep.team===1?border(1)-244:1036-border(2);
+     }
+    }
+    const opponentEnergy=S.observedEnergy[scriptedTeam];
+    opponentEnergyPeak=Math.max(opponentEnergyPeak,opponentEnergy);
+    if(opponentEnergy>=4)opponentEnergyReady4Seconds+=dt;
+    if(opponentEnergy>=7)opponentEnergyReady7Seconds+=dt;
+    for(const f of S.forts)if(f.owner===1||f.owner===2)duelStats.fortSeconds[f.owner]+=dt;
+    // Observational QA only: did the specific fort get reclaimed after
+    // a real route-checked engineer was deployed? Not proof of causality.
+    for(const observedTeam of [1,2]){
+     const ev=duelStats.decisionEvents[observedTeam];
+     for(const claim of ev.tradeReclaimTargets||[]){
+      if(!claim.recovered&&S.forts[claim.index]?.owner===observedTeam){
+       claim.recovered=true;
+       ev.tradeFortRecovered=(ev.tradeFortRecovered||0)+1;
+       const target=S.forts[claim.index];
+       if(S.units.some(u=>u.team===observedTeam&&u.key==="engineer"&&
+         u.hp>0&&Math.abs(u.x-target.x)<145&&Math.abs(u.y-target.y)<150))
+        ev.tradeRecoveredWithEngineerNear=(ev.tradeRecoveredWithEngineerNear||0)+1;
+      }
+     }
+    }
+    for(const team of [1,2]){
+     duelStats.energyIntegral[team]+=S.energy[team]*dt;
+     const count=S.units.filter(u=>u.team===team).length;
+     duelStats.maxUnits[team]=Math.max(duelStats.maxUnits[team],count);
+    }
+    if(!Number.isFinite(S.energy[1])||!Number.isFinite(S.energy[2])||
+     S.energy[1]<0||S.energy[2]<0||S.energy[1]>ENERGY_CAP+.0001||
+     S.energy[2]>ENERGY_CAP+.0001)throw Error("unfair energy");
+   }
+   const hp=[null,Math.max(0,capital(1).hp),Math.max(0,capital(2).hp)];
+   const winner=hp[1]===hp[2]?0:hp[1]>hp[2]?1:2;
+   const elapsed=S.elapsed;
+   const forecastAudit=duelStats.forecastAudit?
+    duelStats.forecastAudit.records.map(r=>{
+     const observedSeconds=Math.min(12,Math.max(0,elapsed-r.at));
+     const completed=observedSeconds>=12-1/30-1e-4;
+     const alive=new Set(S.units.filter(u=>u.hp>0).map(u=>u.uid));
+     const withinWindow=x=>x.at>r.at+1e-6&&x.at<=r.at+observedSeconds+1e-6;
+     const newFriendPlays=duelStats.actionLedger.filter(x=>
+      x.team===r.team&&withinWindow(x)).length;
+     const enemyPlays=duelStats.actionLedger.filter(x=>
+      x.team===r.enemyTeam&&withinWindow(x)).length;
+     const activity=Object.fromEntries(Object.entries(r.activity).map(([k,v])=>
+      [k,+v.toFixed(3)]));
+     const covered=(r.activity.enemyTarget+r.activity.castleTarget+
+      r.activity.fortTarget+r.activity.approach);
+     const unitSecondsAvailable=r.uids.length*observedSeconds;
+     const deadOrGone=Math.max(0,unitSecondsAvailable-r.activity.alive);
+     return {at:+r.at.toFixed(3),observedSeconds:+observedSeconds.toFixed(3),
+      completed,censored:!completed,
+      predicted:+r.predicted.toFixed(3),actual:+r.actual.toFixed(3),
+      error:+(r.predicted-r.actual).toFixed(3),
+      enemyHpAtStart:r.enemyHpAtStart,
+      otherDamage:+r.otherDamage.toFixed(3),
+      allDamage:+r.allDamage.toFixed(3),
+      hits:r.hits,trackedCount:r.uids.length,
+      survivorsAtGameEnd:r.uids.filter(id=>alive.has(id)).length,
+      classes:r.classes,etaMin:r.etaMin,
+      defenders:r.enemyDefendersNearWall,nearbyEnemy:r.enemyUnitsNearWave,
+      preThreat:r.preThreat,prePower:r.prePower,
+      newFriendlyPlays:newFriendPlays,enemyPlays,
+      activity,covered:+covered.toFixed(3),
+      deadOrGone:+deadOrGone.toFixed(3),
+      firstEnemyTargetAt:r.firstEnemyTargetAt===null?null:+r.firstEnemyTargetAt.toFixed(3),
+      firstFortTargetAt:r.firstFortTargetAt===null?null:+r.firstFortTargetAt.toFixed(3),
+      firstCastleHitAt:r.firstCastleHitAt===null?null:+r.firstCastleHitAt.toFixed(3),
+      defenderObservedSeconds:+r.defenderObservedSeconds.toFixed(3),
+      defenderMax:r.defenderMax,
+      nearbyEnemyObservedSeconds:+r.nearbyEnemyObservedSeconds.toFixed(3)};
+    }):null;
+   return {seed,blueStyle,difficulty,tacticalTeam,scriptedTeam,scriptedCadence,mirrorTerrain,
+    variantTeam,variant,opponentEnergyPeak,opponentEnergyReady4Seconds,
+    opponentEnergyReady7Seconds,decisionEvents:duelStats.decisionEvents.map(x=>x&&{...x}),
+    decisionAudit:duelStats.decisionAudit,
+    energyEstimated:S.observedEnergy.slice(),energyActual:S.energy.slice(),winner,elapsed,
+    initialHand:openingHand,openingQueue:openingQueue,
+    forecastAudit,
+    castleHp:hp,damage:[null,START_HP-hp[1],START_HP-hp[2]],
+    actions:duelStats.actions.slice(),spent:duelStats.spent.slice(),
+    cards:duelStats.cards.map(v=>v&&{...v}),
+    fortSeconds:duelStats.fortSeconds.slice(),
+    fortLossRecords:duelStats.fortLossRecords.map(r=>({...r})),
+    counterEpisodes:duelStats.counterEpisodes.map(ep=>{
+     const hostile=duelStats.actionLedger.filter(a=>a.team!==ep.team&&a.at>ep.start);
+     const prior=t=>hostile.filter(a=>a.at<=ep.start+t+1e-6);
+     const a15=prior(15),a30=prior(30),a60=prior(60),a90=prior(90),
+      cost=a=>a.reduce((s,x)=>s+x.cost,0);
+     return {...ep,fortControl15:+ep.fortControl15.toFixed(2),
+      fortControl30:+ep.fortControl30.toFixed(2),
+      fortControl60:+ep.fortControl60.toFixed(2),
+      fortControl90:+ep.fortControl90.toFixed(2),
+      observedSeconds:Math.min(30,Math.max(0,elapsed-ep.start)),
+      observedSeconds90:Math.min(90,Math.max(0,elapsed-ep.start)),
+      enemyPlays15:ep.castleDamage15===null?null:a15.length,
+      enemyPlays30:ep.castleDamage30===null?null:a30.length,
+      enemyPlays60:ep.castleDamage60===null?null:a60.length,
+      enemyPlays90:ep.castleDamage90===null?null:a90.length,
+      enemySpend15:ep.castleDamage15===null?null:cost(a15),
+      enemySpend30:ep.castleDamage30===null?null:cost(a30),
+      enemySpend60:ep.castleDamage60===null?null:cost(a60),
+      enemySpend90:ep.castleDamage90===null?null:cost(a90)};
+    }),
+    avgEnergy:duelStats.energyIntegral.map((v,i)=>i?v/Math.max(.0001,elapsed):0),
+    maxUnits:duelStats.maxUnits.slice(),
+    finished:S.phase==="result"};
+  }finally{duelStats=null;qaBotVariants=originalVariants;Math.random=originalRandom;}
+ },
+
+
+ // Controlled 7-energy role trial; localhost QA only. Real playCard, unitStep,
+ // siege damage, target selection, area damage and 30Hz tick are unchanged.
+ runHeavyTrial:(seed,role="siege",kind="heavy",opponent="open",team=1)=>{
+  const cases={siege:["open","screen","defender","giant"],
+   defense:["swarm","giant","air","ranged"]};
+  if(!NET.isSolo||!Number.isInteger(seed)||seed<0||seed>2147483647||
+     !cases[role]?.includes(opponent)||!["heavy","alternatives"].includes(kind)||
+     ![1,2].includes(team))return null;
+  const oldRandom=Math.random,oldDuel=duelStats;
+  let state=(seed>>>0)||1;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+  try{
+   duelStats=null;
+   resetWorld();
+   S.phase="battle";S.prep=0;S.speed=1;S.difficulty="hard";
+   S.botThink=99999;S.botPrepDone=true;
+   $("overlay").classList.add("hidden");
+   $("prepBanner").classList.remove("visible");
+   const foe=3-team;
+   // Give the advancing side the closest forward fort; use the same board
+   // ownership in both arms of the matched 7-cost comparison.
+   const advanced=role==="siege"?team:foe;
+   const forward=advanced===1?S.forts[2]:S.forts[0];
+   forward.owner=advanced;forward.hp=POST_HP;
+   const ours=role==="siege"?
+    (kind==="heavy"?["tank"]:["suppress","archer"]):
+    (kind==="heavy"?["guardian"]:["sentinel","scout"]);
+   const enemyCases=role==="siege"?
+    {open:[],screen:["scout","archer"],defender:["sentinel","archer"],giant:["tank"]}:
+    {swarm:["infantry","infantry","infantry"],giant:["tank"],
+     air:["drone"],ranged:["suppress","archer"]};
+   const theirs=enemyCases[opponent];
+   const arm=(side,ids)=>{
+    S.energy[side]=ids.reduce((n,id)=>n+CATALOG[id].cost,0);
+    S.hand[side]=[...new Set(ids.filter(id=>id!=="infantry"))];
+    S.queue[side]=[];
+    return ids.reduce((n,id)=>n+CATALOG[id].cost,0);
+   };
+   const cost=arm(team,ours),otherCost=arm(foe,theirs);
+   if(cost!==7||otherCost>7)throw Error("role trial invalid cost");
+   const actor=side=>role==="siege"?(side===team?"advance":"defend"):
+    (side===team?"defend":"advance");
+   const spawn=(side,ids)=>{
+    const mode=actor(side);
+    const x=limit(border(side)+(side===1?-35:35),40,W-40);
+    for(let i=0;i<ids.length;i++){
+     const y=limit(328+(i-(ids.length-1)/2)*25,70,H-70);
+     if(!playCard(side,ids[i],x,y))throw Error("cannot deploy "+side+":"+ids[i]+" at "+x+","+y);
+    }
+   };
+   spawn(team,ours);
+   spawn(foe,theirs);
+   const tracked=S.units.map(u=>({ref:u,team:u.team,key:u.key,startHp:u.max,
+    startX:u.x,life:0,engagedAt:null}));
+   const baseHp=[null,capital(1).hp,capital(2).hp];
+   const duration=120,dt=1/30;
+   let firstContact=null,fortTime=0,steps=0;
+   const damageSnapshots={30:null,60:null,90:null};
+   const castleFallAt=[null,null,null];
+   for(;steps<duration*30&&S.phase==="battle";steps++){
+    tick(dt);
+    for(const side of [1,2])if(castleFallAt[side]===null&&capital(side).hp<=0)
+      castleFallAt[side]=S.elapsed;
+    if([900,1800,2700].includes(steps+1)){
+     const sec=(steps+1)/30;
+     damageSnapshots[sec]=[null,baseHp[1]-capital(1).hp,baseHp[2]-capital(2).hp];
+    }
+    for(const u of tracked)if(u.ref.hp>0)u.life+=dt;
+    if(S.forts.some(f=>f.owner===team))fortTime+=dt;
+    if(firstContact===null&&(tracked.some(u=>u.ref.hp<u.startHp)||
+      capital(1).hp<baseHp[1]||capital(2).hp<baseHp[2]))firstContact=S.elapsed;
+    if(!Number.isFinite(S.energy[1])||!Number.isFinite(S.energy[2])||
+      S.energy[1]<0||S.energy[2]<0||S.energy[1]>ENERGY_CAP+.0001||
+      S.energy[2]>ENERGY_CAP+.0001)throw Error("energy bounds");
+   }
+   for(const sec of [30,60,90])if(damageSnapshots[sec]===null)
+    damageSnapshots[sec]=[null,baseHp[1]-capital(1).hp,baseHp[2]-capital(2).hp];
+   const members=(side)=>tracked.filter(u=>u.team===side);
+   const metrics=side=>{
+    const own=members(side),enemies=members(3-side);
+    return {deployed:own.length,alive:own.filter(u=>u.ref.hp>0).length,
+     survivalSeconds:own.reduce((s,u)=>s+u.life,0),
+     survivalSecondsPerUnit:own.reduce((s,u)=>s+u.life,0)/Math.max(1,own.length),
+     remainingUnitHp:own.reduce((s,u)=>s+Math.max(0,u.ref.hp),0),
+     enemyUnitDamage:enemies.reduce((s,u)=>s+Math.min(u.startHp,
+       Math.max(0,u.startHp-u.ref.hp)),0),
+     enemyUnitsDefeated:enemies.filter(u=>u.ref.hp<=0).length,
+     enemyCastleDamage:baseHp[3-side]-capital(3-side).hp,
+     enemyCastleAt30:damageSnapshots[30][3-side],
+     enemyCastleAt60:damageSnapshots[60][3-side],
+     enemyCastleAt90:damageSnapshots[90][3-side],
+     enemyCastleFallAt:castleFallAt[3-side],
+     ownCastleAt30:damageSnapshots[30][side],
+     ownCastleAt60:damageSnapshots[60][side],
+     ownCastleDamage:baseHp[side]-capital(side).hp,
+     progress:own.reduce((s,u)=>s+(side===1?u.ref.x-u.startX:u.startX-u.ref.x),0),
+     remainingEnergy:S.energy[side]};
+   };
+   const stat=metrics(team);
+   return {seed,role,kind,opponent,team,spent:cost,enemySpent:otherCost,
+    cards:ours,enemyCards:theirs,firstContact,elapsed:S.elapsed,
+    stats:stat,opponentStats:metrics(foe),
+    forts:S.forts.map(f=>({x:f.x,owner:f.owner,hp:f.hp})),
+    finished:steps>0,seeded:true};
+  }finally{duelStats=oldDuel;Math.random=oldRandom;}
+ },
+
+ setBotScenario:spec=>{
+  if(!NET.isSolo||!spec||!Array.isArray(spec.enemies)||!Array.isArray(spec.hand))return false;
+  resetWorld();S.phase="battle";S.botThink=999;S.prep=0;
+  S.difficulty=spec.difficulty||"hard";S.elapsed=spec.elapsed??80;
+  S.energy=[0,spec.enemyActualEnergy??spec.enemyEnergy??8,spec.energy??8];
+  S.observedEnergy=[0,spec.enemyEnergy??8,spec.energy??8];
+  qaBotVariants=[null,"baseline",spec.variant||"baseline"];
+  S.hand[2]=spec.hand.slice();S.queue[2]=[];
+  // Artificial *past* hits are permitted only in localhost QA scenes.
+  if(spec.castleHp){
+   if(!Array.isArray(spec.castleHp)||spec.castleHp.length!==3||
+    ![1,2].every(t=>Number.isFinite(spec.castleHp[t])&&
+     spec.castleHp[t]>0&&spec.castleHp[t]<=START_HP))return false;
+   for(const t of [1,2])capital(t).hp=spec.castleHp[t];
+  }
+  if(spec.raceWindow){
+   const w=spec.raceWindow;
+   if(!spec.castleHp||![w.ownLoss,w.enemyLoss].every(v=>Number.isFinite(v)&&v>=0)||
+    spec.castleHp[2]+w.ownLoss>START_HP||
+    spec.castleHp[1]+w.enemyLoss>START_HP)return false;
+   qaCastleHitEvents=[];
+   for(const age of [9,5,1]){
+    qaCastleHitEvents.push({at:S.elapsed-age,targetTeam:2,damage:w.ownLoss/3});
+    qaCastleHitEvents.push({at:S.elapsed-age,targetTeam:1,damage:w.enemyLoss/3});
+   }
+  }
+  if(Array.isArray(spec.fortOwners))S.forts.forEach((f,i)=>f.owner=spec.fortOwners[i]||0);
+  const place=(team,u)=>{
+   const d=CLASSES[u.key],x=u.x,y=u.y;
+   if(!d)throw Error("unknown class "+u.key);
+   S.units.push({uid:++S.uid,key:u.key,team,x,y,anchorX:x,anchorY:y,homeY:y,
+    hp:d.hp,max:d.hp,attack:0,flash:0,attackAnim:0,attackAnimMax:MOTION.attack[u.key],
+    windup:0,hitAt:-100,spawnAt:-100,spawnDuration:.5,lock:null,walkPhase:0,
+    walking:u.walking??false,drift:0,facing:u.facing??(team===1?0:Math.PI)});
+  };
+  spec.enemies.forEach(u=>place(1,u));(spec.allies||[]).forEach(u=>place(2,u));
+  botLastAction=null;updateHUD();return true;
+ },
+ progressBotScenario:spec=>{
+  // Localhost-QA-only staged exercise of a held reserve. No public UI path.
+  if(!NET.isSolo||S.phase!=="battle"||!spec||
+   !Number.isFinite(spec.elapsed)||spec.elapsed<S.elapsed||spec.elapsed>300||
+   !Number.isFinite(spec.energy)||spec.energy<0||spec.energy>ENERGY_CAP||
+   !Array.isArray(spec.fortOwners)||spec.fortOwners.length!==3||
+   spec.fortOwners.some(owner=>![0,1,2].includes(owner)))return false;
+  S.elapsed=spec.elapsed;S.seconds=MATCH-S.elapsed;
+  S.energy[2]=spec.energy;
+  S.observedEnergy[2]=spec.energy;
+  S.forts.forEach((f,i)=>{f.owner=spec.fortOwners[i];f.hp=POST_HP;});
+  updateHUD();
+  return true;
+ },
+ // Localhost-only deterministic 30Hz counterfactual from an identical
+ // threatened-fort scene. This is an isolation test, not a full game winner.
+ simulateFortDecision:(seed,spec,variant="baseline",duration=45)=>{
+  if(!NET.isSolo||!Number.isInteger(seed)||seed<1||seed>2147483647||
+   !["baseline","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue"].includes(variant)||
+   !spec||!Array.isArray(spec.hand)||spec.hand.length!==4||
+   !spec.hand.every(id=>DECK_IDS.includes(id))||
+   !Array.isArray(spec.enemies)||spec.enemies.length>15||
+   !spec.enemies.every(u=>CLASSES[u.key]&&Number.isFinite(u.x)&&Number.isFinite(u.y))||
+   !Array.isArray(spec.fortOwners)||spec.fortOwners.length!==3||
+   spec.fortOwners.some(v=>![0,1,2].includes(v))||
+   (spec.allies&&!Array.isArray(spec.allies))||
+   !Number.isFinite(spec.energy)||spec.energy<0||spec.energy>ENERGY_CAP||
+   !Number.isFinite(duration)||duration<5||duration>60)return null;
+  const oldRandom=Math.random,oldStats=duelStats,oldVariants=qaBotVariants;
+  let state=seed>>>0;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+  try{
+   duelStats=null;
+   if(!window.__shokokuQa.setBotScenario({...spec,variant}))return null;
+   S.seconds=MATCH-S.elapsed;S.botThink=99999;
+   const fortIndex=spec.fortOwners.findIndex(v=>v===2);
+   if(fortIndex<0)return null;
+   const owned=S.forts.map(f=>f.owner);
+   const startHp=capital(2).hp,startEnemyHp=capital(1).hp;
+   const dt=1/30,steps=Math.round(duration/dt);
+   let controlled=0,lost=false,recaptured=false,enemyEntered=false;
+   let firstCastleDamage=null,firstCastleRaider=null,actual=0,peakOwnUnits=0;
+   const actions=[],snapshots=[];
+   for(let step=0;step<steps&&S.phase==="battle";step++){
+    if(step%45===0){
+     const initial=S.energy[2];botLastAction=null;botExpertAction(2);
+     if(initial>S.energy[2]+.001)
+      actions.push({time:+(step*dt).toFixed(2),card:botLastAction?.id||null,
+       cost:+(initial-S.energy[2]).toFixed(2)});
+    }
+    tick(dt);
+    actual++;
+    if(S.forts[fortIndex].owner===2)controlled+=dt;
+    if(S.forts[fortIndex].owner!==2)lost=true;
+    if(lost&&S.forts[fortIndex].owner===2)recaptured=true;
+    if(S.units.some(u=>u.team===1&&u.hp>0&&u.x>WALL_FACE[2]-180)){
+     enemyEntered=true;
+     if(firstCastleRaider===null)firstCastleRaider=+(step*dt).toFixed(2);
+    }
+    if(firstCastleDamage===null&&capital(2).hp<startHp-.001)
+     firstCastleDamage=+(step*dt).toFixed(2);
+    peakOwnUnits=Math.max(peakOwnUnits,S.units.filter(u=>u.team===2&&u.hp>0).length);
+    if(step%300===299)snapshots.push({at:+((step+1)*dt).toFixed(1),
+     hp:capital(2).hp,fortOwner:S.forts[fortIndex].owner,
+     energy:+S.energy[2].toFixed(2)});
+    for(const t of [1,2])if(!Number.isFinite(S.energy[t])||
+     S.energy[t]<0||S.energy[t]>ENERGY_CAP+.001)throw Error("counterfactual invalid economy");
+   }
+   return {seed,variant,duration,elapsed:actual*dt,
+    openingFortOwners:owned,fortIndex,controlledSeconds:controlled,lost,recaptured,
+    castleDamage:startHp-capital(2).hp,enemyCastleDamage:startEnemyHp-capital(1).hp,
+    ownCastleHp:capital(2).hp,enemyEntered,firstCastleRaider,firstCastleDamage,
+    ownLivingUnits:S.units.filter(u=>u.team===2&&u.hp>0).length,
+    peakOwnUnits,energy:S.energy[2],actions,snapshots,seeded:true};
+  }finally{duelStats=oldStats;qaBotVariants=oldVariants;Math.random=oldRandom;}
+ },
+ // Paired local-only opening-spend experiment. Identical visible units,
+ // resources and random seed; only the first emergency purchase differs.
+ simulateDefenseOpening:(seed,spec,choice="infantryNow",duration=50)=>{
+  if(!NET.isSolo||!Number.isInteger(seed)||seed<1||seed>2147483647||
+   !["baseline","infantryNow","skipFirst","saveFor4"].includes(choice)||
+   !spec||!Array.isArray(spec.hand)||spec.hand.length!==4||
+   !spec.hand.every(id=>DECK_IDS.includes(id))||
+   !Array.isArray(spec.enemies)||spec.enemies.length>15||
+   !spec.enemies.every(u=>CLASSES[u.key]&&Number.isFinite(u.x)&&Number.isFinite(u.y))||
+   !Array.isArray(spec.fortOwners)||spec.fortOwners.length!==3||
+   spec.fortOwners.some(v=>![0,1,2].includes(v))||
+   (spec.allies&&!Array.isArray(spec.allies))||
+   !Number.isFinite(spec.energy)||spec.energy<2||spec.energy>=4||
+   !["engineer","sentinel"].includes(spec.reserve)||
+   !Number.isFinite(duration)||duration<10||duration>60)return null;
+  const oldRandom=Math.random,oldDuel=duelStats,oldVariants=qaBotVariants,
+   oldAudit=qaOpeningAudit;
+  let state=seed>>>0;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;return state/4294967296;};
+  try{
+   duelStats=null;qaOpeningAudit=null;
+   if(!window.__shokokuQa.setBotScenario({...spec,variant:"baseline"}))return null;
+   S.seconds=MATCH-S.elapsed;S.botThink=99999;
+   const firstFort=spec.fortOwners.findIndex(v=>v===2);
+   if(firstFort<0)return null;
+   const y=S.forts[firstFort].y,originalOwners=S.forts.map(f=>f.owner),
+    initially=S.units.filter(u=>u.team===1&&u.hp>0).map(u=>u.uid),
+    castleStart=capital(2).hp;
+   const stepDt=1/30,steps=Math.round(duration/stepDt);
+   let firstAction=null,firstCost=0,firstTime=null,spentOpening=0,
+    reservePaid=false,openingCount=0,controlled=0,lost=false,
+    recaptured=false,enemyEntered=false,initialThreatsAlive=0,
+    firstCastleHit=null,firstFortLoss=null;
+   const actions=[],snapshots=[];
+   const stamp=step=>+(step*stepDt).toFixed(2);
+   const spawnX=()=>limit(border(2)+35,40,W-40);
+   const spend=(id,time)=>{
+    const before=S.energy[2],uidBefore=S.uid;
+    botLastAction=null;
+    const ok=botUse(2,id,spawnX(),y);
+    if(ok){
+     const cost=before-S.energy[2];
+     actions.push({time,card:id,cost:+cost.toFixed(2)});
+     if(firstTime===null){
+      firstTime=time;firstAction=id;firstCost=cost;
+      if(id==="infantry"){
+       qaOpeningAudit={uids:new Set(S.units.filter(u=>u.team===2&&u.uid>uidBefore)
+        .map(u=>u.uid)),attacks:0,unitHits:0,unitDamage:0,
+        fortHits:0,fortProgress:0,castleHits:0};
+       openingCount=qaOpeningAudit.uids.size;
+      }
+     }
+     return true;
+    }
+    return false;
+   };
+   for(let step=0;step<steps&&S.phase==="battle";step++){
+    if(step===0){
+     if(choice==="baseline"){
+      const initial=S.energy[2],firstUid=S.uid;
+      botLastAction=null;botExpertAction(2);
+      if(initial>S.energy[2]+.001){
+       const id=botLastAction?.id||null,cost=initial-S.energy[2];
+       actions.push({time:0,card:id,cost:+cost.toFixed(2)});
+       firstAction=id;firstCost=cost;firstTime=0;
+       if(id==="infantry"){
+        qaOpeningAudit={uids:new Set(S.units.filter(u=>u.team===2&&u.uid>firstUid).map(u=>u.uid)),
+         attacks:0,unitHits:0,unitDamage:0,fortHits:0,fortProgress:0,castleHits:0};
+        openingCount=qaOpeningAudit.uids.size;
+       }
+      }
+     }else if(choice==="infantryNow"){
+      spend("infantry",0);
+     }
+    }else if(choice==="saveFor4"&&!reservePaid){
+     if(canPay(2,spec.reserve)){
+      if(spend(spec.reserve,stamp(step)))reservePaid=true;
+     }
+    }else if(step%45===0){
+     const before=S.energy[2],uidBefore=S.uid;
+     botLastAction=null;botExpertAction(2);
+     if(before>S.energy[2]+.001){
+      const id=botLastAction?.id||null,cost=before-S.energy[2],now=stamp(step);
+      actions.push({time:now,card:id,cost:+cost.toFixed(2)});
+      if(firstTime===null){
+       firstTime=now;firstAction=id;firstCost=cost;
+       if(id==="infantry"){
+        qaOpeningAudit={uids:new Set(S.units.filter(u=>u.team===2&&u.uid>uidBefore).map(u=>u.uid)),
+         attacks:0,unitHits:0,unitDamage:0,fortHits:0,fortProgress:0,castleHits:0};
+        openingCount=qaOpeningAudit.uids.size;
+       }
+      }
+     }
+    }
+    // In a reserve-only opening, baseline decisions resume next regular
+    // cadence tick. A skipped first turn resumes at 1.5s.
+    tick(stepDt);
+    if(S.forts[firstFort].owner===2)controlled+=stepDt;
+    if(S.forts[firstFort].owner!==2){
+     if(!lost)firstFortLoss=stamp(step);
+     lost=true;
+    }
+    if(lost&&S.forts[firstFort].owner===2)recaptured=true;
+    if(S.units.some(u=>u.team===1&&u.hp>0&&u.x>WALL_FACE[2]-180))enemyEntered=true;
+    if(firstCastleHit===null&&capital(2).hp<castleStart-.001)firstCastleHit=stamp(step);
+    if(step%300===299)snapshots.push({at:stamp(step+1),hp:capital(2).hp,
+     energy:+S.energy[2].toFixed(3),owner:S.forts[firstFort].owner});
+    if(S.energy[2]<-1e-6||S.energy[2]>ENERGY_CAP+1e-5)throw Error("illegal energy");
+   }
+   const audited=qaOpeningAudit,initialUnits=S.units.filter(u=>audited?.uids.has(u.uid));
+   initialThreatsAlive=S.units.filter(u=>initially.includes(u.uid)&&u.hp>0).length;
+   return {seed,choice,elapsed:S.elapsed-spec.elapsed,firstAction,firstTime,firstCost,
+    openingUnits:openingCount,openingStillAlive:initialUnits.filter(u=>u.hp>0).length,
+    initialThreatsAlive,initialThreatsTotal:initially.length,
+    openingCombat:audited?{attacks:audited.attacks,unitHits:audited.unitHits,
+     unitDamage:+audited.unitDamage.toFixed(2),fortHits:audited.fortHits,
+     fortProgress:audited.fortProgress,castleHits:audited.castleHits}:null,
+    fortIndex:firstFort,openingOwners:originalOwners,
+    castleDamage:castleStart-capital(2).hp,fortOwnedSeconds:controlled,
+    lost,recaptured,firstFortLoss,firstCastleHit,enemyEntered,
+    energy:S.energy[2],actions,snapshots,seeded:true};
+  }finally{qaOpeningAudit=oldAudit;duelStats=oldDuel;qaBotVariants=oldVariants;Math.random=oldRandom;}
+ },
+ runBotOnce:()=>{
+  if(!NET.isSolo||S.phase!=="battle")return null;
+  const initial=S.energy[2],acted=botExpertAction();
+  return {acted,action:botLastAction,spent:initial-S.energy[2],
+    remaining:S.energy[2],opponentEstimated:S.observedEnergy[1],
+    incoming:S.spells.incoming.length,wards:S.spells.zones.length,
+    units:S.units.length};
+ },
+
+ setTerrainCache:enabled=>{terrainCacheEnabled=!!enabled;},
+ setDrawCulling:on=>{drawCullingEnabled=!!on;},
+ setDenseSpriteCache:on=>{useDenseSpriteCache=!!on;},
+ grandState:()=>({battleReady:grandInBattle,enabled:grandEffectEnabled,
+  active:grandArrival&&{...grandArrival,age:performance.now()-grandArrival.started},seen:grandSeen.size}),
+ setGrandEffect:on=>{grandEffectEnabled=!!on;},
+ prepareGrandTest:()=>{
+  if(!NET.isSolo)return false;
+  S.phase="battle";S.botThink=999;S.prep=0;S.energy=[0,12,12];
+  $("prepBanner").classList.remove("visible");
+  return true;
+ },
+ spawnGrandTest:(team,key)=>{
+  if(!NET.isSolo||S.phase!=="battle"||![1,2].includes(team)||
+     !["guardian","tank"].includes(key))return false;
+  S.energy[team]=12;S.left[team][key]=Math.max(1,S.left[team][key]||0);
+  if(!S.hand[team].includes(key))S.hand[team][0]=key;
+  return deploy(team,key,team===1?155:1125,330);
+ },
+ spriteStats:()=>({cached:denseSpritesRendered,full:fullSpritesRendered,
+  tiles:denseSpriteCache.size,active:useDenseSpriteCache,broken:denseCacheBroken}),
+ setCamera:(x,y)=>cameraTo(x,y),
+ setFortTest:(owners,contest=false)=>{
+  if(!NET.isSolo||!Array.isArray(owners)||owners.length!==3||
+    owners.some(owner=>![0,1,2].includes(owner)))return false;
+  S.forts.forEach((f,i)=>{f.owner=owners[i];f.hp=POST_HP;});
+  if(contest){
+   const f=S.forts[1],d=CLASSES.infantry;
+   for(const team of [1,2]){
+    const x=f.x+(team===1?-25:25);
+    S.units.push({uid:++S.uid,key:"infantry",team,x,y:f.y,anchorX:x,anchorY:f.y,
+     homeY:f.y,hp:d.hp,max:d.hp,attack:20,attackAnim:0,attackAnimMax:.5,
+     flash:0,spawnAt:-100,spawnDuration:.5,drift:0,walking:false,walkPhase:0,facing:team===1?0:Math.PI});
+   }
+  }
+  updateFortNavigation();return true;
+ },
+ seedMassBattle:()=>{
+  if(!NET.isSolo)return false;
+  resetWorld();S.phase="battle";S.prep=0;S.elapsed=120;S.seconds=180;S.botThink=999;
+  S.energy=[0,12,12];S.cam={x:330,y:330,tx:330,ty:330,moving:false};clampCamera();
+  const keys=["infantry","archer","scout","engineer","sentinel","suppress","guardian","drone","tank"];
+  for(const team of [1,2])for(let i=0;i<65;i++){
+   const id=keys[i%keys.length],d=CLASSES[id],x=team===1?250+(i%13)*31:1180-(i%13)*31,y=125+Math.floor(i/13)*94;
+   S.units.push({uid:++S.uid,key:id,team,x,y,anchorX:x,anchorY:y,homeY:y,
+    hp:d.hp,max:d.hp,attack:.5,facing:team===1?0:Math.PI,flash:0,
+    attackAnim:0,attackAnimMax:MOTION.attack[id],windup:0,hitAt:-100,
+    spawnAt:-100,spawnDuration:.5,lock:null,walkPhase:i*.11,walking:true,drift:i*.25});
+  }
+  $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
+  buildCards();updateHUD();return true;
+ },
+ setDpr:d=>{
+  if(!Number.isFinite(d)||d<.6||d>2)return;
+  S.view.dpr=d;cv.width=Math.round(S.view.w*d);cv.height=Math.round(S.view.h*d);
+ },
+ quality:()=>({tabletDprCap,guestLowPower,qualityMeasured,qualityFrames}),
+ snapshot:()=>({
+  phase:S.phase,selected:S.selected,prep:S.prep,elapsed:S.elapsed,
+  energy:S.energy.slice(),camera:{x:S.cam.x,y:S.cam.y},
+  view:{...S.view},hand:S.hand.map(h=>h&&h.slice()),
+  units:S.units.map(u=>({uid:u.uid,team:u.team,key:u.key,x:u.x,y:u.y}))
+ })};
 }
 start();
 })();
@@ -2295,7 +4713,15 @@ start();
   <div class="netControls"><input id="netJoinCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="5桁のルーム番号"><button id="netJoin">ルームに参加</button></div>
   <div class="netControls"><button id="netReady" disabled>準備完了</button><button id="netStart" hidden disabled>対戦スタート</button></div>
    <div class="netControls"><button id="netGuestBot" type="button" hidden aria-pressed="false">この参加端末をBOT操作</button></div>
-   <div class="netControls"><button id="netSolo" type="button">通信不要｜BOTと練習する</button></div>
+   <div class="netPractice">
+    <div class="netPracticeHeading">1人プレイ・BOTの強さ</div>
+    <div id="netSoloLevels" role="group" aria-label="BOTの難易度">
+      <button type="button" data-solo-level="easy" aria-pressed="false">練習</button>
+      <button type="button" data-solo-level="normal" class="selected" aria-pressed="true">ふつう</button>
+      <button type="button" data-solo-level="hard" aria-pressed="false">むずかしい</button>
+    </div>
+    <button id="netSolo" type="button">通信不要｜BOTと練習する</button>
+   </div>
   <div id="netStatus" role="status">Firebaseに接続中…</div>
   <div class="netTip">通信できなくても「BOTと練習する」で1人プレイ可能。<br>2台テスト時は参加端末でBOT操作をONにすると自動準備・自動召喚。ホストは青軍、参加側は赤軍です。</div>
  </div>

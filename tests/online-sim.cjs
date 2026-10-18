@@ -67,10 +67,11 @@ function client(){
   }
   return dom.get(id);
  };
- const document={getElementById:get,body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
+ const document={getElementById:get,querySelectorAll:()=>[],body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
  const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
   console,Date,Math,Uint32Array,Promise,performance,
-  navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){}},setTimeout,clearTimeout};
+  navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){}},setTimeout,clearTimeout,
+  requestAnimationFrame:fn=>queueMicrotask(()=>fn(performance.now()))};
  vm.runInNewContext(source,context,{filename:"online-net.js"});
  callbacks.DOMContentLoaded();
  const api=context.window.ShokokuNet;

@@ -1,7 +1,7 @@
-// Live two-Chromium-context end-to-end smoke test. Runs in GitHub Actions only.
+// Live Chromium host + WebKit iPad guest end-to-end test. Runs in GitHub Actions only.
 // Creates one room in shokokuRooms1v1, then deletes that same room after closing both tabs.
 "use strict";
-const {chromium}=require("playwright"),fs=require("node:fs"),http=require("node:http"),path=require("node:path");
+const {chromium,webkit}=require("playwright"),fs=require("node:fs"),http=require("node:http"),path=require("node:path");
 const assert=require("node:assert/strict");
 const root=process.cwd(),urlDB="https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1";
 const mime={".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8"};
@@ -18,16 +18,19 @@ const deadline=async (f,label,timeout=18000)=>{
  throw Error("Timed out "+label+" "+(error?.message||""));
 };
 (async()=>{
- let browser,code="",pages=[];
+ let browser,guestBrowser,code="",pages=[];
  try{
   await new Promise(r=>server.listen(8765,"127.0.0.1",r));
   browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
+  guestBrowser=await webkit.launch({headless:true});
   const hostCtx=await browser.newContext({viewport:{width:1194,height:834}});
-  const guestCtx=await browser.newContext({viewport:{width:1024,height:768},hasTouch:true});
+  const guestCtx=await guestBrowser.newContext({
+   viewport:{width:1194,height:834},deviceScaleFactor:2,hasTouch:true
+  });
   const host=await hostCtx.newPage(),guest=await guestCtx.newPage();
   pages=[host,guest];const errors=[];
   for(const [name,p] of [["host",host],["guest",guest]])p.on("pageerror",err=>errors.push(name+": "+err.message));
-  await Promise.all([host.goto("http://127.0.0.1:8765/online.html"),guest.goto("http://127.0.0.1:8765/online.html")]);
+  await Promise.all([host.goto("http://127.0.0.1:8765/online.html"),guest.goto("http://127.0.0.1:8765/online-ipad.html")]);
   for(const p of pages)await deadline(async()=>((await p.locator("#netStatus").innerText()).includes("接続OK")), "Firebase connection",30000);
   await host.locator("#netCreate").click();
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
@@ -73,15 +76,19 @@ const deadline=async (f,label,timeout=18000)=>{
   assert.equal(await botToggle.getAttribute("aria-pressed"),"false");
   const manualCount=packet.world.units.filter(u=>u.team===2).length;
   await summon(guest,2);
-  await deadline(async()=>{
-   const state=await (await fetch(stateURL)).json();
-   return state.world?.units?.filter(u=>u.team===2).length>manualCount;
+  const afterManual=await deadline(async()=>{
+   const current=await state();
+   return current?.world?.units?.filter(u=>u.team===2).length>manualCount?current:null;
   },"manual guest control after BOT off",18000);
+  // Firebase having state is not enough: the WebKit receiver must apply it.
+  await deadline(async()=>(await guest.evaluate(()=>window.__onlineSeq||0))>=afterManual.seq,
+   "WebKit guest receives and applies manual guest summon",18000);
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
-  console.log("PASS: real Firebase guest BOT auto-ready, auto-deploy, manual override and state synchronization in room "+code);
+  console.log("PASS: Chromium host + WebKit iPad inline guest, real Firebase BOT auto-ready, auto-deploy, manual override and sync in room "+code);
  }finally{
   for(const p of pages){try{await p.close()}catch{}}
   if(browser)try{await browser.close()}catch{}
+  if(guestBrowser)try{await guestBrowser.close()}catch{}
   if(code){
    // Let onDisconnect presence operations finish before removing our own room.
    await delay(750);
