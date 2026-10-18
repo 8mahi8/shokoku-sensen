@@ -59,7 +59,7 @@ const workloadMs=[35,90,170,270],samples=[];
   const page=await browser.newPage({viewport:{width:1194,height:834}});
   const errors=[];page.on("pageerror",e=>errors.push(e.message));
   await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
-  await page.goto("http://127.0.0.1:8894/online.html?qa=1",{waitUntil:"domcontentloaded"});
+  await page.goto("http://127.0.0.1:8895/online.html?qa=1",{waitUntil:"domcontentloaded"});
   await page.locator("#netSolo").click();
   await page.waitForFunction(()=>window.__shokokuQa?.snapshot().phase==="prep");
   const initialized=await page.evaluate(s=>window.__shokokuQa.workerStart(s),worker);
