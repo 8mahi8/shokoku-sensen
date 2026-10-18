@@ -28,13 +28,19 @@ const extra=[
  '  units:S.units,forts:S.forts,capitals:S.capitals,spells:S.spells,effects:S.effects,projectiles:S.projectiles,deaths:S.deaths,uid:S.uid,speed:S.speed',
  ' },(k,v)=>v===Infinity?1000000000:v)),'
 ].join("\n");
-const patchedGame=g.replace(qaKey,qaKey+extra+"\n");
+const patchedGame=g.replace(qaKey,qaKey+extra+"\n").replace(
+ "draw();requestAnimationFrame(frame);",
+ "window.__qaRenderedFrames=(window.__qaRenderedFrames||0)+1;draw();requestAnimationFrame(frame);"
+);
+assert.notEqual(patchedGame,g,"QA game injection missing");
+assert.ok(patchedGame.includes("window.__qaRenderedFrames="));
 const setup="function setupRoom(code,isHost){";
 assert.equal(n.split(setup).length,2);
 const netExtra=[
  'window.__qaGuestNet={',
  ' enter:()=>{remoteEpoch++;pendingRemote=null;remoteScheduled=false;room={};host=false;solo=false;guestBot=false;team=2;phase="playing";meta={round:1,status:"playing"};lastRemoteSeq=0;window.__onlineSeq=0;return true;},',
  ' send:packet=>receiveGuestWorld(packet),',
+ ' nextRound:r=>{remoteEpoch++;pendingRemote=null;remoteScheduled=false;meta={...meta,round:r};lastRemoteSeq=0;window.__onlineSeq=0;},',
  ' stats:()=>({received:lastRemoteSeq,applied:window.__onlineSeq||0,pending:pendingRemote?.seq??null,scheduled:remoteScheduled})',
  '};'
 ].join("\n");
@@ -47,6 +53,13 @@ const server=http.createServer((req,res)=>{
  res.setHeader("Content-Type",p.endsWith(".js")?"text/javascript; charset=utf-8":"text/html; charset=utf-8");
  if(p===path.join(root,"online-game.js")){res.end(patchedGame);return;}
  if(p===path.join(root,"online-net.js")){res.end(patchedNet);return;}
+ // Load actual distribution HTML in WebKit. Inline bundles receive the same
+ // localhost-only QA hooks; production files remain completely unchanged.
+ if(p===path.join(root,"online-ipad.html")||p===path.join(root,"online-embed.html")){
+  const html=fs.readFileSync(p,"utf8");
+  assert.ok(html.includes(n)&&html.includes(g),"inline bundle out of sync: "+p);
+  res.end(html.replace(n,patchedNet).replace(g,patchedGame));return;
+ }
  fs.createReadStream(p).pipe(res);
 });
 async function measure(engineName,engine){
@@ -54,13 +67,18 @@ async function measure(engineName,engine){
  try{
   const rows=[];
   for(const entry of [
-   {name:"tablet",viewport:{width:1194,height:834},hasTouch:true,deviceScaleFactor:2},
-   {name:"compact",viewport:{width:900,height:520},hasTouch:true,deviceScaleFactor:2}
+   {name:"tablet",variant:"online.html",viewport:{width:1194,height:834},hasTouch:true,deviceScaleFactor:2},
+   {name:"compact",variant:"online.html",viewport:{width:900,height:520},hasTouch:true,deviceScaleFactor:2},
+   // Google Sites bundle and standalone iPad HTML must render in WebKit, too.
+   ...(engineName==="webkit"?[
+    {name:"tablet",variant:"online-ipad.html",viewport:{width:1194,height:834},hasTouch:true,deviceScaleFactor:2},
+    {name:"tablet",variant:"online-embed.html",viewport:{width:1194,height:834},hasTouch:true,deviceScaleFactor:2}
+   ]:[])
   ]){
    const context=await browser.newContext(entry),page=await context.newPage(),errors=[];
    page.on("pageerror",e=>errors.push(e.message));
    await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
-   await page.goto("http://127.0.0.1:8916/online.html?qa=1",{waitUntil:"domcontentloaded"});
+   await page.goto("http://127.0.0.1:8916/"+entry.variant+"?qa=1",{waitUntil:"domcontentloaded"});
    await page.locator("#netSolo").click();
    await page.waitForFunction(()=>window.__shokokuQa?.snapshot().phase==="prep");
    const balance=await page.evaluate(()=>{
@@ -111,6 +129,7 @@ async function measure(engineName,engine){
    const fps=await page.evaluate(async world=>{
     const q=window.__qaGuestNet;
     let frames=0,stutters=0,last=null,first=null,active=true;
+    const paintStart=window.__qaRenderedFrames||0;
     const count=t=>{if(!active)return;if(first===null)first=t;
      if(last!==null&&t-last>170)stutters++;last=t;frames++;
      requestAnimationFrame(count);};
@@ -121,13 +140,25 @@ async function measure(engineName,engine){
     }
     await new Promise(done=>setTimeout(done,200));
     active=false;
-    return {frames,stutters,duration:(last-first)/1000,stats:q.stats()};
+    return {frames,paints:(window.__qaRenderedFrames||0)-paintStart,stutters,duration:(last-first)/1000,stats:q.stats()};
    },world);
    assert.equal(fps.stats.applied,149);
    assert.ok(fps.frames>=20,"render loop frozen "+JSON.stringify(fps));
+   assert.ok(fps.paints>=10,"actual canvas painting stalled "+JSON.stringify(fps));
    assert.ok(fps.stutters<=4,"main-thread stalled "+JSON.stringify(fps));
+   // Simulate an in-flight old-round callback just before a rematch.
+   // The old queued frame must never overwrite a new round's world.
+   await page.evaluate(world=>{
+    const q=window.__qaGuestNet;
+    q.send({seq:150,round:1,world});
+    q.nextRound(2);
+    q.send({seq:999,round:1,world});
+    q.send({seq:1,round:2,world:{...world,clock:300}});
+   },world);
+   await page.waitForFunction(()=>window.__qaGuestNet.stats().applied===1);
+   assert.equal((await page.evaluate(()=>window.__qaGuestNet.stats())).received,1);
    assert.deepEqual(errors,[]);
-   rows.push({browser:engineName,layout:entry.name,dpr:initial.dpr,fps,
+   rows.push({browser:engineName,layout:entry.name,variant:entry.variant,dpr:initial.dpr,fps,
     interpolation:{from:initialSprite.x,to:afterSmooth.x,target:afterSmooth.targetX},
     air:balance.stats,fire:balance.fire,targets:balance.ranged});
    await page.close();await context.close();
