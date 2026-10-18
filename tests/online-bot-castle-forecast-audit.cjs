@@ -63,6 +63,19 @@ const sum=(a,f)=>a.reduce((n,x)=>n+f(x),0),
      assert.ok(w.preThreat.vulnerableWithin3<=w.preThreat.eligiblePairs);
      assert.ok(w.preThreat.minVisionEta===null||w.preThreat.minVisionEta>=0);
      assert.ok(w.preThreat.minDistance===null||w.preThreat.minDistance>=0);
+     assert.ok(w.prePower&&Number.isFinite(w.prePower.waveHp));
+     assert.equal(w.prePower.waveUnits,w.trackedCount);
+     for(const key of ["waveHp","alliedDps","activeThreatHp","activeThreatDps",
+      "defenderHp","defenderDps","pressurePerWaveHp","defensePerWaveHp"])
+      assert.ok(Number.isFinite(w.prePower[key])&&w.prePower[key]>=0,
+       "invalid current-state combat feature "+key);
+     for(const key of ["activeThreatUnits","defenderUnits"])
+      assert.ok(Number.isInteger(w.prePower[key])&&w.prePower[key]>=0);
+     assert.ok(w.prePower.threatClearTime===null||
+      Number.isFinite(w.prePower.threatClearTime)&&w.prePower.threatClearTime>=0);
+     assert.ok(w.prePower.wallClearTime===null||
+      Number.isFinite(w.prePower.wallClearTime)&&w.prePower.wallClearTime>=0);
+     assert.ok(w.prePower.defenderHp>=0);
      assert.ok(w.activity&&Number.isFinite(w.activity.alive));
      assert.ok(w.activity.alive>=0);
      assert.ok(Math.abs(w.activity.alive-w.covered)<.025,
