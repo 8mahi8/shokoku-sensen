@@ -25,6 +25,11 @@ function qaWorkerStart(source){
     p.resolve({status:"invalidMessage"});return;
    }
    const elapsed=+(performance.now()-p.start).toFixed(2);
+   // Browsers may throttle queued timeout callbacks. The result handler
+   // must enforce the wall-clock deadline itself, never trust event order.
+   if(elapsed>p.deadlineMs){
+    p.resolve({status:"timeout",elapsed,reason:"lateWorkerResult"});return;
+   }
    if(p.version!==qaWorkerSeq){p.resolve({status:"superseded",elapsed});return;}
    const chosen=msg.proposed?.winner;
    const exact=qaWorkerSignature(p.team)===p.signature;
@@ -236,7 +241,7 @@ function qaWorkerSubmit(team=2,spinMs=0,deadlineMs=1100,requireGate=true,mode="s
    // A future production design can recreate it after a timeout.
   },deadlineMs);
   qaWorkerPending.set(id,{timer,start,resolve,team,signature,capture,mode,
-   version,candidates:scene.actions});
+   version,deadlineMs,candidates:scene.actions});
   try{qaWorker.postMessage({type:"evaluate",id,version,scene,spinMs});}
   catch(e){clearTimeout(timer);qaWorkerPending.delete(id);
    resolve({status:"postFailed",message:String(e)});}
