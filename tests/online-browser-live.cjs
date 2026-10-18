@@ -30,7 +30,7 @@ const deadline=async (f,label,timeout=18000)=>{
   const host=await hostCtx.newPage(),guest=await guestCtx.newPage();
   pages=[host,guest];const errors=[];
   for(const [name,p] of [["host",host],["guest",guest]])p.on("pageerror",err=>errors.push(name+": "+err.message));
-  await Promise.all([host.goto("http://127.0.0.1:8765/online.html"),guest.goto("http://127.0.0.1:8765/online-ipad.html")]);
+  await Promise.all([host.goto("http://127.0.0.1:8765/online.html"),guest.goto("http://127.0.0.1:8765/online-ipad.html?perf=1")]);
   for(const p of pages)await deadline(async()=>((await p.locator("#netStatus").innerText()).includes("接続OK")), "Firebase connection",30000);
   await host.locator("#netCreate").click();
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
@@ -66,6 +66,15 @@ const deadline=async (f,label,timeout=18000)=>{
    return units.some(u=>u.team===1)&&units.some(u=>u.team===2)?d:null;
   },"blue human and red BOT units synchronized to Firebase",25000);
   assert.ok(packet.world.energy?.length>=3&&packet.world.capitals?.length===2&&packet.world.forts?.length===3);
+  // The diagnostic HUD must report actual painting and live guest snapshots,
+  // without requiring DevTools (school Safari and Google Sites are restricted).
+  const perf=guest.locator('[aria-label="通信・描画の診断"]');
+  await deadline(async()=>{
+   const text=await perf.innerText();
+   return /描画 [0-9]+ FPS/.test(text)&&/通信 guest [0-9.]+更新\/秒/.test(text)&&/seq [1-9][0-9]*/.test(text);
+  },"guest render + snapshot diagnostics",20000);
+  const perfText=await perf.innerText();
+  console.log("GUEST PERF",JSON.stringify({text:perfText}));
   // The BOT has already spent a card, so its live hand rotation differs legitimately.
   // Ensure it still owns the same card types and honors the host's authoritative deck.
   const cards=t=>[...packet.world.hand[t],...packet.world.queue[t]].sort();
