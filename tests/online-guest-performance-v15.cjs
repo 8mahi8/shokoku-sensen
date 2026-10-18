@@ -162,8 +162,7 @@ async function measure(engineName,engine){
     dpr:window.__shokokuQa.snapshot().view.dpr,
     ...window.__shokokuQa.quality()
    }));
-   if(finalQuality.guestDprCap<1)
-    assert.ok(finalQuality.dpr<1,"adaptive guest DPR must reach canvas");
+   assert.ok(finalQuality.dpr<=1.01,"tablet guest should not over-render Retina");
    rows.push({browser:engineName,layout:entry.name,variant:entry.variant,dpr:initial.dpr,finalQuality,fps,
     interpolation:{from:initialSprite.x,to:afterSmooth.x,target:afterSmooth.targetX},
     air:balance.stats,fire:balance.fire,targets:balance.ranged});
