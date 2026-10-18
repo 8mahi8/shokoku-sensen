@@ -15,7 +15,7 @@ for(const needle of [anchor,expert,tickAnchor])
  assert.equal(original.split(needle).length,2,"anchor changed "+needle);
 const game=original.replace(expert,"\n"+gate+"\n"+bridge+"\n"+expert)
  .replace(tickAnchor,tickAnchor+"\n if(qaWorkerQaFrozen)return;")
- .replace(anchor," window.__shokokuQa={\n workerStart:qaWorkerStart,\n workerStop:qaWorkerStop,\n workerSubmit:qaWorkerSubmit,\n workerFreeze:qaWorkerFreeze,\n workerUnfreeze:qaWorkerUnfreeze,\n workerSignature:qaWorkerSignature,\n workerPerturb:qaWorkerPerturb,\n gateAssess:qaGateAssess,\n");
+ .replace(anchor," window.__shokokuQa={\n workerCapture:qaWorkerCapture,\n workerStart:qaWorkerStart,\n workerStop:qaWorkerStop,\n workerSubmit:qaWorkerSubmit,\n workerFreeze:qaWorkerFreeze,\n workerUnfreeze:qaWorkerUnfreeze,\n workerSignature:qaWorkerSignature,\n workerPerturb:qaWorkerPerturb,\n gateAssess:qaGateAssess,\n");
 const server=http.createServer((req,res)=>{
  const p=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
  if(!p.startsWith(root+path.sep)||!fs.existsSync(p)||!fs.statSync(p).isFile()){
@@ -73,6 +73,12 @@ const benignScene={...quiet,enemies:[{key:"scout",x:905,y:444}],
    {label:"old proposal",mutation:"age",expected:"stale",reason:"age"}
   ]){
    await prep(entry.fixture==="benignScene"?benignScene:scene);
+   if(entry.fixture==="benignScene"){
+    const units=await page.evaluate(()=>window.__shokokuQa.workerCapture(2).units);
+    assert.equal(units.length,2,"unexpected fixture units "+JSON.stringify(units));
+    assert.ok(Math.hypot(units[0].x-units[1].x,units[0].y-units[1].y)>150,
+     "expected separated units "+JSON.stringify(units));
+   }
    const result=await attempt(entry.label,entry.mutation,entry.mode);
    assert.equal(result.status,entry.expected,entry.label+" status: "+JSON.stringify(result));
    assert.equal(result.reason||result.freshness,entry.reason,entry.label);
