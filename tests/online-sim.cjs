@@ -76,7 +76,7 @@ function client(){
  };
  const document={getElementById:get,querySelectorAll:()=>[],body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
  const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
-  console,Date,Math,Uint32Array,Promise,performance:{now:()=>virtualNow},
+  console,Date,Math,Uint32Array,Promise,URL,URLSearchParams,performance:{now:()=>virtualNow},
   navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){},hostname:"localhost",search:""},setTimeout,clearTimeout,
   fetch:async url=>{
    restFetchCount++;
