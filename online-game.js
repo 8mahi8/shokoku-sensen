@@ -715,9 +715,9 @@ function botExpertAction(team=2){
  // Holding is a real option: forego the desperate 2-energy infantry play,
  // save for an in-hand sentinel, then counterattack after the delay.
  let concessionHold=false;
- if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"){
-  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue";
-  const weighCounter=qaPolicy==="fortDefenseValue";
+ if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"){
+  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace";
+  const weighCounter=qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace";
   const assessRisk=qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
   const assessLastLine=qaPolicy==="fortLastLine";
   // Strategic criticality: losing the home-side outpost when only one
