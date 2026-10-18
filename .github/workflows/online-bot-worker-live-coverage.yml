@@ -1,0 +1,30 @@
+name: BOT worker live adoption matrix QA
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'tests/online-bot-worker-live-coverage.cjs'
+      - 'tests/online-bot-worker-prototype.js'
+      - 'tests/online-bot-worker-bridge.inc.js'
+      - '.github/workflows/online-bot-worker-live-coverage.yml'
+  workflow_dispatch:
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/online-bot-worker-live-coverage.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-bot-worker-live-coverage
+          path: qa-bot-worker-live-coverage
+          retention-days: 30
