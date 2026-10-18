@@ -87,7 +87,7 @@ scenarios.push({name:"known-mixed-lanes",pool:"previousRegression",spec:{
    const keys=new Set(d.options.map(key));
    assert.ok(d.firstEvaluated<=10,"role portfolio exceeded research maximum");
    assert.ok(d.firstEvaluated<=a.firstEvaluated);
-   assert.ok(keys.has("wait:null:null"));
+   assert.ok(keys.has(key({id:"wait",x:null,y:null})));
    assert.ok(keys.has(key(a.legacy)),"legacy must not disappear");
    assert.equal(d.rolesAvailable.length,d.roleCoverage.length);
    for(const role of d.roleCoverage)assert.ok(keys.has(key(role)),
