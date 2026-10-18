@@ -117,10 +117,16 @@ async function measure(engineName,engine){
    const movedId=world.units.find(u=>u.team===1&&u.key==="infantry").uid;
    const initialSprite=beforeSmooth.find(x=>x.id===movedId);
    assert.ok(initialSprite,"must have visible infantry sprite");
-   const movedWorld={...world,units:world.units.map(u=>u.uid===movedId?{...u,x:u.x+50}:u)};
+   // Firebase RTDB can omit empty nested arrays; barrage incoming with no
+   // wards used to break guest drawSpellFields() and kill the animation loop.
+   const movedWorld={...world,units:world.units.map(u=>u.uid===movedId?{...u,x:u.x+50}:u),
+    spells:{incoming:[{team:1,x:640,y:330,r:105,time:.3,total:.5}]},
+    effects:undefined,projectiles:undefined,deaths:undefined};
    await page.evaluate(world=>window.__qaGuestNet.send({seq:121,round:1,world}),movedWorld);
    await page.waitForFunction(()=>window.__qaGuestNet.stats().applied===121);
    await page.waitForTimeout(125);
+   assert.equal(await page.evaluate(()=>window.__onlineFrameError||""),"",
+    "guest must tolerate Firebase-dropped empty spell, effect and projectile arrays");
    const afterSmooth=await page.evaluate(id=>window.__shokokuQa.remoteSpritePositions().find(x=>x.id===id),movedId);
    assert.ok(afterSmooth.x>initialSprite.x+1,
     "cached guest sprite must actually interpolate between network updates "+JSON.stringify({initialSprite,afterSmooth}));
