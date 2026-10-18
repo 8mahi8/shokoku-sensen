@@ -595,7 +595,7 @@ function maybePublish(force=false){
   // A Firebase set() promise can remain unresolved during network stalls,
   // while the guest keeps rendering a frozen snapshot. Retry at a bounded
   // pace rather than permanently locking the one-snapshot publisher.
-  if(now-publishStartedAt<2800||now-publishRetryAt<4800||publishRetryCount>=8)return;
+  if(now-publishStartedAt<2800||(publishRetryAt&&now-publishRetryAt<4800)||publishRetryCount>=8)return;
   publishRetryAt=now;publishRetryCount++;
  }else if(!force&&now-lastSend<180)return;
  lastSend=now;publishing=true;publishStartedAt=now;
