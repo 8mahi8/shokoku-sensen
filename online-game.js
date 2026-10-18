@@ -2668,7 +2668,7 @@ function start(){
    else botStep(delta*S.speed);
   }
   S.hudTick+=delta;
-  if(S.hudTick>=.12){S.hudTick=0;updateHUD();}
+  if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
   if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30){
    requestAnimationFrame(frame);return;
