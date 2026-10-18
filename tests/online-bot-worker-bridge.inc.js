@@ -34,7 +34,8 @@ function qaWorkerStart(source){
    const chosen=msg.proposed?.winner;
    const exact=qaWorkerSignature(p.team)===p.signature;
    const freshness=exact?{valid:true,reason:"exactMatch"}:
-    qaWorkerFreshness(p.capture,qaWorkerCapture(p.team),chosen,p.mode);
+    qaWorkerFreshness(p.capture,qaWorkerCapture(p.team),chosen,
+     p.mode==="conservativePreflight"?"conservative":p.mode);
    if(!freshness.valid){
     p.resolve({status:"stale",reason:freshness.reason,elapsed,
      workerMs:msg.workerMs});return;
@@ -130,20 +131,29 @@ function qaWorkerFreshness(before,now,chosen,mode="strict"){
   return {valid:false,reason:"actionIllegalNow"};
  // Pre-hit danger: units may engage before the next damage tick. No HP
  // change yet does NOT mean the next ~0.3 s are tactically harmless.
- const inContact=units=>{
-  const friends=units.filter(u=>u.team===now.team);
-  const enemies=units.filter(u=>u.team!==now.team);
-  return friends.some(a=>enemies.some(b=>{
-   const da=CLASSES[a.key],db=CLASSES[b.key];
-   if(!da||!db)return true;
-   if((db.flying&&!da.hitAir)&&(da.flying&&!db.hitAir))return false;
-   const contact=Math.max(110,da.range+25,db.range+25);
-   return Math.hypot(a.x-b.x,a.y-b.y)<=contact;
-  }));
- };
- if(inContact(before.units)||inContact(now.units))
+ if(qaWorkerInContact(before.units,now.team)||
+  qaWorkerInContact(now.units,now.team))
   return {valid:false,reason:"combatContact"};
  return {valid:true,reason:"benignMovementAndRegen",age:+elapsed.toFixed(3)};
+}
+function qaWorkerInContact(units,team){
+ const friends=units.filter(u=>u.team===team),
+  enemies=units.filter(u=>u.team!==team);
+ return friends.some(a=>enemies.some(b=>{
+  const da=CLASSES[a.key],db=CLASSES[b.key];
+  if(!da||!db)return true; // Unknown classes fail closed.
+  if((db.flying&&!da.hitAir)&&(da.flying&&!db.hitAir))return false;
+  const contact=Math.max(110,da.range+25,db.range+25);
+  return Math.hypot(a.x-b.x,a.y-b.y)<=contact;
+ }));
+}
+// If a proposal must be vetoed for ongoing combat anyway, skip spawning
+// the expensive Worker job in the first place. QA opt-in only: normal
+// V8 strict and V9 conservative callers retain exactly their behavior.
+function qaWorkerPreflight(team,capture){
+ if(qaWorkerInContact(capture.units,team))
+  return {skip:true,reason:"combatContact"};
+ return {skip:false};
 }
 function qaWorkerSignature(team){
  // Authority stays with the host. Exact scene digest intentionally rejects
@@ -220,7 +230,7 @@ function qaWorkerPerturb(mode="benign",team=2){
 }
 function qaWorkerSubmit(team=2,spinMs=0,deadlineMs=1100,requireGate=true,mode="strict"){
  if(!qaWorker)return Promise.resolve({status:"unavailable"});
- if(!["strict","conservative"].includes(mode))
+ if(!["strict","conservative","conservativePreflight"].includes(mode))
   return Promise.resolve({status:"invalidPolicy"});
  if(!Number.isFinite(spinMs)||spinMs<0||spinMs>800||
   !Number.isFinite(deadlineMs)||deadlineMs<1||deadlineMs>3000)
@@ -229,8 +239,13 @@ function qaWorkerSubmit(team=2,spinMs=0,deadlineMs=1100,requireGate=true,mode="s
  if(gate&&!gate.eligible)return Promise.resolve({status:"gateSkip",reason:gate.reason});
  const scene=qaWorkerScene(team);
  if(!scene)return Promise.resolve({status:"notSoloBattle"});
- const signature=qaWorkerSignature(team),
-  capture=qaWorkerCapture(team),id=++qaWorkerSeq,version=id;
+ const capture=qaWorkerCapture(team);
+ if(mode==="conservativePreflight"){
+  const preflight=qaWorkerPreflight(team,capture);
+  if(preflight.skip)return Promise.resolve({status:"preflightSkip",
+   reason:preflight.reason});
+ }
+ const signature=qaWorkerSignature(team),id=++qaWorkerSeq,version=id;
  return new Promise(resolve=>{
   const start=performance.now();
   const timer=setTimeout(()=>{
