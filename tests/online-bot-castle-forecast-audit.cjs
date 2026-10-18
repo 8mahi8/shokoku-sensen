@@ -55,6 +55,14 @@ const sum=(a,f)=>a.reduce((n,x)=>n+f(x),0),
      assert.ok(w.trackedCount===w.classes.length);
      assert.ok(w.censored===!w.completed);
      assert.ok(w.hits===0||w.actual>0);
+     assert.ok(w.preThreat&&Number.isInteger(w.preThreat.eligiblePairs));
+     assert.ok(w.preThreat.eligiblePairs>=0);
+     assert.ok(w.preThreat.inFriendlyVision<=w.preThreat.contactWithin3);
+     assert.ok(w.preThreat.contactWithin3<=w.preThreat.contactWithin6);
+     assert.ok(w.preThreat.contactWithin6<=w.preThreat.eligiblePairs);
+     assert.ok(w.preThreat.vulnerableWithin3<=w.preThreat.eligiblePairs);
+     assert.ok(w.preThreat.minVisionEta===null||w.preThreat.minVisionEta>=0);
+     assert.ok(w.preThreat.minDistance===null||w.preThreat.minDistance>=0);
      assert.ok(w.activity&&Number.isFinite(w.activity.alive));
      assert.ok(w.activity.alive>=0);
      assert.ok(Math.abs(w.activity.alive-w.covered)<.025,
