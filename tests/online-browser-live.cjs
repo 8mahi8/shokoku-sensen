@@ -109,7 +109,8 @@ const deadline=async (f,label,timeout=18000)=>{
    const d=await state();
    return d?.seq>beforeFire.seq&&d.world?.elapsed>beforeFire.world.elapsed+0.15?d:null;
   },"host battle continues after barrage",15000);
-  assert.ok(firedState.world.spells,"world contains spells after barrage");
+  assert.equal(firedState.world.phase,"battle","host battle remains active after barrage");
+  // RTDB may omit empty spell arrays after impact; the receiver must still paint.
   // Without listener delivery, WebKit still paints but retains an old world.
   await delay(650);
   assert.equal(await guest.evaluate(()=>window.__onlineSeq||0),seqBefore,
