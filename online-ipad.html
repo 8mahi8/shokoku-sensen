@@ -2154,7 +2154,7 @@ function botExpertAction(team=2){
   // Guarded trial cannot reserve for a wave still many seconds away.
   const leadEta=lead?Math.max(0,Math.abs(lead.x-WALL_FACE[3-team])-
    CLASSES[lead.key].range-15)/CLASSES[lead.key].speed:Infinity;
-  const approachReady=qaPolicy!=="castleRaceBudgetGuarded"||leadEta<=12;
+  const approachReady=qaPolicy==="castleRaceBudget"||leadEta<=12;
   const supported=lead&&friends.some(u=>u.uid!==lead.uid&&u.hp>=u.max*.45&&
    Math.abs(u.x-lead.x)<230&&Math.abs(u.y-lead.y)<145);
   const nearOwnCastle=foes.some(u=>Math.abs(u.x-WALL_FACE[team])<330);
