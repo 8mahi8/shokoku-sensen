@@ -123,6 +123,21 @@ function qaWorkerFreshness(before,now,chosen,mode="strict"){
  if(chosen.id!=="wait"&&(!canPay(now.team,chosen.id)||
   !validTarget(now.team,chosen.id,chosen.x,chosen.y)))
   return {valid:false,reason:"actionIllegalNow"};
+ // Pre-hit danger: units may engage before the next damage tick. No HP
+ // change yet does NOT mean the next ~0.3 s are tactically harmless.
+ const inContact=units=>{
+  const friends=units.filter(u=>u.team===now.team);
+  const enemies=units.filter(u=>u.team!==now.team);
+  return friends.some(a=>enemies.some(b=>{
+   const da=CLASSES[a.key],db=CLASSES[b.key];
+   if(!da||!db)return true;
+   if((db.flying&&!da.hitAir)&&(da.flying&&!db.hitAir))return false;
+   const contact=Math.max(110,da.range+25,db.range+25);
+   return Math.hypot(a.x-b.x,a.y-b.y)<=contact;
+  }));
+ };
+ if(inContact(before.units)||inContact(now.units))
+  return {valid:false,reason:"combatContact"};
  return {valid:true,reason:"benignMovementAndRegen",age:+elapsed.toFixed(3)};
 }
 function qaWorkerSignature(team){
