@@ -10,7 +10,7 @@ function qaRolloutTwoStep(spec,horizon=20,seeds=[17,41,73],responses=["idle"],mo
   !Array.isArray(seeds)||seeds.length<1||seeds.length>8||
   seeds.some(n=>!Number.isInteger(n)||n<1)||
   !Array.isArray(responses)||responses.length<1||responses.length>3||
-  responses.some(p=>!["idle","fortify","counterpush"].includes(p))||
+  responses.some(p=>!["idle","fortify","counterpush","latePush"].includes(p))||
   new Set(responses).size!==responses.length||
   !["one","two"].includes(mode)||horizon<12)return null;
  const ok=window.__shokokuQa.setBotScenario({...spec,variant:"baseline"});
@@ -186,7 +186,7 @@ function qaRolloutTwoStep(spec,horizon=20,seeds=[17,41,73],responses=["idle"],mo
      // At +3s/+9s the hypothetical enemy may make a legal new
      // purchase at its own available deployment frontier. No fake
      // future units or direct manipulation of HP/energy are allowed.
-     if(response!=="idle"&&(i===90||i===270)){
+     if(response!=="idle"&&(i===270||(i===90&&response!=="latePush"))){
       const x=limit(border(other)-35,40,W-40);
       const threat=S.units.filter(u=>u.team===team&&u.hp>0)
        .sort((a,b)=>a.x-b.x)[0];
@@ -233,7 +233,7 @@ function qaRolloutTwoStep(spec,horizon=20,seeds=[17,41,73],responses=["idle"],mo
      ownOldLoss:+ownInitialLoss.toFixed(2),newSurvivor:+newUnitSurvivor.toFixed(2),
      ownFortSeconds:+ownFortSeconds.toFixed(2),
      enemyFortSeconds:+enemyFortSeconds.toFixed(2),owned,opposed,
-     spent:+(preEnergy-(preEnergy-(option.id==="wait"?0:option.cost))).toFixed(2),
+     spent:+(option.cost+(secondAction?.cost||0)).toFixed(2),
      elapsed:+(steps/30).toFixed(2)});
    }
    const valid=runs.filter(r=>!r.invalid);
