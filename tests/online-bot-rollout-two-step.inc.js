@@ -72,11 +72,14 @@ function qaRolloutTwoStep(spec,horizon=20,seeds=[17,41,73],responses=["idle"],mo
   const foes=new Map(S.units.filter(u=>u.team===other).map(u=>[u.uid,u.hp]));
   const friends=new Map(S.units.filter(u=>u.team===team).map(u=>[u.uid,u.hp]));
   let best=null;
+  // The next card gets the entire remaining search horizon (e.g. 14s
+  // after t+6 in a 20s search). A 6s sub-horizon undervalues slow capture.
+  const nextFrames=Math.round((horizon-6)*30);
   for(const action of options){
    Object.assign(S,structuredClone(state));randomState=savedRandom;botLastAction=null;
    if(action.id!=="wait"&&!botUse(team,action.id,action.x,action.y))continue;
    let ownFort=0,enemyFort=0;
-   for(let k=0;k<180&&S.phase==="battle";k++){
+   for(let k=0;k<nextFrames&&S.phase==="battle";k++){
     tick(1/30);
     for(const fort of S.forts){
      if(fort.owner===team)ownFort+=1/30;
@@ -259,7 +262,7 @@ function qaRolloutTwoStep(spec,horizon=20,seeds=[17,41,73],responses=["idle"],mo
    options:results,limits:[
     "Exact 30Hz physics + hypothetical opponent reinforcements at 3s/9s.",
     "Same frozen state and seeded streams for each initial action and response.",
-    "At 6s, a 6s 30Hz search chooses a second card from then-visible state; no response-label look-ahead.",
+    "At 6s, an exact-engine search across the remaining horizon chooses the next legal card from visible state, with no response-label look-ahead.",
     "Enemy response is up to two legal hypothetical scripted actions at 3s and 9s.",
     "Enemy hypothetical hand is a public assumption, not actual private data.",
     "Heuristic score is NOT actual winning probability.",
