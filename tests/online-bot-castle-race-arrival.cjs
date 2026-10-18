@@ -74,6 +74,10 @@ const avg=(a,f)=>a.length?sum(a,f)/a.length:null;
     assert.ok((events.raceQualified||0)>=(events.raceArrivalEvaluated||0));
     assert.ok((events.raceArrivalEvaluated||0)>=(events.raceArrivalDeployed||0));
     assert.equal(events.raceBanked||0,0);
+    assert.equal((events.raceArrivalMissingHand||0)+(events.raceArrivalUnderfunded||0),
+     events.raceArrivalNoAffordable||0);
+    assert.equal(Object.values(events.raceArrivalEnergyBuckets||{}).reduce((a,b)=>a+b,0),
+     events.raceArrivalEvaluated||0);
     assert.equal(events.raceOffense||0,events.raceArrivalDeployed||0);
     const compact=g=>({winner:g.winner,castleHp:g.castleHp,
      damage:g.damage,fortSeconds:g.fortSeconds,spent:g.spent});
@@ -84,6 +88,10 @@ const avg=(a,f)=>a.length?sum(a,f)/a.length:null;
       noAffordable:events.raceArrivalNoAffordable||0,
       tooLate:events.raceArrivalTooLate||0,
       weakFront:events.raceArrivalWeakFront||0,
+      missingHand:events.raceArrivalMissingHand||0,
+      underfunded:events.raceArrivalUnderfunded||0,
+      infantryAffordable:events.raceArrivalInfantryAffordable||0,
+      energyBuckets:events.raceArrivalEnergyBuckets||{},
       examples:events.raceArrivalSamples||[]}});
    }
   }
@@ -105,6 +113,11 @@ const avg=(a,f)=>a.length?sum(a,f)/a.length:null;
    lateOffers:sum(a,r=>r.events.tooLate),
    weakFront:sum(a,r=>r.events.weakFront),
    noAffordable:sum(a,r=>r.events.noAffordable),
+   missingHand:sum(a,r=>r.events.missingHand),
+   underfunded:sum(a,r=>r.events.underfunded),
+   infantryAffordable:sum(a,r=>r.events.infantryAffordable),
+   energyBuckets:Object.fromEntries(["under2","2to4","4to7","7plus"].map(key=>
+    [key,sum(a,r=>r.events.energyBuckets[key]||0)])),
    gamesWithQualifiedRace:a.filter(r=>r.events.qualified>0).length
   });
   const report={kind:"QA arrival aware castle race versus older damage race and fort defense",

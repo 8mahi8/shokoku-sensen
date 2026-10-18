@@ -1818,7 +1818,9 @@ function botExpertAction(team=2){
    if(qaPolicy==="castleRaceArrival"){
     const healthyPush=push.some(u=>u.hp>=u.max*.35);
     // Optimistic no-combat travel time to firing position. No hidden data.
-    const offers=["drone","archer","suppress","tank"].filter(id=>canPay(team,id))
+    const attackCards=["drone","archer","suppress","tank"];
+    const inHand=attackCards.filter(id=>availableCard(team,id));
+    const offers=attackCards.filter(id=>canPay(team,id))
      .map(id=>{
       const margin=id==="archer"||id==="suppress"?60:35;
       const x=limit(edge+dir*margin,40,W-40);
@@ -1832,10 +1834,17 @@ function botExpertAction(team=2){
      event.raceArrivalEvaluated=(event.raceArrivalEvaluated||0)+1;
      if(!healthyPush)event.raceArrivalWeakFront=(event.raceArrivalWeakFront||0)+1;
      if(!offers.length)event.raceArrivalNoAffordable=(event.raceArrivalNoAffordable||0)+1;
+     if(!inHand.length)event.raceArrivalMissingHand=(event.raceArrivalMissingHand||0)+1;
+     if(inHand.length&&!offers.length)event.raceArrivalUnderfunded=(event.raceArrivalUnderfunded||0)+1;
+     if(canPay(team,"infantry"))event.raceArrivalInfantryAffordable=(event.raceArrivalInfantryAffordable||0)+1;
+     const bucket=power<2?"under2":power<4?"2to4":power<7?"4to7":"7plus";
+     const bins=event.raceArrivalEnergyBuckets||(event.raceArrivalEnergyBuckets={});
+     bins[bucket]=(bins[bucket]||0)+1;
      if(offers.length&&!timely.length)event.raceArrivalTooLate=(event.raceArrivalTooLate||0)+1;
      const examples=event.raceArrivalSamples||(event.raceArrivalSamples=[]);
      if(examples.length<16)examples.push({at:+S.elapsed.toFixed(2),
       ownTtk:+ownTtk.toFixed(2),enemyTtk:+enemyTtk.toFixed(2),healthyPush,
+      inHand:inHand.slice(),energy:+power.toFixed(2),infantryReady:canPay(team,"infantry"),
       offers:offers.map(x=>({id:x.id,eta:+x.eta.toFixed(2)})),
       timely:timely.map(x=>x.id)});
     }
