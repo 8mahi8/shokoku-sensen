@@ -11,8 +11,11 @@ const game=fs.readFileSync(path.join(root,"online-game.js"),"utf8"),
  anchor=" window.__shokokuQa={\n",
  tickLine=' if(S.phase==="battle"&&S.seconds<=0)finishTime();';
 for(const a of [anchor,tickLine])assert.equal(game.split(a).length,2,"source marker changed "+a);
-const patched=game.replace(anchor,
- "\n"+model+"\n"+natural+"\n window.__shokokuQa={\n"+
+const tickDeclaration="function tick(dt){";
+assert.equal(game.split(tickDeclaration).length,2);
+const patched=game.replace(tickDeclaration,
+ "\n"+model+"\n"+natural+"\n"+tickDeclaration)
+ .replace(anchor," window.__shokokuQa={\n"+
  " attritionNaturalStart:qaAttritionNaturalStart,\n"+
  " attritionNaturalFinish:qaAttritionNaturalFinish,\n")
  .replace(tickLine," if(qaAttritionNatural)qaAttritionNaturalTick();\n"+tickLine);
