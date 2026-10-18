@@ -80,25 +80,6 @@ function qaGateOnDecision(team){
  if(stat.samples[key].length<8)stat.samples[key].push(sample);
  if(selected&&stat.selectedSamples.length<64)stat.selectedSamples.push(sample);
 }
-function qaGateRunDuel(seed,style,team=2){
- qaGateAudit=null;
- const control=window.__shokokuQa.runDuel(seed,style,"hard",team,
-  "standard",false,0,"baseline",false);
- const detail=x=>({
-  winner:x.winner,elapsed:x.elapsed,castleHp:x.castleHp,
-  actions:x.actions,spent:x.spent,cards:x.cards,fortSeconds:x.fortSeconds,
-  initialHand:x.initialHand,initialQueue:x.openingQueue,
-  energyActual:x.energyActual,finished:x.finished});
- qaGateAudit={cooldown:12,last:[-1e7,-1e7,-1e7],
-  tally:[null,1,2].map(t=>t?{decisions:0,eligible:0,selected:0,
-   cooldownSuppressed:0,reasons:{},forks:{},samples:{},selectedSamples:[]}:null)};
- let shadow;
- try{shadow=window.__shokokuQa.runDuel(seed,style,"hard",team,
-  "standard",false,0,"baseline",false);}
- finally{qaGateAudit=null;}
- return {seed,style,team,control:detail(control),shadow:detail(shadow),
-  gate:qaGateLastCopy()};
-}
 // Stored only as a final local QA result; no global persistent state.
 let qaGateLatest=null;
 function qaGateLastCopy(){return qaGateLatest;}
