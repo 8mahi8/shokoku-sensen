@@ -1847,6 +1847,19 @@ function botExpertAction(team=2){
  const laneY=defendY??focus?.y??fort?.y??330;
  const spawn=(id,y,margin=35)=>canPay(team,id)&&botUse(team,id,
   limit(edge+dir*margin,40,W-40),limit(y,70,H-70));
+ // QA-only: a nearby defender can hold a contested owned fort for the short
+ // time needed to fund an already-in-hand scout. Avoid a 2-cost infantry
+ // expenditure if it delays a legal 3-cost capture runner by several seconds.
+ // Never skip immediate castle defense, never infer the enemy's hidden hand.
+ const scoutHold=qaPolicy==="scoutTempoPreserve"&&S.elapsed>=18&&S.elapsed<=130&&
+  power>=2&&power<3&&availableCard(team,"scout")&&!!fort&&!!threatened&&
+  S.forts.some(f=>f.owner===team)&&!castleThreat.length&&
+  secondsUntilAffordable(power,3)<=4&&
+  !foes.some(u=>Math.abs(u.x-WALL_FACE[team])<330)&&
+  friends.some(u=>!CLASSES[u.key].capture&&u.hp>u.max*.45&&
+   Math.abs(u.x-threatened.f.x)<170&&Math.abs(u.y-threatened.f.y)<135)&&
+  getFort({team,key:"scout",x:limit(edge+dir*35,40,W-40),y:fort.y})===fort;
+ if(scoutHold&&event)event.scoutTempoOpportunities=(event.scoutTempoOpportunities||0)+1;
 
  // QA-only damage race: actual prior castle hits, not HP gap or future data.
  if(qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||(qaPolicy==="castleRaceForce"||qaPolicy==="castleRaceChoice")){
@@ -2180,7 +2193,11 @@ function botExpertAction(team=2){
   if(incoming.length>=2&&spawn("suppress",laneY,50))return true;
   if(incoming.length&&defense.length<incoming.length+1&&spawn("sentinel",laneY,35))return true;
   if(defense.length<incoming.length+1&&spawn("archer",laneY,60))return true;
-  if(defense.length<incoming.length+1&&spawn("infantry",laneY,35))return true;
+  if(defense.length<incoming.length+1){
+   if(scoutHold){
+    if(event)event.scoutTempoEmergencyDeferred=(event.scoutTempoEmergencyDeferred||0)+1;
+   }else if(spawn("infantry",laneY,35))return true;
+  }
  }
  // Skip non-emergency spending while the 4-cost counter is being prepared.
  // Real castle pressure cancels the hold on the next thought.
@@ -2439,6 +2456,12 @@ function botExpertAction(team=2){
    front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
  const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
  if(event&&needFort)event.needFort++;
+ // Only if no more important anti-air, barrage, ward, or fort-defense action
+ // has already happened this turn: delay cheap fallback until scout affordable.
+ if(scoutHold){
+  if(event)event.scoutTempoHeld=(event.scoutTempoHeld||0)+1;
+  return true;
+ }
  // QA-only: repair a demonstrated wrong-target capture coverage claim.
  // Do NOT retarget units or force the nearest fort: check real getFort
  // for each candidate spawn before spending any resources.
@@ -3781,7 +3804,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||typeof auditForecast!=="boolean"||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","captureRouteOpportunity","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","captureRouteOpportunity","scoutTempoPreserve","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
