@@ -1231,7 +1231,7 @@ const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elap
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
- S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
+ S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  // The same randomized deck on both teams preserves symmetrical card access.
@@ -1504,7 +1504,12 @@ function fire(u,target){
    notice(u.team===1?"前哨基地を確保！ 召喚ラインが前進":"敵が前哨基地を占領！");
   }
  }else if(target.kind==="capital"){
+  const priorHp=ref.hp;
   ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE*(d.siege??1));
+  if(qaBotVariants[u.team]==="castleDamageRace"||qaBotVariants[ref.team]==="castleDamageRace"){
+   qaCastleHitEvents.push({at:S.elapsed,targetTeam:ref.team,damage:priorHp-ref.hp});
+   qaCastleHitEvents=qaCastleHitEvents.filter(v=>S.elapsed-v.at<=13);
+  }
   if(ref.team===1){
    S.underAttackUntil=S.clock+3.5;
    if(S.clock-S.lastAlert>5){S.lastAlert=S.clock;notice("自軍城壁が攻撃中！ 自城ボタンで防衛を確認");}
@@ -1610,6 +1615,7 @@ let qaWindowPlans=[null,null,null];
 // QA-only deliberate concession: wait briefly instead of spending 2 energy
 // on a doomed outpost. This state is never used by the standard BOT.
 let qaConcedePlans=[null,null,null];
+let qaCastleHitEvents=[];
 function botUse(team,id,x,y){
  const accepted=playCard(team,id,x,y);
  if(accepted){
@@ -1782,6 +1788,39 @@ function botExpertAction(team=2){
  const spawn=(id,y,margin=35)=>canPay(team,id)&&botUse(team,id,
   limit(edge+dir*margin,40,W-40),limit(y,70,H-70));
 
+ // QA-only damage race: actual prior castle hits, not HP gap or future data.
+ if(qaPolicy==="castleDamageRace"){
+  if(event)event.raceChecks=(event.raceChecks||0)+1;
+  const hits=qaCastleHitEvents.filter(h=>S.elapsed-h.at<=10&&h.damage>0);
+  const incoming=hits.filter(h=>h.targetTeam===team),
+   outgoing=hits.filter(h=>h.targetTeam===3-team);
+  const taken=incoming.reduce((n,h)=>n+h.damage,0),dealt=outgoing.reduce((n,h)=>n+h.damage,0),
+   ownHp=capital(team).hp,enemyHp=capital(3-team).hp,
+   ownTtk=taken?ownHp*10/taken:Infinity,
+   enemyTtk=dealt?enemyHp*10/dealt:Infinity;
+  const sustained=arr=>arr.length>=2&&arr[arr.length-1].at-arr[0].at>=3;
+  const push=friends.filter(u=>CLASSES[u.key].behavior!=="guard"&&
+   Math.abs(u.x-WALL_FACE[3-team])<245);
+  if(sustained(incoming)&&sustained(outgoing)&&taken>=45&&dealt>=90&&
+   ownHp>250&&push.length&&enemyTtk<=30&&enemyTtk+6<ownTtk*.8&&
+   enemyTtk+8<ownTtk&&enemyTtk+4<MATCH-S.elapsed){
+   if(event){
+    event.raceQualified=(event.raceQualified||0)+1;
+    const examples=event.raceExamples||(event.raceExamples=[]);
+    if(examples.length<16)examples.push({at:S.elapsed,taken,dealt,ownHp,enemyHp,
+     ownTtk,enemyTtk});
+   }
+   const frontUnit=push.sort((a,b)=>Math.abs(a.x-WALL_FACE[3-team])-
+    Math.abs(b.x-WALL_FACE[3-team]))[0];
+   for(const id of ["tank","drone","suppress","archer","scout","infantry"])
+    if(spawn(id,frontUnit.y,id==="archer"||id==="suppress"?60:35)){
+     if(event)event.raceOffense=(event.raceOffense||0)+1;
+     return true;
+    }
+   if(event)event.raceBanked=(event.raceBanked||0)+1;
+   return true;
+  }
+ }
  // Aim the 1.3s delayed barrage where walking enemies will roughly be at impact.
  // Do not stack an expensive cast over a still-incoming allied barrage.
  const projected=u=>{
@@ -3455,7 +3494,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
@@ -3827,6 +3866,24 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   S.observedEnergy=[0,spec.enemyEnergy??8,spec.energy??8];
   qaBotVariants=[null,"baseline",spec.variant||"baseline"];
   S.hand[2]=spec.hand.slice();S.queue[2]=[];
+  // Artificial *past* hits are permitted only in localhost QA scenes.
+  if(spec.castleHp){
+   if(!Array.isArray(spec.castleHp)||spec.castleHp.length!==3||
+    ![1,2].every(t=>Number.isFinite(spec.castleHp[t])&&
+     spec.castleHp[t]>0&&spec.castleHp[t]<=START_HP))return false;
+   for(const t of [1,2])capital(t).hp=spec.castleHp[t];
+  }
+  if(spec.raceWindow){
+   const w=spec.raceWindow;
+   if(!spec.castleHp||![w.ownLoss,w.enemyLoss].every(v=>Number.isFinite(v)&&v>=0)||
+    spec.castleHp[2]+w.ownLoss>START_HP||
+    spec.castleHp[1]+w.enemyLoss>START_HP)return false;
+   qaCastleHitEvents=[];
+   for(const age of [9,5,1]){
+    qaCastleHitEvents.push({at:S.elapsed-age,targetTeam:2,damage:w.ownLoss/3});
+    qaCastleHitEvents.push({at:S.elapsed-age,targetTeam:1,damage:w.enemyLoss/3});
+   }
+  }
   if(Array.isArray(spec.fortOwners))S.forts.forEach((f,i)=>f.owner=spec.fortOwners[i]||0);
   const place=(team,u)=>{
    const d=CLASSES[u.key],x=u.x,y=u.y;
