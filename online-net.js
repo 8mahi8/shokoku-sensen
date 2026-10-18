@@ -15,6 +15,7 @@ let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=fal
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
 let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
+let qaMuteSdkSnapshots=false;
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
@@ -229,7 +230,9 @@ function setupRoom(code,isHost){
    try{await snap.ref.remove()}catch(e){setError(e)}
   });
  }else{
-  attach(room.child("state"),"value",snap=>receiveGuestWorld(snap.val()));
+  attach(room.child("state"),"value",snap=>{
+   if(!qaMuteSdkSnapshots)receiveGuestWorld(snap.val());
+  });
   attach(room.child("feedback"),"value",snap=>{
    const feedback=snap.val();
    if(feedback?.seq===commandSeq)show(feedback.message);
@@ -396,6 +399,13 @@ const api={
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;
+if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
+ window.__shokokuNetQa={
+  muteSdkSnapshots:flag=>{qaMuteSdkSnapshots=!!flag;},
+  triggerRecovery:()=>{lastRemoteAppliedAt=performance.now()-6500;lastSyncReadAt=0;checkGuestSync();},
+  stats:syncDiagnostics
+ };
+}
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
   $("netSolo").addEventListener("click",startSolo);
