@@ -75,9 +75,11 @@ const metric=(rows)=>{
 };
 
 const raceOutcome=(ep,g)=>{
- const duration=Math.max(0,g.elapsed-ep.start),ended=duration<90-1e-4;
- if(ep.firstLoss===null)return ended?"endedBeforeFortLoss":"fortNeverLost90";
- if(ep.firstRecapture!==null&&ep.firstRecapture<=Math.min(90,duration)+1e-3)
+ const duration=Math.max(0,g.elapsed-ep.start),ended=duration<90-1e-4,
+  observed=Math.min(90,duration);
+ if(ep.firstLoss===null||ep.firstLoss>observed+1e-3)
+  return ended?"endedBeforeFortLoss":"fortNeverLost90";
+ if(ep.firstRecapture!==null&&ep.firstRecapture<=observed+1e-3)
   return "recapturedBefore90";
  if(!ended)return "stillLost90";
  return g.winner===ep.team?"wonBeforeRecapture":
@@ -143,7 +145,58 @@ const raceSummary=(rows)=>{
  assert.equal(raceOutcome({...ep,firstRecapture:70},g(175,1)),"recapturedBefore90");
  assert.equal(raceOutcome({...ep,firstLoss:null},g(195,1)),"fortNeverLost90");
  assert.equal(raceOutcome({...ep,firstLoss:null},g(130,1)),"endedBeforeFortLoss");
+ assert.equal(raceOutcome({...ep,firstLoss:110},g(200,1)),"fortNeverLost90");
+ assert.equal(raceOutcome({...ep,firstLoss:110},g(160,1)),"endedBeforeFortLoss");
+ assert.equal(raceOutcome({...ep,firstRecapture:100},g(195,1)),"stillLost90");
+ assert.equal(raceOutcome({...ep,firstRecapture:80},g(140,1)),"lostBeforeRecapture");
 }
+
+
+// Comparison is descriptive. End-of-match labels are NEVER inputs to the game policy.
+const pressureAudit=rows=>{
+ const byVariant={},episodes=[];
+ for(const [key,name] of [["trade","fortTradeReclaim"],["value","fortDefenseValue"]]){
+  const items=rows.flatMap(r=>r[key+"Episodes"].map(ep=>({
+   team:r.team,seed:r.seed,style:r.style,fortIndex:ep.fortIndex,start:ep.start,
+   hpLead:ep.castleHpLeadAtPlan,
+   ownHp:ep.castleHpStart,enemyHp:ep.enemyCastleHpStart,
+   ownPressure:ep.alliedPressureAtEnemyCastle,
+   enemyPressure:ep.hostilePressureAtOwnCastle,
+   allies:ep.alliesAtPlan,hostiles:ep.hostilesAtPlan,
+   allyWallDistance:ep.nearestAlliedToEnemyWall,
+   hostileWallDistance:ep.nearestHostileToOwnWall,
+   reserve:ep.reserve,
+   outcome:raceOutcome(ep,r[key])
+  })));
+  episodes.push(...items.map(x=>({...x,variant:name})));
+  const summary=a=>({
+   count:a.length,
+   meanHpLead:avg(a,x=>x.hpLead),
+   allyPressurePresent:a.filter(x=>x.ownPressure>0).length,
+   hostilePressurePresent:a.filter(x=>x.enemyPressure>0).length,
+   bothSidesPressure:a.filter(x=>x.ownPressure>0&&x.enemyPressure>0).length,
+   ownHpLead:a.filter(x=>x.hpLead>0).length
+  });
+  byVariant[name]={overall:summary(items),byOutcome:Object.fromEntries(
+   raceLabels.map(label=>[label,summary(items.filter(x=>x.outcome===label))]))};
+ }
+ const pairs=rows.flatMap(r=>r.tradeEpisodes.flatMap(t=>{
+  const v=r.valueEpisodes.find(x=>x.fortIndex===t.fortIndex&&Math.abs(x.start-t.start)<.25);
+  if(!v)return [];
+  return [{team:r.team,seed:r.seed,fort:t.fortIndex,start:t.start,
+   sameHpLead:t.castleHpLeadAtPlan===v.castleHpLeadAtPlan,
+   samePressure:t.alliedPressureAtEnemyCastle===v.alliedPressureAtEnemyCastle&&
+    t.hostilePressureAtOwnCastle===v.hostilePressureAtOwnCastle,
+   tradeOutcome:raceOutcome(t,r.trade),valueOutcome:raceOutcome(v,r.value)}];
+ }));
+ return {purpose:"Pre-decision observable castle pressure, not a causal estimator",
+  distinctMatchedPlans:pairs.length,byVariant,pairedPlans:pairs,episodes,
+  cautions:["Outcome labels are assigned only after each game ends and never affect BOT play.",
+   "Two policies can log the same world state, so 44 records are not 44 independent situations.",
+   "Presence within 300px is a descriptive pressure proxy, not a predicted win.",
+   "No policy is selected or optimized using this small known-seed sample.",
+   "All results use the existing six research seeds, not holdouts."]};
+};
 
 (async()=>{
  let browser;
@@ -187,6 +240,13 @@ const raceSummary=(rows)=>{
      assert.ok(e.engineerRecaptureFloorSeconds>=e.waitForFourSeconds+
       e.engineerCaptureFloorSeconds-.002);
      assert.ok(e.timeLeftAtPlanSeconds>=0&&e.timeLeftAtPlanSeconds<=300);
+     assert.equal(e.castleHpLeadAtPlan,e.castleHpStart-e.enemyCastleHpStart);
+     assert.ok(Number.isInteger(e.alliedPressureAtEnemyCastle));
+     assert.ok(Number.isInteger(e.hostilePressureAtOwnCastle));
+     assert.ok(e.alliedPressureAtEnemyCastle>=0&&e.alliedPressureAtEnemyCastle<=e.alliesAtPlan);
+     assert.ok(e.hostilePressureAtOwnCastle>=0&&e.hostilePressureAtOwnCastle<=e.hostilesAtPlan);
+     assert.ok(e.nearestAlliedToEnemyWall===null||e.nearestAlliedToEnemyWall>=0);
+     assert.ok(e.nearestHostileToOwnWall===null||e.nearestHostileToOwnWall>=0);
      assert.ok(e.fortControl15>=0&&e.fortControl15<=15.1);
      assert.ok(e.fortControl30>=0&&e.fortControl30<=30.1);
      assert.ok(e.fortControl60>=0&&e.fortControl60<=60.1);
@@ -243,6 +303,9 @@ const raceSummary=(rows)=>{
     "All six seeds were previously explored; independent holdout untouched.",
     "Primary objective is castle survival, followed by actionable fort control and attack tempo.",
     "No change was made to the live standard BOT, combat rules, or main branch."]};
+  const pressure=pressureAudit(rows);
+  fs.writeFileSync(path.join(out,"pressure-audit.json"),JSON.stringify(pressure,null,2));
+  console.log("FORT PRESSURE AUDIT",JSON.stringify({...pressure,episodes:"in artifact",pairedPlans:"in artifact"}));
   const race=raceSummary(rows);
   fs.writeFileSync(path.join(out,"recapture-race.json"),JSON.stringify(race,null,2));
   console.log("FORT RECAPTURE RACE",JSON.stringify({...race,pairedEpisodes:"in artifact"}));

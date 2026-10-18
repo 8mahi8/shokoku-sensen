@@ -2002,6 +2002,17 @@ function botExpertAction(team=2){
       fastAttackersStart:attackers.filter(u=>CLASSES[u.key].speed>=30).length,
       enemiesStart:foes.length,castleHpStart:capital(team).hp,
       enemyCastleHpStart:capital(3-team).hp,
+      // QA-only and pre-action: no future events and never read by the policy.
+      castleHpLeadAtPlan:capital(team).hp-capital(3-team).hp,
+      alliesAtPlan:friends.length,hostilesAtPlan:foes.length,
+      alliedPressureAtEnemyCastle:friends.filter(u=>
+       Math.abs(u.x-WALL_FACE[3-team])<=300&&CLASSES[u.key].behavior!=="guard").length,
+      hostilePressureAtOwnCastle:foes.filter(u=>
+       Math.abs(u.x-WALL_FACE[team])<=300).length,
+      nearestAlliedToEnemyWall:friends.length
+       ?Math.min(...friends.map(u=>Math.abs(u.x-WALL_FACE[3-team]))):null,
+      nearestHostileToOwnWall:foes.length
+       ?Math.min(...foes.map(u=>Math.abs(u.x-WALL_FACE[team]))):null,
       fortControl15:0,fortControl30:0,fortControl60:0,fortControl90:0,
       castleDamage15:null,castleDamage30:null,castleDamage60:null,castleDamage90:null,
       enemyCastleDamage15:null,enemyCastleDamage30:null,
