@@ -68,8 +68,8 @@ const scenes=[
    }
    const again=await search(scene.spec,20,[17,41,73]);
    assert.deepEqual(first,again,"seeded fixed-scene search repeatable");
-   const expected={ground-raiders:"sentinel",air-threat:"archer",
-    armored-raider:"guardian"};
+   const expected={"ground-raiders":"sentinel","air-threat":"archer",
+    "armored-raider":"guardian"};
    if(expected[scene.name]){
     assert.equal(first.best.id,expected[scene.name],
      "simple concrete defensive scenarios must be correctly recognized");
