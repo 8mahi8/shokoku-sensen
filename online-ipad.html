@@ -3841,6 +3841,7 @@ function samplePerf(now,drawMs){
   isHost?"相手との接続 "+(n.connected?"有効":"切断"):
    "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
   isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
   n.error?"同期エラー "+String(n.error).slice(0,48):
    "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
  perfPanel.textContent=lines.join("\n");
@@ -3873,13 +3874,22 @@ function start(){
   },
   apply:(data,seq)=>{
    if(NET.isHost||!data||!(seq>(window.__onlineSeq||0)))return;
-   window.__onlineSeq=seq;
    const was=S.phase,localClock=S.clock;
    const oldSelected=S.selected,oldCam=S.cam;
-   for(const field of ["prep","seconds","elapsed","clock","energy","left","hand","queue",
-    "units","forts","capitals","spells","effects","projectiles","deaths","uid","speed"]){
-    if(data[field]!==undefined)S[field]=data[field];
+   for(const field of ["prep","seconds","elapsed","clock","energy","left",
+    "forts","capitals","uid","speed"]){
+    if(data[field]!==undefined&&data[field]!==null)S[field]=data[field];
    }
+   // RTDB drops empty arrays and can turn numeric-indexed arrays into maps.
+   // Never let a missing spell/animation list kill the guest's rAF loop.
+   const list=value=>Array.isArray(value)?value:
+    value&&typeof value==="object"?Object.keys(value)
+     .sort((a,b)=>Number(a)-Number(b)).map(key=>value[key]):[];
+   for(const field of ["units","effects","projectiles","deaths"])
+    S[field]=list(data[field]);
+   S.spells={incoming:list(data.spells?.incoming),zones:list(data.spells?.zones)};
+   S.hand=[null,list(data.hand?.[1]),list(data.hand?.[2])];
+   S.queue=[null,list(data.queue?.[1]),list(data.queue?.[2])];
    if(data.phase==="prep"||data.phase==="battle"){
     S.phase=data.phase;
     if(NET.guestBot&&data.phase==="battle"&&was!=="battle")S.botThink=3;
@@ -3912,6 +3922,7 @@ function start(){
    if(sig!==window.__onlineHandSig){window.__onlineHandSig=sig;buildCards();}
    // Frame loop handles normal HUD refresh; avoid extra DOM layout for each packet.
    if(was!==S.phase)updateHUD();
+   window.__onlineSeq=seq; // Commit only after successful application.
   }
  });
  // Refresh card and gallery portraits once the high-quality Gald atlas is built.
@@ -3963,8 +3974,9 @@ function start(){
    S.selected=Number(e.key)===1?"infantry":S.hand[ME()][Number(e.key)-2]||null;buildCards();
   }
  });
- let previous=performance.now(),acc=0;
+ let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
  function frame(now){
+  try{
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   S.clock+=delta;
@@ -3994,14 +4006,20 @@ function start(){
   S.hudTick+=delta;
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
-  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30){
-   requestAnimationFrame(frame);return;
-  }
+  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
   guestLastPaint=now;
   const paintStart=perfPanel?performance.now():0;
   draw();
   if(perfPanel)samplePerf(now,performance.now()-paintStart);
-  requestAnimationFrame(frame);
+  }catch(error){
+   // The interaction layer may remain alive after a Canvas exception.
+   // A failed draw must NEVER permanently stop future game frames.
+   window.__onlineFrameError=String(error?.message||error);
+   if(now-lastFrameErrorAt>2500){
+    lastFrameErrorAt=now;
+    console.warn("Online frame recovered after exception:",error);
+   }
+  }finally{requestAnimationFrame(frame)}
  }
  requestAnimationFrame(frame);
 }
