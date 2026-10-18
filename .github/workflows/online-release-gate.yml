@@ -1,4 +1,5 @@
 name: Online release quality gate
+# Branch-only dry run of all 3 release jobs. Do not merge this validation marker.
 on:
   pull_request:
     branches: [main, develop]
