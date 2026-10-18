@@ -76,10 +76,13 @@ const deadline=async (f,label,timeout=18000)=>{
   assert.equal(await botToggle.getAttribute("aria-pressed"),"false");
   const manualCount=packet.world.units.filter(u=>u.team===2).length;
   await summon(guest,2);
-  await deadline(async()=>{
-   const state=await (await fetch(stateURL)).json();
-   return state.world?.units?.filter(u=>u.team===2).length>manualCount;
+  const afterManual=await deadline(async()=>{
+   const current=await state();
+   return current?.world?.units?.filter(u=>u.team===2).length>manualCount?current:null;
   },"manual guest control after BOT off",18000);
+  // Firebase having state is not enough: the WebKit receiver must apply it.
+  await deadline(async()=>(await guest.evaluate(()=>window.__onlineSeq||0))>=afterManual.seq,
+   "WebKit guest receives and applies manual guest summon",18000);
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
   console.log("PASS: Chromium host + WebKit iPad inline guest, real Firebase BOT auto-ready, auto-deploy, manual override and sync in room "+code);
  }finally{
