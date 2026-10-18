@@ -1,0 +1,185 @@
+"use strict";
+// Source-injected only on localhost QA pages by online-bot-rollout-search.cjs.
+// Exact 30Hz physics, real legal card purchases; no speculative "AI" endpoint.
+// v2 stress-tests three distinct legal hypothetical enemy responses.
+// Enemy response branches are public *hypothetical* policies. Their common
+// hand is injected from a published roster, never read from the live enemy.
+function qaRolloutSearch(spec,horizon=20,seeds=[17,41,73],responses=["idle"]){
+ if(!NET.isSolo||!spec||!Array.isArray(spec.hand)||!Array.isArray(spec.enemies)||
+  !Number.isFinite(horizon)||horizon<4||horizon>35||
+  !Array.isArray(seeds)||seeds.length<1||seeds.length>8||
+  seeds.some(n=>!Number.isInteger(n)||n<1)||
+  !Array.isArray(responses)||responses.length<1||responses.length>3||
+  responses.some(p=>!["idle","fortify","counterpush"].includes(p))||
+  new Set(responses).size!==responses.length)return null;
+ const ok=window.__shokokuQa.setBotScenario({...spec,variant:"baseline"});
+ if(!ok)return null;
+ const team=2,other=1,initial=structuredClone(S);
+ const oldRandom=Math.random,oldDuel=duelStats,oldVariants=qaBotVariants,
+  oldAction=botLastAction,oldPlans=[qaSiegePlans,qaWindowPlans,qaConcedePlans,
+   qaRaceBudgetPlans,qaCastleHitEvents];
+ const reset=()=>{
+  Object.assign(S,structuredClone(initial));
+  qaBotVariants=[null,"baseline","baseline"];
+  qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];
+  qaConcedePlans=[null,null,null];qaRaceBudgetPlans=[null,null,null];
+  qaCastleHitEvents=[];duelStats=null;botLastAction=null;
+  S.botThink=1000000;
+ };
+ const seedRng=n=>{
+  let state=(n>>>0)||1;
+  Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;
+   return state/4294967296;};
+ };
+ try{
+  const edge=border(team),x=limit(edge+35,40,W-40);
+  const target=S.forts.filter(f=>f.owner!==team)
+   .sort((a,b)=>b.x-a.x)[0];
+  const threat=S.units.filter(u=>u.team!==team&&u.hp>0)
+   .sort((a,b)=>b.x-a.x)[0];
+  const objectiveY=target?.y??330, threatY=threat?.y??objectiveY;
+  const choices=[{id:"wait",x:null,y:null,cost:0}];
+  const legalIds=["infantry",...S.hand[team]].filter(id=>CLASSES[id]&&canPay(team,id));
+  for(const id of new Set(legalIds)){
+   const primaryY=id==="scout"||id==="engineer"||id==="tank"?
+    objectiveY:threatY;
+   const locations=[{x,y:primaryY,role:"forward"}];
+   if(threat&&target&&Math.abs(threatY-objectiveY)>115)
+    locations.push({x,y:objectiveY,role:"objective"});
+   // Prevent a failure mode of greedy lane spawn: a guard dropped BEHIND
+   // fast hostile raiders may never engage before they reach the castle.
+   // Include one legal interception placement closer to the threatened wall.
+   if(threat&&["infantry","archer","sentinel","suppress","guardian"].includes(id)){
+    const interceptX=limit(threat.x+(team===2?75:-75),40,W-40);
+    if(canPlace(team,interceptX,threatY))
+     locations.push({x:interceptX,y:threatY,role:"intercept"});
+   }
+   const unique=new Set();
+   for(const point of locations){
+    if(!canPlace(team,point.x,point.y))continue;
+    const key=point.x+","+point.y;
+    if(unique.has(key))continue;unique.add(key);
+    choices.push({id,x:point.x,y:point.y,role:point.role,cost:CLASSES[id].cost});
+   }
+  }
+  // Reference only: what the existing BOT would actually do on this scene.
+  reset();seedRng(seeds[0]);botExpertAction(team);
+  const legacy=botLastAction?{id:botLastAction.id,x:botLastAction.x,
+   y:botLastAction.y,cost:CATALOG[botLastAction.id].cost}:
+   {id:"wait",x:null,y:null,cost:0};
+  // Compare the reference action under the same fixed simulator. It may be
+  // a spell, unlike the v0 candidate search (ground/air units only).
+  if(legacy.id!=="wait"&&!choices.some(c=>c.id===legacy.id&&
+   c.x===legacy.x&&c.y===legacy.y))choices.push({...legacy,legacyOnly:true});
+  const results=[];
+  for(const option of choices){
+   const runs=[];
+   for(const response of responses)for(const seed of seeds){
+    reset();seedRng(seed);
+    // All options face exactly the same hypothetical enemy hand and
+    // available energy. This is NOT the opponent's actual hidden hand.
+    S.hand[other]=["scout","engineer","archer","sentinel"];
+    S.queue[other]=[];
+    const startingOwn=capital(team).hp,startingEnemy=capital(other).hp,
+     ownOldHP=new Map(S.units.filter(u=>u.team===team).map(u=>[u.uid,u.hp])),
+     enemyOldHP=new Map(S.units.filter(u=>u.team===other).map(u=>[u.uid,u.hp]));
+    const preEnergy=S.energy[team];
+    let success=true;
+    if(option.id!=="wait"){
+     // Real validation, hand use, cost, card cycling and placement.
+     success=botUse(team,option.id,option.x,option.y);
+    }
+    if(!success){runs.push({invalid:true});continue;}
+    let ownFortSeconds=0,enemyFortSeconds=0,steps=0;
+    let responsePlays=0;
+    const frames=Math.round(horizon*30);
+    for(let i=0;i<frames&&S.phase==="battle";i++){
+     // At +3s/+9s the hypothetical enemy may make a legal new
+     // purchase at its own available deployment frontier. No fake
+     // future units or direct manipulation of HP/energy are allowed.
+     if(response!=="idle"&&(i===90||i===270)){
+      const x=limit(border(other)-35,40,W-40);
+      const threat=S.units.filter(u=>u.team===team&&u.hp>0)
+       .sort((a,b)=>a.x-b.x)[0];
+      const y=limit(threat?.y??(i===90?205:444),70,H-70);
+      const offers=response==="fortify"
+       ?(i===90?["sentinel","archer","infantry"]:["archer","infantry"])
+       :(i===90?["scout","engineer","infantry"]:["engineer","scout","infantry"]);
+      for(const id of offers){
+       if(canPay(other,id)&&playCard(other,id,x,y)){
+        responsePlays++;break;
+       }
+      }
+     }
+     tick(1/30);steps++;
+     for(const f of S.forts){
+      if(f.owner===team)ownFortSeconds+=1/30;
+      else if(f.owner===other)enemyFortSeconds+=1/30;
+     }
+    }
+    const ownDamage=Math.max(0,startingOwn-capital(team).hp),
+     enemyCastleDamage=Math.max(0,startingEnemy-capital(other).hp);
+    const enemyUnitDamage=[...enemyOldHP].reduce((v,[uid,hp])=>{
+     const current=S.units.find(u=>u.uid===uid);
+     return v+Math.max(0,hp-(current?.hp??0));
+    },0);
+    const ownInitialLoss=[...ownOldHP].reduce((v,[uid,hp])=>{
+     const current=S.units.find(u=>u.uid===uid);
+     return v+Math.max(0,hp-(current?.hp??0));
+    },0);
+    const newUnitSurvivor=S.units.filter(u=>u.team===team&&!ownOldHP.has(u.uid))
+     .reduce((n,u)=>n+Math.max(0,u.hp),0);
+    const owned=S.forts.filter(f=>f.owner===team).length,
+     opposed=S.forts.filter(f=>f.owner===other).length;
+    // Frozen v0 weights, NOT tuned to held-out wins; no look-ahead cheats.
+    const score=1.4*(enemyCastleDamage-ownDamage)+
+      .32*enemyUnitDamage-.30*ownInitialLoss+
+      8*(ownFortSeconds-enemyFortSeconds)+
+      22*(owned-opposed)+.03*newUnitSurvivor-
+      12*option.cost;
+    runs.push({seed,response,responsePlays,score:+score.toFixed(3),ownDamage:+ownDamage.toFixed(2),
+     enemyCastleDamage:+enemyCastleDamage.toFixed(2),
+     enemyUnitDamage:+enemyUnitDamage.toFixed(2),
+     ownOldLoss:+ownInitialLoss.toFixed(2),newSurvivor:+newUnitSurvivor.toFixed(2),
+     ownFortSeconds:+ownFortSeconds.toFixed(2),
+     enemyFortSeconds:+enemyFortSeconds.toFixed(2),owned,opposed,
+     spent:+(preEnergy-(preEnergy-(option.id==="wait"?0:option.cost))).toFixed(2),
+     elapsed:+(steps/30).toFixed(2)});
+   }
+   const valid=runs.filter(r=>!r.invalid);
+   if(!valid.length)continue;
+   const responseMeans=Object.fromEntries(responses.map(p=>{
+    const subset=valid.filter(r=>r.response===p);
+    return [p,subset.length
+     ?+(subset.reduce((v,r)=>v+r.score,0)/subset.length).toFixed(3)
+     :null];
+   }));
+   const vals=Object.values(responseMeans).filter(v=>v!==null);
+   const conservativeScore=Math.min(...vals);
+   results.push({...option,runs,responseMeans,
+    conservativeScore:+conservativeScore.toFixed(3),
+    meanScore:+(valid.reduce((v,r)=>v+r.score,0)/valid.length).toFixed(3)});
+  }
+  // Maximize the WORST response branch, then expected score among modeled
+  // branches. This guards against one favorable future dominating a choice.
+  results.sort((a,b)=>b.conservativeScore-a.conservativeScore||
+   b.meanScore-a.meanScore||
+   a.cost-b.cost||a.id.localeCompare(b.id)||a.y-b.y);
+  const old=results.find(r=>r.id===legacy.id&&r.x===legacy.x&&r.y===legacy.y);
+  return {horizon,seeds,responses,legacy,best:results[0]||null,
+   legacyScore:old?.meanScore??null,
+   legacyConservativeScore:old?.conservativeScore??null,
+   options:results,limits:[
+    "Exact 30Hz physics + hypothetical opponent reinforcements at 3s/9s.",
+    "Same frozen state and seeded streams for each initial action and response.",
+    "Own candidate is ONE action + wait; enemy response is up to two legal scripted actions.",
+    "Enemy hypothetical hand is a public assumption, not actual private data.",
+    "Heuristic score is NOT actual winning probability.",
+    "Offline fixed-scene proof of concept; not deployed as regular BOT."]};
+ }finally{
+  Object.assign(S,initial);
+  Math.random=oldRandom;duelStats=oldDuel;qaBotVariants=oldVariants;
+  botLastAction=oldAction;
+  [qaSiegePlans,qaWindowPlans,qaConcedePlans,qaRaceBudgetPlans,qaCastleHitEvents]=oldPlans;
+ }
+}
