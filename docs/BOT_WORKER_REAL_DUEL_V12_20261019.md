@@ -1,0 +1,65 @@
+# 小国戦線III｜V12 Worker実試合シャドー計測・完全試合ゲート頻度（2026-10-19）
+
+## 総括
+
+**公開mainや通常オンライン対戦は未変更**。研究用`develop`ブランチ内の自動QAに、実際の2軍BOTが既存のカード／資源／兵士・砦・城の物理コードを使用する試合を追加した。
+
+これまでの作為的な12局面の試験では、Workerを安全に使える頻度を高めに見積もる恐れがあった。今回は、戦術分岐そのものが実戦でどれだけ発生するかをまず測った。
+
+**12完全試合×両条件再現：対戦側BOTの意思決定1,279回中、探索候補73回（5.71%）、うち現在の保守的な接敵preflightで54回が除外。最終的にWorkerへ送信できそうな判断は19回（全判断の1.49%）。** ただし実際のWorker送信19回に成功したわけではない。別の実時間シャドー試験ではWorkerの返答がどれくらい生き残るかを測る。
+
+## 実装
+
+- `tests/online-bot-worker-real-duel.inc.js`：localhost QAでゲームと同じスコープに一時注入するシード固定のBOT対BOTコントローラー。両チームに同じ既存の`botExpertAction(team)`を使わせ、既存の30Hz `tick`／`unitStep`／`playCard`を再使用する。試験用ソースにしか存在せず、通常の`online-game.js`は変更しない。
+- `tests/online-bot-worker-real-duel.cjs`：同じseed/時間からWorkerなし・ありを再現し、戦況・カード・エネルギー・城HP・経過時間・BOT判断数が変わらないことを照合。30/105/190秒の通過点まで正規の戦闘を高速再現し、その後の10秒の観測区間では**ブラウザ本来のrequestAnimationFrame／30Hz**で並行Workerを動作させた。
+- `tests/online-bot-worker-full-match.cjs`：完全試合を12seedで**観測なし/ありの24試合**シード再現。戦術判断のたびに`qaGateAssess`と`qaWorkerPreflight`の結果を記録。これは高速化した`tick`を使う試験であり、**Workerのレスポンス実測ではない**。
+- `tests/online-bot-worker-targeted-replay.cjs`：完全試合の自然発生した非接敵候補時刻を使って、意図的にその前後の戦闘を実時間で再生する試験（全戦況に対する代表サンプルではない）。本体のBOT行動は変更しない。
+- 各GitHub ActionsはJSON計測成果物を保存する。
+
+## 外部資料と実装設計に関する示唆
+
+1. [MDN Page Visibility API](https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API)：ブラウザーは隠れたタブ・`iframe`で`requestAnimationFrame`やタイマーを停止・間引くことがある。今回の可視Chromium検証だけで学校iPad・Google Sites埋込の動作保証にはならない。非表示時は探索を起動しない、本体BOTにすぐ戻る方針。
+2. [OpenRA-RL・非同期ゲーム環境の観測配送](https://huggingface.co/blog/jadetan/openra-rl)：25Hzで進むRTSと遅いAIを並行させる実装では、遅延した観測を大量にキューへためず、最新観測を優先する有限キューを紹介している。**これは非査読の開発記事であり、本作にそのコードをコピーしたわけではない**。今後のWorker inflight数制限／不要な再計算の省略に参考。
+3. [Orkin, Agent Architecture Considerations for Real-Time Planning in Games (AIIDE 2005)](https://doi.org/10.1609/aiide.v1i1.18724)：リアルタイムの計画CPU時間を戦闘物理・描画と共存させる設計への示唆。
+4. [Stanescu et al., Hierarchical Adversarial Search Applied to Real-Time Strategy Games (AIIDE 2014)](https://doi.org/10.1609/aiide.v10i1.12714)：RTSの探索を階層化し実行制約に収める発想。本ゲームの城ダメージレースや砦放棄戦術への適用は独立検証が必要。
+5. [Balduccini et al., Planning in RTS Games with Incomplete Action Definitions (AIIDE 2015)](https://doi.org/10.1609/aiide.v11i2.12812)：実際の状態遷移を近似する前向きモデルが難しいことの確認。Worker側の軽い役割モデルを正しい戦闘シミュレーションと同一視しない。
+
+## 12完全試合で観測した指標
+
+[完全試合QA Actions #39140085348](https://github.com/8mahi8/shokoku-sensen/actions/runs/39140085348) **SUCCESS**（別ブランチ・対戦UI書込みなし）。
+
+| 変数 | 実測 |
+|---|---:|
+| seed数 | 12 |
+| 実際のBOTの判断（team2側） | 1,279 |
+| ゲート候補 | 73 (5.71%) |
+| 接敵のためにpreflightでWorker起動除外 | 54 (ゲート候補の73.97%) |
+| Workerへ送る余地がある判断 | **19 (全判断の1.49%)** |
+| 資源不足でゲート除外 | 698 |
+| 他に合法な選択肢が乏しくゲート除外 | 422 |
+| 明確な戦術分岐がなくゲート除外 | 84 |
+| 城への緊急接近で除外 | 2 |
+| 190ゲーム秒前に対戦終了 | 9/12試合 |
+
+結果の確からしさ：**すべてのseedで「観測しない対戦」と「読み取りだけ観測する対戦」の最終状態とBOTの判断数が一致**。ただしBOT vs BOTの特定12seed/既存hard難易度での割合であり、人間のオンライン対戦、全デッキ、すべての戦術に拡張はできない。オンラインではWorkerは介入させていない。
+
+## 30Hz・可視ブラウザの実リアルタイムシャドー
+
+[実時間の既存BOT A/B Actions #39139722316](https://github.com/8mahi8/shokoku-sensen/actions/runs/39139722316) **SUCCESS**。
+
+- チェックポイントへは正規シード戦闘を高速再現し、その後10秒は実時間30Hzに戻す。2seed×3チェックポイントを試行したが、途中で決着した区間を除外し、**4組**を比較できた。
+- 観測区間の戦況チェック116回、ゲート該当6回、Worker試験4回。3回は接敵preflightスキップ、残る1回は**短いWorkerの提案を再検査後受理**。
+- 計測あり・なしの対応する4区間で戦闘状態とBOTの選択タイミングが一致。つまりWorkerシャドーはゲーム本体へ行動を返していない。
+- これは「4件中1件の提案が安全に受理された」という限定的結果であり「BOT勝率25%向上」ではない。また実戦BOTがWorkerを待つために手番を遅らせた場合の結果もまだ検証していない。
+
+## 今回の設計判断
+
+**Workerの計算は1回あたりの負荷だけではなく、効果が発揮される局面の希少さが障壁**。現在の安全ルールを守ると、完全試合の全判断中でWorkerを依頼できそうな機会は1.49%しかない。闇雲に二手探索を重くするよりも、低遅延の既存BOTの改善と、適切な戦術分岐への事前適用の効果を先に試す価値がある。
+
+研究用V11のpreflightは維持。通常BOTのWorker本番化は**保留**、公開mainへの統合はなし。より多様な相手、実機SafariとGoogle Sites embed、戦況ごとの遅延/電池/CPU、先手後手の勝率A/Bが必要。
+
+## 次の検証
+
+- 戦術分岐が実戦で自然発生した瞬間の直前へリプレイを同期させ、**有望な局面だけでWorker提案が時間内に使えるか**を確認。ただし局面を選んだ試験の成功率を一般的な使用可能率と混同しない。
+- 接敵中は旧BOTのリアルタイム戦術が強さを左右する。砦を捨て資源を温存する判断、城へのダメージレースに勝つ判断などは、短い反応型ヒューリスティックでも改善できるか、明示的な効果・失敗条件付きで検証する。
+- Worker成果をユーザー入力/オンライン対戦に混ぜない。役割が異なる二種類の戦闘（自動相手、オンラインPvP）を安全に分離する。
