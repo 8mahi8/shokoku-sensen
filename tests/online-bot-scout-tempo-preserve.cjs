@@ -29,7 +29,7 @@ const sum=(xs,f)=>xs.reduce((s,x)=>s+f(x),0),
   await page.waitForFunction(()=>window.__shokokuQa?.snapshot().phase==="prep");
   const fixture={difficulty:"hard",elapsed:75,energy:2.5,enemyEnergy:5,
    hand:["scout","tank","engineer","ward"],fortOwners:[0,0,2],
-   enemies:[{key:"scout",x:860,y:205}],
+   enemies:[{key:"scout",x:800,y:205}],
    allies:[{key:"sentinel",x:840,y:205}]};
   const setup=(variant,extra={})=>page.evaluate(x=>{
    if(!window.__shokokuQa.setBotScenario({...x.fixture,...x.extra,variant:x.variant}))
