@@ -130,7 +130,7 @@ function qaWorkerSignature(team){
  // any move, hand rotation, enemy change, fort change or energy regen.
  return JSON.stringify([S.phase,+(S.elapsed).toFixed(3),
   +(S.energy[team]).toFixed(3),S.hand[team],S.queue[team],S.left[team],
-  S.forts.map(f=>[f.owner,f.hp]),
+  S.forts.map(f=>[f.owner,f.hp]),JSON.stringify(S.spells),
   S.units.filter(u=>u.hp>0).map(u=>[u.uid,u.team,u.key,
    +u.x.toFixed(2),+u.y.toFixed(2),+u.hp.toFixed(2)]),
   S.capitals.map(c=>+c.hp.toFixed(2))]);
