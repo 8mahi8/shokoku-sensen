@@ -19,6 +19,19 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #headerButtons{display:flex;gap:6px}.topButton{background:#1d3543;border:1px solid #527987;border-radius:9px;padding:9px 10px;font-size:11px;font-weight:800;white-space:nowrap}
 #fieldArea{position:relative;flex:1;min-height:0;background:#142629;overflow:hidden}
 #field{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+/* Readable objectives, compact enough to avoid the center event banner. */
+#fortNav{position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:5px;z-index:3;padding:5px 6px;background:#0b242ee8;border:1px solid #617d89a3;border-radius:11px;box-shadow:0 3px 12px #08192266}
+#fortNav[hidden]{display:none}
+#fortSummary{font-size:10px;font-weight:900;color:#c6dce2;white-space:nowrap;padding:0 6px 0 1px}
+#fortNav button{min-height:35px;min-width:53px;padding:3px 5px;border:1px solid #8c9d97;background:#37443f;border-radius:7px;display:flex;flex-direction:column;justify-content:center;gap:2px;align-items:center}
+#fortNav button .fortName{font-size:10px;font-weight:900;line-height:1}
+#fortNav button .fortState{font-size:9px;font-weight:800;line-height:1;color:#f5deb0}
+#fortNav button.owner-blue{border-color:#69cbe7;background:#194658}
+#fortNav button.owner-red{border-color:#ef8699;background:#60303e}
+#fortNav button.contested{outline:2px solid #ffe5a4;outline-offset:0}
+#fortNav button.under-pressure .fortState{color:#ffe6a4}
+#fortNav button:focus-visible{outline:2px solid #fff0a5;outline-offset:2px}
+@media(max-width:710px){#fortNav{top:6px;left:5px;gap:3px;padding:4px}#fortSummary{font-size:8px;padding-right:2px}#fortNav button{min-width:41px;min-height:33px;padding:2px 3px}#fortNav button .fortName{font-size:9px}#fortNav button .fortState{font-size:8px}}
 #cameraNav{position:absolute;right:10px;bottom:10px;display:flex;gap:7px;z-index:3}
 .cameraButton{border:1px solid #92b8bca6;background:#132e39e9;min-width:60px;min-height:37px;border-radius:9px;padding:7px 10px;color:#edf7ee;font-size:11px;font-weight:900;box-shadow:0 3px 9px #07151a66}
 .cameraButton:active{transform:translateY(1px);background:#30566a}
@@ -216,6 +229,13 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #difficulties,#speed,#pause{display:none!important}
 body.soloMode #difficulties{display:flex!important}
 #netSolo{background:linear-gradient(100deg,#56744b,#2a625c);border-color:#acd18e}
+.netPractice{margin:12px 0 6px;padding:10px;background:#0c2530;border:1px solid #476d78;border-radius:12px;display:flex;flex-direction:column;gap:8px}
+.netPracticeHeading{font-weight:800;color:#d7e9e2;font-size:12px}
+#netSoloLevels{display:flex;gap:8px;justify-content:center}
+#netSoloLevels button{flex:1;border:1px solid #5b8390;border-radius:9px;padding:9px 5px;background:#1b3a46;color:#cee2eb;font-size:12px;font-weight:800;min-height:40px}
+#netSoloLevels button.selected{background:#476e45;color:#fcffe5;border-color:#c5e78b;box-shadow:inset 0 0 0 1px #a5cf84}
+.netPractice #netSolo{min-height:45px;border-radius:9px;padding:11px;font-weight:900;color:white;border:1px solid #92c4a5}
+@media(max-height:500px){.netPractice{margin:5px 0;padding:6px;gap:5px}#netSoloLevels button{min-height:32px;padding:5px}#onlineDialog{padding:10px}}
 #netGuestBot[aria-pressed="true"],#guestBotLive[aria-pressed="true"]{background:#1c6b52;border-color:#9cf5a8;color:white}
 #guestBotLive{position:fixed;right:9px;top:69px;z-index:26;border-radius:9px;padding:7px 11px;font-size:11px;
  font-weight:800;background:#1c3543;border:1px solid #82b3c8;color:#e9f9ff;touch-action:manipulation}
@@ -234,6 +254,12 @@ body.soloMode #difficulties{display:flex!important}
 <div id="headerButtons"><button class="topButton" id="galleryButton" aria-label="部隊図鑑を開く">✧ 図鑑</button><button class="topButton" id="speed">速度 0.85×</button><button class="topButton" id="pause">Ⅱ 停止</button></div>
 </header>
 <main id="fieldArea">
+<nav id="fortNav" aria-label="前哨基地の状況と移動" hidden>
+<div id="fortSummary" aria-live="off">基地 青0・赤0</div>
+<button type="button" data-fort="0" aria-label="第1前哨基地を見る"><span class="fortName">第1</span><span class="fortState">中立</span></button>
+<button type="button" data-fort="1" aria-label="第2前哨基地を見る"><span class="fortName">第2</span><span class="fortState">中立</span></button>
+<button type="button" data-fort="2" aria-label="第3前哨基地を見る"><span class="fortName">第3</span><span class="fortState">中立</span></button>
+</nav>
 <canvas id="field" aria-label="横スクロールできる戦場。タップで召喚・スペル発動、スワイプで戦場を移動できます。"></canvas>
 <div id="cameraNav"><button type="button" id="homeCam" class="cameraButton" aria-label="自軍の城壁を見る">⌂ 自城</button><button type="button" id="frontCam" class="cameraButton" aria-label="戦闘中の前線を見る">⌖ 前線</button></div>
 <div id="announcement" aria-live="polite"></div>
@@ -309,7 +335,15 @@ body.soloMode #difficulties{display:flex!important}
   <div class="netControls"><input id="netJoinCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="5桁のルーム番号"><button id="netJoin">ルームに参加</button></div>
   <div class="netControls"><button id="netReady" disabled>準備完了</button><button id="netStart" hidden disabled>対戦スタート</button></div>
    <div class="netControls"><button id="netGuestBot" type="button" hidden aria-pressed="false">この参加端末をBOT操作</button></div>
-   <div class="netControls"><button id="netSolo" type="button">通信不要｜BOTと練習する</button></div>
+   <div class="netPractice">
+    <div class="netPracticeHeading">1人プレイ・BOTの強さ</div>
+    <div id="netSoloLevels" role="group" aria-label="BOTの難易度">
+      <button type="button" data-solo-level="easy" aria-pressed="false">練習</button>
+      <button type="button" data-solo-level="normal" class="selected" aria-pressed="true">ふつう</button>
+      <button type="button" data-solo-level="hard" aria-pressed="false">むずかしい</button>
+    </div>
+    <button id="netSolo" type="button">通信不要｜BOTと練習する</button>
+   </div>
   <div id="netStatus" role="status">Firebaseに接続中…</div>
   <div class="netTip">通信できなくても「BOTと練習する」で1人プレイ可能。<br>2台テスト時は参加端末でBOT操作をONにすると自動準備・自動召喚。ホストは青軍、参加側は赤軍です。</div>
  </div>
