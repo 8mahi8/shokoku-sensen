@@ -97,15 +97,15 @@ async function measure(engineName,engine){
    // network packet frequency, even when the page rendered at 60 fps.
    const beforeSmooth=await page.evaluate(()=>window.__shokokuQa.remoteSpritePositions());
    const movedId=world.units.find(u=>u.team===1&&u.key==="infantry").uid;
-   const initial=beforeSmooth.find(x=>x.id===movedId);
-   assert.ok(initial,"must have visible infantry sprite");
+   const initialSprite=beforeSmooth.find(x=>x.id===movedId);
+   assert.ok(initialSprite,"must have visible infantry sprite");
    const movedWorld={...world,units:world.units.map(u=>u.uid===movedId?{...u,x:u.x+50}:u)};
    await page.evaluate(world=>window.__qaGuestNet.send({seq:121,round:1,world}),movedWorld);
    await page.waitForFunction(()=>window.__qaGuestNet.stats().applied===121);
    await page.waitForTimeout(125);
    const afterSmooth=await page.evaluate(id=>window.__shokokuQa.remoteSpritePositions().find(x=>x.id===id),movedId);
-   assert.ok(afterSmooth.x>initial.x+1,
-    "cached guest sprite must actually interpolate between network updates "+JSON.stringify({initial,afterSmooth}));
+   assert.ok(afterSmooth.x>initialSprite.x+1,
+    "cached guest sprite must actually interpolate between network updates "+JSON.stringify({initialSprite,afterSmooth}));
    assert.ok(afterSmooth.x<afterSmooth.targetX+4,
     "interpolation overshot network authority "+JSON.stringify({initial,afterSmooth}));
    const fps=await page.evaluate(async world=>{
@@ -128,7 +128,7 @@ async function measure(engineName,engine){
    assert.ok(fps.stutters<=4,"main-thread stalled "+JSON.stringify(fps));
    assert.deepEqual(errors,[]);
    rows.push({browser:engineName,layout:entry.name,dpr:initial.dpr,fps,
-    interpolation:{from:initial.x,to:afterSmooth.x,target:afterSmooth.targetX},
+    interpolation:{from:initialSprite.x,to:afterSmooth.x,target:afterSmooth.targetX},
     air:balance.stats,fire:balance.fire,targets:balance.ranged});
    await page.close();await context.close();
   }
