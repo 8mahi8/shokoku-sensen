@@ -2558,12 +2558,17 @@ function samplePerf(now,drawMs){
  perfFrames++;perfDrawTotal+=drawMs;perfDrawWorst=Math.max(perfDrawWorst,drawMs);
  if(now-perfStart<1200)return;
  const n=NET.syncDiagnostics?.()||{},fps=perfFrames*1000/(now-perfStart);
+ const isHost=n.role==="host";
  const lines=["描画 "+fps.toFixed(0)+" FPS  / 平均 "+(perfDrawTotal/perfFrames).toFixed(1)+"ms",
   "最大描画 "+perfDrawWorst.toFixed(1)+"ms / フレーム間隔最大 "+perfMaxGap.toFixed(0)+"ms",
-  "通信 "+(n.role||"---")+" "+(n.updatesHz||0)+"更新/秒",
-  "受信間隔 平均 "+(n.gapMs||0)+"ms / 最大 "+(n.maxGapMs||0)+"ms",
-  "最終同期 "+(n.ageMs||0)+"ms前 / seq "+(n.seq||0),
-  "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
+  "戦況 "+S.phase+" / 試合経過 "+S.elapsed.toFixed(1)+"秒 / 残り "+S.seconds.toFixed(1)+"秒",
+  isHost?"配信 host seq "+(n.seq||0)+" / 最終送信 "+(n.publishAgeMs||0)+"ms前":
+   "通信 guest "+(n.updatesHz||0)+"更新/秒 / seq "+(n.seq||0),
+  isHost?"相手との接続 "+(n.connected?"有効":"切断"):
+   "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
+  isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  n.error?"同期エラー "+String(n.error).slice(0,48):
+   "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
  perfPanel.textContent=lines.join("\n");
  perfStart=now;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;
 }
@@ -2730,6 +2735,14 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
+ fireStress:(team=1,x=640,y=330)=>{
+  if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team))return false;
+  if(!S.hand[team].includes("barrage"))S.hand[team][0]="barrage";
+  S.left[team].barrage=Math.max(1,S.left[team].barrage||0);
+  S.energy[team]=Math.max(4,S.energy[team]);
+  return playCard(team,"barrage",x,y);
+ },
  captureObjective:(team,x,y,variant="baseline",kind="scout")=>{
   if(!NET.isSolo||![1,2].includes(team)||!["scout","engineer"].includes(kind)||
     !Number.isFinite(x)||!Number.isFinite(y)||
