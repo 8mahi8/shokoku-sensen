@@ -99,6 +99,8 @@ const deadline=async (f,label,timeout=18000)=>{
    "host battle start",20000);
   await host.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
   await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(true));
+  // Drain any listener callback already queued before the mute was enabled.
+  await delay(300);
   const seqBefore=await guest.evaluate(()=>window.__onlineSeq||0);
   const beforeFire=await state();
   const fire=await host.evaluate(()=>window.__shokokuQa.fireStress(1,650,330));
