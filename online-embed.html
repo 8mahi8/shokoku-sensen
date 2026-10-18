@@ -3201,8 +3201,10 @@ function drawFort(f){
  ctx.fillText(f.owner===0?"中立基地":f.owner===1?"自軍基地":"敵軍基地",0,48);
  ctx.restore();
 }
-function drawUnit(u){
- // Smooth presentation only. Combat physics and Firebase state stay authoritative.
+// Both full-art and cached sprites must share the same guest interpolation.
+// Previously the crowded sprite cache painted raw 180ms network positions,
+// making guest troops jump even when the canvas frame rate was high.
+function presentRemoteUnit(u){
  if(!NET.isHost&&S.remoteSprites){
   const v=S.remoteSprites.get(u.uid);
   if(v){
@@ -3215,6 +3217,10 @@ function drawUnit(u){
    u={...u,x:v.x,y:v.y};
   }
  }
+ return u;
+}
+function drawUnit(u){
+ u=presentRemoteUnit(u);
  if(window.KokokuArt){window.KokokuArt.drawUnit(ctx,u,S.clock);return;}
  const d=CLASSES[u.key],col=TEAM[u.team],isAir=!!d.flying;
  const bob=isAir?18+Math.sin(S.clock*4+u.drift)*4:3;
@@ -3326,6 +3332,7 @@ function renderCrowdedUnit(u){
    !window.KokokuArt){
   fullSpritesRendered++;drawUnit(u);return;
  }
+ u=presentRemoteUnit(u);
  const pose=(u.attackAnim||0)>.12?3:!u.walking?0:Math.sin(u.walkPhase||0)>0?1:2;
  const sprite=cachedSprite(u,pose);
  if(!sprite){fullSpritesRendered++;drawUnit(u);return;}
