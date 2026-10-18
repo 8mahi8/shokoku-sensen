@@ -59,7 +59,8 @@ assert.ok(ai.includes('botUse(team,')&&ai.includes('canPay(team,'),"AI must use 
 
 
 // Smooth both position and walk/attack animation, not just Canvas frames.
-const presentSource=game.match(/function presentRemoteUnit\\(u\\)\\{[\\s\\S]*?\\n\\}/)?.[0];
+const presentStart=game.indexOf("function presentRemoteUnit(u){"),presentEnd=game.indexOf("\nfunction drawUnit(u){",presentStart);
+const presentSource=presentStart>=0&&presentEnd>presentStart?game.slice(presentStart,presentEnd):null;
 assert.ok(presentSource,"guest sprite interpolation function missing");
 let now=1100;
 const netStub={isHost:false},unit={uid:1,x:30,y:20,walkPhase:2,walking:true,attackAnim:.4,flash:.3};
