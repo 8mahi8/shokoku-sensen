@@ -1519,8 +1519,8 @@ function fire(u,target){
    }
    else window.otherDamage+=damage;
   }
-  if(["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue"].includes(qaBotVariants[u.team])||
-     ["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue"].includes(qaBotVariants[ref.team])){
+  if(["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce"].includes(qaBotVariants[u.team])||
+     ["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce"].includes(qaBotVariants[ref.team])){
    qaCastleHitEvents.push({at:S.elapsed,targetTeam:ref.team,damage:priorHp-ref.hp});
    qaCastleHitEvents=qaCastleHitEvents.filter(v=>S.elapsed-v.at<=13);
   }
@@ -1847,7 +1847,7 @@ function botExpertAction(team=2){
   limit(edge+dir*margin,40,W-40),limit(y,70,H-70));
 
  // QA-only damage race: actual prior castle hits, not HP gap or future data.
- if(qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"){
+ if(qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||qaPolicy==="castleRaceForce"){
   if(event)event.raceChecks=(event.raceChecks||0)+1;
   const hits=qaCastleHitEvents.filter(h=>S.elapsed-h.at<=10&&h.damage>0);
   const incoming=hits.filter(h=>h.targetTeam===team),
@@ -1870,7 +1870,7 @@ function botExpertAction(team=2){
    }
    const frontUnit=push.sort((a,b)=>Math.abs(a.x-WALL_FACE[3-team])-
     Math.abs(b.x-WALL_FACE[3-team]))[0];
-   if(qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"){
+   if(qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||qaPolicy==="castleRaceForce"){
     const healthyPush=push.some(u=>u.hp>=u.max*.35);
     // Optimistic no-combat travel time to firing position. No hidden data.
     const attackCards=["drone","archer","suppress","tank"];
@@ -1956,9 +1956,9 @@ function botExpertAction(team=2){
  // Holding is a real option: forego the desperate 2-energy infantry play,
  // save for an in-hand sentinel, then counterattack after the delay.
  let concessionHold=false;
- if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"){
-  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue";
-  const weighCounter=qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue";
+ if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||qaPolicy==="castleRaceForce"){
+  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||qaPolicy==="castleRaceForce";
+  const weighCounter=qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"||qaPolicy==="castleRaceValue"||qaPolicy==="castleRaceForce";
   const assessRisk=qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
   const assessLastLine=qaPolicy==="fortLastLine";
   // Strategic criticality: losing the home-side outpost when only one
