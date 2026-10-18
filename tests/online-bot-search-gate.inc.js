@@ -2,7 +2,53 @@
 // QA only. Injected on localhost into online-game.js by gate-opportunities.cjs.
 // Observation is read-only: same legal hand / visible units, no randomness,
 // side effects, action scheduling, counterfactual future, or hidden opponent hand.
-let qaGateAudit=null;
+let qaGateAudit=null,qaGateProbeActive=false;
+function qaGateProbeCost(team){
+ // Shadow-only 8s exact physics of WAIT vs one real legal cheap summon.
+ // Not a planner evaluation, only a *lower bound* on 30Hz branch cost.
+ const options=[{id:"wait",x:null,y:null}];
+ const id=["archer","infantry","scout","engineer"].find(x=>
+  CLASSES[x]&&canPay(team,x));
+ if(id){
+  const target=S.forts.filter(f=>f.owner!==team).sort((a,b)=>
+   team===2?b.x-a.x:a.x-b.x)[0];
+  const x=limit(border(team)+(team===2?35:-35),35,W-35),y=target?.y??330;
+  if(canPlace(team,x,y))options.push({id,x,y});
+ }
+ // Avoid the last seconds of match and edge cases that might call END
+ // (which performs UI updates). A separate full-Safari benchmark is needed.
+ if(S.seconds<=10||Math.min(capital(1).hp,capital(2).hp)<450)
+  return {skipped:true,reason:"nearTerminal"};
+ const snapshot=structuredClone(S),oldRandom=Math.random,
+  oldDuel=duelStats,oldAction=botLastAction,
+  oldVariants=qaBotVariants,oldPlans=[qaSiegePlans,qaWindowPlans,
+   qaConcedePlans,qaRaceBudgetPlans,qaCastleHitEvents];
+ const t=performance.now();
+ let frames=0,accepted=0;
+ try{
+  // The match's RNG state is hidden inside runDuel. Never consume it:
+  // branch physics uses a separate deterministic stream.
+  for(let n=0;n<options.length;n++){
+   Object.assign(S,structuredClone(snapshot));
+   S.botThink=1e6;duelStats=null;
+   let state=(777+n*41)>>>0;
+   Math.random=()=>{state=(Math.imul(state,1664525)+1013904223)>>>0;
+    return state/4294967296;};
+   if(options[n].id!=="wait"){
+    if(!botUse(team,options[n].id,options[n].x,options[n].y))continue;
+    accepted++;
+   }
+   for(let i=0;i<240&&S.phase==="battle";i++){tick(1/30);frames++;}
+  }
+ }finally{
+  Object.assign(S,snapshot);Math.random=oldRandom;
+  duelStats=oldDuel;botLastAction=oldAction;qaBotVariants=oldVariants;
+  [qaSiegePlans,qaWindowPlans,qaConcedePlans,qaRaceBudgetPlans,
+   qaCastleHitEvents]=oldPlans;
+ }
+ return {ms:+(performance.now()-t).toFixed(3),frames,alternatives:options.length,
+  accepted,skipped:false};
+}
 function qaGateAssess(team=2){
  if(![1,2].includes(team)||S.phase!=="battle")return null;
  const other=3-team,own=S.units.filter(u=>u.team===team&&u.hp>0),
@@ -79,23 +125,27 @@ function qaGateOnDecision(team){
  if(!stat.samples[key])stat.samples[key]=[];
  if(stat.samples[key].length<8)stat.samples[key].push(sample);
  if(selected&&stat.selectedSamples.length<64)stat.selectedSamples.push(sample);
+ if(selected&&qaGateProbeActive&&stat.probes.length<6)
+  stat.probes.push({...sample,measurement:qaGateProbeCost(team)});
 }
 // Stored only as a final local QA result; no global persistent state.
 let qaGateLatest=null;
 function qaGateLastCopy(){return qaGateLatest;}
-function qaGateRunPaired(seed,style,team=2){
+function qaGateRunPaired(seed,style,team=2,probe=false){
+ qaGateProbeActive=false;
  const base=window.__shokokuQa.runDuel(seed,style,"hard",team,"standard",
   false,0,"baseline",false);
  qaGateAudit={cooldown:12,last:[-1e7,-1e7,-1e7],
   tally:[null,{decisions:0,eligible:0,selected:0,cooldownSuppressed:0,
-   reasons:{},forks:{},samples:{},selectedSamples:[]},
+   reasons:{},forks:{},samples:{},selectedSamples:[],probes:[]},
    {decisions:0,eligible:0,selected:0,cooldownSuppressed:0,
-   reasons:{},forks:{},samples:{},selectedSamples:[]}]};
+   reasons:{},forks:{},samples:{},selectedSamples:[],probes:[]}]};
  let shadow;
+ qaGateProbeActive=probe;
  try{shadow=window.__shokokuQa.runDuel(seed,style,"hard",team,
   "standard",false,0,"baseline",false);
   qaGateLatest=structuredClone(qaGateAudit.tally);}
- finally{qaGateAudit=null;}
+ finally{qaGateAudit=null;qaGateProbeActive=false;}
  const summary=x=>({
   winner:x.winner,elapsed:x.elapsed,castleHp:x.castleHp,actions:x.actions,
   spent:x.spent,cards:x.cards,fortSeconds:x.fortSeconds,
