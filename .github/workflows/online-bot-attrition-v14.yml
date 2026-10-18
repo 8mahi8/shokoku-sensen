@@ -1,0 +1,29 @@
+name: BOT local-attrition prediction V14 QA
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'tests/online-bot-attrition-v14.inc.js'
+      - 'tests/online-bot-attrition-v14.cjs'
+      - '.github/workflows/online-bot-attrition-v14.yml'
+  workflow_dispatch:
+jobs:
+  attrition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/online-bot-attrition-v14.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qa-bot-attrition-v14
+          path: qa-bot-attrition-v14
+          retention-days: 30
