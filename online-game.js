@@ -2673,6 +2673,37 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       return sum+(eta<=12?d.damage*(d.siege??1)*CASTLE_DAMAGE/d.cool*
        (12-eta)*u.hp/u.max:0);
      },0);
+     // PRE-forecast only: accessible current-unit geometry and known class stats.
+     // Never use future plays, target selection or damage as risk inputs.
+     const threatPairs=[];
+     for(const ally of wave){
+      const d=CLASSES[ally.key],forward=team===1?1:-1;
+      for(const foe of S.units){
+       if(foe.team!==enemyTeam||foe.hp<=0)continue;
+       const ed=CLASSES[foe.key];
+       if(ed.flying&&!d.hitAir)continue;
+       if(forward*(foe.x-ally.x)<-(d.range+ed.r+5))continue;
+       const separation=dist(ally,foe);
+       const eta=Math.max(0,separation-d.vision)/Math.max(1,d.speed+ed.speed);
+       const enemyCanAttack=!d.flying||ed.hitAir;
+       const enemyEta=enemyCanAttack?
+        Math.max(0,separation-ed.vision)/Math.max(1,d.speed+ed.speed):Infinity;
+       threatPairs.push({eta,enemyEta,separation});
+      }
+     }
+     const preThreat={
+      eligiblePairs:threatPairs.length,
+      inFriendlyVision:threatPairs.filter(x=>x.eta===0).length,
+      contactWithin3:threatPairs.filter(x=>x.eta<=3).length,
+      contactWithin6:threatPairs.filter(x=>x.eta<=6).length,
+      vulnerableWithin3:threatPairs.filter(x=>x.enemyEta<=3).length,
+      minVisionEta:threatPairs.length?
+       Math.min(...threatPairs.map(x=>x.eta)):null,
+      minEnemyAttackEta:threatPairs.some(x=>Number.isFinite(x.enemyEta))?
+       Math.min(...threatPairs.map(x=>x.enemyEta)):null,
+      minDistance:threatPairs.length?
+       Math.min(...threatPairs.map(x=>x.separation)):null
+     };
      const sample={at:S.elapsed,team,enemyTeam,predicted,actual:0,
       allDamage:0,otherDamage:0,hits:0,
       enemyHpAtStart:capital(enemyTeam).hp,
@@ -2689,7 +2720,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       enemyDefendersNearWall:S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
        Math.abs(u.x-WALL_FACE[enemyTeam])<230).length,
       enemyUnitsNearWave:S.units.filter(u=>u.team===enemyTeam&&u.hp>0&&
-       wave.some(v=>dist(u,v)<170)).length};
+       wave.some(v=>dist(u,v)<170)).length,preThreat};
      audit.records.push(sample);audit.active=sample;
      nextForecastAt+=12;
     }
@@ -2829,6 +2860,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       survivorsAtGameEnd:r.uids.filter(id=>alive.has(id)).length,
       classes:r.classes,etaMin:r.etaMin,
       defenders:r.enemyDefendersNearWall,nearbyEnemy:r.enemyUnitsNearWave,
+      preThreat:r.preThreat,
       newFriendlyPlays:newFriendPlays,enemyPlays,
       activity,covered:+covered.toFixed(3),
       deadOrGone:+deadOrGone.toFixed(3),
