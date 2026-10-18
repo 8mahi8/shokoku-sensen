@@ -78,6 +78,9 @@ const cases=[
     "real purchase deducted exact cost at second step");
    assert.ok(two.options.every(x=>x.runs.every(r=>r.secondAction.id==="wait"||
     r.secondAction.charged>=2)),"must not fake free reinforcements");
+   assert.ok(two.options.some(opt=>opt.runs.some(r=>
+    r.response==="latePush"&&r.responsePlays>0)),
+    "the t+9 delayed enemy response must actually fire in tested matches");
    const again=await search(scene.spec,"two");
    assert.deepEqual(two,again,"deterministic two-step game clones");
    assert.ok(two.options.every(x=>x.runs.every(r=>Number.isFinite(r.score))));
@@ -109,7 +112,7 @@ const cases=[
   const report={kind:"Receding-horizon QA with exact-engine second friendly card at t+6",
    horizon,seeds,responses,scenes:rows,
    guarantees:["Second step uses only its currently visible local state and its own hand/energy.",
-    "Evaluation for second card simulates 6s without any privileged knowledge of scripted future enemy branch.",
+    "At +6s, follow-up candidate uses the remaining 14s lookahead without knowing the scripted +9s opponent branch.",
     "Every first action and opponent response gets an actual legal second purchase attempt.",
     "Clones of game state and random generator preserve reproducibility.",
     "Two-step search is evaluated, NOT used in production or connected online games."],
