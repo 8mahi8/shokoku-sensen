@@ -13,6 +13,8 @@ let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
 let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal';
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
+let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
+let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
@@ -85,6 +87,9 @@ async function registerPresence(){
  }catch(e){setError(e)}finally{presencePending=false;}
 }
 function receiveGuestWorld(packet){
+ if(packet?.round===meta?.round&&Number.isInteger(packet.seq)){
+  lastStateEventAt=performance.now();lastStateEventSeq=Math.max(lastStateEventSeq,packet.seq);
+ }
  if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||
   !packet.world||packet.seq<=Math.max(lastRemoteSeq,pendingRemote?.seq||0))return;
  pendingRemote=packet;
@@ -103,13 +108,42 @@ function receiveGuestWorld(packet){
     if(appliedGaps.length>32)appliedGaps.shift();
    }
    appliedPackets++;lastRemoteSeq=latest.seq;lastRemoteAppliedAt=appliedAt;
+   lastApplyError="";
    if(syncWarning){syncWarning=false;updateUI();}
-  }catch(e){setError(e)}
+  }catch(e){lastApplyError=String(e?.message||e);setError(e)}
  });
 }
 // rAF can keep painting an old world even when Firebase snapshots stop arriving.
 // An occasional one-shot read gives the guest a second way to receive the latest
 // state; the warning distinguishes network silence from low Canvas FPS.
+// REST fallback bypasses RTDB's local event cache: once("value") can replay
+// a stale locally cached snapshot when an SDK listener is stalled.
+function restRecoverGuest(){
+ if(restReadPending||host||!room||!roomCode||!connected)return;
+ const epoch=remoteEpoch,code=roomCode,ref=room;
+ restReadPending=true;
+ const controller=typeof AbortController!=="undefined"?new AbortController():null;
+ const timeout=setTimeout(()=>controller?.abort(),6000);
+ fetch(FIREBASE_DB_URL+ROOT+"/"+code+"/state.json?ts="+Date.now(),
+  {cache:"no-store",signal:controller?.signal}).then(async response=>{
+   if(!response.ok)throw Error("状態再取得 HTTP "+response.status);
+   const data=await response.json();
+   if(epoch!==remoteEpoch||ref!==room||host)return;
+   lastRestReadAt=performance.now();
+   if(Number.isInteger(data?.seq))lastRestReadSeq=data.seq;
+   receiveGuestWorld(data);
+  }).catch(error=>{
+   if(epoch!==remoteEpoch||ref!==room||host)return;
+   lastApplyError="REST "+String(error?.message||error);
+   // SDK read remains a compatibility fallback if REST is unavailable.
+   ref.child("state").once("value").then(snap=>{
+    if(epoch===remoteEpoch&&ref===room&&!host)receiveGuestWorld(snap.val());
+   }).catch(setError);
+  }).finally(()=>{
+   clearTimeout(timeout);
+   if(epoch===remoteEpoch&&ref===room)restReadPending=false;
+  });
+}
 function checkGuestSync(){
  if(host||!room||phase!=="playing"||!connected)return;
  const now=performance.now();
@@ -122,23 +156,27 @@ function checkGuestSync(){
  }
  if(now-lastSyncReadAt<4500)return;
  lastSyncReadAt=now;
- const current=room,epoch=remoteEpoch;
- current.child("state").once("value").then(snap=>{
-  if(epoch===remoteEpoch&&current===room&&!host)receiveGuestWorld(snap.val());
- }).catch(setError);
+ restRecoverGuest();
 }
 function syncDiagnostics(){
  const gaps=appliedGaps,avg=gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:0;
+ const now=performance.now();
  return {connected,phase,role:solo?"solo":host?"host":"guest",
-  packets:appliedPackets,seq:lastRemoteSeq,
+  packets:appliedPackets,seq:host?lastHostPublishSeq:lastRemoteSeq,
+  eventSeq:lastStateEventSeq,restSeq:lastRestReadSeq,
   gapMs:Math.round(avg),maxGapMs:Math.round(gaps.length?Math.max(...gaps):0),
   updatesHz:avg?Math.round(10000/avg)/10:0,
-  ageMs:Math.round(lastRemoteAppliedAt?performance.now()-lastRemoteAppliedAt:0)};
+  ageMs:Math.round(lastRemoteAppliedAt?now-lastRemoteAppliedAt:0),
+  eventAgeMs:Math.round(lastStateEventAt?now-lastStateEventAt:0),
+  restAgeMs:Math.round(lastRestReadAt?now-lastRestReadAt:0),
+  publishAgeMs:Math.round(lastHostPublishAt?now-lastHostPublishAt:0),
+  syncing:restReadPending,error:lastApplyError};
 }
 function setupRoom(code,isHost){
  solo=false;guestBot=false;
  appliedGaps=[];appliedPackets=0;
- remoteEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
+ lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;restReadPending=false;lastHostPublishAt=0;lastHostPublishSeq=0;lastApplyError="";
+ remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
  players=null;meta=null;phase="lobby";result=null;
@@ -153,6 +191,7 @@ function setupRoom(code,isHost){
   if(meta?.status==="lobby"&&before==="finished"){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
+   lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
@@ -295,6 +334,7 @@ function maybePublish(force=false){
  lastSend=now;publishing=true;publishStartedAt=now;
  const current=room,epoch=networkEpoch,serial=++publishSerial;
  const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ lastHostPublishAt=performance.now();lastHostPublishSeq=seq+1;
  current.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset})
   .catch(setError).finally(()=>{
    if(epoch!==networkEpoch||current!==room||serial!==publishSerial)return;
