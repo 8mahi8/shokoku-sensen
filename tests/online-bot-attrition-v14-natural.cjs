@@ -101,13 +101,24 @@ const score=rows=>{
    "insufficient naturally occurring local encounters for analysis "+windows.length);
   const byStyle=Object.fromEntries(styles.map(style=>
    [style,score(windows.filter(x=>x.style===style))]));
+  const byNewAction={
+   noOpponentCards:score(windows.filter(x=>x.contextual.enemyCardsPlayed===0)),
+   opponentCards:score(windows.filter(x=>x.contextual.enemyCardsPlayed>0)),
+   neitherTeamPlayed:score(windows.filter(x=>
+    x.contextual.enemyCardsPlayed===0&&x.contextual.ownCardsPlayed===0)),
+   anySpellPlayed:score(windows.filter(x=>
+    x.contextual.enemySpellsPlayed+x.contextual.ownSpellsPlayed>0)),
+   noSpellPlayed:score(windows.filter(x=>
+    x.contextual.enemySpellsPlayed+x.contextual.ownSpellsPlayed===0)),
+   newlyPresentNearby:score(windows.filter(x=>x.contextual.newUnitsNearFort>0))
+  };
   const report={
    kind:"V14 passive generalization to full legal 30Hz BOT vs BOT matches",
    seededMatches:games.length,seeds,
    observations:windows.length,
    censored:games.reduce((sum,x)=>sum+x.censoredWindows,0),
    overall:score(windows),
-   byStyle,
+   byStyle,byNewAction,
    byPhase:{
     early:score(windows.filter(x=>x.at<100)),
     middle:score(windows.filter(x=>x.at>=100&&x.at<210)),
