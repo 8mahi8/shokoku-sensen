@@ -4,7 +4,7 @@
 let qaRealDuel=null;
 function qaRealDuelStart(seed,checkpoint,liveSeconds,workMs=90,policy="conservativePreflight"){
  if(!NET.isSolo||!Number.isInteger(seed)||seed<1||seed>9999999||
-  ![0,30,105,190].includes(checkpoint)||
+  !Number.isInteger(checkpoint)||checkpoint<0||checkpoint>290||
   !Number.isFinite(liveSeconds)||liveSeconds<6||liveSeconds>30||
   ![40,120,250].includes(workMs)||
   !["conservativePreflight","conservative","off"].includes(policy)||
