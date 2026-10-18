@@ -367,8 +367,8 @@ function fire(u,target){
  }else if(target.kind==="capital"){
   const priorHp=ref.hp;
   ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE*(d.siege??1));
-  if(["castleDamageRace","castleRaceArrival","castleRaceBudget"].includes(qaBotVariants[u.team])||
-     ["castleDamageRace","castleRaceArrival","castleRaceBudget"].includes(qaBotVariants[ref.team])){
+  if(["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded"].includes(qaBotVariants[u.team])||
+     ["castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded"].includes(qaBotVariants[ref.team])){
    qaCastleHitEvents.push({at:S.elapsed,targetTeam:ref.team,damage:priorHp-ref.hp});
    qaCastleHitEvents=qaCastleHitEvents.filter(v=>S.elapsed-v.at<=13);
   }
@@ -652,7 +652,7 @@ function botExpertAction(team=2){
   limit(edge+dir*margin,40,W-40),limit(y,70,H-70));
 
  // QA-only damage race: actual prior castle hits, not HP gap or future data.
- if(qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"){
+ if(qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"){
   if(event)event.raceChecks=(event.raceChecks||0)+1;
   const hits=qaCastleHitEvents.filter(h=>S.elapsed-h.at<=10&&h.damage>0);
   const incoming=hits.filter(h=>h.targetTeam===team),
@@ -675,7 +675,7 @@ function botExpertAction(team=2){
    }
    const frontUnit=push.sort((a,b)=>Math.abs(a.x-WALL_FACE[3-team])-
     Math.abs(b.x-WALL_FACE[3-team]))[0];
-   if(qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"){
+   if(qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"){
     const healthyPush=push.some(u=>u.hp>=u.max*.35);
     // Optimistic no-combat travel time to firing position. No hidden data.
     const attackCards=["drone","archer","suppress","tank"];
@@ -761,9 +761,9 @@ function botExpertAction(team=2){
  // Holding is a real option: forego the desperate 2-energy infantry play,
  // save for an in-hand sentinel, then counterattack after the delay.
  let concessionHold=false;
- if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"){
-  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget";
-  const weighCounter=qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget";
+ if(qaPolicy==="concedeFort"||qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"){
+  const trade=qaPolicy==="fortTradeReclaim"||qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine"||qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded";
+  const weighCounter=qaPolicy==="fortDefenseValue"||qaPolicy==="castleDamageRace"||qaPolicy==="castleRaceArrival"||qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded";
   const assessRisk=qaPolicy==="fortRiskBudget"||qaPolicy==="fortLastLine";
   const assessLastLine=qaPolicy==="fortLastLine";
   // Strategic criticality: losing the home-side outpost when only one
@@ -1004,23 +1004,30 @@ function botExpertAction(team=2){
  }
  // QA-only: conserve four energy shortly *before* our siege becomes a
  // damage race. Critical defense, emergency spells and fort holds run earlier.
- if(qaPolicy==="castleRaceBudget"){
+ if(qaPolicy==="castleRaceBudget"||qaPolicy==="castleRaceBudgetGuarded"){
   const prior=qaRaceBudgetPlans[team];
   const wave=friends.filter(u=>CLASSES[u.key].behavior==="normal"&&
    u.hp>=u.max*.5&&Math.abs(u.x-WALL_FACE[3-team])<=510)
    .sort((a,b)=>Math.abs(a.x-WALL_FACE[3-team])-
     Math.abs(b.x-WALL_FACE[3-team]));
   const lead=wave[0];
+  // Castle approach is an optimistic physical floor, not eventual victory.
+  // Guarded trial cannot reserve for a wave still many seconds away.
+  const leadEta=lead?Math.max(0,Math.abs(lead.x-WALL_FACE[3-team])-
+   CLASSES[lead.key].range-15)/CLASSES[lead.key].speed:Infinity;
+  const approachReady=qaPolicy!=="castleRaceBudgetGuarded"||leadEta<=12;
   const supported=lead&&friends.some(u=>u.uid!==lead.uid&&u.hp>=u.max*.45&&
    Math.abs(u.x-lead.x)<230&&Math.abs(u.y-lead.y)<145);
   const nearOwnCastle=foes.some(u=>Math.abs(u.x-WALL_FACE[team])<330);
   const safe=!urgent&&!nearOwnCastle&&capital(team).hp>850&&
-   S.forts.some(f=>f.owner===team)&&availableCard(team,"drone")&&supported&&
+   S.forts.some(f=>f.owner===team)&&availableCard(team,"drone")&&supported&&approachReady&&
    S.elapsed>=35&&S.elapsed<=240;
   const eligible=safe&&secondsUntilAffordable(power,4)<=10.5;
   if(event){
    event.raceBudgetChecks=(event.raceBudgetChecks||0)+1;
    if(eligible)event.raceBudgetEligible=(event.raceBudgetEligible||0)+1;
+   if(qaPolicy==="castleRaceBudgetGuarded"&&lead&&supported&&!approachReady)
+    event.raceBudgetTooFar=(event.raceBudgetTooFar||0)+1;
   }
   if(prior?.active){
    const expired=S.elapsed>prior.deadline;
@@ -1049,7 +1056,7 @@ function botExpertAction(team=2){
     const sample=event.raceBudgetSamples||(event.raceBudgetSamples=[]);
     if(sample.length<20)sample.push({at:+S.elapsed.toFixed(2),
      energy:+power.toFixed(2),leadDistance:+Math.abs(lead.x-WALL_FACE[3-team]).toFixed(2),
-     lead:lead.key,ownHp:capital(team).hp,
+     lead:lead.key,leadEta:+leadEta.toFixed(2),ownHp:capital(team).hp,
      waitTo4:+secondsUntilAffordable(power,4).toFixed(2)});
    }
    if(power>=4&&spawn("drone",lead.y,35)){
@@ -2461,7 +2468,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
