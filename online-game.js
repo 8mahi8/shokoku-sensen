@@ -2558,12 +2558,18 @@ function samplePerf(now,drawMs){
  perfFrames++;perfDrawTotal+=drawMs;perfDrawWorst=Math.max(perfDrawWorst,drawMs);
  if(now-perfStart<1200)return;
  const n=NET.syncDiagnostics?.()||{},fps=perfFrames*1000/(now-perfStart);
+ const isHost=n.role==="host";
  const lines=["描画 "+fps.toFixed(0)+" FPS  / 平均 "+(perfDrawTotal/perfFrames).toFixed(1)+"ms",
   "最大描画 "+perfDrawWorst.toFixed(1)+"ms / フレーム間隔最大 "+perfMaxGap.toFixed(0)+"ms",
-  "通信 "+(n.role||"---")+" "+(n.updatesHz||0)+"更新/秒",
-  "受信間隔 平均 "+(n.gapMs||0)+"ms / 最大 "+(n.maxGapMs||0)+"ms",
-  "最終同期 "+(n.ageMs||0)+"ms前 / seq "+(n.seq||0),
-  "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
+  "戦況 "+S.phase+" / 試合経過 "+S.elapsed.toFixed(1)+"秒 / 残り "+S.seconds.toFixed(1)+"秒",
+  isHost?"配信 host seq "+(n.seq||0)+" / 最終送信 "+(n.publishAgeMs||0)+"ms前":
+   "通信 guest "+(n.updatesHz||0)+"更新/秒 / seq "+(n.seq||0),
+  isHost?"相手との接続 "+(n.connected?"有効":"切断"):
+   "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
+  isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
+  n.error?"同期エラー "+String(n.error).slice(0,48):
+   "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
  perfPanel.textContent=lines.join("\n");
  perfStart=now;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;
 }
@@ -2594,13 +2600,22 @@ function start(){
   },
   apply:(data,seq)=>{
    if(NET.isHost||!data||!(seq>(window.__onlineSeq||0)))return;
-   window.__onlineSeq=seq;
    const was=S.phase,localClock=S.clock;
    const oldSelected=S.selected,oldCam=S.cam;
-   for(const field of ["prep","seconds","elapsed","clock","energy","left","hand","queue",
-    "units","forts","capitals","spells","effects","projectiles","deaths","uid","speed"]){
-    if(data[field]!==undefined)S[field]=data[field];
+   for(const field of ["prep","seconds","elapsed","clock","energy","left",
+    "forts","capitals","uid","speed"]){
+    if(data[field]!==undefined&&data[field]!==null)S[field]=data[field];
    }
+   // RTDB drops empty arrays and can turn numeric-indexed arrays into maps.
+   // Never let a missing spell/animation list kill the guest's rAF loop.
+   const list=value=>Array.isArray(value)?value:
+    value&&typeof value==="object"?Object.keys(value)
+     .sort((a,b)=>Number(a)-Number(b)).map(key=>value[key]):[];
+   for(const field of ["units","effects","projectiles","deaths"])
+    S[field]=list(data[field]);
+   S.spells={incoming:list(data.spells?.incoming),zones:list(data.spells?.zones)};
+   S.hand=[null,list(data.hand?.[1]),list(data.hand?.[2])];
+   S.queue=[null,list(data.queue?.[1]),list(data.queue?.[2])];
    if(data.phase==="prep"||data.phase==="battle"){
     S.phase=data.phase;
     if(NET.guestBot&&data.phase==="battle"&&was!=="battle")S.botThink=3;
@@ -2633,6 +2648,7 @@ function start(){
    if(sig!==window.__onlineHandSig){window.__onlineHandSig=sig;buildCards();}
    // Frame loop handles normal HUD refresh; avoid extra DOM layout for each packet.
    if(was!==S.phase)updateHUD();
+   window.__onlineSeq=seq; // Commit only after successful application.
   }
  });
  // Refresh card and gallery portraits once the high-quality Gald atlas is built.
@@ -2684,8 +2700,9 @@ function start(){
    S.selected=Number(e.key)===1?"infantry":S.hand[ME()][Number(e.key)-2]||null;buildCards();
   }
  });
- let previous=performance.now(),acc=0;
+ let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
  function frame(now){
+  try{
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   S.clock+=delta;
@@ -2715,14 +2732,20 @@ function start(){
   S.hudTick+=delta;
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
-  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30){
-   requestAnimationFrame(frame);return;
-  }
+  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
   guestLastPaint=now;
   const paintStart=perfPanel?performance.now():0;
   draw();
   if(perfPanel)samplePerf(now,performance.now()-paintStart);
-  requestAnimationFrame(frame);
+  }catch(error){
+   // The interaction layer may remain alive after a Canvas exception.
+   // A failed draw must NEVER permanently stop future game frames.
+   window.__onlineFrameError=String(error?.message||error);
+   if(now-lastFrameErrorAt>2500){
+    lastFrameErrorAt=now;
+    console.warn("Online frame recovered after exception:",error);
+   }
+  }finally{requestAnimationFrame(frame)}
  }
  requestAnimationFrame(frame);
 }
@@ -2730,6 +2753,14 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
+ fireStress:(team=1,x=640,y=330)=>{
+  if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team))return false;
+  if(!S.hand[team].includes("barrage"))S.hand[team][0]="barrage";
+  S.left[team].barrage=Math.max(1,S.left[team].barrage||0);
+  S.energy[team]=Math.max(4,S.energy[team]);
+  return playCard(team,"barrage",x,y);
+ },
  captureObjective:(team,x,y,variant="baseline",kind="scout")=>{
   if(!NET.isSolo||![1,2].includes(team)||!["scout","engineer"].includes(kind)||
     !Number.isFinite(x)||!Number.isFinite(y)||

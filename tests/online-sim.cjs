@@ -3,7 +3,7 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const {webcrypto}=require("node:crypto"),{performance}=require("node:perf_hooks");
 const source=fs.readFileSync("online-net.js","utf8");
-const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false;
+const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,restFetchCount=0;
 const clone=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
 const parts=p=>p.split("/").filter(Boolean);
 function read(path){
@@ -76,8 +76,13 @@ function client(){
  };
  const document={getElementById:get,querySelectorAll:()=>[],body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
  const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
-  console,Date,Math,Uint32Array,Promise,performance:{now:()=>virtualNow},
-  navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){}},setTimeout,clearTimeout,
+  console,Date,Math,Uint32Array,Promise,URL,URLSearchParams,performance:{now:()=>virtualNow},
+  navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){},hostname:"localhost",search:""},setTimeout,clearTimeout,
+  fetch:async url=>{
+   restFetchCount++;
+   const path=new URL(url).pathname.replace(/^\//,"").replace(/\.json$/,"");
+   return {ok:true,status:200,json:async()=>read(path)};
+  },
   requestAnimationFrame:fn=>queueMicrotask(()=>fn(performance.now()))};
  vm.runInNewContext(source,context,{filename:"online-net.js"});
  callbacks.DOMContentLoaded();
@@ -148,7 +153,8 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  host.api.maybePublish(true);await settle();
  assert.equal(guest.game.received.at(-1).seq,beforeListenerPause,"listener stalls are simulated");
  guest.api.checkGuestSync();await settle();
- assert.equal(guest.game.received.at(-1).data.elapsed,22,"guest fallback read fetches the latest world");
+ assert.ok(restFetchCount>0,"guest must bypass the stale SDK listener using HTTP REST");
+ assert.equal(guest.game.received.at(-1).data.elapsed,22,"guest REST fallback fetches the latest world");
  holdStateListener=false;
  const receivedCount=guest.game.received.length;
  await new Ref("shokokuRooms1v1/"+code+"/state").set({seq:999,round:1,world:{phase:"battle",units:[{key:"stale"}]}});
