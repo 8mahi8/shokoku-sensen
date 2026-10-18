@@ -19,6 +19,7 @@ const qaKey=" window.__shokokuQa={\n";
 assert.equal(srcdoc.split(qaKey).length,2,"QA hook position changed");
 srcdoc=srcdoc.replace(qaKey,qaKey+[
  ' releaseGateSkipPrep:()=>{if(!NET.isSolo)return false;S.prep=0;return true;},',
+ ' releaseGateTimers:()=>({elapsed:S.elapsed,seconds:S.seconds}),',
  ' releaseGateFault:()=>{',
  '  if(!NET.isSolo||S.phase!=="battle")return false;',
  '  const existing=S.spells;',
@@ -57,10 +58,12 @@ async function run(engineName,engine,layout){
   await frame.locator("#field").waitFor({state:"visible"});
   await page.waitForFunction(()=>document.getElementById("site").contentWindow.__shokokuQa.snapshot().phase==="battle",null,{timeout:12000});
   const before=await api();
+  const initialTimers=await page.evaluate(()=>document.getElementById("site").contentWindow.__shokokuQa.releaseGateTimers());
   await delay(1000);
   const during=await api();
+  const laterTimers=await page.evaluate(()=>document.getElementById("site").contentWindow.__shokokuQa.releaseGateTimers());
   assert.ok(during.elapsed>before.elapsed+.22,"simulation must advance inside iframe");
-  assert.ok(during.seconds<before.seconds-.22,"battle timer must advance");
+  assert.ok(laterTimers.seconds<initialTimers.seconds-.22,"battle timer must advance");
   assert.equal(await fault(),"","no frame errors before barrage");
   const fire=await page.evaluate(()=>document.getElementById("site").contentWindow.__shokokuQa.fireStress(1,650,330));
   assert.equal(fire,true,"barrage should be executed by real combat code");
