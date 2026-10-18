@@ -108,7 +108,7 @@ function qaRealDuelStatus(){
  const d=qaRealDuel;
  if(!d)return null;
  return {seed:d.seed,policy:d.policy,checkpoint:d.checkpoint,
-  until:d.until,at:S.elapsed,finished:d.finished,phase:S.phase,
+  until:d.until,at:S.elapsed,finished:d.finished||S.phase!=="battle",phase:S.phase,
   world:qaRealDuelWorld(),entry:d.entry,
   gameDecisions:d.decisions.slice(),probes:d.probes,
   eligibleChecks:d.eligibleChecks,runCalls:d.runCalls,
