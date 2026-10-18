@@ -30,7 +30,7 @@ const deadline=async (f,label,timeout=18000)=>{
   const host=await hostCtx.newPage(),guest=await guestCtx.newPage();
   pages=[host,guest];const errors=[];
   for(const [name,p] of [["host",host],["guest",guest]])p.on("pageerror",err=>errors.push(name+": "+err.message));
-  await Promise.all([host.goto("http://127.0.0.1:8765/online.html"),guest.goto("http://127.0.0.1:8765/online-ipad.html")]);
+  await Promise.all([host.goto("http://127.0.0.1:8765/online.html?qa=1&perf=1"),guest.goto("http://127.0.0.1:8765/online-ipad.html?qa=1&perf=1")]);
   for(const p of pages)await deadline(async()=>((await p.locator("#netStatus").innerText()).includes("接続OK")), "Firebase connection",30000);
   await host.locator("#netCreate").click();
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
@@ -66,6 +66,15 @@ const deadline=async (f,label,timeout=18000)=>{
    return units.some(u=>u.team===1)&&units.some(u=>u.team===2)?d:null;
   },"blue human and red BOT units synchronized to Firebase",25000);
   assert.ok(packet.world.energy?.length>=3&&packet.world.capitals?.length===2&&packet.world.forts?.length===3);
+  // The diagnostic HUD must report actual painting and live guest snapshots,
+  // without requiring DevTools (school Safari and Google Sites are restricted).
+  const perf=guest.locator('[aria-label="通信・描画の診断"]');
+  await deadline(async()=>{
+   const text=await perf.innerText();
+   return /描画 [0-9]+ FPS/.test(text)&&/通信 guest [0-9.]+更新\/秒/.test(text)&&/seq [1-9][0-9]*/.test(text);
+  },"guest render + snapshot diagnostics",20000);
+  const perfText=await perf.innerText();
+  console.log("GUEST PERF",JSON.stringify({text:perfText}));
   // The BOT has already spent a card, so its live hand rotation differs legitimately.
   // Ensure it still owns the same card types and honors the host's authoritative deck.
   const cards=t=>[...packet.world.hand[t],...packet.world.queue[t]].sort();
@@ -83,6 +92,39 @@ const deadline=async (f,label,timeout=18000)=>{
   // Firebase having state is not enough: the WebKit receiver must apply it.
   await deadline(async()=>(await guest.evaluate(()=>window.__onlineSeq||0))>=afterManual.seq,
    "WebKit guest receives and applies manual guest summon",18000);
+  // Regression: guest remains interactive but battle snapshots cease,
+  // including the minute around a host-fired barrage ("ファイヤー").
+  // Keep the real RTDB test room as the only temporary write target.
+  await deadline(async()=>await host.evaluate(()=>window.__shokokuQa?.snapshot().phase==="battle"),
+   "host battle start",20000);
+  await host.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
+  await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(true));
+  // Drain any listener callback already queued before the mute was enabled.
+  await delay(300);
+  const seqBefore=await guest.evaluate(()=>window.__onlineSeq||0);
+  const beforeFire=await state();
+  const fire=await host.evaluate(()=>window.__shokokuQa.fireStress(1,650,330));
+  assert.equal(fire,true,"host should be able to fire a real barrage in the battle simulation");
+  const firedState=await deadline(async()=>{
+   const d=await state();
+   return d?.seq>beforeFire.seq&&d.world?.elapsed>beforeFire.world.elapsed+0.15?d:null;
+  },"host battle continues after barrage",15000);
+  assert.equal(firedState.world.phase,"battle","host battle remains active after barrage");
+  // RTDB may omit empty spell arrays after impact; the receiver must still paint.
+  // Without listener delivery, WebKit still paints but retains an old world.
+  await delay(650);
+  assert.equal(await guest.evaluate(()=>window.__onlineSeq||0),seqBefore,
+   "muted guest listener should keep a frozen visual world");
+  // Fast-forward only the staleness watchdog; the subsequent REST read
+  // still hits real Firebase, so the test cannot pass on a cached SDK state.
+  await guest.evaluate(()=>window.__shokokuNetQa.triggerRecovery());
+  const recovered=await deadline(async()=>{
+   const diag=await guest.evaluate(()=>window.__shokokuNetQa.stats());
+   return diag.restSeq>=firedState.seq&&diag.seq>=firedState.seq?diag:null;
+  },"WebKit guest recovers barrage-era state via Firebase REST",15000);
+  assert.ok(recovered.restSeq>seqBefore,"REST recovered a newer guest world");
+  await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
+  console.log("GUEST REST RECOVERY",JSON.stringify({from:seqBefore,to:recovered.seq,rest:recovered.restSeq}));
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
   console.log("PASS: Chromium host + WebKit iPad inline guest, real Firebase BOT auto-ready, auto-deploy, manual override and sync in room "+code);
  }finally{

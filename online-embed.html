@@ -335,10 +335,16 @@ const clientId=token(), ROOM_VERSION=1;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
 let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal';
+let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
+let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
+let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
+let qaMuteSdkSnapshots=false;
+// Browser-only measurements: never upload these metrics to Firebase.
+let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
 // snapshots together. Apply only the newest on the next visible frame.
 let pendingRemote=null,remoteScheduled=false,remoteEpoch=0;
-let publishing=false,publishPending=false,networkEpoch=0;
+let publishing=false,publishPending=false,networkEpoch=0,publishStartedAt=0,publishRetryAt=0,publishRetryCount=0,publishSerial=0;
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
@@ -405,9 +411,11 @@ async function registerPresence(){
  }catch(e){setError(e)}finally{presencePending=false;}
 }
 function receiveGuestWorld(packet){
+ if(packet?.round===meta?.round&&Number.isInteger(packet.seq)){
+  lastStateEventAt=performance.now();lastStateEventSeq=Math.max(lastStateEventSeq,packet.seq);
+ }
  if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||
-  !packet.world||packet.seq<=lastRemoteSeq)return;
- lastRemoteSeq=packet.seq;
+  !packet.world||packet.seq<=Math.max(lastRemoteSeq,pendingRemote?.seq||0))return;
  pendingRemote=packet;
  if(remoteScheduled)return;
  remoteScheduled=true;const epoch=remoteEpoch;
@@ -416,14 +424,84 @@ function receiveGuestWorld(packet){
   if(epoch!==remoteEpoch||host||!room)return;
   const latest=pendingRemote;pendingRemote=null;
   if(!latest||latest.round!==meta?.round)return;
-  try{game?.apply(latest.world,latest.seq);}
-  catch(e){setError(e)}
+  try{
+   game?.apply(latest.world,latest.seq);
+   const appliedAt=performance.now();
+   if(lastRemoteAppliedAt>0){
+    appliedGaps.push(Math.max(0,appliedAt-lastRemoteAppliedAt));
+    if(appliedGaps.length>32)appliedGaps.shift();
+   }
+   appliedPackets++;lastRemoteSeq=latest.seq;lastRemoteAppliedAt=appliedAt;
+   lastApplyError="";
+   if(syncWarning){syncWarning=false;updateUI();}
+  }catch(e){lastApplyError=String(e?.message||e);setError(e)}
  });
+}
+// rAF can keep painting an old world even when Firebase snapshots stop arriving.
+// An occasional one-shot read gives the guest a second way to receive the latest
+// state; the warning distinguishes network silence from low Canvas FPS.
+// REST fallback bypasses RTDB's local event cache: once("value") can replay
+// a stale locally cached snapshot when an SDK listener is stalled.
+function restRecoverGuest(){
+ if(restReadPending||host||!room||!roomCode)return;
+ const epoch=remoteEpoch,code=roomCode,ref=room;
+ restReadPending=true;
+ const controller=typeof AbortController!=="undefined"?new AbortController():null;
+ const timeout=setTimeout(()=>controller?.abort(),6000);
+ fetch(FIREBASE_DB_URL+ROOT+"/"+code+"/state.json?ts="+Date.now(),
+  {cache:"no-store",signal:controller?.signal}).then(async response=>{
+   if(!response.ok)throw Error("状態再取得 HTTP "+response.status);
+   const data=await response.json();
+   if(epoch!==remoteEpoch||ref!==room||host)return;
+   lastRestReadAt=performance.now();
+   if(Number.isInteger(data?.seq))lastRestReadSeq=data.seq;
+   receiveGuestWorld(data);
+  }).catch(error=>{
+   if(epoch!==remoteEpoch||ref!==room||host)return;
+   lastApplyError="REST "+String(error?.message||error);
+   // SDK read remains a compatibility fallback if REST is unavailable.
+   ref.child("state").once("value").then(snap=>{
+    if(epoch===remoteEpoch&&ref===room&&!host)receiveGuestWorld(snap.val());
+   }).catch(setError);
+  }).finally(()=>{
+   clearTimeout(timeout);
+   if(epoch===remoteEpoch&&ref===room)restReadPending=false;
+  });
+}
+function checkGuestSync(){
+ if(host||!room||phase!=="playing")return;
+ const now=performance.now();
+ if(!lastRemoteAppliedAt)lastRemoteAppliedAt=now;
+ if(now-lastRemoteAppliedAt<3500)return;
+ if(!syncWarning){
+  syncWarning=true;
+  $("networkBar").classList.remove("hidden");
+  $("networkBar").textContent="ONLINE "+roomCode+" ｜ 戦況同期が遅れています";
+ }
+ if(now-lastSyncReadAt<4500)return;
+ lastSyncReadAt=now;
+ restRecoverGuest();
+}
+function syncDiagnostics(){
+ const gaps=appliedGaps,avg=gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:0;
+ const now=performance.now();
+ return {connected,phase,role:solo?"solo":host?"host":"guest",
+  packets:appliedPackets,seq:host?lastHostPublishSeq:lastRemoteSeq,
+  eventSeq:lastStateEventSeq,restSeq:lastRestReadSeq,
+  gapMs:Math.round(avg),maxGapMs:Math.round(gaps.length?Math.max(...gaps):0),
+  updatesHz:avg?Math.round(10000/avg)/10:0,
+  ageMs:Math.round(lastRemoteAppliedAt?now-lastRemoteAppliedAt:0),
+  eventAgeMs:Math.round(lastStateEventAt?now-lastStateEventAt:0),
+  restAgeMs:Math.round(lastRestReadAt?now-lastRestReadAt:0),
+  publishAgeMs:Math.round(lastHostPublishAt?now-lastHostPublishAt:0),
+  syncing:restReadPending,error:lastApplyError};
 }
 function setupRoom(code,isHost){
  solo=false;guestBot=false;
- remoteEpoch++;pendingRemote=null;remoteScheduled=false;
- networkEpoch++;publishing=false;publishPending=false;
+ appliedGaps=[];appliedPackets=0;
+ lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;restReadPending=false;lastHostPublishAt=0;lastHostPublishSeq=0;lastApplyError="";
+ remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
+ networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
@@ -436,14 +514,16 @@ function setupRoom(code,isHost){
   const before=meta?.status;meta=snap.val();
   if(meta?.status==="lobby"&&before==="finished"){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
+   lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
-   networkEpoch++;publishing=false;publishPending=false;
+   networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
    game?.resetForLobby?.();onlinePanel(true);$("networkBar").classList.add("hidden");
    show("再戦の準備をしてください。2人とも準備完了で開始できます");
   }
   if(meta?.status==="playing"&&before!=="playing"){
-   phase="playing";onlinePanel(false);
+   phase="playing";lastRemoteAppliedAt=performance.now();onlinePanel(false);
    if(host){
     game?.begin();
     maybePublish(true);
@@ -473,7 +553,9 @@ function setupRoom(code,isHost){
    try{await snap.ref.remove()}catch(e){setError(e)}
   });
  }else{
-  attach(room.child("state"),"value",snap=>receiveGuestWorld(snap.val()));
+  attach(room.child("state"),"value",snap=>{
+   if(!qaMuteSdkSnapshots)receiveGuestWorld(snap.val());
+  });
   attach(room.child("feedback"),"value",snap=>{
    const feedback=snap.val();
    if(feedback?.seq===commandSeq)show(feedback.message);
@@ -565,18 +647,26 @@ function sendCommand(c){
  room.child("commands").push({by:clientId,seq,round:meta?.round||1,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(setError);
 }
 function maybePublish(force=false){
- if(!host||!room||phase!=="playing"||!game)return;
- // Skip stale frames instead of creating an unlimited Firebase write queue
- // when connection quality degrades. The host remains authoritative.
- if(publishing){if(force)publishPending=true;return;}
- const now=performance.now();if(!force&&now-lastSend<180)return;
- lastSend=now;publishing=true;
- const current=room,epoch=networkEpoch;
+ if(!host||!room||phase!=="playing"||!game||!connected)return;
+ const now=performance.now();
+ if(publishing){
+  if(force)publishPending=true;
+  // A Firebase set() promise can remain unresolved during network stalls,
+  // while the guest keeps rendering a frozen snapshot. Retry at a bounded
+  // pace rather than permanently locking the one-snapshot publisher.
+  if(now-publishStartedAt<2800||(publishRetryAt&&
+    now-publishRetryAt<(publishRetryCount>=8?18000:4800)))return;
+  // At 8 retries switch to a slower watch, not a permanent deadlock.
+  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);
+ }else if(!force&&now-lastSend<180)return;
+ lastSend=now;publishing=true;publishStartedAt=now;
+ const current=room,epoch=networkEpoch,serial=++publishSerial;
  const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ lastHostPublishAt=performance.now();lastHostPublishSeq=seq+1;
  current.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset})
   .catch(setError).finally(()=>{
-   if(epoch!==networkEpoch||current!==room)return;
-   publishing=false;
+   if(epoch!==networkEpoch||current!==room||serial!==publishSerial)return;
+   publishing=false;publishRetryCount=0;
    if(publishPending){publishPending=false;maybePublish(true)}
   });
 }
@@ -615,7 +705,7 @@ async function resetLobby(){
  // Never write another player's seat after their ID has changed.
  room=null;phase="none";
  remoteEpoch++;pendingRemote=null;remoteScheduled=false;
- networkEpoch++;publishing=false;publishPending=false;
+ networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  if(leaving&&connected){
   try{
    const ref=leaving.child("players/"+seat),current=(await ref.once("value")).val();
@@ -630,10 +720,17 @@ const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
- registerGame(x){game=x},maybePublish,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
+ registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;
+if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
+ window.__shokokuNetQa={
+  muteSdkSnapshots:flag=>{qaMuteSdkSnapshots=!!flag;},
+  triggerRecovery:()=>{lastRemoteAppliedAt=performance.now()-6500;lastSyncReadAt=0;checkGuestSync();},
+  stats:syncDiagnostics
+ };
+}
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
   $("netSolo").addEventListener("click",startSolo);
@@ -661,8 +758,15 @@ document.addEventListener("DOMContentLoaded",()=>{
   else show("番号を選択しました。コピーして共有してください");
  });
  try{initFirebase();db.ref(".info/serverTimeOffset").on("value",snap=>{serverOffset=Number(snap.val())||0;});db.ref(".info/connected").on("value",snap=>{
+  const wasConnected=connected;
   connected=snap.val()===true;if(!connected)show("通信が切れました。自動再接続を待っています。");else if(!room)show("接続OK。ルームを作成・参加できます。");
-  if(connected&&room)registerPresence().catch(setError);
+  if(connected&&room){
+   registerPresence().catch(setError);
+   if(!wasConnected&&host&&phase==="playing"){
+    publishing=false;publishSerial++;publishRetryCount=0;publishRetryAt=0;
+    maybePublish(true);
+   }
+  }
   updateUI();
  })}catch(e){setError(e)}
  updateUI();
@@ -1267,10 +1371,18 @@ function resetWorld(){
  S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];qaRaceBudgetPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
- // The same randomized deck on both teams preserves symmetrical card access.
- const deck=shuffledDeck();
+ // Both teams draw their own shuffled cycle from the same card pool.
+ // Reroll a matching opening order so the two sides never start identically.
+ let blueOpening="";
  for(const team of [1,2]){
   for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
+  let deck=shuffledDeck();
+  if(team===1)blueOpening=deck.slice(0,HAND_SIZE).join(",");
+  else{
+   for(let attempt=0;attempt<8&&deck.slice(0,HAND_SIZE).join(",")===blueOpening;attempt++)
+    deck=shuffledDeck();
+   if(deck.slice(0,HAND_SIZE).join(",")===blueOpening)deck.push(deck.shift());
+  }
   S.hand[team]=deck.slice(0,HAND_SIZE);
   S.queue[team]=deck.slice(HAND_SIZE);
  }
@@ -3210,11 +3322,18 @@ function presentRemoteUnit(u){
   if(v){
    const now=performance.now(),dt=Math.max(0,Math.min(.07,(now-v.lastFrame)/1000));
    v.lastFrame=now;
-   const age=Math.max(0,Math.min(.17,(now-v.updatedAt)/1000));
+   const since=Math.max(0,Math.min(.25,(now-v.updatedAt)/1000));
+   const age=Math.min(.17,since);
    const alpha=1-Math.exp(-dt*13);
    v.x+=(v.targetX+v.vx*age-v.x)*alpha;
    v.y+=(v.targetY+v.vy*age-v.y)*alpha;
-   u={...u,x:v.x,y:v.y};
+   // Network snapshots update at ~5.6Hz. Advance transient artwork
+   // phases locally between snapshots, without changing hitboxes or AI.
+   const walking=!!u.walking,walkingSpeed=Math.hypot(v.vx,v.vy);
+   u={...u,x:v.x,y:v.y,
+    walkPhase:walking?(u.walkPhase||0)+since*walkingSpeed*.31:u.walkPhase,
+    attackAnim:Math.max(0,(u.attackAnim||0)-since),
+    flash:Math.max(0,(u.flash||0)-since)};
   }
  }
  return u;
@@ -3686,8 +3805,52 @@ function resumeButton(){
  if(S.phase==="battle"){S.phase="paused";$("pause").textContent="▶ 再開";}
  else if(S.phase==="paused"){S.phase="battle";$("pause").textContent="Ⅱ 停止";}
 }
+// Opt-in, local-only guest diagnostics. Triple-tap the game title to show/hide.
+let perfPanel=null,perfStart=0,perfFrames=0,perfDrawTotal=0,perfDrawWorst=0,perfMaxGap=0,perfLastFrame=0;
+function togglePerfPanel(){
+ if(perfPanel){perfPanel.remove();perfPanel=null;return;}
+ perfPanel=document.createElement("div");
+ perfPanel.setAttribute("role","status");
+ perfPanel.setAttribute("aria-label","通信・描画の診断");
+ perfPanel.style.cssText="position:fixed;top:66px;right:8px;z-index:2000;pointer-events:none;background:#06171de9;border:1px solid #76b5bf;padding:9px 11px;border-radius:8px;color:#f0ffed;font:12px/1.5 monospace;white-space:pre;max-width:95vw";
+ document.body.appendChild(perfPanel);
+ perfStart=0;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;perfLastFrame=0;
+ perfPanel.textContent="通信と描画の計測中…";
+}
+function setupPerfPanel(){
+ let titleTaps=0,lastTap=0;
+ $("logo").addEventListener("click",()=>{
+  const now=performance.now();
+  titleTaps=now-lastTap<=850?titleTaps+1:1;lastTap=now;
+  if(titleTaps>=3){titleTaps=0;togglePerfPanel();}
+ });
+ if(new URLSearchParams(location.search).has("perf"))togglePerfPanel();
+}
+function samplePerf(now,drawMs){
+ if(!perfPanel)return;
+ if(perfLastFrame>0)perfMaxGap=Math.max(perfMaxGap,now-perfLastFrame);
+ perfLastFrame=now;
+ if(!perfStart)perfStart=now;
+ perfFrames++;perfDrawTotal+=drawMs;perfDrawWorst=Math.max(perfDrawWorst,drawMs);
+ if(now-perfStart<1200)return;
+ const n=NET.syncDiagnostics?.()||{},fps=perfFrames*1000/(now-perfStart);
+ const isHost=n.role==="host";
+ const lines=["描画 "+fps.toFixed(0)+" FPS  / 平均 "+(perfDrawTotal/perfFrames).toFixed(1)+"ms",
+  "最大描画 "+perfDrawWorst.toFixed(1)+"ms / フレーム間隔最大 "+perfMaxGap.toFixed(0)+"ms",
+  "戦況 "+S.phase+" / 試合経過 "+S.elapsed.toFixed(1)+"秒 / 残り "+S.seconds.toFixed(1)+"秒",
+  isHost?"配信 host seq "+(n.seq||0)+" / 最終送信 "+(n.publishAgeMs||0)+"ms前":
+   "通信 guest "+(n.updatesHz||0)+"更新/秒 / seq "+(n.seq||0),
+  isHost?"相手との接続 "+(n.connected?"有効":"切断"):
+   "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
+  isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
+  n.error?"同期エラー "+String(n.error).slice(0,48):
+   "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
+ perfPanel.textContent=lines.join("\n");
+ perfStart=now;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;
+}
 function start(){
- resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
+ resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  NET.registerGame({
   begin,setDifficulty:level=>{
     if(["easy","normal","hard"].includes(level)){
@@ -3713,13 +3876,22 @@ function start(){
   },
   apply:(data,seq)=>{
    if(NET.isHost||!data||!(seq>(window.__onlineSeq||0)))return;
-   window.__onlineSeq=seq;
    const was=S.phase,localClock=S.clock;
    const oldSelected=S.selected,oldCam=S.cam;
-   for(const field of ["prep","seconds","elapsed","clock","energy","left","hand","queue",
-    "units","forts","capitals","spells","effects","projectiles","deaths","uid","speed"]){
-    if(data[field]!==undefined)S[field]=data[field];
+   for(const field of ["prep","seconds","elapsed","clock","energy","left",
+    "forts","capitals","uid","speed"]){
+    if(data[field]!==undefined&&data[field]!==null)S[field]=data[field];
    }
+   // RTDB drops empty arrays and can turn numeric-indexed arrays into maps.
+   // Never let a missing spell/animation list kill the guest's rAF loop.
+   const list=value=>Array.isArray(value)?value:
+    value&&typeof value==="object"?Object.keys(value)
+     .sort((a,b)=>Number(a)-Number(b)).map(key=>value[key]):[];
+   for(const field of ["units","effects","projectiles","deaths"])
+    S[field]=list(data[field]);
+   S.spells={incoming:list(data.spells?.incoming),zones:list(data.spells?.zones)};
+   S.hand=[null,list(data.hand?.[1]),list(data.hand?.[2])];
+   S.queue=[null,list(data.queue?.[1]),list(data.queue?.[2])];
    if(data.phase==="prep"||data.phase==="battle"){
     S.phase=data.phase;
     if(NET.guestBot&&data.phase==="battle"&&was!=="battle")S.botThink=3;
@@ -3752,6 +3924,7 @@ function start(){
    if(sig!==window.__onlineHandSig){window.__onlineHandSig=sig;buildCards();}
    // Frame loop handles normal HUD refresh; avoid extra DOM layout for each packet.
    if(was!==S.phase)updateHUD();
+   window.__onlineSeq=seq; // Commit only after successful application.
   }
  });
  // Refresh card and gallery portraits once the high-quality Gald atlas is built.
@@ -3803,8 +3976,9 @@ function start(){
    S.selected=Number(e.key)===1?"infantry":S.hand[ME()][Number(e.key)-2]||null;buildCards();
   }
  });
- let previous=performance.now(),acc=0;
+ let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
  function frame(now){
+  try{
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   S.clock+=delta;
@@ -3832,13 +4006,22 @@ function start(){
    else botStep(delta*S.speed);
   }
   S.hudTick+=delta;
-  if(S.hudTick>=.12){S.hudTick=0;updateHUD();}
+  if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
-  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30){
-   requestAnimationFrame(frame);return;
-  }
+  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
   guestLastPaint=now;
-  draw();requestAnimationFrame(frame);
+  const paintStart=perfPanel?performance.now():0;
+  draw();
+  if(perfPanel)samplePerf(now,performance.now()-paintStart);
+  }catch(error){
+   // The interaction layer may remain alive after a Canvas exception.
+   // A failed draw must NEVER permanently stop future game frames.
+   window.__onlineFrameError=String(error?.message||error);
+   if(now-lastFrameErrorAt>2500){
+    lastFrameErrorAt=now;
+    console.warn("Online frame recovered after exception:",error);
+   }
+  }finally{requestAnimationFrame(frame)}
  }
  requestAnimationFrame(frame);
 }
@@ -3846,6 +4029,14 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
+ fireStress:(team=1,x=640,y=330)=>{
+  if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team))return false;
+  if(!S.hand[team].includes("barrage"))S.hand[team][0]="barrage";
+  S.left[team].barrage=Math.max(1,S.left[team].barrage||0);
+  S.energy[team]=Math.max(4,S.energy[team]);
+  return playCard(team,"barrage",x,y);
+ },
  captureObjective:(team,x,y,variant="baseline",kind="scout")=>{
   if(!NET.isSolo||![1,2].includes(team)||!["scout","engineer"].includes(kind)||
     !Number.isFinite(x)||!Number.isFinite(y)||

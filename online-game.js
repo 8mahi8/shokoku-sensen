@@ -95,10 +95,18 @@ function resetWorld(){
  S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];qaRaceBudgetPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
- // The same randomized deck on both teams preserves symmetrical card access.
- const deck=shuffledDeck();
+ // Both teams draw their own shuffled cycle from the same card pool.
+ // Reroll a matching opening order so the two sides never start identically.
+ let blueOpening="";
  for(const team of [1,2]){
   for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
+  let deck=shuffledDeck();
+  if(team===1)blueOpening=deck.slice(0,HAND_SIZE).join(",");
+  else{
+   for(let attempt=0;attempt<8&&deck.slice(0,HAND_SIZE).join(",")===blueOpening;attempt++)
+    deck=shuffledDeck();
+   if(deck.slice(0,HAND_SIZE).join(",")===blueOpening)deck.push(deck.shift());
+  }
   S.hand[team]=deck.slice(0,HAND_SIZE);
   S.queue[team]=deck.slice(HAND_SIZE);
  }
@@ -2038,11 +2046,18 @@ function presentRemoteUnit(u){
   if(v){
    const now=performance.now(),dt=Math.max(0,Math.min(.07,(now-v.lastFrame)/1000));
    v.lastFrame=now;
-   const age=Math.max(0,Math.min(.17,(now-v.updatedAt)/1000));
+   const since=Math.max(0,Math.min(.25,(now-v.updatedAt)/1000));
+   const age=Math.min(.17,since);
    const alpha=1-Math.exp(-dt*13);
    v.x+=(v.targetX+v.vx*age-v.x)*alpha;
    v.y+=(v.targetY+v.vy*age-v.y)*alpha;
-   u={...u,x:v.x,y:v.y};
+   // Network snapshots update at ~5.6Hz. Advance transient artwork
+   // phases locally between snapshots, without changing hitboxes or AI.
+   const walking=!!u.walking,walkingSpeed=Math.hypot(v.vx,v.vy);
+   u={...u,x:v.x,y:v.y,
+    walkPhase:walking?(u.walkPhase||0)+since*walkingSpeed*.31:u.walkPhase,
+    attackAnim:Math.max(0,(u.attackAnim||0)-since),
+    flash:Math.max(0,(u.flash||0)-since)};
   }
  }
  return u;
@@ -2514,8 +2529,52 @@ function resumeButton(){
  if(S.phase==="battle"){S.phase="paused";$("pause").textContent="▶ 再開";}
  else if(S.phase==="paused"){S.phase="battle";$("pause").textContent="Ⅱ 停止";}
 }
+// Opt-in, local-only guest diagnostics. Triple-tap the game title to show/hide.
+let perfPanel=null,perfStart=0,perfFrames=0,perfDrawTotal=0,perfDrawWorst=0,perfMaxGap=0,perfLastFrame=0;
+function togglePerfPanel(){
+ if(perfPanel){perfPanel.remove();perfPanel=null;return;}
+ perfPanel=document.createElement("div");
+ perfPanel.setAttribute("role","status");
+ perfPanel.setAttribute("aria-label","通信・描画の診断");
+ perfPanel.style.cssText="position:fixed;top:66px;right:8px;z-index:2000;pointer-events:none;background:#06171de9;border:1px solid #76b5bf;padding:9px 11px;border-radius:8px;color:#f0ffed;font:12px/1.5 monospace;white-space:pre;max-width:95vw";
+ document.body.appendChild(perfPanel);
+ perfStart=0;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;perfLastFrame=0;
+ perfPanel.textContent="通信と描画の計測中…";
+}
+function setupPerfPanel(){
+ let titleTaps=0,lastTap=0;
+ $("logo").addEventListener("click",()=>{
+  const now=performance.now();
+  titleTaps=now-lastTap<=850?titleTaps+1:1;lastTap=now;
+  if(titleTaps>=3){titleTaps=0;togglePerfPanel();}
+ });
+ if(new URLSearchParams(location.search).has("perf"))togglePerfPanel();
+}
+function samplePerf(now,drawMs){
+ if(!perfPanel)return;
+ if(perfLastFrame>0)perfMaxGap=Math.max(perfMaxGap,now-perfLastFrame);
+ perfLastFrame=now;
+ if(!perfStart)perfStart=now;
+ perfFrames++;perfDrawTotal+=drawMs;perfDrawWorst=Math.max(perfDrawWorst,drawMs);
+ if(now-perfStart<1200)return;
+ const n=NET.syncDiagnostics?.()||{},fps=perfFrames*1000/(now-perfStart);
+ const isHost=n.role==="host";
+ const lines=["描画 "+fps.toFixed(0)+" FPS  / 平均 "+(perfDrawTotal/perfFrames).toFixed(1)+"ms",
+  "最大描画 "+perfDrawWorst.toFixed(1)+"ms / フレーム間隔最大 "+perfMaxGap.toFixed(0)+"ms",
+  "戦況 "+S.phase+" / 試合経過 "+S.elapsed.toFixed(1)+"秒 / 残り "+S.seconds.toFixed(1)+"秒",
+  isHost?"配信 host seq "+(n.seq||0)+" / 最終送信 "+(n.publishAgeMs||0)+"ms前":
+   "通信 guest "+(n.updatesHz||0)+"更新/秒 / seq "+(n.seq||0),
+  isHost?"相手との接続 "+(n.connected?"有効":"切断"):
+   "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
+  isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
+  n.error?"同期エラー "+String(n.error).slice(0,48):
+   "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
+ perfPanel.textContent=lines.join("\n");
+ perfStart=now;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;
+}
 function start(){
- resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();
+ resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  NET.registerGame({
   begin,setDifficulty:level=>{
     if(["easy","normal","hard"].includes(level)){
@@ -2541,13 +2600,22 @@ function start(){
   },
   apply:(data,seq)=>{
    if(NET.isHost||!data||!(seq>(window.__onlineSeq||0)))return;
-   window.__onlineSeq=seq;
    const was=S.phase,localClock=S.clock;
    const oldSelected=S.selected,oldCam=S.cam;
-   for(const field of ["prep","seconds","elapsed","clock","energy","left","hand","queue",
-    "units","forts","capitals","spells","effects","projectiles","deaths","uid","speed"]){
-    if(data[field]!==undefined)S[field]=data[field];
+   for(const field of ["prep","seconds","elapsed","clock","energy","left",
+    "forts","capitals","uid","speed"]){
+    if(data[field]!==undefined&&data[field]!==null)S[field]=data[field];
    }
+   // RTDB drops empty arrays and can turn numeric-indexed arrays into maps.
+   // Never let a missing spell/animation list kill the guest's rAF loop.
+   const list=value=>Array.isArray(value)?value:
+    value&&typeof value==="object"?Object.keys(value)
+     .sort((a,b)=>Number(a)-Number(b)).map(key=>value[key]):[];
+   for(const field of ["units","effects","projectiles","deaths"])
+    S[field]=list(data[field]);
+   S.spells={incoming:list(data.spells?.incoming),zones:list(data.spells?.zones)};
+   S.hand=[null,list(data.hand?.[1]),list(data.hand?.[2])];
+   S.queue=[null,list(data.queue?.[1]),list(data.queue?.[2])];
    if(data.phase==="prep"||data.phase==="battle"){
     S.phase=data.phase;
     if(NET.guestBot&&data.phase==="battle"&&was!=="battle")S.botThink=3;
@@ -2580,6 +2648,7 @@ function start(){
    if(sig!==window.__onlineHandSig){window.__onlineHandSig=sig;buildCards();}
    // Frame loop handles normal HUD refresh; avoid extra DOM layout for each packet.
    if(was!==S.phase)updateHUD();
+   window.__onlineSeq=seq; // Commit only after successful application.
   }
  });
  // Refresh card and gallery portraits once the high-quality Gald atlas is built.
@@ -2631,8 +2700,9 @@ function start(){
    S.selected=Number(e.key)===1?"infantry":S.hand[ME()][Number(e.key)-2]||null;buildCards();
   }
  });
- let previous=performance.now(),acc=0;
+ let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
  function frame(now){
+  try{
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   S.clock+=delta;
@@ -2660,13 +2730,22 @@ function start(){
    else botStep(delta*S.speed);
   }
   S.hudTick+=delta;
-  if(S.hudTick>=.12){S.hudTick=0;updateHUD();}
+  if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
-  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30){
-   requestAnimationFrame(frame);return;
-  }
+  if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
   guestLastPaint=now;
-  draw();requestAnimationFrame(frame);
+  const paintStart=perfPanel?performance.now():0;
+  draw();
+  if(perfPanel)samplePerf(now,performance.now()-paintStart);
+  }catch(error){
+   // The interaction layer may remain alive after a Canvas exception.
+   // A failed draw must NEVER permanently stop future game frames.
+   window.__onlineFrameError=String(error?.message||error);
+   if(now-lastFrameErrorAt>2500){
+    lastFrameErrorAt=now;
+    console.warn("Online frame recovered after exception:",error);
+   }
+  }finally{requestAnimationFrame(frame)}
  }
  requestAnimationFrame(frame);
 }
@@ -2674,6 +2753,14 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
+ fireStress:(team=1,x=640,y=330)=>{
+  if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team))return false;
+  if(!S.hand[team].includes("barrage"))S.hand[team][0]="barrage";
+  S.left[team].barrage=Math.max(1,S.left[team].barrage||0);
+  S.energy[team]=Math.max(4,S.energy[team]);
+  return playCard(team,"barrage",x,y);
+ },
  captureObjective:(team,x,y,variant="baseline",kind="scout")=>{
   if(!NET.isSolo||![1,2].includes(team)||!["scout","engineer"].includes(kind)||
     !Number.isFinite(x)||!Number.isFinite(y)||
