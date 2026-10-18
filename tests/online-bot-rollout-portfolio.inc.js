@@ -201,12 +201,20 @@ function qaRolloutPortfolioSearch(spec,horizon=20,seeds=[17,41,73],responses=["i
    const key=o=>[o.id,o.x,o.y].join(":");
    const picked=[],seen=new Set();
    const keep=o=>{if(o&&!seen.has(key(o))){picked.push(o);seen.add(key(o));return true;}return false;};
-   const distEnemy=o=>enemyUnits.length&&o.x!==null?
-    Math.min(...enemyUnits.map(e=>Math.hypot(e.x-o.x,e.y-o.y))):Infinity;
+   // A ground guard cannot intercept a flying unit. Evaluate each role
+   // against enemies it can actually counter, never merely the nearest
+   // visible enemy in some other lane. This protects deployment geometry.
+   const distEnemy=(o,role)=>{
+    const suitable=role==="air"?enemyUnits.filter(e=>CLASSES[e.key].flying):
+     ["ground","large","area"].includes(role)?
+      enemyUnits.filter(e=>!CLASSES[e.key].flying):enemyUnits;
+    return suitable.length&&o.x!==null?
+     Math.min(...suitable.map(e=>Math.hypot(e.x-o.x,e.y-o.y))):Infinity;
+   };
    const score=(o,role)=>{
     let v=0;
     const d=CLASSES[o.id];
-    if(role==="air")v=o.id==="archer"?180:o.id==="drone"?65:0;
+    if(role==="air")v=o.id==="archer"?180:0;
     else if(role==="large")v=o.id==="guardian"?205:o.id==="tank"?90:o.id==="sentinel"?50:0;
     else if(role==="ground")v=o.id==="sentinel"?160:o.id==="guardian"?140:
       o.id==="infantry"?100:o.id==="archer"?85:0;
@@ -223,7 +231,7 @@ function qaRolloutPortfolioSearch(spec,horizon=20,seeds=[17,41,73],responses=["i
     // Important to retain the forward/intercept location distinction:
     // close defenses should contact enemies before they reach the wall.
     if(castleThreat&&["air","large","ground","area"].includes(role)){
-     const distance=distEnemy(o);
+     const distance=distEnemy(o,role);
      if(distance<175)v+=55;
      if(distance>=400)v-=65;
     }
