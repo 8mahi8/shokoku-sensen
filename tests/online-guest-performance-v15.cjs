@@ -158,7 +158,13 @@ async function measure(engineName,engine){
    await page.waitForFunction(()=>window.__qaGuestNet.stats().applied===1);
    assert.equal((await page.evaluate(()=>window.__qaGuestNet.stats())).received,1);
    assert.deepEqual(errors,[]);
-   rows.push({browser:engineName,layout:entry.name,variant:entry.variant,dpr:initial.dpr,fps,
+   const finalQuality=await page.evaluate(()=>({
+    dpr:window.__shokokuQa.snapshot().view.dpr,
+    ...window.__shokokuQa.quality()
+   }));
+   if(finalQuality.guestDprCap<1)
+    assert.ok(finalQuality.dpr<1,"adaptive guest DPR must reach canvas");
+   rows.push({browser:engineName,layout:entry.name,variant:entry.variant,dpr:initial.dpr,finalQuality,fps,
     interpolation:{from:initialSprite.x,to:afterSmooth.x,target:afterSmooth.targetX},
     air:balance.stats,fire:balance.fire,targets:balance.ranged});
    await page.close();await context.close();
