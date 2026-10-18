@@ -710,14 +710,16 @@ function botExpertAction(team=2){
  // time needed to fund an already-in-hand scout. Avoid a 2-cost infantry
  // expenditure if it delays a legal 3-cost capture runner by several seconds.
  // Never skip immediate castle defense, never infer the enemy's hidden hand.
- const scoutHold=qaPolicy==="scoutTempoPreserve"&&S.elapsed>=18&&S.elapsed<=130&&
-  power>=2&&power<3&&availableCard(team,"scout")&&!!fort&&!!threatened&&
+ const scoutReadyGeometry=qaPolicy==="scoutTempoPreserve"&&S.elapsed>=18&&S.elapsed<=130&&
+  power>=2&&power<4&&availableCard(team,"scout")&&!!fort&&!!threatened&&
   S.forts.some(f=>f.owner===team)&&!castleThreat.length&&
   secondsUntilAffordable(power,3)<=4&&
   !foes.some(u=>Math.abs(u.x-WALL_FACE[team])<330)&&
   friends.some(u=>!CLASSES[u.key].capture&&u.hp>u.max*.45&&
    Math.abs(u.x-threatened.f.x)<170&&Math.abs(u.y-threatened.f.y)<135)&&
   getFort({team,key:"scout",x:limit(edge+dir*35,40,W-40),y:fort.y})===fort;
+ const scoutHold=scoutReadyGeometry&&power<3;
+ const scoutRelease=scoutReadyGeometry&&power>=3;
  if(scoutHold&&event)event.scoutTempoOpportunities=(event.scoutTempoOpportunities||0)+1;
 
  // QA-only damage race: actual prior castle hits, not HP gap or future data.
@@ -1052,6 +1054,10 @@ function botExpertAction(team=2){
   if(incoming.length>=2&&spawn("suppress",laneY,50))return true;
   if(incoming.length&&defense.length<incoming.length+1&&spawn("sentinel",laneY,35))return true;
   if(defense.length<incoming.length+1&&spawn("archer",laneY,60))return true;
+  if(scoutRelease&&spawn("scout",fort.y,35)){
+   if(event)event.scoutTempoReleased=(event.scoutTempoReleased||0)+1;
+   return true;
+  }
   if(defense.length<incoming.length+1){
    if(scoutHold){
     if(event)event.scoutTempoEmergencyDeferred=(event.scoutTempoEmergencyDeferred||0)+1;
@@ -1315,6 +1321,10 @@ function botExpertAction(team=2){
    front(u.x)>front(fort.x)-175)&&Math.abs(u.y-fort.y)<135):[];
  const needFort=!!fort&&workers.length<(S.elapsed<40?1:2);
  if(event&&needFort)event.needFort++;
+ if(scoutRelease&&spawn("scout",fort.y,35)){
+  if(event)event.scoutTempoReleased=(event.scoutTempoReleased||0)+1;
+  return true;
+ }
  // Only if no more important anti-air, barrage, ward, or fort-defense action
  // has already happened this turn: delay cheap fallback until scout affordable.
  if(scoutHold){
