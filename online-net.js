@@ -60,6 +60,13 @@ function updateUI(){
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
  }
 }
+ // Research flags live only in existing room-player presence. Game observations
+ // never enter RTDB; both participants must explicitly opt in before each match.
+ window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
+  ownConsent:!!players?.[host?"host":"guest"]?.researchConsent,
+  bothConsent:!!room&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent,
+  playing:meta?.status==="playing"});
+}
 function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
 function detach(){
  for(const [ref,event,fn] of watchers)ref.off(event,fn);
@@ -338,6 +345,15 @@ async function startMatch(){
   if(!result.committed)throw Error("開始状態が変わりました");
  }catch(e){setError(e)}
 }
+async function setResearchConsent(value){
+ if(solo||!room||!players)return false;
+ const seat=host?"host":"guest";
+ if(players[seat]?.id!==clientId||value&&meta?.status!=="lobby")return false;
+ const done=await room.child("players/"+seat).transaction(old=>
+  old?.id===clientId?{...old,researchConsent:!!value}:undefined,undefined,false);
+ if(!done.committed)throw Error("参加情報が変わりました");
+ return true;
+}
 function sendCommand(c){
 if(host||!room||phase!=="playing"||!connected)return false;
 if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return false;
@@ -427,6 +443,8 @@ const api={
  get team(){return solo?1:team},get isHost(){return host||solo},get isConnected(){return connected},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
+  get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
+  setResearchConsent,
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
