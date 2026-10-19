@@ -338,6 +338,7 @@ let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=fal
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
 let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
+let lastAcceptedGuestSeq=0,guestAckSeq=0,guestAcceptedSeq=0,guestCommandNotice="",guestNoticeUntil=0,guestCommandSentAt=0,guestCommandLate=false;
 let qaMuteSdkSnapshots=false;
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
@@ -372,9 +373,11 @@ function updateUI(){
   $("guestBotLive").setAttribute("aria-pressed",String(guestBot));
  if(inRoom&&meta?.status==="lobby"&&connected)
   show(!seatValid?"参加情報が変更されました。新しいルームへ接続し直してください":!peerOnline?"相手の接続を待っています":ready?"2人準備OK。ホストが開始できます。":"2人参加中。両方が準備完了を押してください");
- if(inRoom&&meta?.status==="playing"&&connected){
+ if(inRoom&&meta?.status==="playing"){
   $("networkBar").classList.remove("hidden");
-  $("networkBar").textContent="ONLINE "+roomCode+" ｜ "+(host?"青軍":"赤軍")+" ｜ "+(!connected?"通信切断：再接続中":!seatValid?"参加情報が無効":!peerOnline?"相手の再接続を待っています":"接続中");
+  const orderStatus=!host&&!guestBot&&seatValid&&connected?
+  commandSeq>guestAckSeq?" ｜ "+(guestCommandLate?"召喚応答が遅れています":"召喚確認中"):guestCommandNotice&&performance.now()<guestNoticeUntil?" ｜ "+guestCommandNotice:"":"";
+  $("networkBar").textContent="ONLINE "+roomCode+" ｜ "+(host?"青軍":"赤軍")+" ｜ "+(!connected?"通信切断：再接続中":!seatValid?"参加情報が無効":!peerOnline?"相手の再接続を待っています":syncWarning?"戦況同期が遅れています":"接続中")+orderStatus;
  }else if(inRoom&&meta?.status==="finished"){
   $("networkBar").classList.remove("hidden");
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
@@ -426,6 +429,16 @@ function receiveGuestWorld(packet){
   if(!latest||latest.round!==meta?.round)return;
   try{
    game?.apply(latest.world,latest.seq);
+   // A processed order may have been rejected by the host's rules.
+   if(Number.isInteger(latest.guestAckSeq)&&latest.guestAckSeq>guestAckSeq){
+   guestAckSeq=Math.min(commandSeq,latest.guestAckSeq);
+   guestAcceptedSeq=Number.isInteger(latest.guestAcceptedSeq)?Math.min(guestAckSeq,latest.guestAcceptedSeq):guestAcceptedSeq;
+   if(guestAckSeq===commandSeq&&commandSeq>0&&!guestBot){
+   guestCommandNotice=guestAcceptedSeq===commandSeq?"召喚反映済":"召喚できませんでした";
+   guestNoticeUntil=performance.now()+2500;
+   }
+   updateUI();
+   }
    const appliedAt=performance.now();
    if(lastRemoteAppliedAt>0){
     appliedGaps.push(Math.max(0,appliedAt-lastRemoteAppliedAt));
@@ -471,13 +484,13 @@ function restRecoverGuest(){
 function checkGuestSync(){
  if(host||!room||phase!=="playing")return;
  const now=performance.now();
+ if(guestCommandNotice&&now>=guestNoticeUntil){guestCommandNotice="";updateUI();}
+if(!guestCommandLate&&commandSeq>guestAckSeq&&guestCommandSentAt>0&&now-guestCommandSentAt>=4000){
+ guestCommandLate=true;updateUI();
+}
  if(!lastRemoteAppliedAt)lastRemoteAppliedAt=now;
  if(now-lastRemoteAppliedAt<3500)return;
- if(!syncWarning){
-  syncWarning=true;
-  $("networkBar").classList.remove("hidden");
-  $("networkBar").textContent="ONLINE "+roomCode+" ｜ 戦況同期が遅れています";
- }
+ if(!syncWarning){syncWarning=true;updateUI();}
  if(now-lastSyncReadAt<4500)return;
  lastSyncReadAt=now;
  restRecoverGuest();
@@ -494,7 +507,9 @@ function syncDiagnostics(){
   eventAgeMs:Math.round(lastStateEventAt?now-lastStateEventAt:0),
   restAgeMs:Math.round(lastRestReadAt?now-lastRestReadAt:0),
   publishAgeMs:Math.round(lastHostPublishAt?now-lastHostPublishAt:0),
-  syncing:restReadPending,error:lastApplyError};
+  syncing:restReadPending,error:lastApplyError,
+  commandSent:commandSeq,commandProcessed:guestAckSeq,commandAccepted:guestAcceptedSeq,
+  commandPending:Math.max(0,commandSeq-guestAckSeq)};
 }
 function setupRoom(code,isHost){
  solo=false;guestBot=false;
@@ -502,7 +517,8 @@ function setupRoom(code,isHost){
  lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;restReadPending=false;lastHostPublishAt=0;lastHostPublishSeq=0;lastApplyError="";
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
- roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
+ roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastAcceptedGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
+ guestAckSeq=0;guestAcceptedSeq=0;guestCommandNotice="";guestNoticeUntil=0;guestCommandSentAt=0;guestCommandLate=false;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
  if(connected)registerPresence().catch(setError);
@@ -513,7 +529,8 @@ function setupRoom(code,isHost){
  attach(room.child("meta"),"value",snap=>{
   const before=meta?.status;meta=snap.val();
   if(meta?.status==="lobby"&&before==="finished"){
-   phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastAcceptedGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   guestAckSeq=0;guestAcceptedSeq=0;guestCommandNotice="";guestNoticeUntil=0;guestCommandSentAt=0;guestCommandLate=false;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
@@ -547,8 +564,8 @@ function setupRoom(code,isHost){
       Number.isInteger(data.seq)&&data.seq>lastGuestSeq){
     lastGuestSeq=data.seq;
     const valid=game?.accept({id:data.id,x:data.x,y:data.y})===true;
-    if(!valid)room.child("feedback").set({seq:data.seq,message:"召喚できませんでした。コスト・範囲・カードを確認。"}).catch(()=>{});
-    else maybePublish(true);
+    if(!valid)room.child("feedback").set({round:meta.round,seq:data.seq,message:"召喚できませんでした。コスト・範囲・カードを確認。"}).catch(()=>{});
+    else{lastAcceptedGuestSeq=data.seq;maybePublish(true);}
    }
    try{await snap.ref.remove()}catch(e){setError(e)}
   });
@@ -558,7 +575,11 @@ function setupRoom(code,isHost){
   });
   attach(room.child("feedback"),"value",snap=>{
    const feedback=snap.val();
-   if(feedback?.seq===commandSeq)show(feedback.message);
+   if(feedback?.round===meta?.round&&feedback.seq===commandSeq){
+   guestAckSeq=Math.max(guestAckSeq,feedback.seq);
+   guestCommandNotice=feedback.message;guestNoticeUntil=performance.now()+2500;
+   show(feedback.message);updateUI();
+   }
   });
  }
  updateUI();
@@ -641,10 +662,19 @@ async function startMatch(){
  }catch(e){setError(e)}
 }
 function sendCommand(c){
- if(host||!room||phase!=="playing")return;
- if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
- const seq=++commandSeq;
- room.child("commands").push({by:clientId,seq,round:meta?.round||1,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(setError);
+if(host||!room||phase!=="playing"||!connected)return false;
+if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return false;
+const order=++commandSeq,currentRoom=room,round=meta?.round||1;
+guestCommandSentAt=performance.now();guestCommandLate=false;
+updateUI();
+currentRoom.child("commands").push({by:clientId,seq:order,round,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(error=>{
+if(currentRoom===room&&round===meta?.round&&order===commandSeq){
+guestAckSeq=Math.max(guestAckSeq,order);
+guestCommandNotice="召喚命令の送信に失敗しました";guestNoticeUntil=performance.now()+2500;updateUI();
+}
+setError(error);
+});
+return true;
 }
 function maybePublish(force=false){
  if(!host||!room||phase!=="playing"||!game||!connected)return;
@@ -663,7 +693,7 @@ function maybePublish(force=false){
  const current=room,epoch=networkEpoch,serial=++publishSerial;
  const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
  lastHostPublishAt=performance.now();lastHostPublishSeq=seq+1;
- current.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset})
+ current.child("state").set({seq:++seq,round:meta?.round||1,world,guestAckSeq:lastGuestSeq,guestAcceptedSeq:lastAcceptedGuestSeq,at:Date.now()+serverOffset})
   .catch(setError).finally(()=>{
    if(epoch!==networkEpoch||current!==room||serial!==publishSerial)return;
    publishing=false;publishRetryCount=0;
@@ -678,7 +708,7 @@ function finish(data){
  const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
  const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
  room.update({
-  state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
+  state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},guestAckSeq:lastGuestSeq,guestAcceptedSeq:lastAcceptedGuestSeq,at},
   result:{winner,reason:data.reason,at},
   "meta/status":"finished"
  }).catch(setError);
@@ -717,7 +747,7 @@ async function resetLobby(){
  location.reload();
 }
 const api={
- get team(){return solo?1:team},get isHost(){return host||solo},
+ get team(){return solo?1:team},get isHost(){return host||solo},get isConnected(){return connected},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
@@ -1471,8 +1501,7 @@ function castSpell(team,id,x,y){
 function playCard(team,id,x,y){
  if(!NET.isHost&&team===ME()){
   if(!validTarget(team,id,x,y)||!canPay(team,id))return false;
-  NET.sendCommand({id,x,y});
-  return true;
+  return NET.sendCommand({id,x,y})===true;
  }
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
  // Track only observable, legal card spending, never the hidden opponent hand.
@@ -3795,7 +3824,8 @@ function arenaUp(e){
  const wasSwipe=p.dragging||Math.hypot(e.clientX-p.originX,e.clientY-p.originY)>12;
  if(!wasSwipe&&S.selected&&!NET.guestBot){
   const pt=point(e.clientX,e.clientY),id=S.selected;
-  if(!playCard(ME(),id,pt.x,pt.y))notice(cardFailure(ME(),id));
+  if(!playCard(ME(),id,pt.x,pt.y))
+  notice(!NET.isHost&&!NET.isConnected?"通信切断中。再接続を待ってね":cardFailure(ME(),id));
  }
  S.pointer=null;
 }

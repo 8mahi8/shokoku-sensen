@@ -3,11 +3,11 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const {webcrypto}=require("node:crypto"),{performance}=require("node:perf_hooks");
 const source=fs.readFileSync("online-net.js","utf8");
-const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,restFetchCount=0;
+const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,holdCommands=false,firebaseOnline=true,restFetchCount=0;
 const clone=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
 const parts=p=>p.split("/").filter(Boolean);
 function read(path){
- if(path===".info/connected")return true;
+ if(path===".info/connected")return firebaseOnline;
  if(path===".info/serverTimeOffset")return 0;
  let node=store;for(const seg of parts(path)){if(node==null)return null;node=node[seg];}
  return node===undefined?null:clone(node);
@@ -26,6 +26,7 @@ function notify(paths){
    touched.add(w);w.fn(new Snapshot(new Ref(w.path),read(w.path)));
   }
   if(w.event==="child_added")for(const p of paths){
+    if(holdCommands&&w.path.endsWith("/commands"))continue;
    if(parts(p).length===parts(w.path).length+1&&p.startsWith(w.path+"/")&&read(p)!==null)
     w.fn(new Snapshot(new Ref(p),read(p)));
   }
@@ -118,9 +119,54 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await host.click("netStart");await settle();
  assert.equal(host.game.starts,1);
  assert.ok(guest.game.received.length>0,"guest should receive initial snapshot");
- guest.api.sendCommand({id:"infantry",x:1060,y:320});await settle();
+ assert.equal(guest.api.sendCommand({id:"infantry",x:1060,y:320}),true);await settle();
  assert.equal(host.game.accepted.length,1);
  assert.ok(guest.game.received.at(-1).data.units.length===1,"guest should see summons");
+ let order=guest.api.syncDiagnostics();
+ assert.equal(order.commandSent,1);
+ assert.equal(order.commandProcessed,1);
+ assert.equal(order.commandAccepted,1);
+ assert.equal(order.commandPending,0);
+ assert.match(guest.get("networkBar").textContent,/召喚反映済/);
+ const originalAccept=host.game.accept;
+ host.game.accept=()=>false;
+ assert.equal(guest.api.sendCommand({id:"infantry",x:1060,y:320}),true);await settle();
+ order=guest.api.syncDiagnostics();
+ assert.equal(host.game.accepted.length,1,"rejected summon cannot add units");
+ assert.equal(order.commandSent,2);
+ assert.equal(order.commandProcessed,2);
+ assert.equal(order.commandAccepted,1);
+ assert.equal(order.commandPending,0);
+ assert.match(guest.get("networkBar").textContent,/召喚できませんでした/);
+ assert.equal(read("shokokuRooms1v1/"+code+"/feedback").round,1);
+ host.game.accept=originalAccept;
+ // A connection drop must be visible during the match, and offline taps
+ // must not be counted as submitted orders.
+ firebaseOnline=false;notify([".info/connected"]);await settle();
+ assert.match(guest.get("networkBar").textContent,/通信切断：再接続中/);
+ assert.equal(guest.api.sendCommand({id:"infantry",x:1060,y:320}),false);
+ assert.equal(guest.api.syncDiagnostics().commandSent,2);
+ firebaseOnline=true;notify([".info/connected"]);await settle();
+ assert.match(guest.get("networkBar").textContent,/接続中/);
+ // Battle packets may continue while the host's command listener is late.
+ // Show a warning, not an invented success or rejection.
+ holdCommands=true;
+ assert.equal(guest.api.sendCommand({id:"infantry",x:1060,y:320}),true);await settle();
+ assert.equal(guest.api.syncDiagnostics().commandPending,1);
+ assert.match(guest.get("networkBar").textContent,/召喚確認中/);
+ virtualNow+=4200;
+ host.game.data.elapsed=1;host.api.maybePublish(true);await settle();
+ guest.api.checkGuestSync();await settle();
+ assert.equal(guest.api.syncDiagnostics().commandPending,1);
+ assert.match(guest.get("networkBar").textContent,/召喚応答が遅れています/);
+ holdCommands=false;
+ const pendingCommands=read("shokokuRooms1v1/"+code+"/commands")||{};
+ for(const key of Object.keys(pendingCommands))
+  notify(["shokokuRooms1v1/"+code+"/commands/"+key]);
+ await settle();
+ assert.equal(guest.api.syncDiagnostics().commandProcessed,3);
+ assert.equal(guest.api.syncDiagnostics().commandPending,0);
+ assert.match(guest.get("networkBar").textContent,/召喚反映済/);
  host.api.finish({result:"win",reason:"test winner"});await settle();
  assert.equal(guest.api.resultForMe(),"lose");
  assert.equal(guest.game.results,1);
@@ -129,9 +175,12 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  assert.equal(host.game.resets,1);
  assert.equal(guest.game.resets,1);
  assert.equal(read("shokokuRooms1v1/"+code+"/state"),null);
+ assert.equal(guest.api.syncDiagnostics().commandSent,0,"guest order sequence resets on rematch");
  await host.click("netReady");await guest.click("netReady");await settle();
  await host.click("netStart");await settle();
  assert.equal(host.game.starts,2);
+ await new Ref("shokokuRooms1v1/"+code+"/feedback").set({round:1,seq:2,message:"old-round error"});await settle();
+ assert.doesNotMatch(guest.get("networkBar").textContent,/old-round error/);
  // A stuck Firebase .set() promise must not silence all future host snapshots.
  const beforeFreeze=guest.game.received.at(-1).seq;
  holdNextStateWrite=true;
