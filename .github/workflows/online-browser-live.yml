@@ -9,6 +9,11 @@ on:
       - 'online-ipad.html'
       - 'tests/online-browser-live.cjs'
   workflow_dispatch:
+# Manual dispatches are isolated from push runs; they must not be replaced.
+# Real Firebase runs must finish room cleanup; replace only queued copies.
+concurrency:
+  group: online-browser-live-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'push' }}
+  cancel-in-progress: false
 jobs:
   browser-live:
     runs-on: ubuntu-latest

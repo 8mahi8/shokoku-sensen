@@ -15,6 +15,11 @@ on:
       - 'online.html'
       - 'online-ipad.html'
   workflow_dispatch:
+# Manual dispatches are isolated from push runs; they must not be replaced.
+# Long visual QA can cancel superseded pushes.
+concurrency:
+  group: online-ipad-ui-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'push' }}
+  cancel-in-progress: true
 jobs:
   ui:
     runs-on: ubuntu-latest

@@ -7,6 +7,11 @@ on:
       - 'tests/online-sim.cjs'
       - '.github/workflows/online-smoke.yml'
   workflow_dispatch:
+# Manual dispatches are isolated from push runs; they must not be replaced.
+# Fast smoke runs should cancel superseded pushes.
+concurrency:
+  group: online-smoke-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'push' }}
+  cancel-in-progress: true
 jobs:
   smoke:
     runs-on: ubuntu-latest
