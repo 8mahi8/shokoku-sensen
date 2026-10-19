@@ -11,6 +11,7 @@ const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)cr
 const clientId=token(), ROOM_VERSION=1;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
+let guestBotSwitchPending=false;
 let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal';
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
@@ -42,7 +43,7 @@ function updateUI(){
  $("netShare").disabled=!inRoom;
   const guestControl=inRoom&&!host&&seatValid;
   $("netGuestBot").hidden=!guestControl;
-  $("netGuestBot").disabled=!guestControl||!connected;
+  $("netGuestBot").disabled=!guestControl||!connected||guestBotSwitchPending;
   $("netGuestBot").textContent=guestBot?"BOT操作：ON ✓":"この参加端末をBOT操作";
   $("netGuestBot").setAttribute("aria-pressed",String(guestBot));
   $("guestBotLive").hidden=!(guestControl&&meta?.status==="playing");
@@ -298,7 +299,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -309,12 +310,23 @@ async function join(){
  }catch(e){setError(e)}
 }
 async function toggleGuestBot(){
- if(solo||!room||host||players?.guest?.id!==clientId)return;
- guestBot=!guestBot;
- game?.setBotControl?.(guestBot);
- updateUI();
- if(guestBot&&meta?.status==="lobby"&&!players?.guest?.ready&&connected)await ready();
- show(guestBot?"BOT操作ON。ホストが開始すると自動召喚します":"手動操作に戻しました");
+ if(solo||!room||host||players?.guest?.id!==clientId||!connected||guestBotSwitchPending)return;
+ guestBotSwitchPending=true;
+ $("netGuestBot").disabled=true;
+ const originalRoom=room,next=!guestBot;
+ try{
+  // Host needs a non-identifying, authoritative control-mode marker to
+  // distinguish human 1v1 from guest-BOT practice in opt-in research logs.
+  const switched=await originalRoom.child("players/guest").transaction(old=>
+   old?.id===clientId?{...old,botControl:next}:undefined,undefined,false);
+  if(!switched.committed||room!==originalRoom)throw Error("参加情報が変更されました");
+  guestBot=next;
+  game?.setBotControl?.(guestBot);
+  updateUI();
+  if(guestBot&&meta?.status==="lobby"&&!players?.guest?.ready&&connected)await ready();
+  show(guestBot?"BOT操作ON。ホストが開始すると自動召喚します":"手動操作に戻しました");
+ }catch(e){setError(e)}
+ finally{guestBotSwitchPending=false;updateUI();}
 }
 function startSolo(){
  if(room||solo)return;
@@ -443,6 +455,7 @@ const api={
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
   get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
+  get researchGuestControl(){return players?.guest?.botControl===true?"bot":players?.guest?.botControl===false?"human":"unknown"},
   setResearchConsent,
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
