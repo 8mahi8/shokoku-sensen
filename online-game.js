@@ -625,7 +625,8 @@ function botExpertAction(team=2){
    (team===1?u.x<border(team)+250:u.x>border(team)-250))
  }:null;
  try{
- const hard=S.difficulty==="hard",edge=border(team),power=S.energy[team];
+ const strong=S.difficulty==="expert"||qaBotVariants[team]==="strongDefend";
+ const hard=S.difficulty==="hard"||strong,edge=border(team),power=S.energy[team];
  const qaPolicy=qaBotVariants[team];
  // Deterministic estimate from visible plays, starting energy, known regen.
  const opposingPower=S.observedEnergy[3-team];
@@ -713,8 +714,18 @@ function botExpertAction(team=2){
   raiders.sort((a,b)=>front(b.x)-front(a.x))[0];
  const defendY=castleThreat.length?focus?.y:threatened?.f.y;
  const laneY=defendY??focus?.y??fort?.y??330;
- const spawn=(id,y,margin=35)=>canPay(team,id)&&botUse(team,id,
-  limit(edge+dir*margin,40,W-40),limit(y,70,H-70));
+ const spawn=(id,y,margin=35)=>{
+  if(!canPay(team,id))return false;
+  let x=limit(edge+dir*margin,40,W-40);
+  // Guards placed at a far-forward fort cannot intercept raiders at the castle.
+  // Strong mode: defend at the observed threat, with normal deployment legality.
+  if(strong&&castleThreat.length&&focus&&
+    ["sentinel","guardian","suppress","archer"].includes(id)){
+   const intercept=limit(focus.x+(team===2?38:-38),40,W-40);
+   x=team===2?Math.max(x,intercept):Math.min(x,intercept);
+  }
+  return botUse(team,id,x,limit(y,70,H-70));
+ };
  // QA-only: a nearby defender can hold a contested owned fort for the short
  // time needed to fund an already-in-hand scout. Avoid a 2-cost infantry
  // expenditure if it delays a legal 3-cost capture runner by several seconds.
@@ -1830,7 +1841,7 @@ function botStep(dt){
  S.botThink-=dt;
  if(S.botThink>0)return;
  botAction();
- const mod=S.difficulty==="easy"?[6.5,9.0]:S.difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
+ const mod=S.difficulty==="easy"?[6.5,9.0]:S.difficulty==="expert"||qaBotVariants[2]==="strongDefend"?[.85,1.25]:S.difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
  S.botThink=rand(mod[0],mod[1]);
 }
 function end(result,reason){
@@ -2579,7 +2590,7 @@ function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  NET.registerGame({
   begin,setDifficulty:level=>{
-    if(["easy","normal","hard"].includes(level)){
+    if(["easy","normal","hard","expert"].includes(level)){
       S.difficulty=level;
       document.querySelectorAll("[data-level]").forEach(b=>b.classList.toggle("active",b.dataset.level===level));
     }
@@ -2787,7 +2798,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     !["hard","normal"].includes(difficulty)||![1,2].includes(tacticalTeam)||
     !["standard","fast"].includes(scriptedCadence)||typeof mirrorTerrain!=="boolean"||
     (blueStyle!=="self"&&mirrorTerrain)||typeof auditForecast!=="boolean"||![0,1,2].includes(variantTeam)||
-    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","captureRouteOpportunity","scoutTempoPreserve","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice"].includes(variant)||
+    !["baseline","siegeWindow","captureCoverage","reserveEarly","opponentPunish","opponentGuard","tempoSiege","tempoScreen","stagedBudget","screenBudget","objectiveDirector","directorNoSave","directorCaptureOnly","directorRouteAware","nearestCapture","directorPathAligned","preemptFort","escortCapturer","laneScout","forecastCapture","forecastSpendWindow","forecastCheapScreen","opportunityAudit","captureTempoInfantry","captureSpendGate","captureRouteOpportunity","scoutTempoPreserve","concedeFort","fortTradeReclaim","fortRiskBudget","fortLastLine","fortDefenseValue","castleDamageRace","castleRaceArrival","castleRaceBudget","castleRaceBudgetGuarded","castleRaceValue","castleRaceForce","castleRaceChoice","strongDefend"].includes(variant)||
     (blueStyle!=="self"&&variantTeam!==0&&variantTeam!==tacticalTeam)||
     (variantTeam===0&&variant!=="baseline"))return null;
   const originalRandom=Math.random,originalVariants=qaBotVariants;
@@ -2888,7 +2899,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       selfThink[team]-=dt;
       if(selfThink[team]<=0){
        botExpertAction(team);
-       const mod=difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
+       const mod=qaBotVariants[team]==="strongDefend"?[.85,1.25]:difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
        selfThink[team]=rand(mod[0],mod[1]);
       }
      }
@@ -2905,7 +2916,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       tacticalThink-=dt;
       if(tacticalThink<=0){
        botExpertAction(1);
-       tacticalThink=rand(...(difficulty==="hard"?[1.2,1.9]:[2.5,3.8]));
+       tacticalThink=rand(...(qaBotVariants[1]==="strongDefend"?[.85,1.25]:difficulty==="hard"?[1.2,1.9]:[2.5,3.8]));
       }
      }
     }
