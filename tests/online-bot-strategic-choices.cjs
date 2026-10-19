@@ -10,14 +10,14 @@ const source=fs.readFileSync(path.join(root,"online-game.js"),"utf8");
 const observer=fs.readFileSync(path.join(root,"tests/online-bot-strategic-choices.inc.js"),"utf8");
 const markers=[
  "function botExpertAction(team=2){",
- "  }finally{\n   if(decisionAudit){"
+ " }finally{\n  if(decisionAudit){"
 ];
 for(const marker of markers)assert.equal(source.split(marker).length,2,
  "Expected unique BOT instrumentation anchor: "+marker);
 const patched=source.replace(markers[0],
  observer+"\n"+markers[0]+"\n if(qaStrategic.enabled&&qaStrategic.targetTeam===team)qaStrategicCapture(team);")
  .replace(markers[1],
- "  }finally{\n   if(qaStrategic.enabled&&qaStrategic.targetTeam===team)qaStrategicResolve(team);\n   if(decisionAudit){");
+ " }finally{\n  if(qaStrategic.enabled&&qaStrategic.targetTeam===team)qaStrategicResolve(team);\n  if(decisionAudit){");
 assert.ok(patched.includes("qaStrategicResolve(team);"));
 const server=http.createServer((req,res)=>{
  const pathname=decodeURIComponent(req.url.split("?")[0]);
