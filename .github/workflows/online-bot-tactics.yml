@@ -24,6 +24,11 @@ on:
       - 'online-game.js'
       - 'online-ipad.html'
   workflow_dispatch:
+# Manual dispatches are isolated from push runs; they must not be replaced.
+# Heavy BOT regression can cancel superseded pushes.
+concurrency:
+  group: online-bot-tactics-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'push' }}
+  cancel-in-progress: true
 jobs:
   bot:
     runs-on: ubuntu-latest
