@@ -314,16 +314,16 @@ body.soloMode #difficulties{display:flex!important}
 ・城壁は自動攻撃しません。兵士で守り、敵の城壁を攻め落としましょう。<br>
 ・敵首都を破壊すると勝利。時間切れは首都HP割合で決着。
 </div>
-<div id="difficulties"><button data-level="easy">練習</button><button class="active" data-level="normal">ふつう</button><button data-level="hard">むずかしい</button></div>
+<div id="difficulties"><button data-level="easy">練習</button><button class="active" data-level="normal">ふつう</button><button data-level="hard">むずかしい</button><button data-level="expert">強敵</button></div>
 <button id="start">同じルームで再戦</button><button id="newRoom">新しいルームで遊ぶ</button>
 <button id="galleryFromMenu" class="galleryLink">✧ 先に9体のキャラクターデザインを見る</button>
 </div></div>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-<script src="./online-net.js?v=6"></script>
+<script src="./online-net.js?v=7"></script>
 <script src="./gald-render.js?v=1"></script>
 <script src="./v3-art.js?v=7"></script>
-<script src="./online-game.js?v=6"></script>
+<script src="./online-game.js?v=7"></script>
 <div id="networkBar" class="hidden" aria-live="polite"></div>
 <button id="guestBotLive" type="button" hidden aria-pressed="false">BOT操作へ</button>
 <div id="onlinePanel" role="dialog" aria-label="オンライン対戦ルーム">
@@ -341,6 +341,7 @@ body.soloMode #difficulties{display:flex!important}
       <button type="button" data-solo-level="easy" aria-pressed="false">練習</button>
       <button type="button" data-solo-level="normal" class="selected" aria-pressed="true">ふつう</button>
       <button type="button" data-solo-level="hard" aria-pressed="false">むずかしい</button>
+      <button type="button" data-solo-level="expert" aria-pressed="false">強敵</button>
     </div>
     <button id="netSolo" type="button">通信不要｜BOTと練習する</button>
    </div>
