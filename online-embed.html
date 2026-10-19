@@ -841,6 +841,7 @@ function snapshot(world){
 }
 function begin(mode,world){
  if(active)return;
+ if(mode==="online"&&window.ShokokuNet&&!window.ShokokuNet.isHost)return;
  if(mode==="solo"?!soloConsent:!onlineBoth)return;
  active={schema:VERSION,mode,teams:[1,2],difficulty:mode==="solo"?world.difficulty:null,
   matchType:mode==="solo"?"human-vs-bot":"unknown",
@@ -968,7 +969,7 @@ function sync(){
  const counter=$("researchCount");if(counter)counter.textContent=archived.length+"試合保存";
  const live=$("researchLive");
  if(live){live.hidden=!(active||(playing&&inRoom&&onlineBoth));
-  live.textContent="● 対戦記録中（停止）";}
+  live.textContent=active?"● 記録中（停止）":"● 研究記録に同意中（停止）";}
  const exportButtons=document.querySelectorAll("[data-research-export],[data-research-copy],[data-research-share]");
  exportButtons.forEach(b=>{b.disabled=!archived.length;});
 }
@@ -1713,7 +1714,7 @@ function begin(){
  $("fieldHint").textContent="開戦準備：資源8で初期配置を決めよう。キャラは動かない。";
  // No opening BOT spawns: both players decide their own preparation.
  buildCards();updateHUD();
- window.ShokokuResearch?.begin?.(NET.isSolo?"solo":"online",{...S,difficulty:S.difficulty,
+ if(NET.isHost)window.ShokokuResearch?.begin?.(NET.isSolo?"solo":"online",{...S,difficulty:S.difficulty,
   guestControl:NET.researchGuestControl});
 }
 function castSpell(team,id,x,y){
