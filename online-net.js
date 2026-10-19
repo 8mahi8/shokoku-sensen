@@ -59,7 +59,6 @@ function updateUI(){
   $("networkBar").classList.remove("hidden");
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
  }
-}
  // Research flags live only in existing room-player presence. Game observations
  // never enter RTDB; both participants must explicitly opt in before each match.
  window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
