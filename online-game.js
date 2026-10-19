@@ -197,8 +197,7 @@ function castSpell(team,id,x,y){
 function playCard(team,id,x,y){
  if(!NET.isHost&&team===ME()){
   if(!validTarget(team,id,x,y)||!canPay(team,id))return false;
-  NET.sendCommand({id,x,y});
-  return true;
+  return NET.sendCommand({id,x,y})===true;
  }
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
  // Track only observable, legal card spending, never the hidden opponent hand.
@@ -2521,7 +2520,8 @@ function arenaUp(e){
  const wasSwipe=p.dragging||Math.hypot(e.clientX-p.originX,e.clientY-p.originY)>12;
  if(!wasSwipe&&S.selected&&!NET.guestBot){
   const pt=point(e.clientX,e.clientY),id=S.selected;
-  if(!playCard(ME(),id,pt.x,pt.y))notice(cardFailure(ME(),id));
+  if(!playCard(ME(),id,pt.x,pt.y))
+  notice(!NET.isHost&&!NET.isConnected?"通信切断中。再接続を待ってね":cardFailure(ME(),id));
  }
  S.pointer=null;
 }
