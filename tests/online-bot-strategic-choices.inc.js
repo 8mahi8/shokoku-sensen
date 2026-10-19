@@ -1,5 +1,5 @@
 // Injected into localhost QA IIFE only; NOT loaded by any production HTML.
-const qaStrategic={enabled:false,counts:{},records:[],pending:[null,null,null]};
+const qaStrategic={enabled:false,targetTeam:0,counts:{},records:[],pending:[null,null,null]};
 const qaStrategicRole=id=>{
  if(["infantry","scout","engineer"].includes(id))return "capture";
  if(["archer","sentinel","suppress","guardian"].includes(id))return "defense";
@@ -66,7 +66,7 @@ function qaStrategicResolve(team){
  }
 }
 window.__qaStrategicControl={
- reset:()=>{qaStrategic.enabled=true;qaStrategic.counts={};
+ reset:team=>{qaStrategic.targetTeam=team;qaStrategic.enabled=true;qaStrategic.counts={};
   qaStrategic.records=[];qaStrategic.pending=[null,null,null];},
  stop:()=>{qaStrategic.enabled=false;},
  snapshot:()=>({counts:{...qaStrategic.counts},
