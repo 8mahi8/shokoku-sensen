@@ -14,8 +14,8 @@ const server=http.createServer((req,res)=>{
  fs.createReadStream(p).pipe(res);
 });
 // Freeze both partitions and acceptance criteria BEFORE the first comparison.
-const train=[20264211,20264267,20264309,20264357];
-const holdout=[20265021,20265077,20265113,20265171];
+const train=[20266001,20266049,20266103,20266151];
+const holdout=[20267013,20267069,20267119,20267173];
 const styles=["rush","fortress","banker","self"];
 const points=(game,team)=>game.winner===0?.5:game.winner===team?1:0;
 function stats(rows){
@@ -72,7 +72,7 @@ function stats(rows){
   const eligible=unseen.netPoints>=2&&unseen.regressed<=3&&
     unseen.byTeam[1]>=0&&unseen.byTeam[2]>=0&&
     unseen.improved>=unseen.regressed+2;
-  const report={candidate:"strongDefend",train:training,holdout:unseen,
+  const report={candidate:"strongDefend-v2-adaptive",train:training,holdout:unseen,
     passingReleaseEvidence:eligible,
     preregisteredGate:{minHoldoutNetPoints:2,maxRegressions:3,
      bothTeamsNonnegative:true,minMoreWinsThanLosses:2},
