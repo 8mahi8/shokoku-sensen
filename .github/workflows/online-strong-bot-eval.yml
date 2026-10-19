@@ -1,0 +1,35 @@
+name: Strong BOT paired battle QA
+on:
+  push:
+    branches:
+      - 'feature/strong-bot-*'
+    paths:
+      - 'online*'
+      - 'tests/online-strong-bot-eval.cjs'
+      - '.github/workflows/online-strong-bot-eval.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: strong-bot-qa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  strong-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Compare strong bot to baseline hard across both sides and seed partitions
+        run: node tests/online-strong-bot-eval.cjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strong-bot-paired-report
+          path: qa-strong-bot/
+          if-no-files-found: ignore
+          retention-days: 14
