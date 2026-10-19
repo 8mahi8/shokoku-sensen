@@ -66,7 +66,7 @@ rec.observeGuestControl("human",1);
 rec.observeGuestControl("bot",3);
 rec.finish(world(16));
 assert.equal(qa.get().matches[2].matchType,"mixed","human-to-BOT transition must remain mixed");
-assert.deepEqual(qa.get().matches[2].guestControlHistory.map(x=>x.guest),["human","bot"]);
+assert.deepEqual(Array.from(qa.get().matches[2].guestControlHistory,x=>x.guest),["human","bot"]);
 rec.begin("online",{...world(),guestControl:"human"});
 rec.finish(world(17));
 assert.equal(qa.get().matches[3].matchType,"human-vs-human");
