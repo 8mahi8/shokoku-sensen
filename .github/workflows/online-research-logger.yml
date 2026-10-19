@@ -3,7 +3,11 @@ on:
   push:
     paths:
       - 'online-research.js'
+      - 'online-embed.html'
+      - 'online-ipad.html'
+      - 'online-net.js'
       - 'tests/online-research-*'
+      - 'tests/online-browser-live.cjs'
       - '.github/workflows/online-research-logger.yml'
   workflow_dispatch:
 permissions:
