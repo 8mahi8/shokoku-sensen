@@ -180,6 +180,8 @@ function begin(){
  $("fieldHint").textContent="開戦準備：資源8で初期配置を決めよう。キャラは動かない。";
  // No opening BOT spawns: both players decide their own preparation.
  buildCards();updateHUD();
+ window.ShokokuResearch?.begin?.(NET.isSolo?"solo":"online",{...S,difficulty:S.difficulty,
+  guestControl:NET.researchGuestControl});
 }
 function castSpell(team,id,x,y){
  if(!isSpell(id)||!canPay(team,id)||!validTarget(team,id,x,y))return false;
@@ -198,7 +200,10 @@ function playCard(team,id,x,y){
   NET.sendCommand({id,x,y});
   return true;
  }
+ const researchBefore=window.ShokokuResearch?.active?{energy:S.energy[team],hand:S.hand[team].slice()}:null;
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
+ if(ok&&researchBefore)window.ShokokuResearch?.action?.({t:S.elapsed,phase:S.phase,team,card:id,x,y,
+  energyBefore:researchBefore.energy,ownHand:researchBefore.hand});
  // Track only observable, legal card spending, never the hidden opponent hand.
  if(ok)S.observedEnergy[team]=Math.max(0,S.observedEnergy[team]-CATALOG[id].cost);
  if(ok&&duelStats){
@@ -1834,7 +1839,7 @@ function botStep(dt){
 }
 function end(result,reason){
  if(S.phase==="result")return;
- if(NET.isHost)NET.finish({result,reason});
+ if(NET.isHost){window.ShokokuResearch?.finish?.(S);NET.finish({result,reason});}
  S.phase="result";
  const titles={win:"勝利！",lose:"敗北",draw:"引き分け"};
  $("dialogTitle").textContent=titles[result]||"対戦終了";
@@ -1860,6 +1865,10 @@ function tick(dt){
   S.observedEnergy[team]=Math.min(ENERGY_CAP,S.observedEnergy[team]+gain);
  }
  unitStep(dt);spellStep(dt);
+ if(window.ShokokuResearch?.active){
+  if(!NET.isSolo)window.ShokokuResearch?.observeGuestControl?.(NET.researchGuestControl,S.elapsed);
+  window.ShokokuResearch?.sample?.(S);
+ }
  for(const fallen of S.deaths)fallen.t-=dt;
  S.deaths=S.deaths.filter(fallen=>fallen.t>0);
  for(const fx of S.effects)fx.t-=dt;
