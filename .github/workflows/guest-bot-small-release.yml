@@ -1,0 +1,34 @@
+name: Guest BOT small release contract
+on:
+  push:
+    branches: [release/guest-bot-hard-first-step-20261020]
+    paths:
+      - 'online-game.js'
+      - 'online-ipad.html'
+      - 'online-embed.html'
+      - 'tests/online-guest-bot-difficulty.cjs'
+      - '.github/workflows/guest-bot-small-release.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'online-game.js'
+      - 'online-ipad.html'
+      - 'online-embed.html'
+      - 'tests/online-guest-bot-difficulty.cjs'
+      - '.github/workflows/guest-bot-small-release.yml'
+  workflow_dispatch:
+jobs:
+  guest-difficulty:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check tests/online-guest-bot-difficulty.cjs
+      - run: node tests/online-guest-bot-difficulty.cjs
+      - run: node tests/online-smoke.cjs
+      - run: node tests/online-sim.cjs
