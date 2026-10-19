@@ -125,6 +125,19 @@ async function copyJson(){
   status("匿名の試合ログをコピーしました。別ファイルに保存してね");
  }catch(_){status("自動コピー不可。表示したテキストを選択してコピーしてね");}
 }
+async function shareJson(){
+ if(!archived.length){status("保存する試合がまだないよ");return;}
+ const json=JSON.stringify(payload());
+ reveal(json);
+ try{
+  // iPad Safari's Files/Share sheet can work even when a Sites iframe blocks downloads.
+  if(typeof File!=="function"||!navigator.share)throw Error("share unsupported");
+  const file=new File([json],"shokoku-match-batch.json",{type:"application/json"});
+  if(navigator.canShare&&!navigator.canShare({files:[file]}))throw Error("files unsupported");
+  await navigator.share({title:"小国戦線III 対戦ログ",files:[file]});
+  status("共有メニューを開きました。ファイルへ保存されたか確認してね");
+ }catch(_){status("共有できませんでした。下のJSONをコピーして保存してね");}
+}
 function clear(){
  if(active){status("記録中は削除できません。先に記録を停止してね");return;}
  archived=[];try{localStorage.removeItem(KEY)}catch(_){}
@@ -156,7 +169,7 @@ function sync(){
  const live=$("researchLive");
  if(live){live.hidden=!(active||(playing&&inRoom&&onlineBoth));
   live.textContent="● 対戦記録中（停止）";}
- const exportButtons=document.querySelectorAll("[data-research-export]");
+ const exportButtons=document.querySelectorAll("[data-research-export],[data-research-copy],[data-research-share]");
  exportButtons.forEach(b=>{b.disabled=!archived.length;});
 }
 function init(){
@@ -168,7 +181,7 @@ function init(){
  controls.innerHTML='<label><input id="researchConsent" type="checkbox"> 匿名の対戦データを研究用に記録する（任意）</label>'+
   '<div id="researchHint">1人プレイの記録をON/OFF（通常対戦は双方の同意が必要）</div>'+
   '<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:5px">'+
-  '<span id="researchCount">0試合保存</span><button type="button" data-research-export>JSON書き出し</button><button type="button" data-research-copy>コピー</button>'+
+  '<span id="researchCount">0試合保存</span><button type="button" data-research-export>JSON書き出し</button><button type="button" data-research-copy>コピー</button><button type="button" data-research-share>共有</button>'+
   '<button type="button" id="researchClear">記録削除</button></div>'+
   '<div id="researchStatus" role="status"></div>'+
   '<textarea id="researchText" hidden readonly aria-label="JSONコピー用テキスト" style="width:100%;height:55px"></textarea>'+
@@ -176,7 +189,7 @@ function init(){
  panel.insertBefore(controls,$("netStatus"));
  const endTools=document.createElement("div");
  endTools.style.cssText="margin-top:7px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap";
- endTools.innerHTML='<button type="button" data-research-export>対戦データJSONを保存</button><button type="button" data-research-copy>JSONコピー</button><span id="researchEndHint" style="font-size:11px">記録ONの試合のみ</span>'+'<textarea id="researchEndText" hidden readonly aria-label="コピー用JSON" style="width:100%;height:70px"></textarea>';
+ endTools.innerHTML='<button type="button" data-research-export>対戦データJSONを保存</button><button type="button" data-research-copy>JSONコピー</button><button type="button" data-research-share>共有</button><span id="researchEndHint" style="font-size:11px">記録ONの試合のみ</span>'+'<textarea id="researchEndText" hidden readonly aria-label="コピー用JSON" style="width:100%;height:70px"></textarea>';
  dialog.appendChild(endTools);
  const live=document.createElement("button");
  live.id="researchLive";live.hidden=true;live.type="button";
@@ -198,6 +211,7 @@ function init(){
  });
  document.querySelectorAll("[data-research-export]").forEach(b=>b.addEventListener("click",exportJson));
  document.querySelectorAll("[data-research-copy]").forEach(b=>b.addEventListener("click",copyJson));
+ document.querySelectorAll("[data-research-share]").forEach(b=>b.addEventListener("click",shareJson));
  $("researchClear").addEventListener("click",clear);
  syncOnline();
 }
