@@ -1013,7 +1013,9 @@ window.ShokokuResearch={
  // For tests only, this returns anonymized logs without triggering downloads.
 };
 if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
- window.__shokokuResearchQa={get:payload,enableSolo:()=>{soloConsent=true;syncOnline();},clear};
+ window.__shokokuResearchQa={get:payload,current:()=>active?{
+ mode:active.mode,actions:active.actions.length,samples:active.samples.length}:null,
+ enableSolo:()=>{soloConsent=true;syncOnline();},clear};
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);
 else init();
