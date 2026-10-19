@@ -24,6 +24,13 @@ function safeSave(){
 archived=safeLoad();
 function status(s){notice=s;const el=$("researchStatus");if(el)el.textContent=s;}
 const compact=n=>Math.round(Number(n)||0),energy=n=>Math.round((Number(n)||0)*100)/100;
+const classifyControl=c=>c==="bot"?"bot":c==="human"?"human":"unknown";
+function researchMatchType(history){
+ const states=new Set(history.map(x=>x.guest));
+ if(states.has("unknown")||!states.size)return "unknown";
+ if(states.size>1)return "mixed";
+ return states.has("bot")?"human-vs-bot":"human-vs-human";
+}
 function snapshot(world){
  return {t:energy(world.elapsed),
   energy:[energy(world.energy[1]),energy(world.energy[2])],
@@ -36,11 +43,22 @@ function begin(mode,world){
  if(active)return;
  if(mode==="solo"?!soloConsent:!onlineBoth)return;
  active={schema:VERSION,mode,teams:[1,2],difficulty:mode==="solo"?world.difficulty:null,
+  matchType:mode==="solo"?"human-vs-bot":"unknown",
+  guestControlHistory:mode==="solo"?[]:[{t:energy(world.elapsed),guest:classifyControl(world.guestControl)}],
   result:null,actions:[],samples:[],stopped:false,overflow:false};
  lastSampleAt=-Infinity;
  sample(world,true);
  status("記録中（端末内のみ）。勝敗確定後にJSONを書き出してね");
  sync();
+}
+function observeGuestControl(guest,t){
+ if(!active||active.mode!=="online")return;
+ const state=classifyControl(guest),last=active.guestControlHistory.at(-1);
+ if(last?.guest===state)return;
+ // If transitions grow beyond our bounded event budget, never pretend this
+ // was a stable human-human match; the classification stays mixed/unknown.
+ if(active.guestControlHistory.length>=32){active.controlOverflow=true;return;}
+ active.guestControlHistory.push({t:energy(t),guest:state});
 }
 function action(a){
  if(!active)return;
@@ -59,6 +77,7 @@ function sample(world,force=false){
 function finish(world){
  if(!active)return;
  sample(world,true);
+ if(active.mode==="online")active.matchType=active.controlOverflow?"unknown":researchMatchType(active.guestControlHistory);
  const hp=world.capitals.map(c=>compact(c.hp));
  active.result={winner:hp[0]===hp[1]?0:hp[0]>hp[1]?1:2,
   duration:energy(world.elapsed),castleHp:hp,
@@ -185,7 +204,7 @@ function init(){
 window.ShokokuResearch={
  get active(){return !!active},
  get soloConsent(){return soloConsent},
- begin,action,sample,finish,syncOnline,withdraw,
+ begin,action,sample,finish,observeGuestControl,syncOnline,withdraw,
  // For tests only, this returns anonymized logs without triggering downloads.
 };
 if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
