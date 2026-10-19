@@ -101,7 +101,8 @@ const deadline=async (f,label,timeout=18000)=>{
 
   // Switching BOT off should permit manual guest input without affecting multiplayer.
   await botToggle.click();
-  assert.equal(await botToggle.getAttribute("aria-pressed"),"false");
+  await deadline(async()=>(await botToggle.getAttribute("aria-pressed"))==="false",
+   "guest BOT toggle acknowledgement before enabling manual input",15000);
   await deadline(async()=>await host.evaluate(()=>window.ShokokuNet.researchGuestControl==="human"),
    "host sees guest switch to human",14000);
   await deadline(async()=>await host.evaluate(()=>{
