@@ -36,6 +36,14 @@ const deadline=async (f,label,timeout=18000)=>{
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
   await guest.locator("#netJoinCode").fill(code);await guest.locator("#netJoin").click();
   await deadline(async()=>(await guest.locator("#netRoom").innerText()).trim()===code,"guest join");
+  // Consent must require both peers and must not send game logs to Firebase.
+  await host.locator("#researchConsent").check();
+  await deadline(async()=>{const r=await fetch(urlDB+"/"+code+"/players/host/researchConsent.json");
+   return r.ok&&(await r.json())===true;},"host research consent stored as boolean",20000);
+  assert.equal(await host.evaluate(()=>window.ShokokuResearch.active),false,"no recording before both consent");
+  await guest.locator("#researchConsent").check();
+  await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("双方の同意あり"),
+   "bilateral consent visible to host",20000);
   // Guest device can substitute a tactical robot: toggling also readies it.
   await deadline(async()=>await guest.locator("#netGuestBot").isVisible(),"guest BOT toggle visible");
   await guest.locator("#netGuestBot").click();
@@ -47,6 +55,8 @@ const deadline=async (f,label,timeout=18000)=>{
   for(const [name,p] of [["host",host],["guest",guest]]){
    await deadline(async()=>p.locator("#overlay").evaluate(el=>el.classList.contains("hidden")),name+" start");
   }
+  await deadline(async()=>host.evaluate(()=>window.ShokokuResearch.active===true),
+   "opt-in host logger active after battle start",15000);
   async function summon(p,team){
    await p.locator('button.card[data-id="infantry"]').click();
    const rect=await p.locator("#field").boundingBox();
