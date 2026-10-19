@@ -1,0 +1,31 @@
+name: Opt-in match research logger QA
+on:
+  push:
+    paths:
+      - 'online-research.js'
+      - 'online-embed.html'
+      - 'online-ipad.html'
+      - 'online-net.js'
+      - 'tests/online-research-*'
+      - 'tests/online-browser-live.cjs'
+      - '.github/workflows/online-research-logger.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: online-research-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  log-invariants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/online-research-log.cjs
+      - run: node tests/online-smoke.cjs
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium webkit
+      - run: node tests/online-research-browser.cjs

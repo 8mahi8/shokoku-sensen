@@ -2,7 +2,7 @@
 "use strict";
 const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict");
 const read=p=>fs.readFileSync(p,"utf8");
-const net=read("online-net.js"),game=read("online-game.js");
+const net=read("online-net.js"),game=read("online-game.js"),research=read("online-research.js");
 
 // V17.1 regression: blue and red must see the same physical battlefield
 // from their own perspective, without changing team ownership or rules.
@@ -22,20 +22,21 @@ for(const renderedLabel of [
 assert.ok(game.includes('"自軍の召喚範囲に置いてね"'),"Deploy hint must also work for red");
 // Fixed blue/red colors and the simulation never depend on viewpoint.
 
-for(const p of ["v3.js","online-net.js","online-game.js","gald-render.js","v3-art.js"]){
+for(const p of ["v3.js","online-net.js","online-research.js","online-game.js","gald-render.js","v3-art.js"]){
  new vm.Script(read(p),{filename:p});
 }
 for(const p of ["online-embed.html","online-ipad.html"]){
  const html=read(p);
  assert.ok(html.includes(net),"Missing current online-net.js in "+p);
  assert.ok(html.includes(game),"Missing current online-game.js in "+p);
+ assert.ok(html.includes(research),"Missing current anonymous match recorder in "+p);
  const inline=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]);
  assert.ok(inline.length>=4,p+" inline scripts unexpectedly missing");
  for(const [index,script] of inline.entries())new vm.Script(script,{filename:p+"#script"+index});
  assert.ok(html.includes('id="newRoom"'),p+" lacks new room button");
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=6')&&page.includes('./online-game.js?v=6'));
+assert.ok(page.includes('./online-net.js?v=6')&&page.includes('./online-game.js?v=6')&&page.includes('./online-research.js?v=1'));
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
 assert.ok(net.includes('packet.round!==meta?.round'));
@@ -68,6 +69,9 @@ for(const id of ["netSolo","netGuestBot","guestBotLive"]){
 assert.ok(net.includes('if(solo){game?.begin();return;}'),"offline rematch must work");
 assert.ok(net.includes('get isHost(){return host||solo}'),"offline local simulation must tick");
 assert.ok(net.includes('get botActive(){return solo||guestBot}'),"both BOT modes active");
+assert.ok(net.includes("setResearchConsent")&&net.includes("get researchAllowed()"),"Opt-in requires both room players");
+assert.ok(game.includes("ShokokuResearch?.begin")&&game.includes("ShokokuResearch?.finish"),"Host game must record and finalize opt-in observations");
+assert.ok(!research.includes("fetch(")&&!research.includes("firebase.database"),"Research data stays local; never send to cloud");
 assert.ok(game.includes('botPreparation()'),"BOT must enter preparation phase");
 assert.ok(game.includes('if(NET.isSolo&&S.phase==="battle")botStep(dt)'),"solo BOT must think in simulation");
 assert.ok(game.includes('if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle"))'),"guest BOT must think from client frame");

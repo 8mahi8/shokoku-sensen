@@ -36,6 +36,13 @@ const deadline=async (f,label,timeout=18000)=>{
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
   await guest.locator("#netJoinCode").fill(code);await guest.locator("#netJoin").click();
   await deadline(async()=>(await guest.locator("#netRoom").innerText()).trim()===code,"guest join");
+  // Match recording is strictly opt-in for BOTH seats. Only the host can
+  // collect authoritative actions, and gameplay must remain normal.
+  assert.equal(await host.evaluate(()=>window.ShokokuNet.researchAllowed),false);
+  await host.locator("#researchConsent").check();
+  await guest.locator("#researchConsent").check();
+  await deadline(async()=>await host.evaluate(()=>window.ShokokuNet.researchAllowed),
+   "both-seat anonymous recording consent",18000);
   // Guest device can substitute a tactical robot: toggling also readies it.
   await deadline(async()=>await guest.locator("#netGuestBot").isVisible(),"guest BOT toggle visible");
   await guest.locator("#netGuestBot").click();
@@ -54,7 +61,13 @@ const deadline=async (f,label,timeout=18000)=>{
    for(const fraction of (team===1?[.14,.08,.22]:[.86,.92,.78]))
     await p.mouse.click(rect.x+rect.width*fraction,rect.y+rect.height*.48);
   }
+  assert.equal(await host.evaluate(()=>window.ShokokuResearch.active),true,
+   "consented host starts local research log");
+  assert.equal(await guest.evaluate(()=>window.ShokokuResearch.active),false,
+   "guest never duplicates authoritative log");
   await summon(host,1);
+  await deadline(async()=>await host.evaluate(()=>window.__shokokuResearchQa.current()?.actions>0),
+   "accepted host actions recorded",12000);
   const botToggle=guest.locator("#guestBotLive");
   assert.ok(await botToggle.isVisible(),"Guest BOT toggle should remain accessible in-match");
   assert.equal(await botToggle.getAttribute("aria-pressed"),"true");
@@ -97,6 +110,12 @@ const deadline=async (f,label,timeout=18000)=>{
     return d.commandSent>0&&d.commandProcessed>=d.commandSent&&d.commandPending===0&&d.commandAccepted>0?d:null;
    },"WebKit guest sees authoritative summon acknowledgement",18000);
    console.log("GUEST ORDER ACK",JSON.stringify({sent:guestOrder.commandSent,processed:guestOrder.commandProcessed,accepted:guestOrder.commandAccepted}));
+  // Consent can be revoked during the match without ending combat.
+  await guest.evaluate(()=>window.ShokokuNet.setResearchConsent(false));
+  await deadline(async()=>!await host.evaluate(()=>window.ShokokuResearch.active),
+   "guest withdrawal immediately discards host recorder",12000);
+  assert.equal(await host.evaluate(()=>window.__shokokuResearchQa.get().matches.length),0,
+   "withdrawn online research data must never be archived");
   // Regression: guest remains interactive but battle snapshots cease,
   // including the minute around a host-fired barrage ("ファイヤー").
   // Keep the real RTDB test room as the only temporary write target.
