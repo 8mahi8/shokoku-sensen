@@ -48,7 +48,7 @@ const server=http.createServer((req,res)=>{
    for(const forbidden of ["clientId","roomCode","guestId","email","ipAddress"])
     assert.ok(!flat.includes(forbidden),"must not include identifying field "+forbidden);
    assert.equal(await page.locator("[data-research-export]").last().isEnabled(),true);
-   await page.locator("[data-research-export]").last().click();
+   await page.locator("[data-research-export]").first().click();
    assert.equal(await page.locator("#researchText").inputValue().then(s=>JSON.parse(s).matches.length),1);
    await page.reload({waitUntil:"domcontentloaded"});
    const reloaded=await page.evaluate(()=>window.__shokokuResearchQa.get().matches.length);
