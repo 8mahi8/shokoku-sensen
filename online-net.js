@@ -444,7 +444,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.querySelectorAll("[data-solo-level]").forEach(button=>button.addEventListener("click",()=>{
     if(room||solo)return;
     const level=button.dataset.soloLevel;
-    if(!["easy","normal","hard"].includes(level))return;
+    if(!["easy","normal","hard","expert"].includes(level))return;
     soloDifficulty=level;
     document.querySelectorAll("[data-solo-level]").forEach(b=>{
       const selected=b.dataset.soloLevel===level;

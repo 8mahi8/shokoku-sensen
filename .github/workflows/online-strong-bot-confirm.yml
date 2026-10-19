@@ -1,0 +1,34 @@
+name: Strong BOT independent confirmation
+on:
+  push:
+    paths:
+      - 'tests/online-strong-bot-confirm.cjs'
+      - 'online-game.js'
+      - '.github/workflows/online-strong-bot-confirm.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: strong-bot-confirm-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  independent-duels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: 120 unseen paired battles with blue and red equal resources
+        run: node tests/online-strong-bot-confirm.cjs
+      - name: Preserve paired battle summary and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strong-bot-independent-confirm
+          path: qa-strong-bot-confirm
+          retention-days: 30
+          if-no-files-found: ignore

@@ -35,7 +35,7 @@ for(const p of ["online-embed.html","online-ipad.html"]){
  assert.ok(html.includes('id="newRoom"'),p+" lacks new room button");
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=6')&&page.includes('./online-game.js?v=6'));
+assert.ok(page.includes('./online-net.js?v=7')&&page.includes('./online-game.js?v=7'));
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
 assert.ok(net.includes('packet.round!==meta?.round'));

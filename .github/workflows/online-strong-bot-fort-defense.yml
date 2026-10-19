@@ -1,0 +1,29 @@
+name: Existing fort-defense BOT independent audit
+on:
+  push:
+    paths:
+      - 'tests/online-strong-bot-fort-defense-eval.cjs'
+      - '.github/workflows/online-strong-bot-fort-defense.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/online-strong-bot-fort-defense-eval.cjs
+      - name: Preserve experiment report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fort-defense-strong-bot-evaluation
+          path: qa-strong-bot-fort-defense
+          if-no-files-found: ignore
+          retention-days: 30

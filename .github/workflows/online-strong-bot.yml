@@ -1,0 +1,35 @@
+name: Strong BOT preregistered duel A/B
+on:
+  push:
+    paths:
+      - 'tests/online-strong-bot-eval.cjs'
+      - 'online-game.js'
+      - 'online.html'
+      - '.github/workflows/online-strong-bot.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: strong-bot-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || 'push' }}
+  cancel-in-progress: true
+jobs:
+  paired-duels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Compare expert against hard on preregistered train and unseen holdout
+        run: node tests/online-strong-bot-eval.cjs
+      - name: Preserve failure and success reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strong-bot-evaluation
+          path: qa-strong-bot
+          if-no-files-found: ignore
+          retention-days: 30
