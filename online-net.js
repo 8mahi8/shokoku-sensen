@@ -15,7 +15,7 @@ let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=fal
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
 let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
-let lastAcceptedGuestSeq=0,guestAckSeq=0,guestAcceptedSeq=0,guestCommandNotice="",guestNoticeUntil=0;
+let lastAcceptedGuestSeq=0,guestAckSeq=0,guestAcceptedSeq=0,guestCommandNotice="",guestNoticeUntil=0,guestCommandSentAt=0,guestCommandLate=false;
 let qaMuteSdkSnapshots=false;
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
@@ -50,10 +50,10 @@ function updateUI(){
   $("guestBotLive").setAttribute("aria-pressed",String(guestBot));
  if(inRoom&&meta?.status==="lobby"&&connected)
   show(!seatValid?"参加情報が変更されました。新しいルームへ接続し直してください":!peerOnline?"相手の接続を待っています":ready?"2人準備OK。ホストが開始できます。":"2人参加中。両方が準備完了を押してください");
- if(inRoom&&meta?.status==="playing"&&connected){
+ if(inRoom&&meta?.status==="playing"){
   $("networkBar").classList.remove("hidden");
   const orderStatus=!host&&!guestBot&&seatValid&&connected?
-  commandSeq>guestAckSeq?" ｜ 召喚確認中":guestCommandNotice&&performance.now()<guestNoticeUntil?" ｜ "+guestCommandNotice:"":"";
+  commandSeq>guestAckSeq?" ｜ "+(guestCommandLate?"召喚応答が遅れています":"召喚確認中"):guestCommandNotice&&performance.now()<guestNoticeUntil?" ｜ "+guestCommandNotice:"":"";
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ "+(host?"青軍":"赤軍")+" ｜ "+(!connected?"通信切断：再接続中":!seatValid?"参加情報が無効":!peerOnline?"相手の再接続を待っています":syncWarning?"戦況同期が遅れています":"接続中")+orderStatus;
  }else if(inRoom&&meta?.status==="finished"){
   $("networkBar").classList.remove("hidden");
@@ -162,13 +162,12 @@ function checkGuestSync(){
  if(host||!room||phase!=="playing")return;
  const now=performance.now();
  if(guestCommandNotice&&now>=guestNoticeUntil){guestCommandNotice="";updateUI();}
+if(!guestCommandLate&&commandSeq>guestAckSeq&&guestCommandSentAt>0&&now-guestCommandSentAt>=4000){
+ guestCommandLate=true;updateUI();
+}
  if(!lastRemoteAppliedAt)lastRemoteAppliedAt=now;
  if(now-lastRemoteAppliedAt<3500)return;
- if(!syncWarning){
-  syncWarning=true;
-  $("networkBar").classList.remove("hidden");
-  $("networkBar").textContent="ONLINE "+roomCode+" ｜ 戦況同期が遅れています";
- }
+ if(!syncWarning){syncWarning=true;updateUI();}
  if(now-lastSyncReadAt<4500)return;
  lastSyncReadAt=now;
  restRecoverGuest();
@@ -196,7 +195,7 @@ function setupRoom(code,isHost){
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastAcceptedGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
- guestAckSeq=0;guestAcceptedSeq=0;guestCommandNotice="";guestNoticeUntil=0;
+ guestAckSeq=0;guestAcceptedSeq=0;guestCommandNotice="";guestNoticeUntil=0;guestCommandSentAt=0;guestCommandLate=false;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
  if(connected)registerPresence().catch(setError);
@@ -208,7 +207,7 @@ function setupRoom(code,isHost){
   const before=meta?.status;meta=snap.val();
   if(meta?.status==="lobby"&&before==="finished"){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastAcceptedGuestSeq=0;lastRemoteSeq=0;lastSend=0;
-   guestAckSeq=0;guestAcceptedSeq=0;guestCommandNotice="";guestNoticeUntil=0;
+   guestAckSeq=0;guestAcceptedSeq=0;guestCommandNotice="";guestNoticeUntil=0;guestCommandSentAt=0;guestCommandLate=false;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
@@ -343,6 +342,7 @@ function sendCommand(c){
 if(host||!room||phase!=="playing"||!connected)return false;
 if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return false;
 const order=++commandSeq,currentRoom=room,round=meta?.round||1;
+guestCommandSentAt=performance.now();guestCommandLate=false;
 updateUI();
 currentRoom.child("commands").push({by:clientId,seq:order,round,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(error=>{
 if(currentRoom===room&&round===meta?.round&&order===commandSeq){
