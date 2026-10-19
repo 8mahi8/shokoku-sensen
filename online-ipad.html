@@ -1060,7 +1060,8 @@ window.ShokokuResearch={
 };
 if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
  window.__shokokuResearchQa={get:payload,current:()=>active?{
- mode:active.mode,actions:active.actions.length,samples:active.samples.length}:null,
+ mode:active.mode,actions:active.actions.length,samples:active.samples.length,
+ guestControlHistory:active.guestControlHistory.map(x=>x.guest)}:null,
  enableSolo:()=>{soloConsent=true;syncOnline();},clear};
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);
