@@ -62,7 +62,7 @@ function stats(rows){
      oldSpent:old.spent[team],newSpent:next.spent[team],
      initialHand:old.initialHand,openingQueue:old.openingQueue});
    }
-   console.log("STRONG BOT",partition,seed,"finished");
+   console.log("STRONG BOT",partition,"partition complete:",rows.length,"paired comparisons");
   }
   assert.deepEqual(errors,[],"no browser JS exceptions");
   const training=stats(rows.filter(x=>x.partition==="train"));
