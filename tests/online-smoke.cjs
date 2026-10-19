@@ -70,7 +70,9 @@ assert.ok(net.includes('if(solo){game?.begin();return;}'),"offline rematch must 
 assert.ok(net.includes('get isHost(){return host||solo}'),"offline local simulation must tick");
 assert.ok(net.includes('get botActive(){return solo||guestBot}'),"both BOT modes active");
 assert.ok(net.includes("setResearchConsent")&&net.includes("get researchAllowed()"),"Opt-in requires both room players");
+assert.ok(net.includes("get researchGuestControl()")&&net.includes("botControl:next"),"Guest mode is explicitly observable to host");
 assert.ok(game.includes("ShokokuResearch?.begin")&&game.includes("ShokokuResearch?.finish"),"Host game must record and finalize opt-in observations");
+assert.ok(game.includes("ShokokuResearch.observeGuestControl"),"Research logs track midgame human/BOT mode changes");
 assert.ok(!research.includes("fetch(")&&!research.includes("firebase.database"),"Research data stays local; never send to cloud");
 assert.ok(game.includes('botPreparation()'),"BOT must enter preparation phase");
 assert.ok(game.includes('if(NET.isSolo&&S.phase==="battle")botStep(dt)'),"solo BOT must think in simulation");

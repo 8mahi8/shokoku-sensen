@@ -182,7 +182,8 @@ function begin(){
  $("fieldHint").textContent="開戦準備：資源8で初期配置を決めよう。キャラは動かない。";
  // No opening BOT spawns: both players decide their own preparation.
  buildCards();updateHUD();
- window.ShokokuResearch?.begin?.(NET.isSolo?"solo":"online",{...S,difficulty:S.difficulty});
+ window.ShokokuResearch?.begin?.(NET.isSolo?"solo":"online",{...S,difficulty:S.difficulty,
+  guestControl:NET.researchGuestControl});
 }
 function castSpell(team,id,x,y){
  if(!isSpell(id)||!canPay(team,id)||!validTarget(team,id,x,y))return false;
@@ -1865,7 +1866,10 @@ function tick(dt){
   S.observedEnergy[team]=Math.min(ENERGY_CAP,S.observedEnergy[team]+gain);
  }
  unitStep(dt);spellStep(dt);
- if(window.ShokokuResearch?.active)window.ShokokuResearch.sample(S);
+ if(window.ShokokuResearch?.active){
+  if(!NET.isSolo)window.ShokokuResearch.observeGuestControl(NET.researchGuestControl,S.elapsed);
+  window.ShokokuResearch.sample(S);
+ }
  for(const fallen of S.deaths)fallen.t-=dt;
  S.deaths=S.deaths.filter(fallen=>fallen.t>0);
  for(const fx of S.effects)fx.t-=dt;

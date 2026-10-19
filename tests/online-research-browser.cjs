@@ -41,6 +41,8 @@ const server=http.createServer((req,res)=>{
    assert.equal(batch.matches.length,1,"one completed opted-in match");
    const match=batch.matches[0];
    assert.equal(match.mode,"solo");
+   assert.equal(match.matchType,"human-vs-bot","solo remains distinguishable from human-human");
+   assert.equal(await page.locator("[data-research-share]").first().isEnabled(),true);
    assert.ok(match.actions.length>0,"accepted card plays must be captured");
    assert.ok(match.samples.length>1&&match.samples.length<=80,"periodic samples bounded");
    assert.ok([0,1,2].includes(match.result.winner),"winner in correct range");
@@ -49,6 +51,8 @@ const server=http.createServer((req,res)=>{
     assert.ok(!flat.includes(forbidden),"must not include identifying field "+forbidden);
    assert.equal(await page.locator("[data-research-export]").last().isEnabled(),true);
    await page.locator("[data-research-export]").first().click();
+   await page.locator("[data-research-copy]").first().click();
+   assert.equal(await page.locator("#researchEndText").inputValue().then(s=>JSON.parse(s).matches.length),1);
    assert.equal(await page.locator("#researchText").inputValue().then(s=>JSON.parse(s).matches.length),1);
    await page.reload({waitUntil:"domcontentloaded"});
    const reloaded=await page.evaluate(()=>window.__shokokuResearchQa.get().matches.length);

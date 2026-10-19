@@ -43,9 +43,13 @@ const deadline=async (f,label,timeout=18000)=>{
   await guest.locator("#researchConsent").check();
   await deadline(async()=>await host.evaluate(()=>window.ShokokuNet.researchAllowed),
    "both-seat anonymous recording consent",18000);
+  assert.equal(await host.evaluate(()=>window.ShokokuNet.researchGuestControl),"human",
+   "guest join must mark human control without relying on identity");
   // Guest device can substitute a tactical robot: toggling also readies it.
   await deadline(async()=>await guest.locator("#netGuestBot").isVisible(),"guest BOT toggle visible");
   await guest.locator("#netGuestBot").click();
+  await deadline(async()=>await host.evaluate(()=>window.ShokokuNet.researchGuestControl==="bot"),
+   "host observes guest BOT control marker",14000);
   await deadline(async()=>((await guest.locator("#netGuestBot").getAttribute("aria-pressed"))==="true"),"BOT enabled");
   await deadline(async()=>((await guest.locator("#netReady").innerText()).includes("✓")),"guest BOT automatically ready");
   await host.locator("#netReady").click();
@@ -61,6 +65,8 @@ const deadline=async (f,label,timeout=18000)=>{
    for(const fraction of (team===1?[.14,.08,.22]:[.86,.92,.78]))
     await p.mouse.click(rect.x+rect.width*fraction,rect.y+rect.height*.48);
   }
+  assert.equal(await host.evaluate(()=>window.__shokokuResearchQa.current()?.guestControlHistory?.[0]),"bot",
+   "match opening must be classified as guest BOT");
   assert.equal(await host.evaluate(()=>window.ShokokuResearch.active),true,
    "consented host starts local research log");
   assert.equal(await guest.evaluate(()=>window.ShokokuResearch.active),false,
@@ -95,7 +101,14 @@ const deadline=async (f,label,timeout=18000)=>{
 
   // Switching BOT off should permit manual guest input without affecting multiplayer.
   await botToggle.click();
-  assert.equal(await botToggle.getAttribute("aria-pressed"),"false");
+  await deadline(async()=>(await botToggle.getAttribute("aria-pressed"))==="false",
+   "guest BOT toggle acknowledgement before enabling manual input",15000);
+  await deadline(async()=>await host.evaluate(()=>window.ShokokuNet.researchGuestControl==="human"),
+   "host sees guest switch to human",14000);
+  await deadline(async()=>await host.evaluate(()=>{
+   const h=window.__shokokuResearchQa.current()?.guestControlHistory;
+   return h?.includes("bot")&&h.includes("human");
+  }),"guest BOT-to-human research timeline",14000);
   const manualCount=packet.world.units.filter(u=>u.team===2).length;
   await summon(guest,2);
   const afterManual=await deadline(async()=>{
