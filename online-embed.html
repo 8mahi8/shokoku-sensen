@@ -1280,6 +1280,8 @@ window.KokokuArt={drawUnit,drawPortrait,version:"1.1-gald"};
 const NET=window.ShokokuNet;
 if(!NET)throw Error("online-net.js must load first");
 const ME=()=>NET.team||1;
+// Team-relative text only; faction colors and combat calculations stay fixed.
+const teamRelation=team=>team===ME()?"自軍":"敵軍";
 const $=id=>document.getElementById(id);
 const cv=$("field"),ctx=cv.getContext("2d",{alpha:false}),area=$("fieldArea"),cards=$("cards");
 const W=1280,H=660,START_HP=3000,POST_HP=12,MATCH=300,PREP=10,CASTLE_DAMAGE=1.0;
@@ -1421,7 +1423,7 @@ function cardFailure(team,id){
  if(S.left[team][id]<=0)return "召喚回数・使用回数が残っていないよ";
  if(isSpell(id)&&S.phase==="prep")return "スペルは開戦後に使えるよ";
  if(!canPay(team,id))return "エネルギーが足りない";
- return isSpell(id)?"戦場内を指定してね":"青い召喚範囲に置いてね";
+ return isSpell(id)?"戦場内を指定してね":"自軍の召喚範囲に置いてね";
 }
 function deploy(team,id,x,y){
  if(!CLASSES[id]||!canPay(team,id)||!canPlace(team,x,y))return false;
@@ -3262,8 +3264,8 @@ function terrain(){
  ctx.strokeStyle="#a2e5ffcb";ctx.beginPath();ctx.moveTo(border(1),0);ctx.lineTo(border(1),H);ctx.stroke();
  ctx.strokeStyle="#ffb0bacb";ctx.beginPath();ctx.moveTo(border(2),0);ctx.lineTo(border(2),H);ctx.stroke();ctx.setLineDash([]);
  ctx.fillStyle="#c6f1ff";ctx.font="bold 14px system-ui";ctx.textAlign="left";
- ctx.fillText("自軍召喚ライン",limit(border(1)-135,10,W-140),28);
- ctx.textAlign="right";ctx.fillStyle="#ffd2d7";ctx.fillText("敵軍召喚ライン",limit(border(2)+135,140,W-10),28);
+ ctx.fillText(teamRelation(1)+"召喚ライン",limit(border(1)-135,10,W-140),28);
+ ctx.textAlign="right";ctx.fillStyle="#ffd2d7";ctx.fillText(teamRelation(2)+"召喚ライン",limit(border(2)+135,140,W-10),28);
  ctx.fillStyle="#18455433";ctx.fillRect(0,0,110,H);
  ctx.fillStyle="#6b293233";ctx.fillRect(W-110,0,110,H);
 }
@@ -3294,7 +3296,7 @@ function drawCapital(c){
   ctx.restore();
  }
  ctx.font="bold 13px system-ui";ctx.fillStyle="#f1f7ed";ctx.textAlign="center";
- ctx.fillText(blue?"自軍城壁":"敵軍城壁",face,WALL_TOP-18);
+ ctx.fillText(teamRelation(c.team)+"城壁",face,WALL_TOP-18);
  ctx.restore();
 }
 function drawFort(f){
@@ -3310,7 +3312,7 @@ function drawFort(f){
  ctx.fillStyle="#15252b";rounded(ctx,-31,-62,62,9,4);ctx.fill();
  ctx.fillStyle=col;rounded(ctx,-29,-60,58*Math.max(0,f.hp/POST_HP),5,3);ctx.fill();
  ctx.fillStyle="#f3f0d8";ctx.font="bold 12px system-ui";ctx.textAlign="center";
- ctx.fillText(f.owner===0?"中立基地":f.owner===1?"自軍基地":"敵軍基地",0,48);
+ ctx.fillText(f.owner===0?"中立基地":teamRelation(f.owner)+"基地",0,48);
  ctx.restore();
 }
 // Both full-art and cached sprites must share the same guest interpolation.

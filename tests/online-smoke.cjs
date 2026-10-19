@@ -3,6 +3,25 @@
 const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict");
 const read=p=>fs.readFileSync(p,"utf8");
 const net=read("online-net.js"),game=read("online-game.js");
+
+// V17.1 regression: blue and red must see the same physical battlefield
+// from their own perspective, without changing team ownership or rules.
+const perspectiveSource=game.match(/const teamRelation=team=>team===ME\(\)\?"自軍":"敵軍";/);
+assert.ok(perspectiveSource,"Team-relative label function is missing");
+for(const me of [1,2]){
+ const relation=new Function("ME",perspectiveSource[0]+"return teamRelation;")(()=>me);
+ assert.equal(relation(me),"自軍","Own team should display as friendly");
+ assert.equal(relation(3-me),"敵軍","Opponent should display as enemy");
+}
+for(const renderedLabel of [
+ 'teamRelation(1)+"召喚ライン"',
+ 'teamRelation(2)+"召喚ライン"',
+ 'teamRelation(c.team)+"城壁"',
+ 'teamRelation(f.owner)+"基地"'
+])assert.ok(game.includes(renderedLabel),"Rendering must use perspective: "+renderedLabel);
+assert.ok(game.includes('"自軍の召喚範囲に置いてね"'),"Deploy hint must also work for red");
+// Fixed blue/red colors and the simulation never depend on viewpoint.
+
 for(const p of ["v3.js","online-net.js","online-game.js","gald-render.js","v3-art.js"]){
  new vm.Script(read(p),{filename:p});
 }
