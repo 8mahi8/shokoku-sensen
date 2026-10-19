@@ -120,7 +120,8 @@ function syncOnline(o){
 function sync(){
  const counter=$("researchCount");if(counter)counter.textContent=archived.length+"試合保存";
  const live=$("researchLive");
- if(live){live.hidden=!active;live.textContent="● 対戦記録中（停止）";}
+ if(live){live.hidden=!(active||(playing&&inRoom&&onlineConsent));
+  live.textContent="● 対戦記録中（停止）";}
  const exportButtons=document.querySelectorAll("[data-research-export]");
  exportButtons.forEach(b=>{b.disabled=!archived.length;});
 }
