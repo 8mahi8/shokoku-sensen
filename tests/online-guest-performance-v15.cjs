@@ -23,6 +23,15 @@ const extra=[
  '  return {id,first,after:drone.hp,attacked:drone.hp<first};',
  ' },',
  ' remoteSpritePositions:()=>S.remoteSprites?Array.from(S.remoteSprites.entries()).map(([id,v])=>({id,x:v.x,targetX:v.targetX})):[],',
+ ' captureRelativeLabels:()=>{',
+ '  const labels=[],original=ctx.fillText;',
+ '  ctx.fillText=function(value,x,y,...extra){',
+ '   if(/(?:召喚ライン|城壁)$/.test(String(value)))labels.push({text:String(value),x});',
+ '   return original.call(this,value,x,y,...extra);',
+ '  };',
+ '  try{draw();}finally{ctx.fillText=original;}',
+ '  return labels;',
+ ' },',
  ' remoteWorld:()=>JSON.parse(JSON.stringify({',
  '  phase:S.phase,prep:S.prep,seconds:S.seconds,elapsed:S.elapsed,clock:S.clock,energy:S.energy,left:S.left,hand:S.hand,queue:S.queue,',
  '  units:S.units,forts:S.forts,capitals:S.capitals,spells:S.spells,effects:S.effects,projectiles:S.projectiles,deaths:S.deaths,uid:S.uid,speed:S.speed',
@@ -87,6 +96,17 @@ async function measure(engineName,engine){
      ranged:["archer","suppress","tank","drone"].map(x=>q.armTest(x)),
      melee:["infantry","sentinel"].map(x=>q.armTest(x))};
    });
+   const labelsFor=async()=>page.evaluate(()=>window.__shokokuQa.captureRelativeLabels());
+   function checkPerspective(labels,me){
+    const walls=labels.filter(v=>v.text.endsWith("城壁"));
+    assert.equal(walls.find(v=>v.x===126)?.text,me===1?"自軍城壁":"敵軍城壁","blue castle label");
+    assert.equal(walls.find(v=>v.x===1154)?.text,me===2?"自軍城壁":"敵軍城壁","red castle label");
+    const lines=labels.filter(v=>v.text.endsWith("召喚ライン")).sort((a,b)=>a.x-b.x);
+    assert.equal(lines.length,2,"both summon line labels rendered");
+    assert.equal(lines[0].text,me===1?"自軍召喚ライン":"敵軍召喚ライン","blue summon line");
+    assert.equal(lines[1].text,me===2?"自軍召喚ライン":"敵軍召喚ライン","red summon line");
+   }
+   checkPerspective(await labelsFor(),1);
    assert.ok(balance.stats.droneHp<=balance.stats.fireDamage);
    assert.equal(balance.fire.alive,0);
    assert.ok(balance.ranged.every(x=>x.attacked),JSON.stringify(balance.ranged));
@@ -110,6 +130,7 @@ async function measure(engineName,engine){
     stats:window.__qaGuestNet.stats()
    }));
    assert.equal(initial.phase,"battle");
+   checkPerspective(await labelsFor(),2);
    assert.ok(initial.dpr<=1.01,"guest tablet DPR too high: "+initial.dpr);
    // A raw-position-only sprite cache used to make guest units teleport at
    // network packet frequency, even when the page rendered at 60 fps.
