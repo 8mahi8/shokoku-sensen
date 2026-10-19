@@ -3143,11 +3143,21 @@ function botAction(){
    (target&&Math.random()<.72?target.y+rand(-35,35):rand(160,490));
  botUse(2,chosen,x,limit(y,70,H-70));
 }
+// Fast reaction is only valuable when a hostile force is ALREADY at the
+// castle. Never accelerate routine card cycling and sacrifice large purchases.
+function botThoughtInterval(team){
+ const expert=S.difficulty==="expert"||qaBotVariants[team]==="strongDefend";
+ const castleRaid=expert&&S.units.some(u=>u.hp>0&&u.team!==team&&
+  Math.abs(u.x-WALL_FACE[team])<175);
+ return castleRaid?[.85,1.25]:
+  S.difficulty==="easy"?[6.5,9]:
+  S.difficulty==="hard"||expert?[1.2,1.9]:[2.5,3.8];
+}
 function botStep(dt){
  S.botThink-=dt;
  if(S.botThink>0)return;
  botAction();
- const mod=S.difficulty==="easy"?[6.5,9.0]:S.difficulty==="expert"||qaBotVariants[2]==="strongDefend"?[.85,1.25]:S.difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
+ const mod=botThoughtInterval(2);
  S.botThink=rand(mod[0],mod[1]);
 }
 function end(result,reason){
@@ -4205,7 +4215,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       selfThink[team]-=dt;
       if(selfThink[team]<=0){
        botExpertAction(team);
-       const mod=qaBotVariants[team]==="strongDefend"?[.85,1.25]:difficulty==="hard"?[1.2,1.9]:[2.5,3.8];
+       const mod=botThoughtInterval(team);
        selfThink[team]=rand(mod[0],mod[1]);
       }
      }
@@ -4222,7 +4232,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
       tacticalThink-=dt;
       if(tacticalThink<=0){
        botExpertAction(1);
-       tacticalThink=rand(...(qaBotVariants[1]==="strongDefend"?[.85,1.25]:difficulty==="hard"?[1.2,1.9]:[2.5,3.8]));
+       tacticalThink=rand(...botThoughtInterval(1));
       }
      }
     }
