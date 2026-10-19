@@ -382,6 +382,12 @@ function updateUI(){
   $("networkBar").classList.remove("hidden");
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
  }
+ // Research flags live only in existing room-player presence. Game observations
+ // never enter RTDB; both participants must explicitly opt in before each match.
+ window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
+  ownConsent:!!players?.[host?"host":"guest"]?.researchConsent,
+  bothConsent:!!room&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent,
+  playing:meta?.status==="playing"});
 }
 function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
 function detach(){
@@ -661,6 +667,15 @@ async function startMatch(){
   if(!result.committed)throw Error("開始状態が変わりました");
  }catch(e){setError(e)}
 }
+async function setResearchConsent(value){
+ if(solo||!room||!players)return false;
+ const seat=host?"host":"guest";
+ if(players[seat]?.id!==clientId||value&&meta?.status!=="lobby")return false;
+ const done=await room.child("players/"+seat).transaction(old=>
+  old?.id===clientId?{...old,researchConsent:!!value}:undefined,undefined,false);
+ if(!done.committed)throw Error("参加情報が変わりました");
+ return true;
+}
 function sendCommand(c){
 if(host||!room||phase!=="playing"||!connected)return false;
 if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return false;
@@ -750,6 +765,8 @@ const api={
  get team(){return solo?1:team},get isHost(){return host||solo},get isConnected(){return connected},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
+  get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
+  setResearchConsent,
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
@@ -803,6 +820,188 @@ document.addEventListener("DOMContentLoaded",()=>{
 });
 })();
 
+</script>
+<script>
+/* Opt-in, local-only, anonymous match observations for future batch research.
+ * No auto-training, analytics service, identifying data, or cloud match archive.
+ * Host is authoritative for accepted actions. Consent flags only use room presence.
+ */
+(()=>{
+"use strict";
+const VERSION=1,KEY="shokoku-research-batch-v1",MAX_MATCHES=8,MAX_ACTIONS=500,MAX_SAMPLES=80;
+const $=id=>document.getElementById(id);
+let soloConsent=false,onlineConsent=false,onlineBoth=false,inRoom=false,playing=false;
+let active=null,archived=[],notice="",lastSampleAt=-Infinity;
+function safeLoad(){
+ try{
+  const v=JSON.parse(localStorage.getItem(KEY)||"[]");
+  if(Array.isArray(v))return v.filter(x=>x?.schema===VERSION&&Array.isArray(x.actions)&&Array.isArray(x.samples)).slice(-MAX_MATCHES);
+ }catch(_){}
+ return [];
+}
+function safeSave(){
+ try{
+  localStorage.setItem(KEY,JSON.stringify(archived.slice(-MAX_MATCHES)));
+  return true;
+ }catch(_){return false;}
+}
+archived=safeLoad();
+function status(s){notice=s;const el=$("researchStatus");if(el)el.textContent=s;}
+const compact=n=>Math.round(Number(n)||0),energy=n=>Math.round((Number(n)||0)*100)/100;
+function snapshot(world){
+ return {t:energy(world.elapsed),
+  energy:[energy(world.energy[1]),energy(world.energy[2])],
+  castles:world.capitals.map(c=>compact(c.hp)),
+  forts:world.forts.map(f=>[f.owner,compact(f.hp)]),
+  units:world.units.filter(u=>u.hp>0).slice(0,180).map(u=>[u.team,u.key,compact(u.x),compact(u.y),compact(u.hp)])
+ };
+}
+function begin(mode,world){
+ if(active)return;
+ if(mode==="solo"?!soloConsent:!onlineBoth)return;
+ active={schema:VERSION,mode,teams:[1,2],difficulty:mode==="solo"?world.difficulty:null,
+  result:null,actions:[],samples:[],stopped:false,overflow:false};
+ lastSampleAt=-Infinity;
+ sample(world,true);
+ status("記録中（端末内のみ）。勝敗確定後にJSONを書き出してね");
+ sync();
+}
+function action(a){
+ if(!active)return;
+ if(active.actions.length>=MAX_ACTIONS){active.overflow=true;return;}
+ if(![1,2].includes(a.team)||!Number.isFinite(a.t)||!Number.isFinite(a.x)||!Number.isFinite(a.y))return;
+ active.actions.push({t:energy(a.t),phase:a.phase,team:a.team,card:a.card,
+  x:compact(a.x),y:compact(a.y),energyBefore:energy(a.energyBefore),
+  ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4):[]});
+}
+function sample(world,force=false){
+ if(!active||!world||!Number.isFinite(world.elapsed))return;
+ if(!force&&world.elapsed-lastSampleAt<8)return;
+ if(active.samples.length>=MAX_SAMPLES){active.overflow=true;return;}
+ active.samples.push(snapshot(world));lastSampleAt=world.elapsed;
+}
+function finish(world){
+ if(!active)return;
+ sample(world,true);
+ const hp=world.capitals.map(c=>compact(c.hp));
+ active.result={winner:hp[0]===hp[1]?0:hp[0]>hp[1]?1:2,
+  duration:energy(world.elapsed),castleHp:hp,
+  fortOwners:world.forts.map(f=>f.owner)};
+ archived.push(active);
+ archived=archived.slice(-MAX_MATCHES);
+ active=null;
+ const saved=safeSave();
+ status((saved?"端末内に一時保存":"端末保存不可。画面を閉じる前に")+
+  "｜"+archived.length+"試合分。JSON書き出しを忘れずに");
+ sync();
+}
+function withdraw(){
+ if(active){active=null;lastSampleAt=-Infinity;}
+ status("記録を破棄しました。対戦データは追加しません");
+ sync();
+}
+function payload(){return {schema:VERSION,format:"shokoku-anonymous-match-batch",matches:archived.slice()};}
+function exportJson(){
+ if(!archived.length){status("保存する試合がまだないよ");return;}
+ const json=JSON.stringify(payload());
+ const field=$("researchText");
+ if(field){field.value=json;field.hidden=false;}
+ try{
+  const blob=new Blob([json],{type:"application/json"});
+  const u=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=u;a.download="shokoku-match-batch.json";a.style.display="none";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),1000);
+  status("JSON書き出しを実行。保存されなければ下のテキストをコピーしてね");
+ }catch(_){status("ダウンロード不可。下のテキストをコピーしてね");}
+ if(field)field.select();
+}
+function clear(){
+ if(active){status("記録中は削除できません。先に記録を停止してね");return;}
+ archived=[];try{localStorage.removeItem(KEY)}catch(_){}
+ const field=$("researchText");if(field){field.value="";field.hidden=true;}
+ status("保存済みの試合記録をこの端末から消去しました");
+ sync();
+}
+function syncOnline(o){
+ if(o){
+  onlineConsent=!!o.ownConsent;onlineBoth=!!o.bothConsent;inRoom=!!o.inRoom;playing=!!o.playing;
+  // Withdrawal in either seat invalidates all unexported active observations.
+  if(active&&active.mode!=="solo"&&!onlineBoth)withdraw();
+ }
+ const checkbox=$("researchConsent");
+ if(checkbox){
+  checkbox.checked=inRoom?onlineConsent:soloConsent;
+  checkbox.disabled=playing;
+ }
+ const hint=$("researchHint");
+ if(hint)hint.textContent=inRoom?
+  onlineBoth?"双方の同意あり。ホスト端末だけが記録します":
+  "双方がONにすると次の試合から記録します":
+  "1人プレイの記録をON/OFF（通常対戦は双方の同意が必要）";
+ sync();
+}
+function sync(){
+ const counter=$("researchCount");if(counter)counter.textContent=archived.length+"試合保存";
+ const live=$("researchLive");
+ if(live){live.hidden=!(active||(playing&&inRoom&&onlineConsent));
+  live.textContent="● 対戦記録中（停止）";}
+ const exportButtons=document.querySelectorAll("[data-research-export]");
+ exportButtons.forEach(b=>{b.disabled=!archived.length;});
+}
+function init(){
+ const panel=$("onlineDialog"),dialog=$("dialog");
+ if(!panel||!dialog)return;
+ const controls=document.createElement("div");
+ controls.id="researchTools";
+ controls.style.cssText="margin:8px 0;padding:8px;border:1px solid #668c95;border-radius:9px;font-size:12px;line-height:1.5";
+ controls.innerHTML='<label><input id="researchConsent" type="checkbox"> 匿名の対戦データを研究用に記録する（任意）</label>'+
+  '<div id="researchHint">1人プレイの記録をON/OFF（通常対戦は双方の同意が必要）</div>'+
+  '<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:5px">'+
+  '<span id="researchCount">0試合保存</span><button type="button" data-research-export>JSON書き出し</button>'+
+  '<button type="button" id="researchClear">記録削除</button></div>'+
+  '<div id="researchStatus" role="status"></div>'+
+  '<textarea id="researchText" hidden readonly aria-label="JSONコピー用テキスト" style="width:100%;height:55px"></textarea>'+
+  '<small>記録するのはゲーム内の手・戦況・勝敗だけ。名前・ルーム番号・端末ID・チャットは保存しません。自動送信なし。端末保存が使えない場合に備えて終了後にJSONを書き出してください。</small>';
+ panel.insertBefore(controls,$("netStatus"));
+ const endTools=document.createElement("div");
+ endTools.style.cssText="margin-top:7px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap";
+ endTools.innerHTML='<button type="button" data-research-export>対戦データJSONを保存</button><span id="researchEndHint" style="font-size:11px">記録ONの試合のみ</span>';
+ dialog.appendChild(endTools);
+ const live=document.createElement("button");
+ live.id="researchLive";live.hidden=true;live.type="button";
+ live.style.cssText="position:fixed;top:4px;right:4px;z-index:40;font-size:10px;padding:5px;background:#452d37;color:#fff;border:1px solid #a99;border-radius:5px";
+ live.addEventListener("click",async()=>{
+  // Both seats may withdraw. Host recording is erased as soon as consent changes.
+  if(inRoom){
+   try{await window.ShokokuNet?.setResearchConsent?.(false);}catch(e){status("記録停止エラー: "+String(e?.message||e))}
+  }else{soloConsent=false;withdraw();}
+ });
+ document.body.appendChild(live);
+ $("researchConsent").addEventListener("change",async e=>{
+  const value=!!e.target.checked;
+  if(inRoom){
+   try{await window.ShokokuNet?.setResearchConsent?.(value)}
+   catch(err){status("同意設定の変更に失敗: "+String(err?.message||err));e.target.checked=!value;}
+  }else soloConsent=value;
+  syncOnline();
+ });
+ document.querySelectorAll("[data-research-export]").forEach(b=>b.addEventListener("click",exportJson));
+ $("researchClear").addEventListener("click",clear);
+ syncOnline();
+}
+window.ShokokuResearch={
+ get active(){return !!active},
+ get soloConsent(){return soloConsent},
+ begin,action,sample,finish,syncOnline,withdraw,
+ // For tests only, this returns anonymized logs without triggering downloads.
+};
+if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
+ window.__shokokuResearchQa={get:payload,enableSolo:()=>{soloConsent=true;syncOnline();},clear};
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);
+else init();
+})();
 </script>
 <script>
 window.__galdSourceHTML="<!doctype html>\n<html lang=\"ja\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\"><title>GOLEM // PROFILE STUDY — 小国戦線</title>\n<style>\n:root{color-scheme:dark;--ink:#101f29;--sand:#e7ddbd;--mint:#6cefe6;--line:#334953}*{box-sizing:border-box}body{margin:0;background:#0b141c;color:#e8e9e1;font-family:system-ui,-apple-system,\"Noto Sans JP\",sans-serif}body::before{content:\"\";position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 35% 0%,#25445847,transparent 70%)}header{position:relative;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:21px clamp(15px,3vw,43px) 12px;border-bottom:1px solid #45616b50}header strong{letter-spacing:.19em;font-weight:800;font-size:15px}header small{color:#92a8ae;font-size:11px;letter-spacing:.12em}.tag{border:1px solid #4b767c;color:#aeeae0;font-size:11px;padding:7px 11px;border-radius:99px;letter-spacing:.07em}.wrap{max-width:1280px;margin:auto;padding:22px clamp(14px,2.8vw,38px) 40px}.heading{display:flex;gap:15px;align-items:baseline;flex-wrap:wrap;padding-bottom:15px}.heading h1{margin:0;font-size:clamp(23px,3vw,42px);font-weight:900;letter-spacing:.04em}.heading p{margin:0;color:#9eb0b3;font-size:13px} .layout{display:grid;grid-template-columns:minmax(0,1fr) 302px;gap:18px}.stage{position:relative;background:#112630;border:1px solid #50606a;border-radius:14px;overflow:hidden;box-shadow:0 26px 70px #0004;min-width:0}.stage:after{content:\"\";position:absolute;inset:0;box-shadow:inset 0 0 90px #04101666;pointer-events:none}.stage svg{display:block;width:100%;height:auto;aspect-ratio:920/620}.stage-name{position:absolute;top:16px;left:17px;display:flex;flex-direction:column;gap:4px;z-index:1;pointer-events:none}.stage-name span{font-size:11px;letter-spacing:.22em;color:#a9c4c8}.stage-name strong{font-size:17px;letter-spacing:.09em;text-shadow:0 2px 7px #061019}.stage-foot{position:absolute;bottom:15px;left:18px;right:18px;display:flex;justify-content:space-between;gap:12px;font-size:11px;color:#b5c6c4;z-index:1;pointer-events:none}.sidebar{background:#14232c;border:1px solid #3d5861;border-radius:14px;padding:19px;display:flex;flex-direction:column;gap:17px}.group{display:flex;flex-direction:column;gap:8px}.section-title{font-size:11px;letter-spacing:.14em;font-weight:800;color:#a9c2ca;text-transform:uppercase}.buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.btn{font:inherit;color:#d8e5e3;background:#1e3340;border:1px solid #45616d;padding:11px 9px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:750;touch-action:manipulation}.btn:hover{background:#294554}.btn.active{background:#3c756d;border-color:#9ae9d8;color:#fff;box-shadow:inset 0 0 0 1px #6db6aa44}.options{display:flex;gap:7px;flex-wrap:wrap}.options .btn{flex:1;min-width:72px;font-size:11px;padding:10px 6px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.row output{font-size:12px;color:#b2d8d6;font-variant-numeric:tabular-nums}input[type=range]{width:100%;accent-color:#7fe7d3;cursor:pointer}p{line-height:1.75}.note{padding:12px 14px;background:#20353b;border-left:3px solid #83d2c7;border-radius:6px;font-size:12px;color:#bdd1d3}.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:15px}.fact{padding:15px;background:#13232d;border:1px solid #354852;border-radius:11px}.fact strong{display:block;font-size:13px;margin-bottom:6px}.fact span{font-size:12px;color:#a8bac1;line-height:1.65}.mobile-note{display:none}footer{font-size:11px;color:#70878e;text-align:right;margin-top:18px}@media(max-width:800px){header{padding:15px}.layout{grid-template-columns:1fr}.sidebar{padding:14px}.stage-name{top:9px;left:9px}.stage-name strong{font-size:11px}.stage-name span{font-size:9px}.stage-foot{font-size:9px;bottom:9px}.mobile-note{display:block}.facts{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}\n</style></head>\n<body><header><div><strong>SHOKOKU SENSEN // ART DIVISION</strong><br><small>CHARACTER ENGINEERING — REFINEMENT 04</small></div><span class=\"tag\">独立試作 / 本編未変更</span></header>\n<main class=\"wrap\"><div class=\"heading\"><h1>守護ゴーレム / REFINED PROFILE</h1><p>進行方向は右。接地、体重移動、打撃の一瞬を磨いた横向き2Dリグ。</p></div>\n<div class=\"layout\"><div class=\"stage\"><div class=\"stage-name\"><span>DESIGN B-04 / HEAVY BRUISER</span><strong>城塞巨兵 — ガルド</strong></div>\n<svg id=\"arena\" viewBox=\"0 0 920 620\" role=\"img\" aria-label=\"右向きの巨大な石のゴーレムが待機、歩行、パンチするアニメーション\">\n<defs>\n <linearGradient id=\"sky\" x1=\"0\" x2=\"0\" y1=\"0\" y2=\"1\"><stop stop-color=\"#122632\"/><stop offset=\".66\" stop-color=\"#35525b\"/><stop offset=\"1\" stop-color=\"#527075\"/></linearGradient>\n <linearGradient id=\"stone\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop stop-color=\"#f5dfb7\"/><stop offset=\".32\" stop-color=\"#d3c29f\"/><stop offset=\".68\" stop-color=\"#889b99\"/><stop offset=\"1\" stop-color=\"#526a71\"/></linearGradient>\n <linearGradient id=\"stoneDark\" x1=\"0\" x2=\"1\" y1=\"0\" y2=\"1\"><stop stop-color=\"#8ba1a3\"/><stop offset=\".55\" stop-color=\"#516875\"/><stop offset=\"1\" stop-color=\"#314451\"/></linearGradient>\n <linearGradient id=\"metal\" x1=\"0\" x2=\"1\" y1=\"0\" y2=\"1\"><stop stop-color=\"#e5cb8f\"/><stop offset=\".47\" stop-color=\"#a48153\"/><stop offset=\"1\" stop-color=\"#5e5b52\"/></linearGradient>\n <linearGradient id=\"core\" x1=\"0\" x2=\"1\" y1=\"0\" y2=\"1\"><stop stop-color=\"#e8ffff\"/><stop offset=\".35\" stop-color=\"#63fbf3\"/><stop offset=\".76\" stop-color=\"#1a9ebb\"/><stop offset=\"1\" stop-color=\"#17405e\"/></linearGradient>\n <filter id=\"shadow\" x=\"-50%\" y=\"-50%\" width=\"220%\" height=\"220%\"><feDropShadow dx=\"3\" dy=\"7\" stdDeviation=\"7\" flood-color=\"#03111d\" flood-opacity=\".43\"/></filter>\n <filter id=\"aura\" x=\"-150%\" y=\"-150%\" width=\"400%\" height=\"400%\"><feGaussianBlur stdDeviation=\"8\"/></filter>\n <g id=\"rune\"><path d=\"M0 -14 L11 0 L0 14 L-11 0Z\" fill=\"url(#core)\" stroke=\"#126c81\" stroke-width=\"2\"/><path d=\"M0 -8 V8 M-6 0 H6\" stroke=\"#e6ffff\" stroke-width=\"2\" opacity=\".86\"/></g>\n <pattern id=\"floor\" width=\"110\" height=\"40\" patternUnits=\"userSpaceOnUse\"><path d=\"M0 10 L45 4 L110 12 M13 30 L68 23 L106 30\" stroke=\"#759193\" stroke-opacity=\".21\" fill=\"none\" stroke-width=\"2\"/></pattern>\n</defs>\n<rect width=\"920\" height=\"620\" fill=\"url(#sky)\"/>\n<g opacity=\".22\" fill=\"#102b36\" stroke=\"#7daba8\" stroke-width=\"2\"><path d=\"M0 350 L42 330 L50 279 L86 258 L125 279 L135 346 L182 355 L192 305 L232 291 L248 345 L290 350 L305 280 L344 238 L379 280 L383 356 L433 352 L460 308 L488 352 L550 350 L574 302 L601 349 L652 351 L667 273 L718 258 L759 286 L762 360 L820 355 L834 304 L875 283 L907 319 L920 362 V450 H0Z\"/></g>\n<path d=\"M0 478 Q220 460 454 482 T920 482 V620 H0Z\" fill=\"#233a42\"/><rect x=\"0\" y=\"478\" width=\"920\" height=\"142\" fill=\"url(#floor)\"/>\n<path d=\"M0 488 Q100 482 220 489 T480 489 T920 487\" stroke=\"#91c2b9\" stroke-opacity=\".34\" stroke-width=\"3\" fill=\"none\"/>\n<path d=\"M0 566 L920 562\" stroke=\"#061a22\" stroke-opacity=\".4\" stroke-width=\"7\"/>\n<g id=\"dustLayer\"></g>\n<ellipse id=\"floorShadow\" cx=\"415\" cy=\"493\" rx=\"137\" ry=\"22\" fill=\"#04171d\" opacity=\".52\"/>\n<g id=\"character\" filter=\"url(#shadow)\" transform=\"translate(415 488)\">\n <!-- BACK leg, far depth -->\n <g id=\"backLegUpper\"></g><g id=\"backLegLower\"></g><g id=\"backFoot\"></g>\n <!-- Rear arm and backplate -->\n <g id=\"backArmUpper\"></g><g id=\"backArmLower\"></g><g id=\"backHand\"></g>\n <g id=\"backpack\"></g>\n <!-- Chest/torso -->\n <g id=\"torso\"></g><g id=\"head\"></g>\n <!-- Near leg in front of torso base -->\n <g id=\"frontLegUpper\"></g><g id=\"frontLegLower\"></g><g id=\"frontFoot\"></g>\n <!-- Primary attacking arm -->\n <g id=\"frontArmUpper\"></g><g id=\"frontArmLower\"></g><g id=\"frontHand\"></g>\n </g>\n<g id=\"hitFx\" pointer-events=\"none\"></g>\n<g id=\"foreground\" opacity=\".66\"><path d=\"M0 545 L80 538 L112 547 L149 543 L210 553 M668 551 L755 545 L831 549 L920 543\" stroke=\"#9ca49c\" stroke-opacity=\".23\" stroke-width=\"4\" fill=\"none\"/></g>\n</svg><div class=\"stage-foot\"><span id=\"stateLabel\">STATE / IDLE</span><span>PROFILE VIEW <b>→</b>　実寸プレビュー対応</span></div></div>\n<aside class=\"sidebar\">\n <section class=\"group\"><span class=\"section-title\">01 / 動きのテスト</span><div class=\"buttons\" id=\"modes\"><button class=\"btn active\" data-mode=\"idle\">待機</button><button class=\"btn\" data-mode=\"walk\">歩行</button><button class=\"btn\" data-mode=\"punch\">パンチ</button><button class=\"btn\" data-mode=\"hit\">被弾</button><button class=\"btn\" data-mode=\"death\">撃破</button><button class=\"btn\" data-mode=\"windup\">振りかぶり</button></div></section>\n <section class=\"group\"><span class=\"section-title\">02 / 造形の比較</span><div class=\"options\" id=\"designs\"><button class=\"btn active\" data-design=\"bastion\">城塞拳型</button><button class=\"btn\" data-design=\"stone\">岩塊型</button><button class=\"btn\" data-design=\"mechanical\">機甲型</button></div></section>\n <section class=\"group\"><div class=\"row\"><span class=\"section-title\">03 / 再生速度</span><output id=\"speedText\">1.00×</output></div><input id=\"speed\" type=\"range\" min=\"35\" max=\"160\" value=\"100\" step=\"5\" aria-label=\"再生速度\"></section>\n <section class=\"group\"><div class=\"row\"><span class=\"section-title\">04 / 動きのコマ確認</span><output id=\"frameText\">自動</output></div><input id=\"frame\" type=\"range\" min=\"0\" max=\"1000\" value=\"0\" step=\"1\" aria-label=\"ポーズ位置\"/><button class=\"btn\" id=\"togglePlay\">一時停止してコマ送り</button></section>\n <section class=\"group\"><span class=\"section-title\">05 / 画面サイズ</span><div class=\"options\" id=\"sizes\"><button class=\"btn active\" data-zoom=\"1\">アップ</button><button class=\"btn\" data-zoom=\"0.73\">中距離</button><button class=\"btn\" data-zoom=\"0.46\">ゲーム内</button></div></section>\n <div class=\"note\" id=\"designNote\">装飾を増やさず、横顔・肩・大きな拳の3要素を主役にした造形。</div>\n <div class=\"mobile-note\" style=\"font-size:11px;color:#9cb5b7\">ボタンは学校のiPad / Safariでもタップ操作できます。</div>\n</aside></div>\n<div class=\"facts\"><div class=\"fact\"><strong>01 / 横向き専用</strong><span>頭部・拳・脚先を進行方向へ。正面ポーズを横移動させる方式は廃止。</span></div><div class=\"fact\"><strong>02 / 足を地面に置く</strong><span>接地中の足首を固定した歩行。身体移動から逆算して膝を曲げる。</span></div><div class=\"fact\"><strong>03 / ポーズ先行</strong><span>構え → 予備動作 → 命中 → 反動。滑らかさより攻撃の意味を優先。</span></div></div>\n<footer>PROTOTYPE B-03 // NO IMAGE-GENERATION ASSETS // GAMEPLAY UNCHANGED</footer></main>\n<script>\n(()=>{'use strict';\nconst svgNS='http://www.w3.org/2000/svg', q=(s)=>document.querySelector(s),el=id=>document.getElementById(id);\nconst ink='#1b3240',rim='#e9e4ca',seam='#304857',glow='#86fff1';\nfunction shape(body,attrs={}){const e=document.createElementNS(svgNS,'g');if(attrs.transform)e.setAttribute('transform',attrs.transform);e.innerHTML=body;return e;}\nconst parts={};for(const id of ['torso','head','backpack','backLegUpper','backLegLower','backFoot','frontLegUpper','frontLegLower','frontFoot','backArmUpper','backArmLower','backHand','frontArmUpper','frontArmLower','frontHand'])parts[id]=el(id);\nconst edge=`stroke=\"${ink}\" stroke-width=\"6\" stroke-linejoin=\"round\" stroke-linecap=\"round\"`,thin=`stroke=\"${seam}\" stroke-width=\"3\" stroke-linejoin=\"round\"`;\n// Reusable single-plane silhouettes: unlike a generated sequence, every pose redraws the same armor.\nconst upperLeg=(near)=>`\n <path d=\"M-29 -12 L27 -12 L39 26 L28 73 L-30 82 L-44 42Z\" fill=\"url(#stoneDark)\" ${edge}/>\n <path d=\"M-24 -9 L26 -10 L22 33 L-14 49 L-37 37Z\" fill=\"url(#stone)\" ${edge}/>\n <path d=\"M-13 3 L17 0 L10 28 L-18 34Z\" fill=\"#eddfbb\" opacity=\".67\"/>\n <path d=\"M-34 51 L-19 69 L23 62 L27 76 L-18 82Z\" fill=\"url(#metal)\" ${thin}/>\n <path d=\"M-24 43 L-6 48 L-15 63 M14 14 L8 30\" ${thin} fill=\"none\"/>\n ${near?`<use href=\"#rune\" x=\"17\" y=\"30\" transform=\"scale(.57) translate(12 24)\" opacity=\".8\"/>`:''}`;\nconst lowerLeg=(near)=>`\n <circle cy=\"1\" r=\"29\" fill=\"#243d48\" ${edge}/><circle cy=\"1\" r=\"17\" fill=\"url(#metal)\" stroke=\"#788b83\" stroke-width=\"4\"/>\n <path d=\"M-26 6 L28 6 L35 49 L28 73 L-26 74 L-36 36Z\" fill=\"url(#stoneDark)\" ${edge}/>\n <path d=\"M-21 16 L26 11 L20 49 L-21 56 L-31 36Z\" fill=\"url(#stone)\" ${edge}/>\n <path d=\"M-23 27 L-2 23 M14 19 L9 39\" ${thin} fill=\"none\"/>\n <path d=\"M-27 58 L24 51 L32 72 L-25 78Z\" fill=\"url(#metal)\" ${thin}/>\n ${near?`<path d=\"M0 24 L8 35 L-1 46 L-9 36Z\" fill=\"url(#core)\" stroke=\"#2b6876\" stroke-width=\"2\"/>`:''}`;\nconst foot=(near)=>`\n <path d=\"M-30 -21 L26 -26 L40 -12 L76 -13 L90 5 L80 15 L-28 15 L-41 6Z\" fill=\"url(#stoneDark)\" ${edge}/>\n <path d=\"M-29 -20 L22 -27 L37 -9 L62 -12 L75 1 L13 4 L-29 0Z\" fill=\"url(#stone)\" ${edge}/>\n <path d=\"M19 1 L72 0 L81 9 L14 12Z\" fill=\"url(#metal)\" ${thin}/>\n <path d=\"M45 -4 L45 5 M58 -6 L58 5\" ${thin} fill=\"none\"/>\n <path d=\"M-40 12 L87 13\" stroke=\"#0b232d\" stroke-width=\"5\" opacity=\".6\"/>`;\nconst upperArm=(near)=>`\n <path d=\"M-24 -10 L27 -9 L40 25 L29 77 L-22 77 L-39 28Z\" fill=\"url(#stoneDark)\" ${edge}/>\n <path d=\"M-26 -17 L34 -13 L47 16 L30 50 L-33 45 L-47 19Z\" fill=\"url(#stone)\" ${edge}/>\n <path d=\"M-23 -12 L24 -11 L19 14 L-37 20Z\" fill=\"#faf0c9\" opacity=\".67\"/>\n <path d=\"M-18 48 L26 53 L29 69 L-22 73Z\" fill=\"url(#metal)\" ${thin}/>\n <path d=\"M-33 29 L-19 35 L-23 46 M22 12 L15 29\" ${thin} fill=\"none\"/>`;\nconst lowerArm=(near)=>`\n <circle cx=\"0\" cy=\"0\" r=\"26\" fill=\"#254251\" ${edge}/>\n <circle cx=\"0\" cy=\"0\" r=\"13\" fill=\"url(#core)\" stroke=\"#b5dfcf\" stroke-width=\"3\"/>\n <path d=\"M-34 14 L34 6 L48 54 L35 91 L-33 88 L-47 49Z\" fill=\"url(#stoneDark)\" ${edge}/>\n <path d=\"M-36 22 L32 13 L34 46 L15 62 L-40 54Z\" fill=\"url(#stone)\" ${edge}/>\n <path d=\"M-30 18 L25 16 L10 29 L-30 36Z\" fill=\"#fff0c9\" opacity=\".6\"/>\n <path d=\"M-32 65 L33 59 L36 87 L-30 91Z\" fill=\"url(#metal)\" ${thin}/>\n <path d=\"M-16 30 L2 38 L-9 53 M20 44 L12 59\" ${thin} fill=\"none\"/>`;\nconst fist=(near)=>`\n <g class=\"fistOuter\"><path d=\"M-37 -52 L19 -58 L71 -35 L90 -6 L89 24 L65 48 L13 55 L-36 28 L-49 -9Z\" fill=\"url(#stoneDark)\" ${edge}/>\n <path d=\"M-38 -48 L19 -57 L65 -34 L78 -12 L67 12 L8 21 L-44 3Z\" fill=\"url(#stone)\" ${edge}/>\n <path d=\"M-27 -43 L11 -50 L15 -28 L-37 -19Z\" fill=\"#fff1cc\" opacity=\".68\"/>\n <path d=\"M3 -21 L38 -30 L67 -8 L54 15 L13 21Z\" fill=\"#92a69d\" ${thin}/>\n <path d=\"M-36 15 L10 28 L30 48 L-15 47 L-44 28Z\" fill=\"url(#metal)\" ${thin}/>\n <path d=\"M39 -31 L55 -21 L65 -3 M27 31 L51 41 M-13 -12 L-2 4\" ${thin} fill=\"none\"/>\n <path d=\"M54 3 L68 12 L63 27 L48 32 L37 18Z\" fill=\"url(#core)\" stroke=\"#176c75\" stroke-width=\"4\"/>\n <path d=\"M21 -45 L32 -38 L36 -28\" stroke=\"#f3edd8\" stroke-width=\"3\" fill=\"none\"/>\n </g>`;\nfor(const id of ['backLegUpper','frontLegUpper'])parts[id].innerHTML=upperLeg(id.startsWith('front'));\nfor(const id of ['backLegLower','frontLegLower'])parts[id].innerHTML=lowerLeg(id.startsWith('front'));\nfor(const id of ['backFoot','frontFoot'])parts[id].innerHTML=foot(id.startsWith('front'));\nfor(const id of ['backArmUpper','frontArmUpper'])parts[id].innerHTML=upperArm(id.startsWith('front'));\nfor(const id of ['backArmLower','frontArmLower'])parts[id].innerHTML=lowerArm(id.startsWith('front'));\nfor(const id of ['backHand','frontHand'])parts[id].innerHTML=fist(id.startsWith('front'));\nparts.backArmUpper.setAttribute('opacity','.87');parts.backArmLower.setAttribute('opacity','.87');parts.backHand.setAttribute('opacity','.82');\nparts.backpack.innerHTML=`<path d=\"M-108 -67 L-70 -89 L-56 -29 L-70 49 L-112 26Z\" fill=\"url(#stoneDark)\" ${edge}/><path d=\"M-109 -65 L-80 -81 L-65 -18 L-99 5Z\" fill=\"url(#stone)\" ${edge}/><path d=\"M-99 -64 L-84 -71 L-74 -37 L-93 -29Z\" fill=\"url(#metal)\" ${thin}/><path d=\"M-109 15 L-83 31 L-80 47\" ${thin} fill=\"none\"/>`;\nparts.torso.innerHTML=`\n<!-- chunky rear silhouette, leaning forward in profile -->\n<path d=\"M-89 -72 L-39 -99 L44 -99 L91 -65 L107 -10 L80 74 L13 99 L-66 67 L-97 -1Z\" fill=\"#253f4b\" ${edge}/>\n<path d=\"M-86 -74 L-38 -97 L45 -96 L90 -70 L91 -33 L43 -12 L-18 -17 L-97 -25Z\" fill=\"url(#stone)\" ${edge}/>\n<path d=\"M-77 -69 L-28 -89 L28 -89 L14 -65 L-79 -45Z\" fill=\"#f7e9c2\" opacity=\".62\"/>\n<path d=\"M15 -92 L77 -75 L100 -34 L86 31 L40 67 L-19 41 L-5 -39Z\" fill=\"url(#stoneDark)\" ${edge}/>\n<path d=\"M28 -80 L78 -66 L86 -32 L64 8 L14 0 L5 -36Z\" fill=\"url(#stone)\" ${edge}/>\n<path d=\"M24 -75 L61 -63 L53 -42 L13 -41Z\" fill=\"#f2e3bf\" opacity=\".68\"/>\n<path d=\"M-82 27 L-48 58 L18 87 L52 73 L62 88 L13 105 L-63 75Z\" fill=\"url(#metal)\" ${edge}/>\n<path d=\"M-74 -13 L-44 -7 L-31 27 M65 14 L50 33 L38 28 M-9 -68 L-21 -49\" ${thin} fill=\"none\"/>\n<!-- crystal heart --><ellipse cx=\"55\" cy=\"-23\" rx=\"30\" ry=\"33\" fill=\"#113748\" stroke=\"#ddc28b\" stroke-width=\"8\"/>\n<ellipse cx=\"55\" cy=\"-23\" rx=\"22\" ry=\"25\" fill=\"url(#core)\" stroke=\"#86f9e8\" stroke-width=\"3\"/>\n<path d=\"M55 -44 L68 -24 L55 -1 L43 -23Z\" fill=\"#edffff\" opacity=\".87\"/>\n<path d=\"M55 -57 V-45 M55 0 V12 M25 -23 H35 M76 -23 H87\" stroke=\"#a4eae0\" stroke-width=\"4\"/>\n<!-- shoulder cliff -->\n<path d=\"M-37 -95 L23 -120 L77 -91 L87 -59 L22 -50 L-42 -63Z\" fill=\"url(#stone)\" ${edge}/>\n<path d=\"M-36 -93 L20 -116 L61 -96 L38 -87 L-27 -77Z\" fill=\"#f9edc7\" opacity=\".7\"/>\n<path d=\"M-20 -88 L17 -95 M43 -96 L54 -79\" ${thin} fill=\"none\"/>`;\nparts.head.innerHTML=`\n<!-- One-eyed protruding profile helmet faces RIGHT -->\n<path d=\"M-45 -40 L-16 -54 L21 -48 L44 -35 L59 -15 L66 6 L42 24 L-21 18 L-47 -4Z\" fill=\"url(#stoneDark)\" ${edge}/>\n<path d=\"M-41 -40 L-13 -53 L28 -45 L43 -29 L51 -13 L21 -7 L-26 -14Z\" fill=\"url(#stone)\" ${edge}/>\n<path d=\"M-41 -35 L-13 -48 L23 -40 L19 -28 L-35 -21Z\" fill=\"#fff2ca\" opacity=\".63\"/>\n<path d=\"M19 -22 L61 -19 L73 -5 L70 12 L47 26 L12 12Z\" fill=\"#203c49\" ${edge}/>\n<path d=\"M31 -16 L58 -12 L66 -5 L51 5 L29 5Z\" fill=\"url(#core)\" stroke=\"#286d7c\" stroke-width=\"4\"/>\n<path d=\"M47 -10 L59 -7 L50 -2\" stroke=\"#eaffff\" stroke-width=\"4\" fill=\"none\"/>\n<path d=\"M36 16 L65 13 L53 25 L18 29Z\" fill=\"url(#metal)\" ${thin}/>\n<path d=\"M-29 -48 L-4 -79 L18 -85 L21 -52Z\" fill=\"url(#stoneDark)\" ${edge}/>\n<path d=\"M-27 -49 L0 -74 L11 -74 L9 -54Z\" fill=\"url(#stone)\" stroke=\"#f4e4bd\" stroke-width=\"2\"/>\n<path d=\"M-42 -11 L-24 -6 L-18 17\" ${thin} fill=\"none\"/>`;\nfunction setPosition(id,x,y,rotation=0,scale=1){parts[id].setAttribute('transform',`translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${rotation.toFixed(2)}) scale(${scale})`)}\nfunction atanSegment(a,b){return Math.atan2(-(b.y-a.y),b.x-a.x)*180/Math.PI-90;} // angle: SVG downward-axis = 0\nfunction angleDown(a,b){return -Math.atan2(b.x-a.x,b.y-a.y)*180/Math.PI;}\nfunction ik(a,b,L1,L2,bend){const dx=b.x-a.x,dy=b.y-a.y,dist=Math.max(1,Math.hypot(dx,dy)),d=Math.min(L1+L2-1,Math.max(Math.abs(L1-L2)+1,dist));const ux=dx/dist,uy=dy/dist;const proj=(L1*L1-L2*L2+d*d)/(2*d),height=Math.sqrt(Math.max(0,L1*L1-proj*proj));return {x:a.x+ux*proj +(-uy)*height*bend,y:a.y+uy*proj+ux*height*bend};}\nconst smooth=t=>t*t*(3-2*t),lerp=(a,b,t)=>a+(b-a)*t,clamp=(a,l,h)=>Math.max(l,Math.min(h,a));\nconst state={mode:'idle',design:'bastion',zoom:1,speed:1,playing:true,phase:0,last:0,travel:0,period:2.4};\nconst durations={idle:3.8,walk:2.25,punch:1.62,windup:1.5,hit:.95,death:1.65};\nfunction selectGroup(id,attr,value){document.querySelectorAll(`#${id} [${attr}]`).forEach(b=>b.classList.toggle('active',b.getAttribute(attr)===value));}\nconst noteMap={bastion:'装飾よりシルエット。大きな拳、肩、横顔を主役に。',stone:'岩塊型：肩と拳の形をさらに大きく。視覚的な重量感を検証するシルエット。',mechanical:'機甲型：細めの装甲と光るコアを強調。シルエットの見やすさを比較する。'};\nfunction setMode(mode){state.mode=mode;state.phase=0;state.travel=0;state.period=durations[mode];state.playing=true;el('togglePlay').textContent='一時停止してコマ送り';selectGroup('modes','data-mode',mode);el('stateLabel').textContent='STATE / '+mode.toUpperCase();}\nfunction setDesign(value){state.design=value;selectGroup('designs','data-design',value);el('designNote').textContent=noteMap[value];}\nq('#modes').addEventListener('click',e=>{const b=e.target.closest('[data-mode]');if(b)setMode(b.dataset.mode)});\nq('#designs').addEventListener('click',e=>{const b=e.target.closest('[data-design]');if(b)setDesign(b.dataset.design)});\nq('#sizes').addEventListener('click',e=>{const b=e.target.closest('[data-zoom]');if(b){state.zoom=Number(b.dataset.zoom);selectGroup('sizes','data-zoom',b.dataset.zoom);}});\nq('#speed').addEventListener('input',e=>{state.speed=Number(e.target.value)/100;el('speedText').textContent=state.speed.toFixed(2)+'×'});\nq('#togglePlay').addEventListener('click',()=>{state.playing=!state.playing;el('togglePlay').textContent=state.playing?'一時停止してコマ送り':'再生する'});\nq('#frame').addEventListener('input',e=>{state.playing=false;state.phase=Number(e.target.value)/1000;el('togglePlay').textContent='再生する';render()});\nconst samples={idle:[{t:0,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0},{t:.5,hipX:0,hipY:-3,lean:-3,armX:117,armY:-159,headTilt:1},{t:1,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0}],\n punch:[{t:0,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0},\n // The pelvis sinks and retreats before the blow; the feet themselves never teleport.\n {t:.16,hipX:-9,hipY:5,lean:-9,armX:83,armY:-190,headTilt:-3},\n {t:.32,hipX:-21,hipY:11,lean:-18,armX:41,armY:-226,headTilt:-5},\n {t:.43,hipX:-23,hipY:13,lean:-20,armX:29,armY:-241,headTilt:-7},\n // One fast committed strike. The head follows the chest instead of leading it.\n {t:.515,hipX:25,hipY:-2,lean:15,armX:228,armY:-263,headTilt:2},\n {t:.57,hipX:26,hipY:0,lean:17,armX:230,armY:-263,headTilt:4},\n {t:.68,hipX:17,hipY:2,lean:8,armX:178,armY:-202,headTilt:3},\n {t:.82,hipX:4,hipY:3,lean:0,armX:134,armY:-166,headTilt:1},\n {t:1,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0}],\n hit:[{t:0,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0},{t:.19,hipX:-25,hipY:6,lean:-19,armX:87,armY:-173,headTilt:-17},{t:.5,hipX:-11,hipY:3,lean:-10,armX:106,armY:-166,headTilt:-5},{t:1,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0}],\n death:[{t:0,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0},{t:.32,hipX:16,hipY:30,lean:30,armX:160,armY:-100,headTilt:14},{t:.72,hipX:64,hipY:130,lean:75,armX:160,armY:-39,headTilt:29},{t:1,hipX:86,hipY:154,lean:90,armX:178,armY:-34,headTilt:33}]\n};\nfunction keyframe(list,t){t=clamp(t,0,1);let i=0;while(i<list.length-2&&t>list[i+1].t)i++;const a=list[i],b=list[i+1],e=smooth((t-a.t)/(b.t-a.t));const o={};for(const k of Object.keys(a)){o[k]=lerp(a[k],b[k],e);}return o;}\n// A profile golem's planted foot stays in the same world location during stance.\n// The preview scrolls a floor reference beneath the character to simulate forward travel.\nfunction ankle(phase,offset){\n const t=((phase+offset)%1+1)%1;\n if(t<.64) return {x:lerp(54,-58,t/.64),y:-18,stance:true};\n const swing=(t-.64)/.36;\n const s=swing*swing*(3-2*swing);\n // Smooth acceleration at both swing boundaries, low arc for the heavy short stride.\n return {x:lerp(-58,54,s),y:-18-31*Math.sin(Math.PI*s),stance:false};\n}\nfunction armRig(which,shoulder,wrist,upper,lower,bend,scale=1){const elbow=ik(shoulder,wrist,upper,lower,bend);setPosition(which+'ArmUpper',shoulder.x,shoulder.y,angleDown(shoulder,elbow),scale);setPosition(which+'ArmLower',elbow.x,elbow.y,angleDown(elbow,wrist),scale);setPosition(which+'Hand',wrist.x,wrist.y,which==='front'? 0: -14,which==='front'?scale:scale*.8);}\nfunction legRig(which,hip,ank,bend){const knee=ik(hip,ank,96,103,bend);setPosition(which+'LegUpper',hip.x,hip.y,angleDown(hip,knee));setPosition(which+'LegLower',knee.x,knee.y,angleDown(knee,ank));setPosition(which+'Foot',ank.x,ank.y,0,which==='front'?1:.83);}\nfunction drawFx(phase,pose,zoom){\n const g=el('hitFx');\n if(state.mode!=='punch'||phase<.498||phase>.71){g.innerHTML='';return;}\n const t=(phase-.498)/.212,alpha=Math.pow(1-t,1.4);\n // The impact stays attached to the animated fist at the current camera zoom.\n const worldX=415+pose.hipX+(pose.armX+91)*zoom;\n const worldY=488+18*(zoom-1)+pose.hipY+(pose.armY-6)*zoom;\n const r=(13+77*t)*zoom;\n g.innerHTML=`<g transform=\"translate(${worldX.toFixed(1)} ${worldY.toFixed(1)})\" opacity=\"${(.75*alpha).toFixed(3)}\">\n <ellipse rx=\"${r.toFixed(1)}\" ry=\"${(r*.5).toFixed(1)}\" fill=\"none\" stroke=\"#a3fcf2\" stroke-width=\"${(4*zoom).toFixed(1)}\"/>\n <path d=\"M-12 -15 L-24 -27 M-7 19 L-15 33 M17 -9 L31 -17\" stroke=\"#f6e2b8\" stroke-width=\"${(4*zoom).toFixed(1)}\" fill=\"none\" stroke-linecap=\"round\"/></g>`;\n}\nfunction drawGroundContact(p,pose){\n const dust=el('dustLayer');\n if(state.mode!=='walk'){\n  if(state.mode==='punch'&&p>.495&&p<.7){\n   const a=Math.max(0,1-(p-.495)/.205);\n   dust.innerHTML=`<g opacity=\"${(a*.28).toFixed(2)}\" fill=\"none\" stroke=\"#d7d2b6\" stroke-width=\"3\"><ellipse cx=\"${415+pose.hipX}\" cy=\"489\" rx=\"${84+(1-a)*38}\" ry=\"${11+(1-a)*4}\"/></g>`;\n  }else dust.innerHTML='';\n  return;\n }\n // Brief dust on heavy footfalls; do not add a permanent aura.\n const contacts=[0,.5].map(at=>{const phase=((p-at+1)%1);if(phase>.14)return '';\n  const fade=1-phase/.14,cx=415+54-175*phase;\n  return `<g opacity=\"${(.23*fade).toFixed(2)}\" stroke=\"#c4c5b7\" fill=\"none\" stroke-width=\"2.5\"><ellipse cx=\"${cx.toFixed(1)}\" cy=\"491\" rx=\"${(19+18*(1-fade)).toFixed(1)}\" ry=\"${(4+3*(1-fade)).toFixed(1)}\"/></g>`;\n }).join('');dust.innerHTML=contacts;\n}\nfunction render(){\n const p=state.phase;let pose,walk=state.mode==='walk';\n if(walk){\n  const c=p*Math.PI*2;\n  const leftLoad=Math.sin(c),doubleSupport=Math.cos(c*2);\n  pose={hipX:leftLoad*3.5,hipY:4.5-4.0*doubleSupport,lean:-5+leftLoad*2.3,\n    armX:112-leftLoad*14,armY:-159+Math.sin(c+.36)*8,headTilt:-leftLoad*.85};\n }\n else if(state.mode==='windup'){pose=keyframe(samples.punch,.42*p);}\n else pose=keyframe(samples[state.mode]||samples.idle,p);\n const s=state.design==='stone'?1.22:state.design==='mechanical'?.86:1;\n const body=el('character');body.setAttribute('transform',`translate(${415+pose.hipX} ${488+pose.hipY}) scale(${state.zoom})`);\n // Feet and pelvis are positioned in one shared coordinate system; no front-facing shortcuts.\n const hipFront={x:22,y:-182},hipBack={x:-30,y:-178};\n const af=walk?ankle(p,-0.01):{x:54,y:-18,stance:true};\n const ab=walk?ankle(p,.5):{x:-49,y:-18,stance:true};\n // The stance foot is always world-locked while the pelvis moves above it.\n // This avoids the 30px foot snap in the earlier punch prototype.\n if(state.mode==='death'){\n  af.x+=p*14;ab.x+=p*7;\n }\n af.x-=pose.hipX/state.zoom;ab.x-=pose.hipX/state.zoom;\n af.y-=pose.hipY/state.zoom;ab.y-=pose.hipY/state.zoom;\n\n legRig('back',hipBack,ab,-1);legRig('front',hipFront,af,1);\n const tx=pose.hipX*.11, ty=-279 + (state.mode==='walk'?1.7*Math.cos(p*2*Math.PI):0);\n setPosition('backpack',tx-2,ty+2,pose.lean*.47+(walk?Math.sin(p*Math.PI*2+.6)*1.8:0));\n const variant={bastion:{body:1,head:1,fist:1},stone:{body:1.075,head:.92,fist:1.22},mechanical:{body:.96,head:1.025,fist:.86}}[state.design];\n setPosition('torso',tx,ty,pose.lean,variant.body);\n const rad=pose.lean*Math.PI/180;\n const joint=(x,y)=>({x:tx+(x*Math.cos(rad)-y*Math.sin(rad))*variant.body,\n  y:ty+(x*Math.sin(rad)+y*Math.cos(rad))*variant.body});\n const shoulderNear=joint(64,-47),shoulderFar=joint(-55,-35);\n const head=joint(48,-111);setPosition('head',head.x,head.y,pose.headTilt-pose.lean*.34,variant.head);\n const rearWrist={x:-86+(walk?-Math.sin(p*Math.PI*2)*17:0),y:-165+(walk?Math.sin(p*Math.PI*2-.25)*6:0)};\n armRig('back',shoulderFar,rearWrist,85,86,-1,.88);\n const nearWrist={x:pose.armX,y:pose.armY};armRig('front',shoulderNear,nearWrist,89,99,1,s);\n drawFx(state.mode==='punch'?p:0,pose,state.zoom);\n drawGroundContact(p,pose);\n if(walk){ // Moving environmental reference: planted feet travel at the same speed as the scrolling ground.\n  el('floor').setAttribute('patternTransform',`translate(${(-state.travel)%110} 0)`);\n }else el('floor').setAttribute('patternTransform','translate(0 0)');\n const core=parts.torso.querySelector('ellipse[cx=\"55\"]');if(core)core.style.opacity=String(.94+.06*Math.sin(performance.now()/880));\n el('floorShadow').setAttribute('rx',String(140+(state.mode==='punch'&&p>.45&&p<.7?12:0)));\n \n el('frameText').textContent=state.playing?'自動':(p*100).toFixed(0)+'%';\n el('frame').value=String(Math.floor(p*1000));\n // Compare at actual in-game scale: preserve visible floor and don't change the rig.\n }\nfunction loop(now){if(!state.last)state.last=now;const dt=Math.min(.05,(now-state.last)/1000);state.last=now;\n if(state.playing){const increment=dt*state.speed/state.period;state.phase=(state.phase+increment)%1;if(state.mode==='walk')state.travel+=increment*(112/.64);}render();requestAnimationFrame(loop)}\nwindow.GOLEM_TEST={state,render,setMode,ankle,ik,keyframe,versions:{profile:'B-04',groundedPunch:true,style:'subtractive'}};\nsetMode('idle');requestAnimationFrame(loop);\n})();\n<\/script></body></html>";
@@ -1488,6 +1687,7 @@ function begin(){
  $("fieldHint").textContent="開戦準備：資源8で初期配置を決めよう。キャラは動かない。";
  // No opening BOT spawns: both players decide their own preparation.
  buildCards();updateHUD();
+ window.ShokokuResearch?.begin?.(NET.isSolo?"solo":"online",{...S,difficulty:S.difficulty});
 }
 function castSpell(team,id,x,y){
  if(!isSpell(id)||!canPay(team,id)||!validTarget(team,id,x,y))return false;
@@ -1505,7 +1705,10 @@ function playCard(team,id,x,y){
   if(!validTarget(team,id,x,y)||!canPay(team,id))return false;
   return NET.sendCommand({id,x,y})===true;
  }
+ const researchBefore=window.ShokokuResearch?.active?{energy:S.energy[team],hand:S.hand[team].slice()}:null;
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
+ if(ok&&researchBefore)window.ShokokuResearch.action({t:S.elapsed,phase:S.phase,team,card:id,x,y,
+  energyBefore:researchBefore.energy,ownHand:researchBefore.hand});
  // Track only observable, legal card spending, never the hidden opponent hand.
  if(ok)S.observedEnergy[team]=Math.max(0,S.observedEnergy[team]-CATALOG[id].cost);
  if(ok&&duelStats){
@@ -3141,7 +3344,7 @@ function botStep(dt){
 }
 function end(result,reason){
  if(S.phase==="result")return;
- if(NET.isHost)NET.finish({result,reason});
+ if(NET.isHost){window.ShokokuResearch?.finish?.(S);NET.finish({result,reason});}
  S.phase="result";
  const titles={win:"勝利！",lose:"敗北",draw:"引き分け"};
  $("dialogTitle").textContent=titles[result]||"対戦終了";
@@ -3167,6 +3370,7 @@ function tick(dt){
   S.observedEnergy[team]=Math.min(ENERGY_CAP,S.observedEnergy[team]+gain);
  }
  unitStep(dt);spellStep(dt);
+ if(window.ShokokuResearch?.active)window.ShokokuResearch.sample(S);
  for(const fallen of S.deaths)fallen.t-=dt;
  S.deaths=S.deaths.filter(fallen=>fallen.t>0);
  for(const fx of S.effects)fx.t-=dt;
