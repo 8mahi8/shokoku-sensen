@@ -35,6 +35,7 @@ jobs:
       - name: Validate game syntax, bundle alignment, independent decks, and transport failures
         run: |
           node tests/online-smoke.cjs
+          node tests/online-guest-bot-difficulty.cjs
           node tests/online-research-log.cjs
           node tests/online-sim.cjs
   sites-iframe:
