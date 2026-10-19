@@ -2,21 +2,23 @@
 "use strict";
 const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict");
 const read=p=>fs.readFileSync(p,"utf8");
-const net=read("online-net.js"),game=read("online-game.js");
-for(const p of ["v3.js","online-net.js","online-game.js","gald-render.js","v3-art.js"]){
+const net=read("online-net.js"),game=read("online-game.js"),research=read("online-research.js");
+for(const p of ["v3.js","online-net.js","online-research.js","online-game.js","gald-render.js","v3-art.js"]){
  new vm.Script(read(p),{filename:p});
 }
 for(const p of ["online-embed.html","online-ipad.html"]){
  const html=read(p);
- assert.ok(html.includes(net),"Missing current online-net.js in "+p);
- assert.ok(html.includes(game),"Missing current online-game.js in "+p);
+ assert.ok(html.includes(net.trim()),"Missing current online-net.js in "+p);
+ assert.ok(html.includes(research.trim()),"Missing opt-in research module in "+p);
+ assert.ok(html.includes(game.trim()),"Missing current online-game.js in "+p);
  const inline=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]);
  assert.ok(inline.length>=4,p+" inline scripts unexpectedly missing");
  for(const [index,script] of inline.entries())new vm.Script(script,{filename:p+"#script"+index});
  assert.ok(html.includes('id="newRoom"'),p+" lacks new room button");
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=6')&&page.includes('./online-game.js?v=6'));
+assert.ok(page.includes('./online-net.js?v=7')&&page.includes('./online-research.js?v=1')&&page.includes('./online-game.js?v=7'));
+assert.ok(research.includes('researchConsent')&&research.includes('MAX_MATCHES=8'));
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
 assert.ok(net.includes('packet.round!==meta?.round'));
