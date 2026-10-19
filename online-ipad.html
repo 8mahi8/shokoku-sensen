@@ -4161,6 +4161,9 @@ function start(){
       document.querySelectorAll("[data-level]").forEach(b=>b.classList.toggle("active",b.dataset.level===level));
     }
    },setBotControl:active=>{
+    // Guest-controlled BOT is a sparring partner. Reuse the existing hard AI;
+    // solo difficulty selection remains entirely player-controlled.
+    if(!NET.isSolo)S.difficulty=active?"hard":"normal";
     if(active){S.selected=null;S.drag=null;S.pointer=null;S.botThink=2.5;S.botPrepDone=false;}
     buildCards();updateHUD();
    },resetForLobby:()=>{
