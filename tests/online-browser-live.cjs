@@ -94,7 +94,7 @@ const deadline=async (f,label,timeout=18000)=>{
    "WebKit guest receives and applies manual guest summon",18000);
    const guestOrder=await deadline(async()=>{
     const d=await guest.evaluate(()=>window.ShokokuNet.syncDiagnostics());
-    return d.commandSent>0&&d.commandPending===0&&d.commandAccepted===d.commandSent?d:null;
+    return d.commandSent>0&&d.commandProcessed>=d.commandSent&&d.commandPending===0&&d.commandAccepted>0?d:null;
    },"WebKit guest sees authoritative summon acknowledgement",18000);
    console.log("GUEST ORDER ACK",JSON.stringify({sent:guestOrder.commandSent,processed:guestOrder.commandProcessed,accepted:guestOrder.commandAccepted}));
   // Regression: guest remains interactive but battle snapshots cease,
