@@ -44,7 +44,7 @@ const CLASSES={
  engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:420,damage:34,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,note:"中型・高耐久・近接・占領"},
  archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,note:"小型・遠距離・対空"},
  sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:540,damage:62,cool:1.45,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
- suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:445,damage:76,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,note:"中型・密集対策・対空対応の範囲砲撃"},
+ suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:380,damage:50,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,note:"中型・密集対策・対空対応の範囲砲撃"},
  guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,note:"大型・対大型迎撃・強力な範囲衝撃波"},
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
  tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,note:"大型・長射程・対空対応の範囲重砲・対城200%"},
