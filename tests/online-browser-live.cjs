@@ -57,6 +57,8 @@ const deadline=async (f,label,timeout=18000)=>{
   }
   await deadline(async()=>host.evaluate(()=>window.ShokokuResearch.active===true),
    "opt-in host logger active after battle start",15000);
+  assert.equal(await guest.evaluate(()=>window.ShokokuResearch.active),false,
+   "online guest must never create a research log");
   async function summon(p,team){
    await p.locator('button.card[data-id="infantry"]').click();
    const rect=await p.locator("#field").boundingBox();
