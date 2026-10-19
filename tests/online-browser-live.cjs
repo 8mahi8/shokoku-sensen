@@ -92,6 +92,11 @@ const deadline=async (f,label,timeout=18000)=>{
   // Firebase having state is not enough: the WebKit receiver must apply it.
   await deadline(async()=>(await guest.evaluate(()=>window.__onlineSeq||0))>=afterManual.seq,
    "WebKit guest receives and applies manual guest summon",18000);
+   const guestOrder=await deadline(async()=>{
+    const d=await guest.evaluate(()=>window.ShokokuNet.syncDiagnostics());
+    return d.commandSent>0&&d.commandPending===0&&d.commandAccepted===d.commandSent?d:null;
+   },"WebKit guest sees authoritative summon acknowledgement",18000);
+   console.log("GUEST ORDER ACK",JSON.stringify({sent:guestOrder.commandSent,processed:guestOrder.commandProcessed,accepted:guestOrder.commandAccepted}));
   // Regression: guest remains interactive but battle snapshots cease,
   // including the minute around a host-fired barrage ("ファイヤー").
   // Keep the real RTDB test room as the only temporary write target.
