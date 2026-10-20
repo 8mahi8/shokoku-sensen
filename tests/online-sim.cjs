@@ -3,7 +3,7 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const {webcrypto}=require("node:crypto"),{performance}=require("node:perf_hooks");
 const source=fs.readFileSync("online-net.js","utf8");
-const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,restFetchCount=0;
+const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,restFetchCount=0,heldExitWrite=false,refreshCount=0;
 const clone=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
 const parts=p=>p.split("/").filter(Boolean);
 function read(path){
@@ -56,7 +56,11 @@ class Ref{
  }
  async remove(){return this.set(null)}
  async update(fields){const paths=[];for(const [k,value] of Object.entries(fields)){const p=this.path+"/"+k;write(p,value);paths.push(p)}notify(paths)}
- async transaction(fn){const old=read(this.path),value=fn(old);if(value===undefined)return {committed:false};await this.set(value);return {committed:true}}
+ async transaction(fn){
+  if(heldExitWrite&&/\/players\/(host|guest)$/.test(this.path))return new Promise(()=>{});
+  const old=read(this.path),value=fn(old);if(value===undefined)return {committed:false};
+  await this.set(value);return {committed:true}
+ }
  push(value){const ref=this.child("cmd"+(++pushId));return ref.set(value)}
  onDisconnect(){return {update:async()=>{},cancel:async()=>{}}}
 }
@@ -77,7 +81,7 @@ function client(){
  const document={getElementById:get,querySelectorAll:()=>[],body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
  const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
   console,Date,Math,Uint32Array,Promise,URL,URLSearchParams,performance:{now:()=>virtualNow},
-  navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){},hostname:"localhost",search:""},setTimeout,clearTimeout,
+  navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){refreshCount++},hostname:"localhost",search:""},setTimeout,clearTimeout,
   fetch:async url=>{
    restFetchCount++;
    const path=new URL(url).pathname.replace(/^\//,"").replace(/\.json$/,"");
@@ -160,8 +164,30 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await new Ref("shokokuRooms1v1/"+code+"/state").set({seq:999,round:1,world:{phase:"battle",units:[{key:"stale"}]}});
  await settle();
  assert.equal(guest.game.received.length,receivedCount,"stale round should be ignored");
+ // Simulate Firebase delivering finished -> next-round playing directly.
+ // The skipped short lobby event must not keep the guest's old seq cursor.
+ host.api.finish({result:"win",reason:"next game rollover"});await settle();
+ const hostResets=host.game.resets,guestResets=guest.game.resets;
+ await new Ref("shokokuRooms1v1/"+code+"/meta").update({round:3,status:"playing"});
+ await settle();
+ assert.equal(host.game.resets,hostResets+1,"host resets on round number change");
+ assert.equal(guest.game.resets,guestResets+1,"guest resets without intermediate lobby notification");
+ assert.equal(host.game.starts,3,"host starts third round after coalesced transition");
+ assert.equal(read("shokokuRooms1v1/"+code+"/state").round,3,"new round snapshots carry the correct round");
+
  await guest.api.resetLobby();await settle();
  assert.equal(read("shokokuRooms1v1/"+code+"/players/guest/online"),false,"explicit leave must mark guest offline");
+ assert.equal(guest.get("netRoom").textContent,"-----","new game returns to room picker");
+ assert.equal(guest.get("netCreate").disabled,false,"new game allows creation without reload");
+ assert.equal(refreshCount,0,"no iframe reload for a new game");
+ await guest.click("netCreate");await settle();
+ const secondRoom=guest.get("netRoom").textContent;
+ assert.match(secondRoom,/^[0-9]{5}$/,"another new room can be created in the same page");
+ heldExitWrite=true;
+ guest.api.resetLobby(); // Its Firebase cleanup will never resolve.
+ assert.equal(guest.get("netRoom").textContent,"-----","a stalled cleanup must not freeze new game");
+ assert.equal(guest.get("netCreate").disabled,false,"room picker remains interactive during stalled cleanup");
+ assert.equal(refreshCount,0,"no iframe navigation even on stalled Firebase");
  assert.ok(writes.every(p=>p.startsWith("shokokuRooms1v1/")),"must never write BRAWL rooms");
- console.log("PASS: two-player create/join, ready/start, commands/snapshot, winner, rematch, stale packet, frozen Firebase publisher/listener recovery, isolated path");
+ console.log("PASS: 1v1, new-round sequence rollover, non-blocking new game, no iframe reload, stuck publisher and listener recovery");
 })().catch(e=>{console.error(e);process.exitCode=1});
