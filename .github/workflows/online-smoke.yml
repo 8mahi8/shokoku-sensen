@@ -4,7 +4,6 @@ on:
     paths:
       - 'online*'
       - 'tests/online-smoke.cjs'
-      - 'tools/research/collector-core.cjs'
       - 'functions/research/**'
       - 'tests/online-sim.cjs'
       - '.github/workflows/online-smoke.yml'
