@@ -5202,6 +5202,60 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   }
   updateFortNavigation();return true;
  },
+ // Realistic mid-match QA: units are placed using the *real* playable card
+ // deployment/spell functions, with each side starting from 12 energy or less.
+ // No fabricated units, damaged HP, edited combat behavior, or extra assets.
+ // Enabled only on loopback ?qa=1; a live CI host may send the result to its
+ // temporary Firebase room so a WebKit guest can be visually inspected too.
+ seedRealisticBattle:(scenario="heavy")=>{
+  if(!NET.isHost||!["standard","heavy","spell"].includes(scenario))return null;
+  const setups={
+   standard:[
+    [[1,"infantry",641,405],[1,"scout",658,448],[1,"archer",629,475],[1,"infantry",651,455]],
+    [[2,"infantry",837,415],[2,"engineer",851,452],[2,"archer",863,479],[2,"infantry",850,435]]
+   ],
+   heavy:[
+    [[1,"tank",668,428],[1,"infantry",655,465],[1,"archer",635,388]],
+    [[2,"guardian",831,430],[2,"infantry",846,463],[2,"archer",860,386]]
+   ],
+   spell:[
+    [[1,"suppress",668,429],[1,"archer",647,475],[1,"barrage",830,435]],
+    [[2,"drone",831,405],[2,"infantry",844,440],[2,"sentinel",849,468]]
+   ]
+  };
+  const plans=setups[scenario],summary={scenario,actions:[],byTeam:[0,0,0]};
+  if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
+  resetWorld();S.phase="battle";S.prep=0;S.elapsed=100;S.seconds=MATCH-100;
+  S.clock=100;S.speed=1;S.botThink=99999;S.botPrepDone=true;
+  // A credible mid-match frontline after left/middle and right forts were held.
+  S.forts.forEach((f,i)=>{f.owner=[1,1,2][i];f.hp=POST_HP;});
+  S.energy=[0,12,12];S.observedEnergy=[0,12,12];
+  for(const team of [1,2]){
+   const actions=plans[team-1],cards=[...new Set(actions.map(a=>a[1]).filter(id=>id!=="infantry"))];
+   S.hand[team]=cards;S.queue[team]=DECK_IDS.filter(id=>!cards.includes(id));
+   for(const [side,id,x,y] of actions){
+    const before=S.energy[side],ok=playCard(side,id,x,y);
+    summary.actions.push({team:side,id,ok,energyBefore:before,energyAfter:S.energy[side]});
+    if(!ok)throw Error("Realistic QA scene cannot legally play "+side+":"+id);
+   }
+  }
+  summary.units=S.units.length;summary.byTeam[1]=S.units.filter(u=>u.team===1).length;
+  summary.byTeam[2]=S.units.filter(u=>u.team===2).length;
+  summary.heavy=S.units.filter(u=>u.key==="tank"||u.key==="guardian").map(u=>u.key);
+  summary.spells=S.spells.incoming.length+S.spells.zones.length;
+  summary.totalSpent=summary.actions.reduce((s,a)=>s+a.energyBefore-a.energyAfter,0);
+  // Keep both teams and contested fort in view on 1194px tablet and Sites embed.
+  S.cam={x:744,y:423,tx:744,ty:423,moving:false};clampCamera();
+  $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
+  buildCards();updateHUD();
+  if(!NET.isSolo)NET.maybePublish(true);
+  return summary;
+ },
+ realisticBattleStatus:()=>({phase:S.phase,elapsed:S.elapsed,
+  units:S.units.length,heavies:S.units.filter(u=>u.key==="tank"||u.key==="guardian").map(u=>u.key),
+  projectiles:S.projectiles.length,effects:S.effects.length,
+  spells:S.spells.incoming.length+S.spells.zones.length,
+  cachedTiles:denseSpriteCache.size,frameError:window.__onlineFrameError||null}),
  seedMassBattle:()=>{
   if(!NET.isSolo)return false;
   resetWorld();S.phase="battle";S.prep=0;S.elapsed=120;S.seconds=180;S.botThink=999;
