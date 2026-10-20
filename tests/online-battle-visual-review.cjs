@@ -17,6 +17,9 @@ const server=http.createServer((req,res)=>{
 });
 const profiles=[
  {name:"webkit-ipad-landscape",engine:webkit,width:1194,height:834,video:true},
+ // Video capture can itself affect headless WebKit scheduling.
+ // Run the matched 10-unit controls once more with recording disabled.
+ {name:"webkit-ipad-no-video",engine:webkit,width:1194,height:834,video:false,only:["light","heavy"]},
  {name:"chromium-sites-compact",engine:chromium,width:900,height:520,video:false}
 ];
 const scenes=[
@@ -40,7 +43,8 @@ const round=n=>Math.round(n*10)/10;
     deviceScaleFactor:2,
     ...(profile.video?{recordVideo:{dir:out,size:{width:profile.width,height:profile.height}}}:{})
    });
-   for(const scene of scenes){
+   const profileScenes=profile.only?scenes.filter(s=>!s.trial&&profile.only.includes(s.id)):scenes;
+   for(const scene of profileScenes){
     // A fresh page resets one-way DPR/quality adaptation so scenes are comparable.
     const page=await context.newPage(),errors=[],tag=profile.name+"-"+scene.id+"-t"+(scene.trial||1);
     const movie=page.video();
@@ -147,7 +151,7 @@ const round=n=>Math.round(n*10)/10;
    await context.close();await browser.close();browsers.pop();
   }
   fs.writeFileSync(path.join(out,"realistic-results.json"),JSON.stringify(allResults,null,2));
-  assert.equal(allResults.length,profiles.length*scenes.length);
+  assert.equal(allResults.length,scenes.length*2+2);
   console.log("PASS: normal/mixed, tank/guardian, and spell combat, WebKit + compact Sites; videos/screenshots saved for human review");
  }finally{
   for(const browser of browsers)try{await browser.close()}catch(_){}
