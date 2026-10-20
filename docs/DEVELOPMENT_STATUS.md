@@ -47,6 +47,8 @@
 
 - **2026-10-21 HUD表示追従の追加回帰合格:** [commit e1a0307](https://github.com/8mahi8/shokoku-sensen/commit/e1a0307fb0e2b1df2c7dd036b7fe5b9283552541) で、Firebaseをブロックした実ブラウザBOT試合で、歩兵召喚後の表示資源整数とARIAプログレスバーが権威シミュレーションのエネルギーに同期していることを待機assert追加。[CI #39491115488](https://github.com/8mahi8/shokoku-sensen/actions/runs/39491115488) 成功。`online.html` と `online-ipad.html` のiPad横向き/縦向き/Sites小画面6配置、オフライン戦闘・両チーム描画・残り秒・再戦も合格。Hud差分更新で表示が止まる回帰なし。Google Sites本番は引き続き未変更、実学校iPadでの数値計測はまだ。
 
+- **2026-10-21 実戦負荷の18体／20体追加（CI確認中）:** QA限定の正規召喚 `crowded`（9体×2軍、各軍コスト11）、`dense`（10体×2軍、各軍コスト10）を `online-game.js` / `online-ipad.html` / `online-embed.html` に同期（最終修正commit [`2a5936e`](https://github.com/8mahi8/shokoku-sensen/commit/2a5936e3a86f81bde643b0f45974f260b576a4f1)）。両者は既存の部隊ステータス、召喚範囲、カードコスト、手札運用だけを使い、ゲームルールを変更しない。テストの赤軍座標が前哨基地から計算する合法召喚ライン（x≥819）より1〜4だけ敵側に寄りすぎて最初のCIが失敗したため、テスト座標だけ修正。召喚制約はゲーム本体側が正常に拒否した。修正後のHTML/JS [smoke #39493081154](https://github.com/8mahi8/shokoku-sensen/actions/runs/39493081154) 成功。実画面・録画は [WebKit/Chromium #39493068175](https://github.com/8mahi8/shokoku-sensen/actions/runs/39493068175)、実Firebase/同一ルーム7試合は [#39493068054](https://github.com/8mahi8/shokoku-sensen/actions/runs/39493068054) で確認し、完了までは成功と記載しない。
+
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
 1. **Phase 1 — 描画・通信最適化（作業中）:** 大型アート・通常兵と比較、同数・同解像度・反復測定、ゲストの表示FPS/反映間隔/処理時間を独立把握。大きな差の原因に絞って描画改修。
