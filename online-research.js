@@ -6,7 +6,7 @@
 "use strict";
 const VERSION=1,KEY="shokoku-research-batch-v1",MAX_MATCHES=8,MAX_ACTIONS=500,MAX_SAMPLES=80;
 const $=id=>document.getElementById(id);
-let soloConsent=false,onlineConsent=false,onlineBoth=false,inRoom=false,playing=false;
+let soloConsent=true,onlineConsent=false,onlineBoth=false,inRoom=false,playing=false;
 let active=null,archived=[],notice="",lastSampleAt=-Infinity;
 function safeLoad(){
  try{
@@ -160,9 +160,9 @@ function syncOnline(o){
  }
  const hint=$("researchHint");
  if(hint)hint.textContent=inRoom?
-  onlineBoth?"双方の同意あり。ホスト端末だけが記録します":
-  "双方がONにすると次の試合から記録します":
-  "1人プレイの記録をON/OFF（通常対戦は双方の同意が必要）";
+  onlineBoth?"匿名対戦記録 ON（ホスト端末のみ）。どちらも停止できます":
+  "匿名対戦記録 OFF（どちらかが無効にしています）":
+  "匿名記録は初期ON。必要ならここでOFFにできます";
  sync();
 }
 function sync(){
@@ -179,14 +179,14 @@ function init(){
  const controls=document.createElement("div");
  controls.id="researchTools";
  controls.style.cssText="margin:8px 0;padding:8px;border:1px solid #668c95;border-radius:9px;font-size:12px;line-height:1.5";
- controls.innerHTML='<label><input id="researchConsent" type="checkbox"> 匿名の対戦データを研究用に記録する（任意）</label>'+
-  '<div id="researchHint">1人プレイの記録をON/OFF（通常対戦は双方の同意が必要）</div>'+
+ controls.innerHTML='<label><input id="researchConsent" type="checkbox"> 匿名対戦記録（初期ON・いつでも停止可）</label>'+
+  '<div id="researchHint">対戦ログはホスト端末だけに保存します。どちらかがOFFにすると記録しません。</div>'+
   '<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:5px">'+
   '<span id="researchCount">0試合保存</span><button type="button" data-research-export>JSON書き出し</button><button type="button" data-research-copy>コピー</button><button type="button" data-research-share>共有</button>'+
   '<button type="button" id="researchClear">記録削除</button></div>'+
   '<div id="researchStatus" role="status"></div>'+
   '<textarea id="researchText" hidden readonly aria-label="JSONコピー用テキスト" style="width:100%;height:55px"></textarea>'+
-  '<small>記録するのはゲーム内の手・戦況・勝敗だけ。名前・ルーム番号・端末ID・チャットは保存しません。自動送信なし。端末保存が使えない場合に備えて終了後にJSONを書き出してください。</small>';
+  '<small>身内対戦の改善用に匿名のカード使用・戦況・勝敗を初期ONで記録します。嫌ならOFF・対戦中は右上の停止ボタンから無効化できます。名前・ルーム番号・端末ID・チャットは保存せず、自動送信もしません。終了後は必要に応じてJSONを書き出してください。</small>';
  panel.insertBefore(controls,$("netStatus"));
  const endTools=document.createElement("div");
  endTools.style.cssText="margin-top:7px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap";
