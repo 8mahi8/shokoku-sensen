@@ -159,10 +159,10 @@ const deadline=async (f,label,timeout=18000)=>{
   await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
   console.log("GUEST REST RECOVERY",JSON.stringify({from:seqBefore,to:recovered.seq,rest:recovered.restSeq}));
   await guest.screenshot({path:path.join(qaVideoDir,"guest-after-network-recovery.png"),fullPage:false});
-  // Continuous school 1v1: a single Firebase room must survive three
+  // Continuous school 1v1: a single Firebase room must survive four
   // rapid full host->guest round transitions, not merely one new-game click.
   // Do not add extra local test rooms or ever modify the existing real-player data.
-  for(const round of [2,3,4]){
+  for(const round of [2,3,4,5]){
    await host.evaluate(()=>window.ShokokuNet.finish({result:"win",reason:"QA round transition"}));
    await deadline(async()=>{
     const r=await fetch(urlDB+"/"+code+"/meta.json");
@@ -190,8 +190,8 @@ const deadline=async (f,label,timeout=18000)=>{
    // Build realistic combat with actual legal costs/deployments on host.
    // The resulting WebKit guest render uses real Firebase state, not
    // a directly injected client-side fake or 130-unit stress preset.
-   const scenario={2:"standard",3:"heavy",4:"spell"}[round];
-   const expected={standard:14,heavy:10,spell:8}[scenario];
+   const scenario={2:"standard",3:"light",4:"heavy",5:"spell"}[round];
+   const expected={standard:14,light:10,heavy:10,spell:8}[scenario];
    const seeded=await host.evaluate(s=>window.__shokokuQa.seedRealisticBattle(s),scenario);
    assert.ok(seeded&&seeded.units===expected&&seeded.actions.every(a=>a.ok),
     "legal realistic host scene "+scenario);
@@ -228,7 +228,7 @@ const deadline=async (f,label,timeout=18000)=>{
     after1100ms:{count:later.count,updatesHz:later.perf.updatesHz,applyMs:later.perf.applyMs}
    }));
   }
-  console.log("CONSECUTIVE ROUNDS: 4 starts incl. 3 repeated rematches in one real Firebase room");
+  console.log("CONSECUTIVE ROUNDS: 5 starts incl. 4 repeated rematches in one real Firebase room");
   // Actual new-game button path must return to the room picker inside Sites,
   // without iframe location.reload() or awaiting a Firebase round-trip.
   const originalUrl=guest.url();
