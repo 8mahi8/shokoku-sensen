@@ -19,6 +19,15 @@
 
 **注意**: GitHub Pagesのドメインが学校の端末でブロックされる場合は Google Sites 埋め込み版を使う。Google Sitesのiframeのネットワーク制限やFirebase SDKの読み込み制限がある場合、個々の学校の環境で動作確認が必要です。
 
+## 学校のHTMLでHP・攻撃力だけ調整（2026-10-21）
+
+- 開発PR #22のGoogle Sites用 `online-ipad.html`（または `online-embed.html`）の**最初の約30行**に、`★ 学校でキャラ調整する場所 ★` と表示された `window.SHOKOKU_UNIT_STATS` 一覧を追加。
+- 全9ユニットの `hp`（HP）と `damage`（基礎攻撃力）の数字のみ変更可。例：`infantry: { hp: 105, damage: 15 }` → `infantry: { hp: 150, damage: 25 }`。キャラ名、コロン、カンマ、括弧を消さない。
+- HPは1〜99999、攻撃力は0〜99999の**整数**のみ採用。不正値は元の設定のまま。魔法（ファイヤー）、城、砦、コスト、射程、速度、戦闘判定は対象外。
+- 値はゲームの `CLASSES` に起動時1回反映され、召喚時のHP・実際の攻撃処理が参照する。データ一覧を画面だけに表示する機能ではない。普通の `online.html` では既存の値を維持する。
+- 変更後のHTML全文をGoogle Sitesへ貼り直して再公開し、**対戦する両端末で同じ最新版ページを開き直す**。古い埋め込みHTMLは自動では更新されない。オンライン対戦ではホストが戦闘計算を担当するため、別バージョン同士の混在は避ける。
+- 実装・初期値・インラインJS/シミュレーションの検証： [Online 1v1 smoke #39499222485](https://github.com/8mahi8/shokoku-sensen/actions/runs/39499222485)。18〜20体での画面テスト、オンライン実Firebase回帰は先行CIで合格。学校iPadでの今回の**手動数値変更後**の対戦は未検証。
+
 ## 通信方式
 - Firebase Realtime Database: 既存BRAWLの動作実績がある同じプロジェクト（DB URLは online-net.js 内に設定済み）。
 - ルーム領域は **/shokokuRooms1v1/{roomCode}** に限定。BRAWLの `/rooms` と `/rooms2v2` を使用・編集しない。
