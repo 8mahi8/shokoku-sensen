@@ -1,7 +1,7 @@
-// Human-review evidence: live, moving battles rather than menu-only screenshots.
-// CI collects WebKit video and sequential screenshots without Firebase writes.
-// These artifacts are for visual inspection; FPS is reported, not equated with
-// real hardware, and gameplay/bot code is never changed for the recordings.
+// Review actual mid-match scenes, not just impossible 130-unit crowds.
+// Render real 30Hz combat/deployment, record visible heavy art, spells,
+// movements and within-profile rAF timing. No Firebase writes or game tweaks.
+// CI headless FPS must never be described as physical iPad FPS.
 "use strict";
 const fs=require("node:fs"),path=require("node:path"),http=require("node:http");
 const assert=require("node:assert/strict"),{chromium,webkit}=require("playwright");
@@ -19,6 +19,13 @@ const profiles=[
  {name:"webkit-ipad-landscape",engine:webkit,width:1194,height:834,video:true},
  {name:"chromium-sites-compact",engine:chromium,width:900,height:520,video:false}
 ];
+const scenes=[
+ {id:"standard",units:14,large:0,spells:0,description:"mid-match infantry/scout/engineer/archer engagement"},
+ {id:"heavy",units:10,large:2,spells:0,description:"tank vs guardian with infantry and archers"},
+ {id:"spell",units:8,large:0,spells:1,description:"suppressor and archer vs drones/sentinel with live barrage"}
+];
+const allResults=[];
+const round=n=>Math.round(n*10)/10;
 (async()=>{
  const browsers=[];
  try{
@@ -30,70 +37,78 @@ const profiles=[
     deviceScaleFactor:2,
     ...(profile.video?{recordVideo:{dir:out,size:{width:profile.width,height:profile.height}}}:{})
    });
-   const page=await context.newPage(),errors=[];
-   page.on("pageerror",e=>errors.push(e.message));
-   // Offline human-vs-BOT uses the same 30Hz game simulation without touching RTDB.
-   await page.route("**/www.gstatic.com/firebasejs/**",route=>route.abort());
-   await page.goto("http://127.0.0.1:8776/online-ipad.html?qa=1&perf=1",
-    {waitUntil:"domcontentloaded"});
-   await page.locator("#netSolo").waitFor({state:"visible",timeout:20000});
-   await page.locator("#netSolo").click();
-   await page.waitForFunction(()=>window.__shokokuQa?.snapshot()?.phase==="prep");
-   // Show a user-triggered summon so visuals cover more than BOT idle poses.
-   await page.locator('button.card[data-id="infantry"]').click();
-   const rect=await page.locator("#field").boundingBox();
-   assert.ok(rect&&rect.width>300&&rect.height>190,"battlefield canvas visible");
-   await page.mouse.click(rect.x+rect.width*.13,rect.y+rect.height*.47);
-   await page.waitForFunction(()=>window.__shokokuQa.snapshot().units.some(x=>x.team===1),
-    null,{timeout:15000});
-   await page.waitForFunction(()=>window.__shokokuQa.snapshot().phase==="battle",
-    null,{timeout:26000});
-   const shot=async name=>page.screenshot({path:path.join(out,profile.name+"-"+name+".png"),
-    fullPage:false,animations:"disabled"});
-   await page.waitForTimeout(950);await shot("battle-open");
-   await page.waitForTimeout(2200);await shot("battle-3sec");
-   await page.evaluate(()=>window.__shokokuQa.setCamera(985,330));
-   await page.waitForTimeout(800);await shot("battle-guest-side");
-   // A crowded battle catches sprite overlap, dense-cache bugs, slow draw work,
-   // and illegible UI that a near-empty opening board cannot show.
-   const seeded=await page.evaluate(()=>window.__shokokuQa.seedMassBattle());
-   assert.equal(seeded,true,"stress battle established");
-   const first=await page.evaluate(()=>window.__shokokuQa.snapshot());
-   assert.equal(first.units.length,130,"dense field contains 130 initially");
-   await page.waitForTimeout(900);await shot("crowded-open");
-   const motion=await page.evaluate(async()=>{
-    const start=performance.now(),times=[],positions=new Map();
-    for(const u of window.__shokokuQa.snapshot().units)positions.set(u.uid,[u.x,u.y]);
-    await new Promise(resolve=>{
-     let prev=performance.now();
-     const next=now=>{
-      times.push(now-prev);prev=now;
-      if(now-start>=3500)resolve();
-      else requestAnimationFrame(next);
-     };
-     requestAnimationFrame(next);
+   for(const scene of scenes){
+    // A fresh page resets one-way DPR/quality adaptation so scenes are comparable.
+    const page=await context.newPage(),errors=[],tag=profile.name+"-"+scene.id;
+    const movie=page.video();
+    page.on("pageerror",e=>errors.push(e.message));
+    await page.route("**/www.gstatic.com/firebasejs/**",route=>route.abort());
+    await page.goto("http://127.0.0.1:8776/online-ipad.html?qa=1&perf=1",
+     {waitUntil:"domcontentloaded"});
+    await page.locator("#netSolo").waitFor({state:"visible",timeout:20000});
+    await page.locator("#netSolo").click();
+    await page.waitForFunction(()=>window.__shokokuQa?.snapshot()?.phase==="prep");
+    await page.waitForFunction(()=>window.KokokuArt?.drawUnit,null,{timeout:15000});
+    const setup=await page.evaluate(s=>window.__shokokuQa.seedRealisticBattle(s),scene.id);
+    assert.ok(setup&&setup.actions.every(a=>a.ok),tag+" must use real legal cards");
+    assert.equal(setup.units,scene.units,tag+" initial unit count");
+    assert.equal(setup.heavy.length,scene.large,tag+" heavy sprite count");
+    assert.equal(setup.spells,scene.spells,tag+" real spell count");
+    assert.ok(setup.actions.every(a=>a.energyAfter>=0&&a.energyBefore<=12),
+     tag+" cannot bypass resource budget");
+    // Hide diagnostics text in normal screenshots without disabling measurement.
+    await page.addStyleTag({
+     content:'[aria-label="通信・描画の診断"]{opacity:0!important}'
     });
-    const s=window.__shokokuQa.snapshot(),sorted=times.slice().sort((a,b)=>a-b);
-    let moved=0;
-    for(const u of s.units){
-     const old=positions.get(u.uid);
-     if(old&&Math.hypot(u.x-old[0],u.y-old[1])>.75)moved++;
-    }
-    return {frames:times.length,fps:Math.round(times.length*1000/(performance.now()-start)*10)/10,
-     gapP95Ms:Math.round(sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.95))]||0),
-     maxGapMs:Math.round(sorted.at(-1)||0),initialUnits:positions.size,
-     remainingUnits:s.units.length,movingUnits:moved,frameError:window.__onlineFrameError||null};
-   });
-   await shot("crowded-later");
-   assert.ok(motion.frames>0,"frames must continue to render during stress");
-   assert.ok(motion.movingUnits>0,"units must move in actual simulated battle");
-   assert.equal(motion.frameError,null,"no uncaught game frame error");
-   assert.deepEqual(errors,[],"browser runtime JavaScript errors");
-   console.log("BATTLE VISUAL REVIEW",profile.name,JSON.stringify(motion));
-   // Context closure finalizes the Playwright WebKit video on disk.
+    const shot=async name=>page.screenshot({
+     path:path.join(out,tag+"-"+name+".png"),fullPage:false,animations:"disabled"});
+    await shot("00-enter");
+    await page.waitForTimeout(950);
+    await shot("01-first-second");
+    const measure=await page.evaluate(async()=>{
+     const start=performance.now(),gaps=[],positions=new Map();
+     const first=window.__shokokuQa.snapshot();
+     for(const u of first.units)positions.set(u.uid,[u.x,u.y]);
+     await new Promise(resolve=>{
+      let prev=performance.now();
+      const sample=now=>{
+       gaps.push(now-prev);prev=now;
+       if(now-start>=3500)resolve();else requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+     });
+     const now=performance.now(),q=window.__shokokuQa.snapshot(),s=window.__shokokuQa.realisticBattleStatus();
+     let moved=0;
+     for(const u of q.units){const old=positions.get(u.uid);
+      if(old&&Math.hypot(u.x-old[0],u.y-old[1])>.75)moved++;
+     }
+     gaps.sort((a,b)=>a-b);
+     const percentile=p=>Math.round(gaps[Math.min(gaps.length-1,Math.floor(gaps.length*p))]||0);
+     return {fps:Math.round(gaps.length*1000/(now-start)*10)/10,frameCount:gaps.length,
+      gapP50Ms:percentile(.50),gapP95Ms:percentile(.95),gapMaxMs:percentile(.9999),
+      unitsInitially:positions.size,unitsFinal:q.units.length,moved,
+      ...s,qaOverlay:document.querySelector('[aria-label="通信・描画の診断"]')?.textContent||""};
+    });
+    await shot("02-engaged");
+    const row={profile:profile.name,scene:scene.id,description:scene.description,setup,measure};
+    allResults.push(row);
+    assert.ok(measure.frameCount>0,tag+" must render future frames");
+    assert.ok(measure.moved>0,tag+" must show real movement");
+    assert.equal(measure.frameError,null,tag+" cannot have recovered frame exceptions");
+    assert.deepEqual(errors,[],tag+" must have no uncaught browser errors");
+    console.log("REALISTIC BATTLE",JSON.stringify({profile:profile.name,scene:scene.id,
+     units:scene.units,large:scene.large,spells:scene.spells,
+     fps:measure.fps,p95:measure.gapP95Ms,moved:measure.moved,ends:measure.unitsFinal,
+     effects:measure.effects,projectiles:measure.projectiles,
+     cachedTiles:measure.cachedTiles}));
+    await page.close();
+    if(movie)await movie.saveAs(path.join(out,tag+".webm"));
+   }
    await context.close();await browser.close();browsers.pop();
   }
-  console.log("PASS: real moving normal and crowded battles recorded for human visual inspection");
+  fs.writeFileSync(path.join(out,"realistic-results.json"),JSON.stringify(allResults,null,2));
+  assert.equal(allResults.length,profiles.length*scenes.length);
+  console.log("PASS: normal/mixed, tank/guardian, and spell combat, WebKit + compact Sites; videos/screenshots saved for human review");
  }finally{
   for(const browser of browsers)try{await browser.close()}catch(_){}
   await new Promise(resolve=>server.close(resolve));
