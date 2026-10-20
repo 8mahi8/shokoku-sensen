@@ -4186,6 +4186,13 @@ function samplePerf(now,drawMs){
  perfPanel.textContent=lines.join("\n");
  perfStart=now;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;
 }
+// Localhost-only diagnostics are visible to the separate __shokokuQa object.
+// Browser-only frame split for localhost ?qa; public play stays uninstrumented.
+ // Frame-gap remainder includes browser scheduling/compositing/other tasks;
+ // it is NOT a direct GPU or Canvas execution-time measurement.
+ const qaFrameBench=(["localhost","127.0.0.1"].includes(location.hostname)&&
+   new URLSearchParams(location.search).has("qa"))
+  ?{samples:[],prevTotalMs:0}:null;
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  NET.registerGame({
@@ -4313,12 +4320,6 @@ function start(){
    S.selected=Number(e.key)===1?"infantry":S.hand[ME()][Number(e.key)-2]||null;buildCards();
   }
  });
- // Browser-only frame split for localhost ?qa; public play stays uninstrumented.
- // Frame-gap remainder includes browser scheduling/compositing/other tasks;
- // it is NOT a direct GPU or Canvas execution-time measurement.
- const qaFrameBench=(["localhost","127.0.0.1"].includes(location.hostname)&&
-   new URLSearchParams(location.search).has("qa"))
-  ?{samples:[],prevTotalMs:0}:null;
  let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
  function frame(now){
   const qa=qaFrameBench,started=qa?performance.now():0;
