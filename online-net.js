@@ -206,7 +206,7 @@ function setupRoom(code,isHost){
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
-   window.ShokokuResearch?.withdraw?.();
+   if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
    game?.resetForLobby?.();
    onlinePanel(meta?.status!=="playing");$("networkBar").classList.add("hidden");
    if(meta?.status!=="playing")show("再戦の準備をしてください。2人とも準備完了で開始できます");
@@ -417,7 +417,7 @@ function resetLobby(){
  window.__onlineSeq=0;window.__onlineHandSig="";
  document.body.classList.remove("soloMode");
  $("networkBar").classList.add("hidden");
- window.ShokokuResearch?.withdraw?.();
+ if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
  game?.resetForLobby?.();
  onlinePanel(true);updateUI();
  show("新しいルームを作成するか、5桁の番号で参加してください");
