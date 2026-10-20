@@ -72,6 +72,14 @@
 - [研究クラウドCI #39505314534](https://github.com/8mahi8/shokoku-sensen/actions/runs/39505314534) と [Online smoke #39505790098](https://github.com/8mahi8/shokoku-sensen/actions/runs/39505790098) は成功。Callable単体の模擬Firebase検証を追加して再実行中。WebKit/Chromiumの実対戦は[前回成功 #39504538575](https://github.com/8mahi8/shokoku-sensen/actions/runs/39504538575)。実Firebase研究領域への書込・管理側自動受渡しは未検証・未開始。
 - **本番化の残課題:** 現在のRTDBルーム権限が匿名の座席同意書換えを許すなら、サーバーがUIDをチェックしても第三者による同意偽装を完全防止できない。既存ルールの管理者取得と精査、必要なら同意をサーバー管理へ移管、学校Google Sites iframeのAuth/App Check対応、Cloud Functionsの利用料金承認、研究ツリーが誰からも読めないことの検証、14日後の本番削除検証を終えるまで**READYフラグをONにしない**。本番Firebase権限/料金/main/Google Sitesは変更していない。[詳細](./RESEARCH_CLOUD.md)。
 
+## 2026-10-21 軽量化を実行｜開発版をローカル記録へ戻す
+
+- ユーザーの「大がかりにしなくてよい。友達だけのゲーム」という指示に基づき、**開発PR #22の実行されるゲームコードをクラウド収集試作前の安定状態に戻した**。対象：`online-net.js`, `online-research.js`, `online-ipad.html`, `online-embed.html`, `online.html`、関連テスト・ワークフロー。HTML冒頭の全9キャラHP/攻撃力調整欄、描画・通信最適化とローカル匿名記録・JSON書き出しはそのまま保持。
+- Cloud Functionsの試作ソースや資料は**将来必要になったときだけ再評価する参考コード**として未デプロイのまま保持し、現行ゲームに読み込ませない。Firebaseの管理者認証、課金、権限、Google Sites本番操作を行っていない。
+- 調査の結論：Firebaseでは既にゲーム状態・勝敗を試合中に送っているため、有料サーバーを新設せず既存RTDBから軽い集計を残す可能性はある。ただし**既存RTDBルール全文を管理者として読めていない**ため、新しい公開書込パスは設定しない。無制限な匿名書込・親ルールによる公開閲覧リスクを知らずに有効化しない。<https://firebase.google.com/docs/database/security/core-syntax>
+- 当面は遊び心地の維持を最優先。現段階で**友達同士の試合の自動回収は未実装**。既存ローカルJSONはホストが送れば分析できる。自動回収の「できる/できない」はFirebaseルール閲覧可否と最小構成の見通しが立ってから再判断。検証に先立つ新たなコードの追加・課金・外部送信はしない。
+- ソース復元後のGitHub Actions smoke、研究ローカルQA、ブラウザ実Firebase検証結果は別途確認。main・学校Google Sitesは従来のまま。
+
 ## 2026-10-21 ユーザーによる方針修正｜友達と遊ぶだけの軽量運用を優先
 
 - **重要：前回の研究クラウド基盤はユーザーの用途に対して過剰設計。** ユーザーは「そんなガッツリやらなくてもいい。友達とやるだけ」と明示。安全性を削って無理にクラウド収集するのではなく、**重い構成ごと一旦保留**。
