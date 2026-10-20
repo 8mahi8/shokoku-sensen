@@ -3,7 +3,7 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const {webcrypto}=require("node:crypto"),{performance}=require("node:perf_hooks");
 const source=fs.readFileSync("online-net.js","utf8");
-const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,restFetchCount=0,heldExitWrite=false,refreshCount=0,privateResearchReads=false;
+const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,restFetchCount=0,heldExitWrite=false,refreshCount=0,privateResearchReads=false,authCounter=0,callableCount=0;
 const clone=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
 const parts=p=>p.split("/").filter(Boolean);
 function read(path){
@@ -83,7 +83,19 @@ function client(){
   return dom.get(id);
  };
  const document={getElementById:get,querySelectorAll:()=>[],body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
- const context={window:{crypto:webcrypto,firebase,SHOKOKU_CLOUD_RESEARCH_READY:true},crypto:webcrypto,document,firebase,
+ const uid="test-cloud-authentication-"+(++authCounter);
+ const auth={currentUser:{uid},signInAnonymously:async()=>({user:auth.currentUser})};
+ const sdk={...firebase,auth:()=>auth,
+  functions:region=>({httpsCallable:name=>async data=>{
+   assert.equal(region,"asia-northeast1");assert.equal(name,"collectShokokuMatch");
+   callableCount++;
+   assert.equal(data.match.schema,1);
+   write("shokokuResearchV1/server-key-"+callableCount,{
+    schema:1,createdAt:virtualNow,expiresAt:virtualNow+1209600000,match:data.match
+   });
+   return {data:{saved:true}};
+  }})};
+ const context={window:{crypto:webcrypto,firebase:sdk,SHOKOKU_CLOUD_RESEARCH_READY:true},crypto:webcrypto,document,firebase:sdk,
   console,Date,Math,Uint32Array,Promise,URL,URLSearchParams,performance:{now:()=>virtualNow},
   navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){refreshCount++},hostname:"localhost",search:""},setTimeout,clearTimeout,
   fetch:async url=>{
@@ -216,8 +228,8 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  assert.equal(guest.get("netCreate").disabled,false,"room picker remains interactive during stalled cleanup");
  assert.equal(refreshCount,0,"no iframe navigation even on stalled Firebase");
  assert.ok(writes.every(p=>p.startsWith("shokokuRooms1v1/")),"must never write BRAWL rooms");
- // Separate cloud upload opt-in: no implicit consent, no room/player IDs,
- // no upload if the Firebase collection is anonymously readable.
+ // Server-only cloud upload: no implicit consent, no direct public write,
+ // callable requires host+guest opt-in, Firebase UID and server-side gate.
  heldExitWrite=false;
  const blue=client(),red=client();
  await settle();
@@ -230,30 +242,31 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
   samples:[{t:0,units:[]}],result:{winner:1,duration:25,castleHp:[2000,0]}};
  assert.equal((await blue.api.publishResearch(match)).saved,false,"cloud off by default");
  await red.api.setCloudConsent(true);await settle();
- assert.equal((await blue.api.publishResearch(match)).saved,false,"host alone has not opted in");
+ assert.equal((await blue.api.publishResearch(match)).saved,false,"host consent absent");
  await blue.api.setCloudConsent(true);await settle();
+ const hostUid=read("shokokuRooms1v1/"+cloudRoom+"/players/host/cloudUid");
+ const guestUid=read("shokokuRooms1v1/"+cloudRoom+"/players/guest/cloudUid");
+ assert.ok(hostUid&&guestUid&&hostUid!==guestUid,"two distinct authenticated cloud seats");
  assert.equal((await blue.api.publishResearch(match)).reason,"research-storage-not-private",
-  "public readable Firebase research tree is forbidden");
- assert.equal(read("shokokuResearchV1"),null,"privacy probe writes no research data");
+  "public RTDB research must be rejected");
+ assert.equal(read("shokokuResearchV1"),null,"no browser writes to research path");
  privateResearchReads=true;
- assert.equal((await blue.api.publishResearch(match)).saved,true,"both opted-in peers can write to private collection");
- const saved=read("shokokuResearchV1"),ids=Object.keys(saved||{});
- assert.equal(ids.length,1);
- assert.deepEqual(Object.keys(saved[ids[0]].match).sort(),Object.keys(match).sort());
- assert.equal(saved[ids[0]].expiresAt>0,true);
- assert.ok(!JSON.stringify(saved).includes(cloudRoom),"cloud payload omits room number");
- assert.ok(!JSON.stringify(saved).includes("clientId"),"cloud payload omits device identity");
- assert.ok(writes.filter(p=>p.startsWith("shokokuResearchV1/")).length===1,
-  "only one authorized private write");
+ // A research match is only uploaded AFTER the server records completion;
+ // this intentionally excludes in-progress matches.
+ const ref=new Ref("shokokuRooms1v1/"+cloudRoom);
+ await ref.child("meta/status").set("finished");await settle();
+ const result=await blue.api.publishResearch(match);
+ assert.equal(result.saved,true,"host calls protected backend after finish");
+ assert.equal(callableCount,1,"only one authenticated callable invoked");
+ assert.equal(read("shokokuResearchV1/server-key-1/match").mode,"online");
+ assert.ok(!JSON.stringify(read("shokokuResearchV1")).includes(cloudRoom));
+ assert.equal((await red.api.publishResearch(match)).saved,false,"guest never uploads");
  await red.api.setCloudConsent(false);await settle();
  assert.equal((await blue.api.publishResearch(match)).reason,"consent-revoked",
-  "turning off guest consent cancels later uploads");
- assert.equal(await red.api.setCloudConsent(true),true,"can opt back in while still in lobby");
- await blue.click("netReady");await red.click("netReady");await settle();
- await blue.click("netStart");await settle();
- assert.equal(await red.api.setCloudConsent(false),true,"either player may withdraw during battle");
- assert.equal(await red.api.setCloudConsent(true),false,"no late opt-in while battle ongoing");
- assert.equal((await blue.api.publishResearch(match)).saved,false,"withdrawal blocks cloud save");
- assert.equal((await red.api.publishResearch(match)).saved,false,"guest never uploads");
- console.log("PASS: 1v1/reconnect/rematch + cloud off by default, bilateral consent, public-read guard, revocation and isolated storage");
+  "guest withdrawal cancels later uploads");
+ assert.equal(callableCount,1,"no extra uploader calls after revocation");
+ assert.ok(writes.filter(p=>p.startsWith("shokokuResearchV1/"))
+  .every(p=>p.startsWith("shokokuResearchV1/server-key-")),
+  "only the isolated TEST callable may write research path");
+ console.log("PASS: 1v1/reconnect/rematch + cloud off by default, anonymous Auth seats, callable-only backend and revocation");
 })().catch(e=>{console.error(e);process.exitCode=1});
