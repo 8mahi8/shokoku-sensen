@@ -4194,7 +4194,7 @@ function samplePerf(now,drawMs){
  // it is NOT a direct GPU or Canvas execution-time measurement.
  const qaFrameBench=(["localhost","127.0.0.1"].includes(location.hostname)&&
    new URLSearchParams(location.search).has("qa"))
-  ?{samples:[],prevTotalMs:0}:null;
+  ?{samples:[],prevTotalMs:0,skipDrawing:false}:null;
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  NET.registerGame({
@@ -4365,6 +4365,10 @@ function start(){
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
   if(qa)datum.networkMs=performance.now()-networkStart;
   if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
+  // Exclusive localhost QA control: when true, simulation, controls and
+  // matchmaking continue while Canvas drawing is skipped. Never exposed
+  // on Google Sites origins or regular game URLs.
+  if(qa?.skipDrawing)return;
   guestLastPaint=now;
   const paintStart=(perfPanel||qa)?performance.now():0;
   draw();
@@ -4395,6 +4399,7 @@ function start(){
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
  resetFrameBench:()=>{if(qaFrameBench){qaFrameBench.samples=[];qaFrameBench.prevTotalMs=0;}},
+ setDrawDisabledForQa:disabled=>{if(qaFrameBench)qaFrameBench.skipDrawing=!!disabled;},
  frameBench:()=>qaFrameBench?qaFrameBench.samples.map(x=>({...x})):[],
  // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
  fireStress:(team=1,x=640,y=330)=>{
