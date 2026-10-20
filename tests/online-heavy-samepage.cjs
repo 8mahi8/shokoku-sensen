@@ -16,11 +16,27 @@ const server=http.createServer((req,res)=>{
  fs.createReadStream(file).pipe(res);
 });
 const round=n=>Math.round(n*100)/100;
+// Paired/reversed order on a single warm tab. Visibility:hidden suppresses
+// composition of the battlefield Canvas without removing the game/DOM/JS loop.
+// Compare hidden+paint and hidden+no-paint separately; these are diagnostic
+// controls, not candidates for production gameplay.
 const schedule=[
- {scene:"light",noPaint:false},{scene:"heavy",noPaint:false},
- {scene:"heavy",noPaint:false},{scene:"light",noPaint:false},
- {scene:"light",noPaint:true},{scene:"heavy",noPaint:true},
- {scene:"heavy",noPaint:true},{scene:"light",noPaint:true}
+ {scene:"light",noPaint:false,canvasHidden:false},
+ {scene:"heavy",noPaint:false,canvasHidden:false},
+ {scene:"heavy",noPaint:false,canvasHidden:false},
+ {scene:"light",noPaint:false,canvasHidden:false},
+ {scene:"light",noPaint:true,canvasHidden:false},
+ {scene:"heavy",noPaint:true,canvasHidden:false},
+ {scene:"heavy",noPaint:true,canvasHidden:false},
+ {scene:"light",noPaint:true,canvasHidden:false},
+ {scene:"light",noPaint:true,canvasHidden:true},
+ {scene:"heavy",noPaint:true,canvasHidden:true},
+ {scene:"heavy",noPaint:true,canvasHidden:true},
+ {scene:"light",noPaint:true,canvasHidden:true},
+ {scene:"light",noPaint:false,canvasHidden:true},
+ {scene:"heavy",noPaint:false,canvasHidden:true},
+ {scene:"heavy",noPaint:false,canvasHidden:true},
+ {scene:"light",noPaint:false,canvasHidden:true}
 ];
 const results=[];
 (async()=>{
@@ -44,14 +60,24 @@ const results=[];
   await page.waitForTimeout(1000);
   for(let idx=0;idx<schedule.length;idx++){
    const item=schedule[idx];
+   // Reset experimental flags before the next real combat setup. Without
+   // this, the previous no-paint/hidden state could leak into the next trial.
+   await page.evaluate(()=>{
+    window.__shokokuQa.setDrawDisabledForQa(false);
+    document.getElementById("field").style.visibility="visible";
+   });
    const seed=await page.evaluate(scene=>window.__shokokuQa.seedRealisticBattle(scene),item.scene);
    assert.ok(seed&&seed.units===10&&seed.actions.every(a=>a.ok),"expected 10 actual summoned units");
    assert.equal(seed.heavy.length,item.scene==="heavy"?2:0,"matched heavy units");
    // Permit assets and HUD/scene change to settle, then measure the same
    // running page. In no-paint controls game logic stays fully active.
    await page.waitForTimeout(750);
-   const measured=await page.evaluate(async noPaint=>{
-    window.__shokokuQa.setDrawDisabledForQa(noPaint);
+   const measured=await page.evaluate(async control=>{
+    const canvas=document.getElementById("field");
+    window.__shokokuQa.setDrawDisabledForQa(control.noPaint);
+    canvas.style.visibility=control.canvasHidden?"hidden":"visible";
+    // A layout/compositor boundary is allowed to settle before rAF sampling.
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     window.__shokokuQa.resetFrameBench();
     const start=performance.now(),intervals=[];
     await new Promise(resolve=>{
@@ -65,14 +91,20 @@ const results=[];
     const frames=window.__shokokuQa.frameBench();
     const mean=key=>round2(frames.reduce((acc,r)=>acc+r[key],0)/Math.max(1,frames.length));
     function round2(n){return Math.round(n*100)/100}
+    const ordered=intervals.slice().sort((a,b)=>a-b);
+    const percentile=p=>round2(ordered[Math.min(ordered.length-1,Math.floor(ordered.length*p))]||0);
     return {fps:round2(intervals.length*1000/(performance.now()-start)),
+      gapP50Ms:percentile(.50),gapP95Ms:percentile(.95),
+      canvasVisible:getComputedStyle(canvas).visibility==="visible",
+      canvasBacking:[canvas.width,canvas.height],
       frameSamples:frames.length,logicMs:mean("logicMs"),hudMs:mean("hudMs"),
       drawMs:mean("drawMs"),totalMs:mean("totalMs"),
       waitMs:mean("gapAfterPrevMs"),gapMs:mean("gapMs"),
       galaReady:!!window.GaldArt?.isReady?.(),
       units:window.__shokokuQa.snapshot().units.length,
       frameError:window.__onlineFrameError||null};
-   },item.noPaint);
+   },item);
+   assert.equal(measured.canvasVisible,!item.canvasHidden,"canvas visibility control applied");
    assert.ok(measured.frameSamples>=5,"must obtain multiple gameplay frame samples");
    assert.equal(measured.frameError,null,"no crash in controlled scenes");
    if(item.noPaint)assert.ok(measured.drawMs<=.03,"render skipped, tick remains live");
@@ -82,10 +114,12 @@ const results=[];
   fs.writeFileSync(path.join(dir,"same-page-matched.json"),JSON.stringify({
    atlasReady,results,notes:["Same WebKit tab and same warmed game assets across all scenes",
    "Drawing-off keeps the active simulation and HUD; never used in published gameplay",
+   "Canvas visibility:hidden probes composition separately from Canvas draw commands",
+   "Trials are paired and reversed; unit composition and survival still differ",
    "Headless GitHub CI results must not be treated as real school iPad FPS"]
   },null,2));
   assert.deepEqual(errors,[],"no browser Javascript errors");
-  console.log("PASS: same-tab warm-asset matched light/heavy comparisons, with/without painting");
+  console.log("PASS: same-tab paired light/heavy controls with paint/visibility separated");
  }finally{
   await ctx?.close().catch(()=>{});
   await browser?.close().catch(()=>{});
