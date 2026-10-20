@@ -5,6 +5,8 @@ on:
       - 'online*'
       - 'tests/online-smoke.cjs'
       - 'tests/online-sim.cjs'
+      - 'research-recover.html'
+      - 'tests/research-recover.cjs'
       - '.github/workflows/online-smoke.yml'
   workflow_dispatch:
 jobs:
@@ -19,6 +21,7 @@ jobs:
           node-version: '22'
       - run: node tests/online-smoke.cjs
       - run: node tests/online-sim.cjs
+      - run: node tests/research-recover.cjs
       - name: Firebase public read probe (does not modify data)
         shell: bash
         run: |
