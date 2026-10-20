@@ -26,6 +26,8 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/online-research-log.cjs
+      - run: node tests/online-research-cloud.cjs
+      - run: node tests/online-sim.cjs
       - run: node tests/online-research-batch-analyzer.cjs
       - run: node tests/online-smoke.cjs
       - run: npm install --no-save playwright@1.56.1
