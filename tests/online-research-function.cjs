@@ -4,7 +4,7 @@ const path=require("node:path");
 const {storageKey}=require("../functions/research/collector-core.cjs");
 const source=fs.readFileSync("functions/research/index.js","utf8");
 const now=Date.now(),uid="host-uid-authenticated-12345",guestUid="guest-uid-authenticated-67890";
-const root={meta:{version:2,status:"finished",round:1,startedAt:now-220000},
+const root={result:{winner:1},meta:{version:2,status:"finished",round:1,startedAt:now-220000},
  players:{host:{cloudConsent:true,researchConsent:true,cloudUid:uid},
   guest:{cloudConsent:true,researchConsent:true,cloudUid:guestUid}}};
 const match={schema:1,mode:"online",matchType:"human-vs-human",
