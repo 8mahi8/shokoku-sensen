@@ -28,6 +28,8 @@ jobs:
       - run: node tests/online-research-log.cjs
       - run: node tests/online-research-cloud.cjs
       - run: node tests/online-research-cloud-export.cjs
+      - run: python3 -m py_compile tools/research/prune-expired.py
+      - run: python3 tools/research/prune-expired.py # No secret: must skip without reading/writing Firebase
       - run: node tests/online-sim.cjs
       - run: node tests/online-research-batch-analyzer.cjs
       - run: node tests/online-smoke.cjs
