@@ -30,7 +30,7 @@ const server=http.createServer((req,res)=>{
    assert.equal(await page.locator("#researchCloudConsent").isChecked(),false,
     "cloud collection requires explicit approval, not inherited from local logging");
    assert.equal(await page.locator("#researchCloudConsent").isDisabled(),true,
-    "cloud consent is unavailable before joining a two-player online room");
+    "cloud consent remains disabled without verified backend configuration");
    assert.equal(await page.locator("[data-research-export]").first().isDisabled(),true);
    await page.locator("#researchConsent").uncheck();
    assert.equal(await page.locator("#researchConsent").isChecked(),false,"solo recording can be disabled");
