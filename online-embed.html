@@ -4057,37 +4057,52 @@ function updateFortNavigation(){
  const summary="基地 青"+blue+"・赤"+red;
  if($("fortSummary").textContent!==summary)$("fortSummary").textContent=summary;
 }
+// Avoid invalidating the entire card footer on every HUD refresh when
+// the displayed value has not changed. WebKit can defer this work beyond the
+// JS timer, creating frame gaps in normal 8-20 unit battles. No game rules change.
+function putHudText(id,value){
+ const el=$(id);if(el.textContent!==value)el.textContent=value;
+}
+function putHudHtml(id,value){
+ const el=$(id);if(el.innerHTML!==value)el.innerHTML=value;
+}
+function putHudWidth(el,value){
+ if(el.style.width!==value)el.style.width=value;
+}
+function putHudFlag(el,name,value){
+ if(el.classList.contains(name)!==value)el.classList.toggle(name,value);
+}
 function updateHUD(){
  if(!S.capitals.length)return;
  updateFortNavigation();
- $("clock").textContent=S.phase==="prep"?numTime(S.prep):numTime(S.seconds);
- $("phaseLabel").textContent=S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊";
- $("blueText").textContent=Math.ceil(capital(1).hp)+" / "+START_HP;
- $("redText").textContent=Math.ceil(capital(2).hp)+" / "+START_HP;
- $("blueBar").style.width=100*capital(1).hp/START_HP+"%";
- $("redBar").style.width=100*capital(2).hp/START_HP+"%";
+ putHudText("clock",S.phase==="prep"?numTime(S.prep):numTime(S.seconds));
+ putHudText("phaseLabel",S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊");
+ putHudText("blueText",Math.ceil(capital(1).hp)+" / "+START_HP);
+ putHudText("redText",Math.ceil(capital(2).hp)+" / "+START_HP);
+ putHudWidth($("blueBar"),100*capital(1).hp/START_HP+"%");
+ putHudWidth($("redBar"),100*capital(2).hp/START_HP+"%");
  const energy=limit(S.energy[ME()],0,ENERGY_CAP);
- $("resourceNumber").innerHTML=Math.floor(energy)+' <small>/ '+ENERGY_CAP+'</small>';
- const segments=$("resourceRail").children;
- for(let i=0;i<segments.length;i++)segments[i].children[0].style.width=100*limit(energy-i,0,1)+"%";
- $("resourceRail").setAttribute("aria-valuenow",energy.toFixed(2));
+ putHudHtml("resourceNumber",Math.floor(energy)+' <small>/ '+ENERGY_CAP+'</small>');
+ const rail=$("resourceRail"),segments=rail.children;
+ for(let i=0;i<segments.length;i++)putHudWidth(segments[i].children[0],100*limit(energy-i,0,1)+"%");
+ const ariaValue=energy.toFixed(2);
+ if(rail.getAttribute("aria-valuenow")!==ariaValue)rail.setAttribute("aria-valuenow",ariaValue);
  const playing=S.phase==="battle",paused=["paused","gallery","inspect"].includes(S.phase);
  const next=energy>=ENERGY_CAP-1e-6?"MAX":playing?
    "あと "+((Math.floor(energy)+1-energy)/(rate()*S.speed)).toFixed(1)+"秒":paused?"停止中":"開戦後回復";
- $("resourceNext").textContent=next;
- $("rate").textContent=S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒";
- $("prepTime").textContent=numTime(S.prep);
+ putHudText("resourceNext",next);
+ putHudText("rate",S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒");
+ putHudText("prepTime",numTime(S.prep));
  const owners=S.forts.filter(f=>f.owner===ME()).length;
- $("remaining").textContent="前哨基地 "+owners+" / 3";
- $("homeCam").classList.toggle("danger",S.underAttackUntil>S.clock);
+ putHudText("remaining","前哨基地 "+owners+" / 3");
+ putHudFlag($("homeCam"),"danger",S.underAttackUntil>S.clock);
  for(const b of cards.children){
   const id=b.dataset.id;if(!id)continue;
-  const d=CATALOG[id];
   const ready=canPay(ME(),id);
-  b.classList.toggle("unavailable",!ready);
-  b.classList.toggle("ready",ready);
-  b.classList.toggle("depleted",S.left[ME()][id]<=0);
-  b.classList.toggle("selected",S.selected===id);
+  putHudFlag(b,"unavailable",!ready);
+  putHudFlag(b,"ready",ready);
+  putHudFlag(b,"depleted",S.left[ME()][id]<=0);
+  putHudFlag(b,"selected",S.selected===id);
  }
  if(performance.now()>S.noticeUntil)$("announcement").classList.remove("visible");
 }
