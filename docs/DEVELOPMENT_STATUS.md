@@ -13,7 +13,7 @@
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** 固定10体・Canvas描画停止＋非表示でも大型あり/なしのrAF差はカードHUD全体を消すと消失。一方CSS filter/opacityと肖像画Canvasの個別変更は大きく効かない。次は**同じカード構成・資源・使用可能状態のUI**を大型あり/なし両試験に表示する統制を優先し、差がまだ残るか確認する。UIを消す最適化は不採用。本番/Google Sitesは未変更、学校iPad性能は未測定。
+- **いまの最優先課題:** **HUD更新の不要なDOM書き換えを開発版で削減し、固定10体・Canvas停止WebKitでは大型あり約51.9→61.3 FPSへ改善（2試行平均）**。HUDそのものを停止しなくても大型なし62.4 FPSに近づいた。オンライン3ファイルへ同期済み。次は実Firebaseオンライン・動く8～20体・録画目視・Google Sites相当サイズの結果を確認し、実iPadでの体感検証を残課題とする。ヘッドレスCI値を実機FPSと同一視しない。公開版は変えない。
 - **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
@@ -40,6 +40,10 @@
 - **Phase 1 現時点の根拠付き結論:** CIヘッドレスWebKit上、(a)大型10体の戦闘計算停止・描画停止で性能が回復、(b)固定してCanvasも隠してなおカードHUD表示による場面差あり、(c)カードHUD全体を隠すと大型あり/なしとも約62FPS、(d)肖像隠し/PNG化、CSS filter/opacity個別変更ではFPS差は十分解消しない。**個々の小さなCSS指定が原因だとは断定せず、カードUIの構造/状態、DOM・合成負荷などを次の対照対象とする**。現場実機のiPadで同等の再現がない以上、数値を製品の性能改善値として扱わない。バランス・公開版・本体レンダリング変更なし。
 
 - **2026-10-21 固定カードHUD ABBA対照テスト追加（CI検証中）:** [新しい20条件テスト](../tests/online-hud-matched-control.cjs)を [commit f3c67f5](https://github.com/8mahi8/shokoku-sensen/commit/f3c67f59f0ca0fe79cb424b8d9fb881addc3220f) で追加。[Actions #39489286303](https://github.com/8mahi8/shokoku-sensen/actions/runs/39489286303)。同一WebKitタブで、正規召喚した10体を戦闘計算停止して比較。自然状態・大型なし時の手札/使用可否/エネルギー表示に**両場面を統一**・大型あり時に統一の3対照。各4試行、さらに統一HUDの描画あり8試行。カード5枚の画像（PNG固定）、カードclass/順序、下部資源・次カードを固定し、両場面でDOMが完全一致することをassert。**ゲーム本体のカード、性能値、Google Sites HTMLを変更しない**。通常時に見えないものをユーザー向け最適化へ適用しない。結果で原因候補を確定するまではPhase 1継続。
+
+- **2026-10-21 HUD一致テストで原因候補を分離:** [初回20試行 Actions #39489286303](https://github.com/8mahi8/shokoku-sensen/actions/runs/39489286303) と [HUD定期更新のみ停止を追加した28試行 Actions #39489661965](https://github.com/8mahi8/shokoku-sensen/actions/runs/39489661965) が成功。通常カードHUDで大型なし62.1／大型あり51.9 FPS（固定10体・Canvas描画停止）、元のカード内容を保ち**定期updateHUDだけ停止**すると大型なし62.3／大型あり62.3 FPS。カード画像・半透明・使用可否を変えずに差が消えるので、HUDの周期的なDOM更新/それに伴うブラウザ作業が強い原因候補。さらに同一カード画像・種類・使用可否・資源表示の双方統一でも62.2〜62.5 FPSで一致し、HTMLと表示状態一致をassertし、実際のスクリーンショットのカード領域が完全一致することも画素比較で確認。**HUDの更新を恒久停止するのはNG。**
+- **2026-10-21 開発版のHUD差分更新を実装:** [online-game.js commit 64e74c1](https://github.com/8mahi8/shokoku-sensen/commit/64e74c10ca5b340acb33d1ccc482657bab1f1729)、Google Sites用の [online-ipad.html commit 467ff40](https://github.com/8mahi8/shokoku-sensen/commit/467ff4015495533ec0e88abbb5da021058b5c65a) / [online-embed.html commit 2204135](https://github.com/8mahi8/shokoku-sensen/commit/22041351327dd74121f35e81ac79b861ef53c272) を同期。clock/phase/HP、資源額・ゲージ・ARIA、カード使用可否/選択/枯渇等を**実際に値や状態が変化したときだけ更新**し、HUD機能は全て維持。キャラ・ダメージ・AI・手札・コスト・通信方式には変更なし。開発PR限定でmain/Google Sites公開HTMLには未反映。
+- **2026-10-21 修正後の固定戦場・回帰検証合格:** [WebKit 28試行 #39490281824](https://github.com/8mahi8/shokoku-sensen/actions/runs/39490281824) 成功。固定10体・Canvas描画停止の通常HUD更新は大型なし62.44/62.27 FPS、大型入り60.57/62.02 FPSで平均約61.3 FPS（直前同条件平均51.9 FPS）。HUDの更新停止なしでほぼ差が消えた。Linux CI/WebKitのばらつきは残り、実iPad FPSではない。[オンラインsmoke #39490242147](https://github.com/8mahi8/shokoku-sensen/actions/runs/39490242147)、[iPad UI #39490230206](https://github.com/8mahi8/shokoku-sensen/actions/runs/39490230206)、[実Firebase2ブラウザ #39490230228](https://github.com/8mahi8/shokoku-sensen/actions/runs/39490230228)、[動く戦闘・録画 #39490230237](https://github.com/8mahi8/shokoku-sensen/actions/runs/39490230237) 成功。途中の2つのsmoke失敗は3ファイル同期前の一時的コミットで、**全3ファイル同期完了後のsmokeは成功**。最新戦闘録画とスクリーンショットを実際に開き、戦車/ガルド重なり・弾/効果、HUDで資源変化を確認。学校の実iPad/Sites iframeの貼替え実測は未実施。
 
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
