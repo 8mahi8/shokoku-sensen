@@ -175,6 +175,9 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  assert.equal(host.game.starts,3,"host starts third round after coalesced transition");
  assert.equal(read("shokokuRooms1v1/"+code+"/state").round,3,"new round snapshots carry the correct round");
 
+ const oldGuestMeta=listeners.filter(l=>l.path==="shokokuRooms1v1/"+code+"/meta"&&l.event==="value").at(-1);
+ const oldGuestPlayers=listeners.filter(l=>l.path==="shokokuRooms1v1/"+code+"/players"&&l.event==="value").at(-1);
+ assert.ok(oldGuestMeta&&oldGuestPlayers);
  await guest.api.resetLobby();await settle();
  assert.equal(read("shokokuRooms1v1/"+code+"/players/guest/online"),false,"explicit leave must mark guest offline");
  assert.equal(guest.get("netRoom").textContent,"-----","new game returns to room picker");
@@ -183,6 +186,11 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await guest.click("netCreate");await settle();
  const secondRoom=guest.get("netRoom").textContent;
  assert.match(secondRoom,/^[0-9]{5}$/,"another new room can be created in the same page");
+ const beforeGhost=guest.game.resets;
+ oldGuestMeta.fn(new Snapshot(new Ref("shokokuRooms1v1/"+code+"/meta"),{status:"playing",round:99}));
+ oldGuestPlayers.fn(new Snapshot(new Ref("shokokuRooms1v1/"+code+"/players"),{guest:{online:false}}));
+ assert.equal(guest.game.resets,beforeGhost,"old room notifications must not reset the next game");
+ assert.equal(guest.get("netRoom").textContent,secondRoom,"old room notifications must not replace new room identity");
  heldExitWrite=true;
  guest.api.resetLobby(); // Its Firebase cleanup will never resolve.
  assert.equal(guest.get("netRoom").textContent,"-----","a stalled cleanup must not freeze new game");
