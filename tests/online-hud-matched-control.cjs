@@ -29,6 +29,8 @@ const round=x=>Math.round(x*100)/100;
 const A=["light","heavy","heavy","light"],B=["heavy","light","light","heavy"];
 const plan=[
  ...A.map(scene=>({scene,hud:"natural",paint:false})),
+ ...A.map(scene=>({scene,hud:"natural-lock",paint:false})),
+ ...B.map(scene=>({scene,hud:"natural-lock",paint:true})),
  ...A.map(scene=>({scene,hud:"light",paint:false})),
  ...B.map(scene=>({scene,hud:"heavy",paint:false})),
  ...A.map(scene=>({scene,hud:"light",paint:true})),
@@ -86,7 +88,7 @@ const sha=x=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
   }
   const rows=[];
   for(let i=0;i<plan.length;i++){
-   const p=plan[i],fixture=p.hud==="natural"?null:fixtures[p.hud];
+   const p=plan[i],fixture=(p.hud==="natural"||p.hud==="natural-lock")?null:fixtures[p.hud];
    const setup=await page.evaluate(scene=>{
     window.__qaHudLock=false;window.__qaTickPause=true;
     window.__shokokuQa.setDrawDisabledForQa(false);
@@ -113,7 +115,7 @@ const sha=x=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
     },fixture);
     assert.equal(applied.cards,fixture.cards,"exact frozen card HTML");
     assert.deepEqual(applied.footer,fixture.footer,"exact frozen footer state");
-   }else await page.evaluate(()=>{window.__qaHudLock=false;});
+   }else await page.evaluate(lock=>{window.__qaHudLock=lock;},p.hud==="natural-lock");
    // Let any card-image upload and compositor changes settle before measuring.
    await page.waitForTimeout(250);
    const m=await page.evaluate(async p=>{
@@ -167,7 +169,7 @@ const sha=x=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
    assert.ok(m.unchangedCards&&m.unchangedFooter,"HUD remained frozen");
    assert.deepEqual([m.canvasWidth,m.canvasHeight],backing,"constant Canvas backing");
    assert.ok(m.frameError===null,"no browser exceptions");
-   assert.equal(m.hudLocked,!!fixture);
+   assert.equal(m.hudLocked,!!fixture||p.hud==="natural-lock");
    if(!p.paint)assert.ok(m.drawMs<=.03,"gameplay paint actually disabled");
    if(fixture){
     assert.deepEqual(m.cardIds,fixture.ids,"same card set for light/heavy");
@@ -196,9 +198,10 @@ const sha=x=>createHash("sha256").update(JSON.stringify(x)).digest("hex");
     "Production HTML unchanged: QA-served HTML only pauses 30Hz sim, animation time and HUD refresh",
     "Every scene seeds 10 real legal units; unit positions remain fixed during measurement",
     "Matched fixtures include exact card image pixels, card classes, card order, next card and resource HUD",
+    "Natural-lock control holds the original Canvas card images/energy/classes, pausing only periodic HUD refresh",
     "Headless CI WebKit is not physical iPad Safari; rAF FPS is not gameplay FPS"
    ]},null,2));
-  console.log("PASS: matched light/heavy card HUD and resource visuals in same warm WebKit tab");
+  console.log("PASS: matched card HUD, independent natural HUD-refresh lock, and resource controls");
  }finally{
   await ctx?.close().catch(()=>{});
   await browser?.close().catch(()=>{});
