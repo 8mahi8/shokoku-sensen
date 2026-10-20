@@ -1,0 +1,12 @@
+{
+  "name": "shokoku-research-collector",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Disabled-by-default protected research log collector; deploy only after private rules and billing review",
+  "main": "index.js",
+  "engines": {"node": "22"},
+  "dependencies": {
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.4.0"
+  }
+}
