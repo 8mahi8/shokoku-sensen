@@ -338,6 +338,9 @@ let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=fal
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
 let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
+// Local diagnostics only; never add them to Firebase or anonymous match logs.
+let lastPayloadChars=0,lastEncodeMs=0,lastAckMs=0,lastApplyMs=0;
+let coalescedPackets=0,publishRetries=0,publishFailures=0;
 let qaMuteSdkSnapshots=false;
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
@@ -417,12 +420,31 @@ async function registerPresence(){
   if(room&&room!==current&&connected)registerPresence().catch(setError);
  }
 }
+// Quantize only the transport copy. Host physics and card legality retain all
+// original floating-point precision; 0.001 world unit is visually subpixel.
+function packGuestWorld(source){
+ const json=JSON.stringify(source,(_key,value)=>{
+  if(value===Infinity)return 1000000000; // unlimited infantry capacity
+  if(typeof value!=="number"||!Number.isFinite(value)||Number.isInteger(value))return value;
+  return Math.round(value*1000)/1000;
+ });
+ return {world:JSON.parse(json),chars:json.length};
+}
+function worldSizePreview(){
+ const original=game?.world?.();
+ if(!original)return null;
+ const raw=JSON.stringify(original,(_key,value)=>value===Infinity?1000000000:value);
+ const packed=packGuestWorld(original);
+ return {unitCount:original.units?.length||0,rawChars:raw.length,
+  packedChars:packed.chars,reductionPct:Math.round(1000*(1-packed.chars/raw.length))/10};
+}
 function receiveGuestWorld(packet){
  if(packet?.round===meta?.round&&Number.isInteger(packet.seq)){
   lastStateEventAt=performance.now();lastStateEventSeq=Math.max(lastStateEventSeq,packet.seq);
  }
  if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||
   !packet.world||packet.seq<=Math.max(lastRemoteSeq,pendingRemote?.seq||0))return;
+ if(pendingRemote)coalescedPackets++;
  pendingRemote=packet;
  if(remoteScheduled)return;
  remoteScheduled=true;const epoch=remoteEpoch;
@@ -432,8 +454,10 @@ function receiveGuestWorld(packet){
   const latest=pendingRemote;pendingRemote=null;
   if(!latest||latest.round!==meta?.round)return;
   try{
+   const applyStart=performance.now();
    game?.apply(latest.world,latest.seq);
    const appliedAt=performance.now();
+   lastApplyMs=appliedAt-applyStart;
    if(lastRemoteAppliedAt>0){
     appliedGaps.push(Math.max(0,appliedAt-lastRemoteAppliedAt));
     if(appliedGaps.length>32)appliedGaps.shift();
@@ -501,10 +525,15 @@ function syncDiagnostics(){
   eventAgeMs:Math.round(lastStateEventAt?now-lastStateEventAt:0),
   restAgeMs:Math.round(lastRestReadAt?now-lastRestReadAt:0),
   publishAgeMs:Math.round(lastHostPublishAt?now-lastHostPublishAt:0),
-  syncing:restReadPending,error:lastApplyError};
+  syncing:restReadPending,error:lastApplyError,
+  // Character count is not billed bytes: TLS and RTDB framing are excluded.
+  snapshotChars:lastPayloadChars,encodeMs:Math.round(lastEncodeMs*10)/10,
+  ackMs:Math.round(lastAckMs),applyMs:Math.round(lastApplyMs*10)/10,
+  coalesced:coalescedPackets,retries:publishRetries,writeFailures:publishFailures};
 }
 function setupRoom(code,isHost){
  solo=false;guestBot=false;
+ lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  appliedGaps=[];appliedPackets=0;
  lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;restReadPending=false;lastHostPublishAt=0;lastHostPublishSeq=0;lastApplyError="";
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
@@ -527,6 +556,7 @@ function setupRoom(code,isHost){
   const newRound=Number(priorRound)>0&&Number(meta?.round)>Number(priorRound);
   if(newRound||(meta?.status==="lobby"&&before==="finished")){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
@@ -693,14 +723,26 @@ function maybePublish(force=false){
   if(now-publishStartedAt<2800||(publishRetryAt&&
     now-publishRetryAt<(publishRetryCount>=8?18000:4800)))return;
   // At 8 retries switch to a slower watch, not a permanent deadlock.
-  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);
+  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);publishRetries++;
  }else if(!force&&now-lastSend<(game.world()?.units?.length>=50?180:125))return;
  lastSend=now;publishing=true;publishStartedAt=now;
  const current=room,epoch=networkEpoch,serial=++publishSerial;
- const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ let packed;
+ try{
+  const encodeStart=performance.now();
+  packed=packGuestWorld(game.world());
+  lastEncodeMs=performance.now()-encodeStart;
+  lastPayloadChars=packed.chars;
+ }catch(e){
+  // A serialization failure must never freeze the sole snapshot publisher.
+  publishing=false;setError(e);return;
+ }
  lastHostPublishAt=performance.now();lastHostPublishSeq=seq+1;
- current.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset})
-  .catch(setError).finally(()=>{
+ const sentAt=performance.now();
+ current.child("state").set({seq:++seq,round:meta?.round||1,world:packed.world,at:Date.now()+serverOffset})
+  .then(()=>{if(epoch===networkEpoch&&current===room&&serial===publishSerial)
+   lastAckMs=performance.now()-sentAt;})
+  .catch(e=>{publishFailures++;setError(e)}).finally(()=>{
    if(epoch!==networkEpoch||current!==room||serial!==publishSerial)return;
    publishing=false;publishRetryCount=0;
    if(publishPending){publishPending=false;maybePublish(true)}
@@ -711,7 +753,7 @@ function finish(data){
  if(!host||!room||phase!=="playing")return;
  phase="finished";
  // Force publish the final world before closing, so the guest sees the last HP.
- const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ const world=packGuestWorld(game.world()).world;
  const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
  room.update({
   state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
@@ -744,6 +786,7 @@ function resetLobby(){
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  detach();roomCode="";team=0;host=false;players=null;meta=null;result=null;
  seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+ lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  window.__onlineSeq=0;window.__onlineHandSig="";
  document.body.classList.remove("soloMode");
  $("networkBar").classList.add("hidden");
@@ -777,7 +820,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  window.__shokokuNetQa={
   muteSdkSnapshots:flag=>{qaMuteSdkSnapshots=!!flag;},
   triggerRecovery:()=>{lastRemoteAppliedAt=performance.now()-6500;lastSyncReadAt=0;checkGuestSync();},
-  stats:syncDiagnostics
+  stats:syncDiagnostics,packGuestWorld,worldSizePreview
  };
 }
 document.addEventListener("DOMContentLoaded",()=>{
@@ -4133,6 +4176,10 @@ function samplePerf(now,drawMs){
   isHost?"相手との接続 "+(n.connected?"有効":"切断"):
    "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
   isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  isHost?"送信内容 "+(n.snapshotChars||0)+"文字 / 準備 "+(n.encodeMs||0)+"ms / 応答 "+(n.ackMs||0)+"ms":
+   "反映 "+(n.applyMs||0)+"ms / 最新優先 "+(n.coalesced||0)+"件",
+  isHost?"滞留再送 "+(n.retries||0)+"回 / 送信失敗 "+(n.writeFailures||0)+"回":
+   "診断値はこの端末のみ（Firebaseへ送信しません）",
   window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
   n.error?"同期エラー "+String(n.error).slice(0,48):
    "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
