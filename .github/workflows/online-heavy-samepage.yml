@@ -1,0 +1,27 @@
+name: Online same-page WebKit perf QA
+on:
+  push:
+    paths:
+      - 'tests/online-heavy-samepage.cjs'
+      - '.github/workflows/online-heavy-samepage.yml'
+  workflow_dispatch:
+jobs:
+  stable-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps webkit
+      - run: node tests/online-heavy-samepage.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shokoku-same-page-webkit-perf
+          path: qa-stable-browser/
+          retention-days: 14
