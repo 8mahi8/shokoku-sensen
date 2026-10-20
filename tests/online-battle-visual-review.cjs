@@ -20,6 +20,8 @@ const profiles=[
  // Video capture can itself affect headless WebKit scheduling.
  // Run the matched 10-unit controls once more with recording disabled.
  {name:"webkit-ipad-no-video",engine:webkit,width:1194,height:834,video:false,only:["light","heavy"]},
+ // Diagnostic negative control: same combat loop, Canvas painting disabled.
+ {name:"webkit-ipad-no-paint",engine:webkit,width:1194,height:834,video:false,only:["light","heavy"],noPaint:true},
  {name:"chromium-sites-compact",engine:chromium,width:900,height:520,video:false}
 ];
 const scenes=[
@@ -90,7 +92,11 @@ const round=n=>Math.round(n*10)/10;
     await shot("01-first-second");
     // Reset instrumentation after initial sprite loads/first-frame effects so
     // the 3.5s measure reflects steady-state battle artwork.
-    await page.evaluate(()=>{window.__shokokuArtProfile={byKind:{},totalMs:0,totalCalls:0};window.__shokokuQa.resetFrameBench();});
+    await page.evaluate(disable=>{
+     window.__shokokuArtProfile={byKind:{},totalMs:0,totalCalls:0};
+     window.__shokokuQa.setDrawDisabledForQa(disable);
+     window.__shokokuQa.resetFrameBench();
+    },!!profile.noPaint);
     const measure=await page.evaluate(async()=>{
      const start=performance.now(),gaps=[],positions=new Map();
      const first=window.__shokokuQa.snapshot();
@@ -131,11 +137,14 @@ const round=n=>Math.round(n*10)/10;
         maxMs:Math.round(v.maxMs*10)/10}])),
       ...s,qaOverlay:document.querySelector('[aria-label="通信・描画の診断"]')?.textContent||""};
     });
-    await shot("02-engaged");
-    const row={profile:profile.name,scene:scene.id,trial:scene.trial||1,description:scene.description,setup,measure};
+    if(!profile.noPaint)await shot("02-engaged");
+    const row={profile:profile.name,scene:scene.id,trial:scene.trial||1,description:scene.description,
+     noPaint:!!profile.noPaint,setup,measure};
     allResults.push(row);
     assert.ok(measure.frameCount>0,tag+" must render future frames");
-    assert.ok(measure.moved>0,tag+" must show real movement");
+    assert.ok(measure.moved>0,tag+" must simulate real movement"); 
+    if(profile.noPaint)assert.ok(measure.stages.drawMs.mean<=.02,
+     tag+" QA Canvas negative control must actually skip painting");
     assert.equal(measure.frameError,null,tag+" cannot have recovered frame exceptions");
     assert.deepEqual(errors,[],tag+" must have no uncaught browser errors");
     console.log("REALISTIC BATTLE",JSON.stringify({profile:profile.name,scene:scene.id,
@@ -151,7 +160,7 @@ const round=n=>Math.round(n*10)/10;
    await context.close();await browser.close();browsers.pop();
   }
   fs.writeFileSync(path.join(out,"realistic-results.json"),JSON.stringify(allResults,null,2));
-  assert.equal(allResults.length,scenes.length*2+2);
+  assert.equal(allResults.length,scenes.length*2+4);
   console.log("PASS: normal/mixed, tank/guardian, and spell combat, WebKit + compact Sites; videos/screenshots saved for human review");
  }finally{
   for(const browser of browsers)try{await browser.close()}catch(_){}
