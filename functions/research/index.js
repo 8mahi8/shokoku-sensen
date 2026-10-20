@@ -48,10 +48,10 @@ exports.collectShokokuMatch=onCall({
  // Caps are enforced on trusted server, not localStorage. Exact-once target
  // prevents duplicate records for the same round. Conservative quotas may
  // count a failed attempt; that is safer than permitting unlimited spam.
- const base=db.ref("shokokuResearchRateV1");
- if(!await cap(base.child("global/"+day),150))
+ const base=db.ref("shokokuResearchRateV1/"+day);
+ if(!await cap(base.child("global"),150))
   throw new HttpsError("resource-exhausted","Daily service cap reached");
- if(!await cap(base.child("users/"+request.auth.uid+"/"+day),12))
+ if(!await cap(base.child("users/"+request.auth.uid),12))
   throw new HttpsError("resource-exhausted","Daily upload cap reached");
  const t=await target.transaction(previous=>previous===null?{
   schema:1,createdAt:now,expiresAt:now+PERIOD,match:cleaned
