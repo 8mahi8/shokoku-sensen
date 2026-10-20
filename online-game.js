@@ -2576,6 +2576,10 @@ function samplePerf(now,drawMs){
   isHost?"相手との接続 "+(n.connected?"有効":"切断"):
    "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
   isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  isHost?"送信内容 "+(n.snapshotChars||0)+"文字 / 準備 "+(n.encodeMs||0)+"ms / 応答 "+(n.ackMs||0)+"ms":
+   "反映 "+(n.applyMs||0)+"ms / 最新優先 "+(n.coalesced||0)+"件",
+  isHost?"滞留再送 "+(n.retries||0)+"回 / 送信失敗 "+(n.writeFailures||0)+"回":
+   "診断値はこの端末のみ（Firebaseへ送信しません）",
   window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
   n.error?"同期エラー "+String(n.error).slice(0,48):
    "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
