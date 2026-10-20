@@ -8,12 +8,12 @@
 
 ## 現在地
 
-- **優先段階: Phase 1 / 5 — 描画・通信の最適化**
+- **優先段階: 安定版1vs1の継続運用（実機最終確認待ち）＋ 新運用Phase 2／4 — 匿名対戦データの自動蓄積基盤（開発・未公開）**
 - **対象ゲーム:** 小国戦線III — FORTRESS FRONT、学校iPad＋Google Sites埋め込み、身内1vs1
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** **Phase 1継続。** HUD差分更新は固定10体Canvas停止で改善したが、実際に動く18/20体のheadless WebKitは両方7.1 FPSで、学校iPad快適性をCIだけで判断できない。Chromium Google Sites相当画面は両場面約60.1 FPS。実Firebase同一ルーム7試合・実WebKitゲストのSDK＋ブラウザ通信断／再接続・描画QA・録画抜粋レビューは自動テスト成功。**学校iPad Google Sitesでゲスト体感・FPS・戦況更新の実測**が次のPhase 1判定材料。Phase 2の連戦と擬似断線復旧は先行確認済みだが、学校実機の回線切替・タブ強制終了からの戻り・本番画面の復旧は未確認。PR #22はDraftのまま公開版は変更しない。
+- **いまの最優先課題:** ユーザーと合意した運用ロードマップは「安定版の実機確認→友人戦ログの安全な自動蓄積→実戦ログでBOTを研究→バランスはユーザー判断」。1vs1描画・再戦・Firebase断線復帰は前段階のCIで合格したが学校実機FPSは未判定。**現在は研究データの収集側を開発PR #22で実装中、Firebase側の非公開ルールと書込濫用対策が未構成なのでクラウド送信の起動をハードOFFにした。**
 - **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
@@ -61,6 +61,10 @@
 
 - **2026-10-21 学校からのHP/攻撃力簡易編集欄を実装・検証:** `online-ipad.html`/`online-embed.html` のHTML冒頭へ `window.SHOKOKU_UNIT_STATS` を追加。基本歩兵・偵察ライダー・重装工兵・魔導射手・迎撃衛士・制圧機兵・守護ゴーレム・ドローン・戦車の**全9キャラのHPと基本攻撃力**を1か所で編集可能。`online-game.js` の起動時に合法な整数だけ `CLASSES` へ適用し、攻撃・被弾の実パラメータに反映。通常 `online.html` の既定値、城/砦、スペル、コスト等は不変更。`tests/online-smoke.cjs` で9種類すべての既定値、一部書換え時のHP/攻撃力への反映、他パラメータ不変、異常値時の安全な既定値を検証し [smoke #39499222485](https://github.com/8mahi8/shokoku-sensen/actions/runs/39499222485) 成功。実Firebase連戦/ゲスト切断復帰 [Actions #39499112116](https://github.com/8mahi8/shokoku-sensen/actions/runs/39499112116) 成功、学校iPad相当UI [Actions #39499112246](https://github.com/8mahi8/shokoku-sensen/actions/runs/39499112246) 成功。Actionsが生成した `online-ipad.html` コピーファイルをChatGPT内でTXT/HTMLとして渡し、Git blob SHA `b7fbf1dc30909499484364d442bc72c3d6c3f252` 一致・インラインJS構文も確認。**main/既存Google Sitesへの反映はしていない。** 編集したHTML全文をGoogle Sitesに貼り直し再公開する必要がある。変更後の学校実機対戦はまだ。
 
+- **2026-10-21 新運用Phase 2に着手（収集側の開発コード・テストまで）:** [クラウド収集の安全運用手順](./RESEARCH_CLOUD.md)。既存の `online-research.js` を使い、`online-net.js` に別パス `/shokokuResearchV1` への試合終了時送信APIを追加。クラウド同意はローカル記録と別の初期OFF、両参加者がロビーで事前に同意、途中撤回可能、ホストのみ最大1日12回・レコード65,000文字、匿名化して1試合1件、別ルームの情報は含めない。保存先の匿名公開読取が成功する場合は必ず送信拒否。**加えて `window.SHOKOKU_CLOUD_RESEARCH_READY=true` が管理者により明示設定されるまでは、チェック欄を無効・送信拒否**する実装で、現段階のGoogle Sites/mainにも開発版にも自動送信は実際に有効になっていない。実Firebase研究用書込と権限ルールは未実施。
+- **2026-10-21 新運用Phase 2の自動テスト合格:** [Online 1v1 smoke #39501431890](https://github.com/8mahi8/shokoku-sensen/actions/runs/39501431890) で初期OFF・両者同意・同意撤回・匿名な分離パス・公開読取禁止・1日送信試行上限・ローカル保存継続を模擬確認。[研究用ブラウザQA #39502148149](https://github.com/8mahi8/shokoku-sensen/actions/runs/39502148149) は3画面（Chromium通常、WebKit学校iPad、Chromium埋込）で既存記録/共有/消去・簡易編集HTML・構文が合格。最新の明示的なbackend-readyゲート追加後のCIは別途実施・結果を確認する。
+- **2026-10-21 研究データ管理器も試作:** [tools/research/import-firebase-export.cjs](../tools/research/import-firebase-export.cjs) は管理者が取り出したFirebase JSONから余計な識別子を排除して既存BOT研究用形式に変換。[テスト](../tests/online-research-cloud-export.cjs) 合格。期限14日で `expiresAt` を付与し、[管理者限定クリーンアップ](../tools/research/prune-expired.py) と[日次Actions案](../.github/workflows/online-research-retention.yml) を開発ブランチに配置したが、**main未統合・管理用Secret未設定につき現在は削除ジョブも稼働していない**。公開リポジトリへ生のログや認証情報を出さない。Firebaseの認証・読み取り保護と管理側への自動受け渡し経路は未完了。
+
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
 1. **Phase 1 — 描画・通信最適化（作業中）:** 大型アート・通常兵と比較、同数・同解像度・反復測定、ゲストの表示FPS/反映間隔/処理時間を独立把握。大きな差の原因に絞って描画改修。
@@ -76,7 +80,7 @@
 - **公開済みGoogle SitesのHTMLや main は検証なしに変更しない**。開発PRを公開版と呼ばない。
 - **Googleドライブの自動保存はしない**。学校iPadから貼り付けたい等の指定がある時だけ保存。
 - **性能と体感は別**。GitHub ActionsのWebKitヘッドレスFPSを学校の実iPadと断定しない。
-- 対戦ログは匿名/端末ローカルの初期ON＋いつでも停止可能。自動クラウド送信しない。
+- 対戦ログの**端末内記録は初期ON・いつでも停止可**。クラウド収集は別の初期OFFで両者事前同意が必要。現段階は安全性ゲートによってクラウド送信自体を無効化しており、Firebase設定を検証するまでは公開しない。
 
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
 
