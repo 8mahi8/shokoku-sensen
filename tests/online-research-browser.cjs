@@ -56,6 +56,26 @@ const server=http.createServer((req,res)=>{
    await page.locator("[data-research-copy]").first().click();
    assert.equal(await page.locator("#researchEndText").inputValue().then(s=>JSON.parse(s).matches.length),1);
    assert.equal(await page.locator("#researchText").inputValue().then(s=>JSON.parse(s).matches.length),1);
+   // Use real game objects, not fabricated JSON: stress the transport copy
+   // with 130 troops and verify source physics stays untouched.
+   const payload=await page.evaluate(()=>{
+    const raw={units:[{uid:7,x:42.123456789,y:-7.4567890123,hp:3.33333333333}],
+     unused:Infinity,negative:-Infinity,invalid:NaN,integer:12345};
+    const packed=window.__shokokuNetQa.packGuestWorld(raw);
+    const seed=window.__shokokuQa.seedMassBattle();
+    return {packed,source:raw,seed,sizes:window.__shokokuNetQa.worldSizePreview()};
+   });
+   assert.equal(payload.source.units[0].x,42.123456789,"authoritative source untouched");
+   assert.equal(payload.packed.world.units[0].x,42.123,"subpixel transfer precision");
+   assert.equal(payload.packed.world.units[0].y,-7.457,"negative coordinates quantized");
+   assert.equal(payload.packed.world.unused,1000000000,"Infinity remains a finite transfer sentinel");
+   assert.equal(payload.packed.world.negative,null,"legacy -Infinity JSON semantics kept");
+   assert.equal(payload.packed.world.invalid,null,"legacy NaN JSON semantics kept");
+   assert.equal(payload.packed.world.integer,12345,"integer fields preserved");
+   assert.ok(payload.seed&&payload.sizes?.unitCount>=100,"mass-battle QA data");
+   assert.ok(payload.sizes.packedChars<payload.sizes.rawChars*.92,
+    "packed 130-unit game state must be materially smaller than legacy transport");
+   console.log("PAYLOAD",label,source,JSON.stringify(payload.sizes));
    await page.reload({waitUntil:"domcontentloaded"});
    const reloaded=await page.evaluate(()=>window.__shokokuResearchQa.get().matches.length);
    assert.equal(reloaded,1,"local history persists across reload if storage available");
