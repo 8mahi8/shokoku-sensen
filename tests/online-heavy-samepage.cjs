@@ -36,7 +36,13 @@ const schedule=[
  {scene:"light",noPaint:false,canvasHidden:true},
  {scene:"heavy",noPaint:false,canvasHidden:true},
  {scene:"heavy",noPaint:false,canvasHidden:true},
- {scene:"light",noPaint:false,canvasHidden:true}
+ {scene:"light",noPaint:false,canvasHidden:true},
+ // Within exactly the SAME heavy-unit scenario, replace ONLY two drawings
+ // with simple filled shapes (QA-only, never changes stats, combat or releases).
+ {scene:"heavy",noPaint:false,canvasHidden:false,artSubstitute:false},
+ {scene:"heavy",noPaint:false,canvasHidden:false,artSubstitute:true},
+ {scene:"heavy",noPaint:false,canvasHidden:false,artSubstitute:true},
+ {scene:"heavy",noPaint:false,canvasHidden:false,artSubstitute:false}
 ];
 const results=[];
 (async()=>{
@@ -57,6 +63,23 @@ const results=[];
   const atlasReady=await page.waitForFunction(()=>window.GaldArt?.isReady?.()===true,
    null,{timeout:35000}).then(()=>true).catch(()=>false);
   console.log("ATLAS READY BEFORE CONTROL:",atlasReady);
+  // Replace artwork only in localhost test frame. The authoritative simulation
+  // retains the real tank/guardian objects, movement, damage, cooldown and HP.
+  await page.evaluate(()=>{
+   const original=window.KokokuArt?.drawUnit;
+   if(typeof original!=="function")throw Error("missing art renderer");
+   window.__qaHeavyArtPlaceholder=false;
+   window.KokokuArt.drawUnit=function(g,u,clock){
+    if(window.__qaHeavyArtPlaceholder&&(u.key==="tank"||u.key==="guardian")){
+     g.save();
+     g.fillStyle=u.team===1?"#80d9f5":"#ff889a";
+     g.fillRect(u.x-24,u.y-92,48,92);
+     g.restore();
+     return;
+    }
+    return original.call(this,g,u,clock);
+   };
+  });
   await page.waitForTimeout(1000);
   for(let idx=0;idx<schedule.length;idx++){
    const item=schedule[idx];
@@ -64,11 +87,16 @@ const results=[];
    // this, the previous no-paint/hidden state could leak into the next trial.
    await page.evaluate(()=>{
     window.__shokokuQa.setDrawDisabledForQa(false);
+    window.__qaHeavyArtPlaceholder=false;
     document.getElementById("field").style.visibility="visible";
    });
    const seed=await page.evaluate(scene=>window.__shokokuQa.seedRealisticBattle(scene),item.scene);
    assert.ok(seed&&seed.units===10&&seed.actions.every(a=>a.ok),"expected 10 actual summoned units");
    assert.equal(seed.heavy.length,item.scene==="heavy"?2:0,"matched heavy units");
+   // Visual substitution happens only after real legal heavy units spawn.
+   // It does not affect simulation, costs, or any game/online state.
+   await page.evaluate(placeholder=>{window.__qaHeavyArtPlaceholder=placeholder;},
+    item.artSubstitute===true);
    // Permit assets and HUD/scene change to settle, then measure the same
    // running page. In no-paint controls game logic stays fully active.
    await page.waitForTimeout(750);
@@ -96,6 +124,7 @@ const results=[];
     return {fps:round2(intervals.length*1000/(performance.now()-start)),
       gapP50Ms:percentile(.50),gapP95Ms:percentile(.95),
       canvasVisible:getComputedStyle(canvas).visibility==="visible",
+      artSubstitute:!!window.__qaHeavyArtPlaceholder,
       canvasBacking:[canvas.width,canvas.height],
       frameSamples:frames.length,logicMs:mean("logicMs"),hudMs:mean("hudMs"),
       drawMs:mean("drawMs"),totalMs:mean("totalMs"),
@@ -105,6 +134,7 @@ const results=[];
       frameError:window.__onlineFrameError||null};
    },item);
    assert.equal(measured.canvasVisible,!item.canvasHidden,"canvas visibility control applied");
+   assert.equal(measured.artSubstitute,item.artSubstitute===true,"art QA control applied");
    assert.ok(measured.frameSamples>=5,"must obtain multiple gameplay frame samples");
    assert.equal(measured.frameError,null,"no crash in controlled scenes");
    if(item.noPaint)assert.ok(measured.drawMs<=.03,"render skipped, tick remains live");
@@ -115,6 +145,7 @@ const results=[];
    atlasReady,results,notes:["Same WebKit tab and same warmed game assets across all scenes",
    "Drawing-off keeps the active simulation and HUD; never used in published gameplay",
    "Canvas visibility:hidden probes composition separately from Canvas draw commands",
+   "QA-only heavy artwork placeholder isolates art rendering while leaving heavy gameplay intact",
    "Trials are paired and reversed; unit composition and survival still differ",
    "Headless GitHub CI results must not be treated as real school iPad FPS"]
   },null,2));
