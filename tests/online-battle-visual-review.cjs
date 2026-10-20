@@ -86,7 +86,7 @@ const round=n=>Math.round(n*10)/10;
     await shot("01-first-second");
     // Reset instrumentation after initial sprite loads/first-frame effects so
     // the 3.5s measure reflects steady-state battle artwork.
-    await page.evaluate(()=>{window.__shokokuArtProfile={byKind:{},totalMs:0,totalCalls:0};});
+    await page.evaluate(()=>{window.__shokokuArtProfile={byKind:{},totalMs:0,totalCalls:0};window.__shokokuQa.resetFrameBench();});
     const measure=await page.evaluate(async()=>{
      const start=performance.now(),gaps=[],positions=new Map();
      const first=window.__shokokuQa.snapshot();
@@ -107,7 +107,17 @@ const round=n=>Math.round(n*10)/10;
      gaps.sort((a,b)=>a-b);
      const percentile=p=>Math.round(gaps[Math.min(gaps.length-1,Math.floor(gaps.length*p))]||0);
      const art=window.__shokokuArtProfile;
-     return {fps:Math.round(gaps.length*1000/(now-start)*10)/10,frameCount:gaps.length,
+     const frameRows=window.__shokokuQa.frameBench().filter(r=>r.phase==="battle");
+     const stageSummary=(key)=>{
+      const nums=frameRows.map(r=>r[key]).filter(Number.isFinite).sort((a,b)=>a-b);
+      if(!nums.length)return {n:0,mean:0,p95:0,max:0};
+      return {n:nums.length,mean:Math.round(nums.reduce((a,b)=>a+b,0)/nums.length*100)/100,
+       p95:Math.round(nums[Math.min(nums.length-1,Math.floor(nums.length*.95))]*100)/100,
+       max:Math.round(nums.at(-1)*100)/100};
+     };
+     const stages=Object.fromEntries(["gapMs","gapAfterPrevMs","logicMs","hudMs",
+      "networkMs","drawMs","totalMs"].map(key=>[key,stageSummary(key)]));
+     return {stages,fps:Math.round(gaps.length*1000/(now-start)*10)/10,frameCount:gaps.length,
       gapP50Ms:percentile(.50),gapP95Ms:percentile(.95),gapMaxMs:percentile(.9999),
       unitsInitially:positions.size,unitsFinal:q.units.length,moved,
       artCalls:art.totalCalls,artMs:Math.round(art.totalMs*10)/10,
@@ -128,6 +138,7 @@ const round=n=>Math.round(n*10)/10;
      trial:scene.trial||1,units:scene.units,large:scene.large,spells:scene.spells,
      fps:measure.fps,p95:measure.gapP95Ms,moved:measure.moved,ends:measure.unitsFinal,
      artCalls:measure.artCalls,artMs:measure.artMs,artByKind:measure.artByKind,
+     stages:measure.stages,
      effects:measure.effects,projectiles:measure.projectiles,
      cachedTiles:measure.cachedTiles}));
     await page.close();
