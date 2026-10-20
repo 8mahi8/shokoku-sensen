@@ -26,6 +26,8 @@ const profiles=[
 ];
 const scenes=[
  {id:"standard",units:14,large:0,spells:0,description:"mid-match infantry/scout/engineer/archer engagement"},
+ {id:"crowded",units:18,large:0,spells:0,description:"18 real infantry/ranged/scout units, each side spends 11/12 energy"},
+ {id:"dense",units:20,large:0,spells:0,description:"20 real infantry/archer units, each side spends 10/12 energy"},
  {id:"light",units:10,large:0,spells:0,description:"exactly 10 ordinary units at same frontline as heavy control"},
  {id:"heavy",units:10,large:2,spells:0,description:"tank vs guardian with infantry and archers"},
  {id:"spell",units:8,large:0,spells:1,description:"suppressor and archer vs drones/sentinel with live barrage"},
@@ -81,6 +83,13 @@ const round=n=>Math.round(n*10)/10;
     assert.equal(setup.spells,scene.spells,tag+" real spell count");
     assert.ok(setup.actions.every(a=>a.energyAfter>=0&&a.energyBefore<=12),
      tag+" cannot bypass resource budget");
+    if(["crowded","dense"].includes(scene.id)){
+     assert.ok(setup.actions.length===10,tag+" must spend five legal cards per side");
+     assert.ok(setup.actions.every(a=>a.energyAfter>=0&&a.energyAfter<=12),
+      tag+" energy must remain within legal bounds");
+     assert.equal(setup.byTeam[1],scene.units/2,tag+" blue initial units");
+     assert.equal(setup.byTeam[2],scene.units/2,tag+" red initial units");
+    }
     // Hide diagnostics text in normal screenshots without disabling measurement.
     await page.addStyleTag({
      content:'[aria-label="通信・描画の診断"]{opacity:0!important}'
@@ -161,7 +170,7 @@ const round=n=>Math.round(n*10)/10;
   }
   fs.writeFileSync(path.join(out,"realistic-results.json"),JSON.stringify(allResults,null,2));
   assert.equal(allResults.length,scenes.length*2+4);
-  console.log("PASS: normal/mixed, tank/guardian, and spell combat, WebKit + compact Sites; videos/screenshots saved for human review");
+  console.log("PASS: 8/10/14/18/20-unit real-card battles, heavy art + spells, WebKit + compact Sites; visual evidence saved");
  }finally{
   for(const browser of browsers)try{await browser.close()}catch(_){}
   await new Promise(resolve=>server.close(resolve));
