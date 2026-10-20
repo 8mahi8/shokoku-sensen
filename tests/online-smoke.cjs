@@ -16,6 +16,59 @@ for(const p of ["online-embed.html","online-ipad.html"]){
  for(const [index,script] of inline.entries())new vm.Script(script,{filename:p+"#script"+index});
  assert.ok(html.includes('id="newRoom"'),p+" lacks new room button");
 }
+// School HTML balance editor must be at the top of both pasteable bundles.
+// It must drive actual CLASSES HP/base-damage numbers, not display-only labels.
+const classStart=game.indexOf("const CLASSES={");
+const classEnd=game.indexOf("const IDS=Object.keys(CLASSES);",classStart);
+assert.ok(classStart>0&&classEnd>classStart,"Online unit stat block missing");
+const initializeClasses=new Function("window",game.slice(classStart,classEnd)+";return CLASSES;");
+const originalClasses=initializeClasses({});
+const schoolKeys=Object.keys(originalClasses);
+assert.equal(schoolKeys.length,9,"Only nine playable unit types, no spells");
+let defaultEditor=null;
+for(const pageName of ["online-ipad.html","online-embed.html"]){
+ const html=read(pageName);
+ const tag=html.match(/<script id="shokoku-school-unit-stats">([\s\S]*?)<\/script>/);
+ assert.ok(tag,pageName+" school tuning script must exist");
+ assert.ok(html.indexOf(tag[0])<html.indexOf("<style>"),"Tuning table must be visible at the beginning");
+ const globals={};new vm.Script(tag[1],{filename:pageName+"#balance"}).runInNewContext({window:globals});
+ const table=globals.SHOKOKU_UNIT_STATS;
+ assert.deepEqual(Object.keys(table).sort(),schoolKeys.slice().sort(),"All characters must be editable");
+ for(const id of schoolKeys){
+  assert.equal(table[id].hp,originalClasses[id].hp,pageName+" default HP "+id);
+  assert.equal(table[id].damage,originalClasses[id].damage,pageName+" default damage "+id);
+ }
+ if(defaultEditor)assert.equal(tag[1],defaultEditor,"Both Google Sites bundles must use same values");
+ defaultEditor=tag[1];
+ const baseline=initializeClasses(globals);
+ for(const id of schoolKeys){
+  assert.equal(baseline[id].hp,originalClasses[id].hp);
+  assert.equal(baseline[id].damage,originalClasses[id].damage);
+ }
+ const edited={...table,infantry:{hp:177,damage:29},guardian:{hp:2222,damage:147}};
+ const result=initializeClasses({SHOKOKU_UNIT_STATS:edited});
+ assert.equal(result.infantry.hp,177,"Infantry HP is a runtime stat");
+ assert.equal(result.infantry.damage,29,"Infantry damage is a runtime stat");
+ assert.equal(result.guardian.hp,2222,"Guardian HP is a runtime stat");
+ assert.equal(result.guardian.damage,147,"Guardian damage is a runtime stat");
+ assert.equal(result.infantry.cost,originalClasses.infantry.cost,"Editing HP must not change cost");
+ assert.equal(result.guardian.splashScale,originalClasses.guardian.splashScale,
+  "Editing base damage must not change splash ratio");
+ for(const id of schoolKeys.filter(x=>!["infantry","guardian"].includes(x))){
+  assert.equal(result[id].hp,originalClasses[id].hp,id+" HP remains default");
+  assert.equal(result[id].damage,originalClasses[id].damage,id+" damage remains default");
+ }
+ const bad=initializeClasses({SHOKOKU_UNIT_STATS:{
+  infantry:{hp:-1,damage:Infinity},guardian:{hp:"200",damage:999999}
+ }});
+ assert.equal(bad.infantry.hp,originalClasses.infantry.hp,"Invalid HP ignored");
+ assert.equal(bad.infantry.damage,originalClasses.infantry.damage,"Invalid damage ignored");
+ assert.equal(bad.guardian.hp,originalClasses.guardian.hp,"Non-numeric HP ignored");
+ assert.equal(bad.guardian.damage,originalClasses.guardian.damage,"Out-of-range damage ignored");
+}
+assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
+ "Published modular online.html keeps its original balanced defaults");
+
 const page=read("online.html");
 assert.ok(page.includes('./online-net.js?v=9')&&page.includes('./online-research.js?v=2')&&page.includes('./online-game.js?v=13'));
 assert.ok(research.includes('researchConsent')&&research.includes('MAX_MATCHES=8'));
@@ -85,4 +138,4 @@ assert.equal(animate(unit),unit,"host visuals must remain authoritative");
 assert.ok(net.includes("syncDiagnostics"),"network performance sampling must exist");
 assert.ok(game.includes("setupPerfPanel()"),"opt-in performance overlay must exist");
 
-console.log("PASS: syntax, round isolation, reconnect, rematch, independent host/guest decks and 64 shuffle checks, offline BOT, guest BOT, tablet UI and bundles");
+console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
