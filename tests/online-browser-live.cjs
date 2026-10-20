@@ -159,6 +159,54 @@ const deadline=async (f,label,timeout=18000)=>{
   await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
   console.log("GUEST REST RECOVERY",JSON.stringify({from:seqBefore,to:recovered.seq,rest:recovered.restSeq}));
   await guest.screenshot({path:path.join(qaVideoDir,"guest-after-network-recovery.png"),fullPage:false});
+  // This is an actual BROWSER NETWORK outage, not only a muted Firebase
+  // callback. The host remains online and keeps publishing authoritative
+  // snapshots. Do not suppress exceptions or treat stale data as recovery.
+  const offlineBefore=await guest.evaluate(()=>({
+   seq:window.__onlineSeq||0,elapsed:window.__shokokuQa.snapshot().elapsed
+  }));
+  const hostBeforeOffline=await state();
+  await guestCtx.setOffline(true);
+  try{
+   await delay(2700);
+   const frozen=await guest.evaluate(()=>({
+    seq:window.__onlineSeq||0,elapsed:window.__shokokuQa.snapshot().elapsed,
+    online:window.ShokokuNet.syncDiagnostics().connected
+   }));
+   const duringOutage=await state();
+   assert.ok(duringOutage.seq>hostBeforeOffline.seq,
+    "host must advance its authoritative state while guest is offline");
+   assert.equal(frozen.seq,offlineBefore.seq,
+    "guest must not claim to have applied new packets with network disabled");
+   console.log("REAL GUEST OFFLINE",JSON.stringify({
+    before:offlineBefore,offline:frozen,
+    hostSeqBefore:hostBeforeOffline.seq,hostSeqDuring:duringOutage.seq
+   }));
+  }finally{
+   // Always reconnect even if the outage assertion fails, so finally cleanup
+   // and Firebase room deletion do not depend on the page being offline.
+   await guestCtx.setOffline(false);
+  }
+  const onlineHostState=await deadline(async()=>{
+   const next=await state();return next?.seq>hostBeforeOffline.seq+1?next:null;
+  },"host continues after physical guest network restore",18000);
+  const liveAgain=await deadline(async()=>{
+   const v=await guest.evaluate(()=>({
+    seq:window.__onlineSeq||0,
+    diag:window.ShokokuNet.syncDiagnostics(),
+    world:window.__shokokuQa.snapshot(),
+    error:window.__onlineFrameError||null
+   }));
+   return v.seq>=onlineHostState.seq&&v.world.phase==="battle"&&
+    v.diag.connected&&v.diag.error===""&&!v.error?v:null;
+  },"WebKit guest catches up after offline/online network transition",25000);
+  assert.ok(liveAgain.seq>offlineBefore.seq,"recovery must apply a newer authoritative snapshot");
+  console.log("REAL GUEST NETWORK RESTORED",JSON.stringify({
+   from:offlineBefore.seq,to:liveAgain.seq,connected:liveAgain.diag.connected,
+   count:liveAgain.world.units.length,phase:liveAgain.world.phase
+  }));
+  await guest.screenshot({path:path.join(qaVideoDir,"guest-after-physical-reconnect.png"),
+   fullPage:false});
   // Continuous school 1v1: one temporary Firebase room must survive six
   // host->guest rematches, including realistic 18/20-unit battles.
   // No permanent room or change to the public Google Sites deployment.
