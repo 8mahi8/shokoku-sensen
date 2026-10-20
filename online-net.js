@@ -8,7 +8,7 @@ const FIREBASE_DB_URL="https://mygame-df915-default-rtdb.firebaseio.com/";
 const ROOT="shokokuRooms1v1";
 const $=id=>document.getElementById(id);
 const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)crypto.getRandomValues(a);else throw Error("安全な乱数が使えません");return Array.from(a,x=>x.toString(36)).join("-");};
-const clientId=token(), ROOM_VERSION=1;
+const clientId=token(), ROOM_VERSION=2;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
 let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false;
@@ -89,7 +89,10 @@ async function registerPresence(){
   if(current!==room||!connected){await op.cancel().catch(()=>{});return;}
   disconnectOp=op;
   await playerRef.child("online").set(true);
- }catch(e){setError(e)}finally{presencePending=false;}
+ }catch(e){setError(e)}finally{
+  presencePending=false;
+  if(room&&room!==current&&connected)registerPresence().catch(setError);
+ }
 }
 function receiveGuestWorld(packet){
  if(packet?.round===meta?.round&&Number.isInteger(packet.seq)){
@@ -192,23 +195,28 @@ function setupRoom(code,isHost){
   updateUI();
  });
  attach(room.child("meta"),"value",snap=>{
-  const before=meta?.status;meta=snap.val();
-  if(meta?.status==="lobby"&&before==="finished"){
+  const before=meta?.status,priorRound=meta?.round;
+  meta=snap.val();
+  // Short lobby transitions may be skipped: detect new rounds by number.
+  const newRound=Number(priorRound)>0&&Number(meta?.round)>Number(priorRound);
+  if(newRound||(meta?.status==="lobby"&&before==="finished")){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
-   game?.resetForLobby?.();onlinePanel(true);$("networkBar").classList.add("hidden");
-   show("再戦の準備をしてください。2人とも準備完了で開始できます");
+   window.ShokokuResearch?.withdraw?.();
+   game?.resetForLobby?.();
+   onlinePanel(meta?.status!=="playing");$("networkBar").classList.add("hidden");
+   if(meta?.status!=="playing")show("再戦の準備をしてください。2人とも準備完了で開始できます");
   }
-  if(meta?.status==="playing"&&before!=="playing"){
+  if(meta?.status==="playing"&&(before!=="playing"||newRound)){
    phase="playing";lastRemoteAppliedAt=performance.now();onlinePanel(false);
    if(host){
     game?.begin();
     maybePublish(true);
-   }
+   }else if(newRound)restRecoverGuest();
   }
   if(meta?.status==="finished"&&before!=="finished"){
    phase="finished";
@@ -253,7 +261,7 @@ async function create(){
    const now=Date.now()+serverOffset;
    const proposed={
     meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
-    players:{host:{id:clientId,ready:false,online:true,joinedAt:now}}
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true}}
    };
    const result=await ref.transaction(old=>{
     if(old===null)return proposed;
@@ -275,7 +283,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -356,7 +364,7 @@ function maybePublish(force=false){
     now-publishRetryAt<(publishRetryCount>=8?18000:4800)))return;
   // At 8 retries switch to a slower watch, not a permanent deadlock.
   publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);
- }else if(!force&&now-lastSend<180)return;
+ }else if(!force&&now-lastSend<(game.world()?.units?.length>=50?180:125))return;
  lastSend=now;publishing=true;publishStartedAt=now;
  const current=room,epoch=networkEpoch,serial=++publishSerial;
  const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
@@ -396,23 +404,29 @@ async function rematch(){
   });
  }catch(e){setError(e)}finally{$("start").disabled=false;}
 }
-async function resetLobby(){
- if(solo){location.reload();return;}
+function resetLobby(){
  const leaving=room,seat=host?"host":"guest";
- // Write offline before navigating, and leave onDisconnect armed as a fallback.
- // Never write another player's seat after their ID has changed.
- room=null;phase="none";
- remoteEpoch++;pendingRemote=null;remoteScheduled=false;
+ // Return to the room picker immediately. Never block Safari/Sites navigation
+ // on a Firebase read/write; onDisconnect remains a fallback for stale presence.
+ room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;
+ remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;
+ restReadPending=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
- if(leaving&&connected){
-  try{
-   const ref=leaving.child("players/"+seat),current=(await ref.once("value")).val();
-   if(current?.id===clientId)
-    await ref.update({online:false,ready:false,lastSeen:firebase.database.ServerValue.TIMESTAMP});
-  }catch(e){setError(e)}
- }
  detach();roomCode="";team=0;host=false;players=null;meta=null;result=null;
- location.reload();
+ seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+ window.__onlineSeq=0;window.__onlineHandSig="";
+ document.body.classList.remove("soloMode");
+ $("networkBar").classList.add("hidden");
+ window.ShokokuResearch?.withdraw?.();
+ game?.resetForLobby?.();
+ onlinePanel(true);updateUI();
+ show("新しいルームを作成するか、5桁の番号で参加してください");
+ if(leaving&&connected){
+  // Only change our own seat; a new visitor could have claimed a stale seat.
+  leaving.child("players/"+seat).transaction(old=>
+   old?.id===clientId?{...old,online:false,ready:false}:undefined,
+   undefined,false).catch(e=>console.warn("Room exit cleanup:",e));
+ }
 }
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
