@@ -125,6 +125,21 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  guest.api.sendCommand({id:"infantry",x:1060,y:320});await settle();
  assert.equal(host.game.accepted.length,1);
  assert.ok(guest.game.received.at(-1).data.units.length===1,"guest should see summons");
+ // A failed JSON snapshot must not leave the host publisher permanently busy.
+ // The next valid frame can always be transmitted after an invalid transient field.
+ const beforeSerializationFailure=guest.game.received.at(-1).seq;
+ host.game.data.temporaryUnsupported=BigInt(123);
+ host.api.maybePublish(true);await settle();
+ assert.equal(guest.game.received.at(-1).seq,beforeSerializationFailure,
+  "invalid snapshot must never partially upload");
+ delete host.game.data.temporaryUnsupported;
+ host.game.data.elapsed=4.1234567;
+ host.api.maybePublish(true);await settle();
+ assert.ok(guest.game.received.at(-1).seq>beforeSerializationFailure,
+  "host publisher must recover after JSON encoding failure");
+ assert.equal(guest.game.received.at(-1).data.elapsed,4.123,
+  "guest receives quantized timing without changing host's exact time");
+ assert.equal(host.game.data.elapsed,4.1234567,"host physics remains unquantized");
  host.api.finish({result:"win",reason:"test winner"});await settle();
  assert.equal(guest.api.resultForMe(),"lose");
  assert.equal(guest.game.results,1);
