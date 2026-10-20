@@ -32,9 +32,13 @@ jobs:
           echo "RTDB_ROOM_LIST_HTTP=$root_code"
           if test -f /tmp/rtdb-probe.txt; then head -c 180 /tmp/rtdb-probe.txt; echo; fi
       - name: Prepare Google Sites paste file
-        run: cp online-ipad.html Shokoku_III_1v1_school_iPad.txt
+        run: |
+          cp online-ipad.html Shokoku_III_1v1_school_iPad.txt
+          cp research-recover.html Shokoku_III_Research_Recovery.html
       - uses: actions/upload-artifact@v4
         with:
           name: Shokoku-III-1v1-iPad
-          path: Shokoku_III_1v1_school_iPad.txt
+          path: |
+            Shokoku_III_1v1_school_iPad.txt
+            Shokoku_III_Research_Recovery.html
           retention-days: 30
