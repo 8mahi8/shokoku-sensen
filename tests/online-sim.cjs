@@ -83,7 +83,7 @@ function client(){
   return dom.get(id);
  };
  const document={getElementById:get,querySelectorAll:()=>[],body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
- const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
+ const context={window:{crypto:webcrypto,firebase,SHOKOKU_CLOUD_RESEARCH_READY:true},crypto:webcrypto,document,firebase,
   console,Date,Math,Uint32Array,Promise,URL,URLSearchParams,performance:{now:()=>virtualNow},
   navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){refreshCount++},hostname:"localhost",search:""},setTimeout,clearTimeout,
   fetch:async url=>{
