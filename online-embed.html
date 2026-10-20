@@ -407,6 +407,8 @@ function updateUI(){
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
  }
  window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
+  ownArchiveConsent:players?.[host?"host":"guest"]?.archiveConsent===true,
+  bothArchiveConsent:!!room&&players?.host?.archiveConsent===true&&players?.guest?.archiveConsent===true,
   ownConsent:!!players?.[host?"host":"guest"]?.researchConsent,
   bothConsent:!!room&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent,
   playing:meta?.status==="playing"});
@@ -645,7 +647,7 @@ async function create(){
    const now=Date.now()+serverOffset;
    const proposed={
     meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
-    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true}}
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true,archiveConsent:false}}
    };
    const result=await ref.transaction(old=>{
     if(old===null)return proposed;
@@ -667,7 +669,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true,archiveConsent:false}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -729,6 +731,48 @@ async function setResearchConsent(value){
   old?.id===clientId?{...old,researchConsent:!!value}:undefined,undefined,false);
  if(!changed.committed)throw Error("参加情報が変更されました");
  return true;
+}
+// Lightweight optional archive: one sanitized observation per completed round
+// inside the EXISTING RTDB room. No new service, collection or auth provider.
+async function setArchiveConsent(value){
+ if(solo||!room||!players||!connected)return false;
+ const seat=host?"host":"guest";
+ if(players[seat]?.id!==clientId||
+    (value&&(meta?.status!=="lobby"||players[seat]?.researchConsent!==true)))return false;
+ const result=await room.child("players/"+seat).transaction(old=>
+  old?.id===clientId?{...old,archiveConsent:!!value}:undefined,undefined,false);
+ return !!result.committed;
+}
+async function archiveRound(match){
+ if(solo||!host||!connected||!room||phase!=="finished"||
+    !match||match.schema!==1||match.mode!=="online")return {saved:false,reason:"not-eligible"};
+ const current=room,round=meta?.round;
+ if(!Number.isSafeInteger(round)||round<1||round>24)return {saved:false,reason:"round-cap"};
+ // Only these fields are copied. No room number, client ID or participant name.
+ const cleaned={schema:1,mode:"online",matchType:match.matchType,
+  guestControlHistory:Array.isArray(match.guestControlHistory)?
+   match.guestControlHistory.slice(0,32).map(v=>({t:v.t,guest:v.guest})):[],
+  controlOverflow:!!match.controlOverflow,overflow:!!match.overflow,
+  actions:Array.isArray(match.actions)?match.actions.slice(0,500).map(a=>({
+   t:a.t,phase:a.phase,team:a.team,card:a.card,x:a.x,y:a.y,
+   energyBefore:a.energyBefore,ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4):[]})):[],
+  samples:Array.isArray(match.samples)?match.samples.slice(0,80).map(v=>({
+   t:v.t,energy:v.energy,castles:v.castles,forts:v.forts,units:v.units})):[],
+  result:match.result?{winner:match.result.winner,duration:match.result.duration,
+   castleHp:match.result.castleHp,fortOwners:match.result.fortOwners}:null};
+ if(!cleaned.result||JSON.stringify(cleaned).length>60000)
+  return {saved:false,reason:"too-large"};
+ const people=(await current.child("players").once("value")).val();
+ if(room!==current||!connected||meta?.round!==round||
+  !people?.host?.archiveConsent||!people?.guest?.archiveConsent||
+  !people?.host?.researchConsent||!people?.guest?.researchConsent||
+  people.host.id!==clientId)return {saved:false,reason:"no-consent"};
+ // Existing room access rules apply: if permissions disallow this child,
+ // local match saving continues and the error is shown without affecting play.
+ const result=await current.child("researchRounds/"+round).transaction(old=>
+  old===null?{schema:1,createdAt:Date.now()+serverOffset,match:cleaned}:undefined,
+  undefined,false);
+ return {saved:!!result.committed,reason:result.committed?null:"already-saved"};
 }
 function sendCommand(c){
  if(host||!room||phase!=="playing")return;
@@ -835,7 +879,7 @@ const api={
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
   get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
   get researchGuestControl(){return players?.guest?.botControl===true?"bot":players?.guest?.botControl===false?"human":"unknown"},
-  setResearchConsent,
+  setResearchConsent,setArchiveConsent,archiveRound,
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
@@ -899,6 +943,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 const VERSION=1,KEY="shokoku-research-batch-v1",MAX_MATCHES=8,MAX_ACTIONS=500,MAX_SAMPLES=80;
 const $=id=>document.getElementById(id);
 let soloConsent=true,onlineConsent=false,onlineBoth=false,inRoom=false,playing=false;
+let ownArchiveConsent=false,bothArchiveConsent=false;
 let active=null,archived=[],notice="",lastSampleAt=-Infinity;
 function safeLoad(){
  try{
@@ -975,13 +1020,21 @@ function finish(world){
  active.result={winner:hp[0]===hp[1]?0:hp[0]>hp[1]?1:2,
   duration:energy(world.elapsed),castleHp:hp,
   fortOwners:world.forts.map(f=>f.owner)};
- archived.push(active);
+ const completed=active;
+ archived.push(completed);
  archived=archived.slice(-MAX_MATCHES);
  active=null;
  const saved=safeSave();
  status((saved?"端末内に一時保存":"端末保存不可。画面を閉じる前に")+
   "｜"+archived.length+"試合分。JSON書き出しを忘れずに");
  sync();
+ if(completed.mode==="online"&&bothArchiveConsent&&onlineBoth){
+  Promise.resolve().then(()=>window.ShokokuNet?.archiveRound?.(completed))
+   .then(r=>status(r?.saved?
+    "試合データをFirebaseのルームにも保存しました。端末にも保存済み":
+    "端末内に保存済み。ルームへの保存はできませんでした"))
+   .catch(()=>status("端末内に保存済み。ルームのFirebase権限で保存できませんでした"));
+ }
 }
 function withdraw(){
  if(active){active=null;lastSampleAt=-Infinity;}
@@ -1042,6 +1095,7 @@ function clear(){
 function syncOnline(o){
  if(o){
   onlineConsent=!!o.ownConsent;onlineBoth=!!o.bothConsent;inRoom=!!o.inRoom;playing=!!o.playing;
+  ownArchiveConsent=!!o.ownArchiveConsent;bothArchiveConsent=!!o.bothArchiveConsent;
   // Withdrawal in either seat invalidates all unexported active observations.
   if(active&&active.mode!=="solo"&&!onlineBoth)withdraw();
  }
@@ -1050,6 +1104,15 @@ function syncOnline(o){
   checkbox.checked=inRoom?onlineConsent:soloConsent;
   checkbox.disabled=playing;
  }
+ const archive=$("researchArchiveConsent");
+ if(archive){
+  archive.checked=inRoom&&ownArchiveConsent;
+  archive.disabled=!inRoom||(playing&&!ownArchiveConsent);
+ }
+ const archiveHint=$("researchArchiveHint");
+ if(archiveHint)archiveHint.textContent=!inRoom?"オンライン参加後に選べます":
+  bothArchiveConsent?"両者ON：試合終了後にルーム内へ記録（回収は管理者エクスポート）":
+  "両者がONの試合だけルームにも保存。OFFなら従来の端末記録のみ";
  const hint=$("researchHint");
  if(hint)hint.textContent=inRoom?
   onlineBoth?"匿名対戦記録 ON（ホスト端末のみ）。どちらも停止できます":
@@ -1079,6 +1142,11 @@ function init(){
   '<div id="researchStatus" role="status"></div>'+
   '<textarea id="researchText" hidden readonly aria-label="JSONコピー用テキスト" style="width:100%;height:55px"></textarea>'+
   '<small>身内対戦の改善用に匿名のカード使用・戦況・勝敗を初期ONで記録します。嫌ならOFF・対戦中は右上の停止ボタンから無効化できます。名前・ルーム番号・端末ID・チャットは保存せず、自動送信もしません。終了後は必要に応じてJSONを書き出してください。</small>';
+ controls.insertAdjacentHTML("beforeend",
+  '<div style="border-top:1px solid #668c95;padding-top:7px;margin-top:7px">'+
+  '<label><input id="researchArchiveConsent" type="checkbox"> 研究用ログをルームに保存（初期OFF）</label>'+
+  '<div id="researchArchiveHint">オンラインの両者がONにしたときだけFirebaseへ記録します</div>'+
+  '<small>ルーム番号から参照できる既存Firebase領域に保存します。アクセス権は現在のFirebaseルール次第で、完全な非公開保存ではありません。個人名等は保存しません。端末内記録は別に残ります。</small></div>');
  panel.insertBefore(controls,$("netStatus"));
  const endTools=document.createElement("div");
  endTools.style.cssText="margin-top:7px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap";
@@ -1094,6 +1162,14 @@ function init(){
   }else{soloConsent=false;withdraw();}
  });
  document.body.appendChild(live);
+ $("researchArchiveConsent").addEventListener("change",async e=>{
+  const value=!!e.target.checked;
+  try{
+   const accepted=await window.ShokokuNet?.setArchiveConsent?.(value);
+   if(!accepted)e.target.checked=!value;
+  }catch(_){e.target.checked=!value;status("ルーム保存の同意を更新できませんでした");}
+  syncOnline();
+ });
  $("researchConsent").addEventListener("change",async e=>{
   const value=!!e.target.checked;
   if(inRoom){
