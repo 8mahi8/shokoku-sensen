@@ -8,7 +8,7 @@ const storage={getItem:k=>memory.get(k)||null,
  setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
 const document={readyState:"loading",addEventListener(){},
  getElementById(){return null},querySelectorAll(){return []}};
-const window={ShokokuNet:{
+const window={SHOKOKU_CLOUD_RESEARCH_READY:true,ShokokuNet:{
  get isHost(){return currentHost},
  publishResearch:async match=>{
   if(refuse)throw Error("PERMISSION_DENIED");
