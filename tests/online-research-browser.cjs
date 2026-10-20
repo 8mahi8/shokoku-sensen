@@ -25,8 +25,10 @@ const server=http.createServer((req,res)=>{
    await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
    await page.goto("http://127.0.0.1:8798/"+source+"?qa=1",{waitUntil:"domcontentloaded"});
    await page.locator("#researchConsent").waitFor({state:"visible"});
-   assert.equal(await page.locator("#researchConsent").isChecked(),false,"consent defaults off");
+   assert.equal(await page.locator("#researchConsent").isChecked(),true,"anonymous local logging defaults on");
    assert.equal(await page.locator("[data-research-export]").first().isDisabled(),true);
+   await page.locator("#researchConsent").uncheck();
+   assert.equal(await page.locator("#researchConsent").isChecked(),false,"solo recording can be disabled");
    await page.locator("#researchConsent").check();
    await page.locator("#netSoloLevels button[data-solo-level='hard']").click();
    await page.locator("#netSolo").click();
@@ -60,7 +62,7 @@ const server=http.createServer((req,res)=>{
    await page.locator("#researchClear").click();
    assert.equal(await page.evaluate(()=>window.__shokokuResearchQa.get().matches.length),0);
    assert.deepEqual(errors,[],"no JavaScript browser errors");
-   console.log("PASS",label,source,"opt-in captured complete match, export, persist, erase");
+   console.log("PASS",label,source,"default-on local match logging, opt-out, export, persist, erase");
    await page.close();
   }
  }finally{

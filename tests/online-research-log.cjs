@@ -20,12 +20,14 @@ const world=(t=0)=>({elapsed:t,difficulty:"hard",
  forts:[{owner:1,hp:12},{owner:2,hp:9},{owner:0,hp:12}],
  units:[{team:1,key:"scout",x:510,y:200,hp:130},
   {team:2,key:"archer",x:710,y:210,hp:80}]});
+assert.equal(rec.soloConsent,true,"solo logging is enabled for friend-only play by default");
 rec.begin("solo",world());
-assert.equal(rec.active,false,"OFF by default");
-assert.equal(qa.get().matches.length,0,"no implicit recording");
+assert.equal(rec.active,true,"default-on local solo recording begins");
+rec.withdraw();
+assert.equal(qa.get().matches.length,0,"stopping a game discards its uncommitted record");
 qa.enableSolo();
 rec.begin("solo",world());
-assert.equal(rec.active,true,"opt-in solo recording starts");
+assert.equal(rec.active,true,"solo logging can be re-enabled");
 rec.action({t:1,phase:"battle",team:1,card:"scout",x:300,y:205,
  energyBefore:8,ownHand:["scout","archer","tank","ward"]});
 rec.action({t:2,phase:"battle",team:2,card:"archer",x:930,y:205,
@@ -43,7 +45,7 @@ const serialized=JSON.stringify(first);
 for(const forbidden of ["clientId","roomCode","ipAddress","email","authToken","playerName","guestId"])
  assert.ok(!serialized.includes(forbidden),forbidden+" must not appear");
 assert.equal(first[0].mode,"solo");
-// Consent must be bilateral. A solo opt-in must never carry into online play.
+// Only the host records. Either peer can still opt out at any time.
 rec.syncOnline({inRoom:true,ownConsent:true,bothConsent:false,playing:false});
 rec.begin("online",world());
 assert.equal(rec.active,false,"host-only consent does not record");
@@ -85,4 +87,4 @@ ctx.window.__shokokuResearchQa.enableSolo();
 ctx.window.ShokokuResearch.begin("solo",world());
 ctx.window.ShokokuResearch.finish(world(1));
 assert.equal(ctx.window.__shokokuResearchQa.get().matches.length,1,"sandbox keeps downloadable in-memory result");
-console.log("PASS: default OFF, bilateral consent, anonymized actions, bounded samples, storage failure, withdrawal, erase");
+console.log("PASS: default ON, bilateral opt-out, anonymized actions, bounded samples, storage failure, withdrawal, erase");
