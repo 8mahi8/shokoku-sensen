@@ -159,10 +159,11 @@ const deadline=async (f,label,timeout=18000)=>{
   await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
   console.log("GUEST REST RECOVERY",JSON.stringify({from:seqBefore,to:recovered.seq,rest:recovered.restSeq}));
   await guest.screenshot({path:path.join(qaVideoDir,"guest-after-network-recovery.png"),fullPage:false});
-  // Continuous school 1v1: a single Firebase room must survive four
-  // rapid full host->guest round transitions, not merely one new-game click.
+  // Continuous school 1v1: one temporary Firebase room must survive six
+  // host->guest rematches, including realistic 18/20-unit battles.
+  // No permanent room or change to the public Google Sites deployment.
   // Do not add extra local test rooms or ever modify the existing real-player data.
-  for(const round of [2,3,4,5]){
+  for(const round of [2,3,4,5,6,7]){
    await host.evaluate(()=>window.ShokokuNet.finish({result:"win",reason:"QA round transition"}));
    await deadline(async()=>{
     const r=await fetch(urlDB+"/"+code+"/meta.json");
@@ -190,8 +191,8 @@ const deadline=async (f,label,timeout=18000)=>{
    // Build realistic combat with actual legal costs/deployments on host.
    // The resulting WebKit guest render uses real Firebase state, not
    // a directly injected client-side fake or 130-unit stress preset.
-   const scenario={2:"standard",3:"light",4:"heavy",5:"spell"}[round];
-   const expected={standard:14,light:10,heavy:10,spell:8}[scenario];
+   const scenario={2:"standard",3:"light",4:"heavy",5:"spell",6:"crowded",7:"dense"}[round];
+   const expected={standard:14,light:10,heavy:10,spell:8,crowded:18,dense:20}[scenario];
    const seeded=await host.evaluate(s=>window.__shokokuQa.seedRealisticBattle(s),scenario);
    assert.ok(seeded&&seeded.units===expected&&seeded.actions.every(a=>a.ok),
     "legal realistic host scene "+scenario);
@@ -232,23 +233,34 @@ const deadline=async (f,label,timeout=18000)=>{
    assert.equal(synced.diag.error,"","guest application errors in "+scenario);
    await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-initial.png"),
     fullPage:false});
-   await delay(1100);
+   // Isolate active REAL Firebase WebKit guest frames from initial resource
+   // loading and room transitions. Measurements are CI only, not school iPad.
+   await guest.evaluate(()=>window.__shokokuQa.resetFrameBench());
+   await delay(1500);
    await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-after-1100ms.png"),
     fullPage:false});
-   const later=await guest.evaluate(()=>({
-    phase:window.__shokokuQa.snapshot().phase,
-    count:window.__shokokuQa.snapshot().units.length,
-    perf:window.ShokokuNet.syncDiagnostics(),
-    frameError:window.__onlineFrameError||null
-   }));
+   const later=await guest.evaluate(()=>{
+    const frames=window.__shokokuQa.frameBench().filter(r=>r.phase==="battle");
+    const gaps=frames.map(r=>r.gapMs).filter(Number.isFinite).sort((a,b)=>a-b);
+    const p95=gaps[Math.min(gaps.length-1,Math.floor(gaps.length*.95))]||0;
+    return {phase:window.__shokokuQa.snapshot().phase,
+     count:window.__shokokuQa.snapshot().units.length,
+     perf:window.ShokokuNet.syncDiagnostics(),
+     frameSamples:frames.length,
+     gapP95Ms:Math.round(p95*10)/10,
+     frameError:window.__onlineFrameError||null};
+   });
    assert.equal(later.frameError,null,"WebKit guest should not throw during "+scenario);
+   assert.ok(later.frameSamples>=5,"WebKit must paint multiple frames after "+scenario);
+   assert.equal(later.phase,"battle","WebKit guest must remain in battle during "+scenario);
    console.log("REAL FIREBASE GUEST SCENE",JSON.stringify({
     scenario,initialUnits:seeded.units,heavy:seeded.heavy,
     packetStats:{seq:synced.seq,updatesHz:synced.diag.updatesHz,applyMs:synced.diag.applyMs},
-    after1100ms:{count:later.count,updatesHz:later.perf.updatesHz,applyMs:later.perf.applyMs}
+    after1500ms:{count:later.count,updatesHz:later.perf.updatesHz,
+      applyMs:later.perf.applyMs,frameSamples:later.frameSamples,gapP95Ms:later.gapP95Ms}
    }));
   }
-  console.log("CONSECUTIVE ROUNDS: 5 starts incl. 4 repeated rematches in one real Firebase room");
+  console.log("CONSECUTIVE ROUNDS: 7 starts incl. 6 rematches, 8-20 unit scenes in one temporary Firebase room");
   // Actual new-game button path must return to the room picker inside Sites,
   // without iframe location.reload() or awaiting a Firebase round-trip.
   const originalUrl=guest.url();
