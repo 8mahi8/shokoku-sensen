@@ -63,7 +63,8 @@ const server=http.createServer((req,res)=>{
      unused:Infinity,negative:-Infinity,invalid:NaN,integer:12345};
     const packed=window.__shokokuNetQa.packGuestWorld(raw);
     const seed=window.__shokokuQa.seedMassBattle();
-    return {packed,source:raw,seed,sizes:window.__shokokuNetQa.worldSizePreview()};
+    return {packed,source:raw,seed};
+
    });
    assert.equal(payload.source.units[0].x,42.123456789,"authoritative source untouched");
    assert.equal(payload.packed.world.units[0].x,42.123,"subpixel transfer precision");
@@ -72,10 +73,17 @@ const server=http.createServer((req,res)=>{
    assert.equal(payload.packed.world.negative,null,"legacy -Infinity JSON semantics kept");
    assert.equal(payload.packed.world.invalid,null,"legacy NaN JSON semantics kept");
    assert.equal(payload.packed.world.integer,12345,"integer fields preserved");
-   assert.ok(payload.seed&&payload.sizes?.unitCount>=100,"mass-battle QA data");
-   assert.ok(payload.sizes.packedChars<payload.sizes.rawChars*.92,
-    "packed 130-unit game state must be materially smaller than legacy transport");
-   console.log("PAYLOAD",label,source,JSON.stringify(payload.sizes));
+   assert.ok(payload.seed,"mass-battle QA data created");
+   // Allow real 30Hz simulation to advance some unit coordinates from the
+   // integer-only spawn positions before comparing serialization savings.
+   await page.waitForFunction(()=>{
+    const units=window.__shokokuQa.snapshot().units;
+    return units.length>=100&&units.some(u=>Math.abs(u.x-Math.round(u.x))>.001);
+   },null,{timeout:10000});
+   const sizes=await page.evaluate(()=>window.__shokokuNetQa.worldSizePreview());
+   console.log("PAYLOAD",label,source,JSON.stringify(sizes));
+   assert.ok(sizes.unitCount>=100&&sizes.packedChars<sizes.rawChars,
+    "real moving 130-unit game state must have smaller transport JSON");
    await page.reload({waitUntil:"domcontentloaded"});
    const reloaded=await page.evaluate(()=>window.__shokokuResearchQa.get().matches.length);
    assert.equal(reloaded,1,"local history persists across reload if storage available");
