@@ -19,6 +19,7 @@ jobs:
           node-version: '22'
       - run: node tests/online-smoke.cjs
       - run: node tests/online-sim.cjs
+      - run: node tests/online-research-cloud.cjs
       - name: Firebase public read probe (does not modify data)
         shell: bash
         run: |
