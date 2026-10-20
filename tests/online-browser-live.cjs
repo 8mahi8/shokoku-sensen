@@ -242,6 +242,23 @@ const deadline=async (f,label,timeout=18000)=>{
   console.log("PASS LIVE RESEARCH ROOM ARCHIVE",JSON.stringify({
    actions:archived.actions.length,samples:archived.samples.length
   }));
+  // Validate the exact user flow: on a phone-like viewport, open the
+  // one-page collector, tap collect-all, and receive match JSON WITHOUT
+  // entering any room number. Only anonymous researchRounds are fetched.
+  const mobile=await hostCtx.newPage({viewport:{width:390,height:844}});
+  pages.push(mobile);
+  await mobile.goto("http://127.0.0.1:8765/research-recover.html");
+  await mobile.locator("#fetchAll").click();
+  const recovered=await deadline(async()=>{
+   const data=await mobile.evaluate(()=>typeof batch!=="undefined"?batch:null);
+   return data?.matches?.length?data:null;
+  },"phone recovery without room number",22000);
+  assert.ok(recovered.matches.some(m=>m.actions?.length===archived.actions.length&&
+   m.result?.duration===archived.result.duration),
+   "one-click phone export includes QA archived match");
+  assert.ok(!JSON.stringify(recovered).includes(code),"room numbers must be stripped");
+  assert.equal(await mobile.locator("#download").isEnabled(),true);
+  console.log("PASS LIVE PHONE COLLECT-ALL",JSON.stringify({matches:recovered.matches.length}));
   // Continuous school 1v1: one temporary Firebase room must survive six
   // host->guest rematches, including realistic 18/20-unit battles.
   // No permanent room or change to the public Google Sites deployment.
