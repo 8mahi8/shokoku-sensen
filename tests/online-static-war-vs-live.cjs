@@ -49,7 +49,11 @@ const portraitControls=[
  ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,portraitHidden:true})),
  ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,portraitImages:true}))
 ];
-const schedule=[...baseline,...uiControl,...filterControls,...portraitControls];
+const opacityControls=[
+ ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,opacityOff:true})),
+ ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:false,canvasHidden:false,opacityOff:true}))
+];
+const schedule=[...baseline,...uiControl,...filterControls,...portraitControls,...opacityControls];
 const rows=[];
 (async()=>{
  let browser,context;
@@ -72,7 +76,8 @@ const rows=[];
    window.__shokokuQa.setDpr(1);window.__qaTickPause=false;
    const style=document.createElement("style");
    style.textContent="body.qa-no-card-filter .card.unavailable,body.qa-no-card-filter .card.depleted{filter:none!important}"+
-    "body.qa-hide-card-portraits #cards .cardPortrait{visibility:hidden!important}";
+    "body.qa-hide-card-portraits #cards .cardPortrait{visibility:hidden!important}"+
+    "body.qa-no-card-opacity #cards .card.unavailable,body.qa-no-card-opacity #cards .card.depleted{opacity:1!important}";
    document.head.append(style);
   });
   const expectedBacking=await page.evaluate(()=>[
@@ -86,7 +91,7 @@ const rows=[];
     document.getElementById("field").style.visibility="visible";
     document.getElementById("cards").style.visibility="visible";
     document.getElementById("nextCard").style.visibility="visible";
-    document.body.classList.remove("qa-no-card-filter","qa-hide-card-portraits");
+    document.body.classList.remove("qa-no-card-filter","qa-hide-card-portraits","qa-no-card-opacity");
     window.__qaTickPause=false;
     // Both paths use the real legal-card summon process. Paused scenes
     // enter frozen mode before the browser can schedule the next rAF tick.
@@ -122,6 +127,7 @@ const rows=[];
     document.getElementById("nextCard").style.visibility=control.hideCards?"hidden":"visible";
     document.body.classList.toggle("qa-no-card-filter",!!control.filterOff);
     document.body.classList.toggle("qa-hide-card-portraits",!!control.portraitHidden);
+    document.body.classList.toggle("qa-no-card-opacity",!!control.opacityOff);
     // Keep HUD, other DOM, Canvas and rAF alive. Only the battle simulation
     // clock and 30Hz tick are frozen in the injected localhost HTML.
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -158,7 +164,9 @@ const rows=[];
      cardsVisible:getComputedStyle(document.getElementById("cards")).visibility==="visible",
      filterOff:document.body.classList.contains("qa-no-card-filter"),
      portraitHidden:document.body.classList.contains("qa-hide-card-portraits"),
+     opacityOff:document.body.classList.contains("qa-no-card-opacity"),
      portraitImages:document.querySelectorAll("#cards img.cardPortrait").length,
+     translucentCardCount:[...document.querySelectorAll("#cards .card")].filter(c=>Number(getComputedStyle(c).opacity)<.99).length,
      unavailableCount:document.querySelectorAll("#cards .card.unavailable").length,
      filteredCardCount:[...document.querySelectorAll("#cards .card")].filter(c=>getComputedStyle(c).filter!=="none").length,
      backing:[cv.width,cv.height],frameError:window.__onlineFrameError||null
@@ -170,6 +178,8 @@ const rows=[];
    assert.equal(measured.cardsVisible,!trial.hideCards,"cards hide control applies");
    assert.equal(measured.filterOff,!!trial.filterOff,"CSS filter isolation applies");
    assert.equal(measured.portraitHidden,!!trial.portraitHidden,"portrait visibility control applies");
+   assert.equal(measured.opacityOff,!!trial.opacityOff,"opacity control applies");
+   if(trial.opacityOff)assert.equal(measured.translucentCardCount,0,"all cards opaque");
    assert.equal(measured.portraitImages,trial.portraitImages?5:0,"PNG portrait control applies");
    if(trial.filterOff)assert.equal(measured.filteredCardCount,0,"CSS card filters really removed");
    assert.deepEqual(measured.backing,expectedBacking,"constant Canvas size");
@@ -204,9 +214,10 @@ const rows=[];
     "QA-only visibility controls isolate battlefield Canvas and card HUD compositor contribution",
     "QA-only filter:none removes CSS filters without hiding cards or touching game balance",
     "QA-only card portrait visibility and PNG substitution isolate Canvas card composition",
+    "QA-only parent opacity:1 isolates card group alpha compositing in WebKit",
     "Headless Linux WebKit is not an actual physical iPad Safari"]
   },null,2));
-  console.log("PASS: WebKit fixed-vs-live, visibility, CSS filters, and static PNG portraits");
+  console.log("PASS: WebKit fixed-vs-live, visibility, filters, PNG portraits, and alpha controls");
  }finally{
   await context?.close().catch(()=>{});
   await browser?.close().catch(()=>{});
