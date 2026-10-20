@@ -3,12 +3,13 @@ on:
   push:
     paths:
       - 'tests/online-heavy-samepage.cjs'
+      - 'tests/online-static-war-vs-live.cjs'
       - '.github/workflows/online-heavy-samepage.yml'
   workflow_dispatch:
 jobs:
   stable-render:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 12
     permissions:
       contents: read
     steps:
@@ -19,9 +20,12 @@ jobs:
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps webkit
       - run: node tests/online-heavy-samepage.cjs
+      - run: node tests/online-static-war-vs-live.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: shokoku-same-page-webkit-perf
-          path: qa-stable-browser/
+          path: |
+            qa-stable-browser/
+            qa-static-war/
           retention-days: 14
