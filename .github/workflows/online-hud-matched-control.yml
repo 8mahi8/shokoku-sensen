@@ -3,6 +3,9 @@ on:
   push:
     paths:
       - 'tests/online-hud-matched-control.cjs'
+      - 'online-game.js'
+      - 'online-ipad.html'
+      - 'online-embed.html'
       - '.github/workflows/online-hud-matched-control.yml'
   workflow_dispatch:
 jobs:
