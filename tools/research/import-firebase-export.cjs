@@ -20,12 +20,29 @@ function sanitize(m){
   controlOverflow:m.controlOverflow===true,overflow:m.overflow===true,
   actions:Array.isArray(m.actions)?m.actions.slice(0,500).map(a=>({
    t:a.t,phase:a.phase,team:a.team,card:a.card,x:a.x,y:a.y,
-   energyBefore:a.energyBefore,ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4):[]})):[],
+   energyBefore:a.energyBefore,ownHand:Array.isArray(a.ownHand)?
+    a.ownHand.slice(0,4).filter(k=>typeof k==="string"):[]})):[],
   samples:Array.isArray(m.samples)?m.samples.slice(0,80).map(s=>({
-   t:s.t,energy:s.energy,castles:s.castles,forts:s.forts,units:s.units})):[],
+   t:s.t,
+   energy:Array.isArray(s.energy)?s.energy.slice(0,2):[],
+   castles:Array.isArray(s.castles)?s.castles.slice(0,2):[],
+   forts:Array.isArray(s.forts)?s.forts.slice(0,3).map(f=>Array.isArray(f)?f.slice(0,2):[]):[],
+   units:Array.isArray(s.units)?s.units.slice(0,180).map(u=>Array.isArray(u)?u.slice(0,5):[]):[]})):[],
   result:m.result&&{winner:m.result.winner,duration:m.result.duration,
-   castleHp:m.result.castleHp,fortOwners:m.result.fortOwners}};
- return validate(out);
+   castleHp:Array.isArray(m.result.castleHp)?m.result.castleHp.slice(0,2):[],
+   fortOwners:Array.isArray(m.result.fortOwners)?m.result.fortOwners.slice(0,3):[]}};
+ validate(out);
+ const cards=new Set(["infantry","scout","engineer","archer","sentinel",
+  "suppress","guardian","drone","tank","barrage","ward"]);
+ if(out.actions.some(a=>!cards.has(a.card)||!Array.isArray(a.ownHand)||
+     a.ownHand.some(k=>!cards.has(k))))throw Error("unexpected card");
+ if(out.samples.some(s=>!Array.isArray(s.energy)||s.energy.length!==2||
+  s.energy.some(n=>!Number.isFinite(n))||
+  !Array.isArray(s.forts)||s.forts.length!==3||
+  s.forts.some(f=>f.length!==2||f.some(n=>!Number.isFinite(n)))||
+  s.units.some(u=>u.length!==5||![1,2].includes(u[0])||!cards.has(u[1])||
+   !u.slice(2).every(Number.isFinite))))throw Error("invalid game snapshot");
+ return out;
 }
 function convert(raw,now=Date.now()){
  const root=raw?.shokokuResearchV1||raw;
