@@ -14,13 +14,33 @@
 - 保存先パスは既存対戦ルーム `/shokokuRooms1v1` とは別の `/shokokuResearchV1/<random 128-bit+ key>`。BRAWLの `/rooms` などには触れない。
 - 1レコードに `createdAt` と `expiresAt`（送信端末日時から約14日）を設定。**expiresAtがあるだけではFirebaseは消去しない**。専用の管理者クリーンアップが必要。
 
+## 2026-10-21 セキュア収集への設計変更（未デプロイ）
+
+以前の**ブラウザから `/shokokuResearchV1` に直接 `.set()` する設計は撤去**。研究データの保存処理は [functions/research/index.js](../functions/research/index.js) の**Firebase Callable Cloud Function `collectShokokuMatch`** のみに限定した。管理者権限をブラウザには渡さない。インラインHTMLの古いブラウザDB直接保存コードもすべて除去し、`online-net.js` と揃えた。今はクラウドREADYフラグが未設定のため機能OFF。
+
+- 研究アップロード時、ブラウザはFirebase匿名Authで得たUIDを同意した自分のルーム座席に記録し、関数へは`roomCode`, `round`, 匿名試合データを送る。保存データそのものにはUID/ルーム番号を**含めない**。
+- Callableは **Firebase Auth必須、App Check必須**。管理用サーバーが試合終了・現在ラウンド・ホストの認証済みUID一致・ゲスト別UID・両者の現在の同意を検証する。クライアント送信のデータ型・許可カード・座標範囲・記録サイズもサーバーで再検証し、不明なフィールドを破棄する。[サーバー検証本体](../functions/research/collector-core.cjs)。
+- 保存先 `/shokokuResearchV1` はブラウザから**完全に読書き禁止**が必須。サーバーのみAdmin SDKで書く。保存レコードはルーム番号・ラウンド・開始時刻のサーバー側ハッシュで重複を防ぐ。1UID/UTC日12回＋**プロジェクト全体/UTC日150回**のサーバー側上限。上限を超えるリクエストは記録を作らない。
+- 保存期間14日、時刻はサーバー発行。リミットの計数記録も `/shokokuResearchRateV1/YYYY-MM-DD` の日別バケットに置き、[管理者削除](../tools/research/prune-expired.py) で期限経過後に消去する。**自動削除は管理者認証と実際のスケジュール導入前には動かない**。
+- この匿名Auth/ App Checkは、まだ対戦用ルームの変更を**完全に本人認証されたものへ転換しない**。既存ルームのRTDB書込ルールが緩ければ、ホスト・ゲストの同意フラグを第三者が偽装できるリスクが残る。**本番有効化には対戦用ルームのアクセスルール精査またはサーバー管理の署名付き同意記録が必須**。サーバーでUIDを照合していることだけを同意の完全保証と見なさない。
+- 学校iPadのGoogle Sites `iframe` でFirebase Auth・App Check（サイトキー・埋込オリジン登録）・Cloud Functions SDKが動くかは**未検証**。利用する場合は有効化後の全員の操作性を損なわないことも必須。
+- Firebase Cloud Functionsの有効化は**課金/Billing要件が発生する可能性がある**ため、本人が料金を承認する前にデプロイ・課金設定を変更しない。今のリポジトリには実認証鍵は格納していない。Firebase接続先の管理者権限はこのチャットに存在せず、ルールの取得・更新・Cloud Functions実デプロイは今回**行っていない**。
+
+### デプロイに必要なもの（まだ実行しない）
+
+- `firebase.json` は研究用Function codebase `research` だけを定義。既存GitHub Pages/Google Sitesデプロイを変更しない。一般公開GitHubに秘密鍵や生ログは配置しない。
+- Firebase Consoleで匿名Authの許可、App Checkのアプリ・有効な実iframeオリジン設定、FirestoreではなくRTDBの非公開ルールと予算確認が必要。
+- Callableを有効化した場合に限り、Google Sitesの単体HTML側で `firebase-auth-compat.js`, `firebase-functions-compat.js`, `firebase-app-check-compat.js` を正しく読み込み、App Checkを初期化する。**これらは現段階で追加していないのでREADYをtrueにしても実際にはアップロードできない**。意図的に未完成・安全側で停止。
+- [RTDBルール断片](./firebase-research.rules.fragment.json) は配置例で、**絶対にFirebaseプロジェクトの全ルールとしてそのままアップロードしない**。既存BRAWL・1vs1のルールを維持し、親ノードの読み書き許可が研究ツリーの禁止を上書きしないか精査する。
+- [テスト用模擬Firebase](../tests/online-research-function.cjs) は実プロジェクト書込を行わずサーバー権限/同意/重複/容量チェックを実行。実Cloud Functionのエンドツーエンド試験は未実施。
+
 ## 公開する前に管理者がすべきこと
 
 1. **Firebaseの実際のセキュリティルールを確認**。まずプロジェクト `mygame-df915` の既存ルールをバックアップし、既存の対戦用アクセスやBRAWLを壊さない。研究ツリーだけに新しい設定を追加する。**この作業はこのチャットから実施していない**。
 2. 研究ツリーを**一般ブラウザから読み取れない**ようにする。Firebase RTDBでは親ノードに `.read: true` があると、子に `.read: false` を置いても非公開に戻せない。これを含めて実際の親ルールから確認する。実装は毎回 `/_privacy_probe` の匿名読取を試し、読み取れた場合は**クラウド送信を拒否**する。読取が「PERMISSION_DENIED」でなければ必ず停止する。これだけで書き込み濫用まで防げるわけではない。
 3. 研究ツリーへの**匿名書き込みは、そのまま許可すると無制限の第三者による迷惑投稿や料金増大の危険がある**。本番向けにはサーバー側の検証・レート制限（たとえばApp Checkを有効にした制限付きCloud Functions/Cloud Run受付など）が必要。Firebase Rulesで単純に `.write: true` とすることは推奨しない。
 4. 将来の管理用削除・取得はFirebase Console/Admin SDKなど、**管理者権限だけ**で行う。研究データを公開GitHub Actionsのログや平文artifactへアップロードしない。専用秘密鍵が必要な場合はGitHub Actions **Secret**だけに設定し、チャット・GitHubのソースコード・Google Sites HTMLへ貼らない。
-5. 上記の権限・非公開読取・書込濫用対策・実DBでの安全確認が終わった場合に限り、HTMLの**ゲーム通信コードより前**へ `<script>window.SHOKOKU_CLOUD_RESEARCH_READY=true;</script>` を置いて、管理者が版を発行する（通常の `online.html` なら `online-net.js` 読込より前）。現時点の開発版には置いていない。
+5. App Check/Auth/CallableのSDKとバックエンドの安全検証、料金承認、実端末試験まで済んだ場合のみ、管理者がREADYフラグを設定した別ビルドを作成する。フラグだけONにする手順は不十分で、現段階では実行禁止。
 6. **公開版はユーザーがGoogle Sitesへ最新版の単体HTML全文を貼り付けて公開して初めて反映**される。現段階のPRやテスト結果は実運用開始を意味しない。
 
 ## 管理・保存期限
