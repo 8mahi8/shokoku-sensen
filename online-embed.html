@@ -740,49 +740,73 @@ async function setCloudConsent(value){
  if(solo||!room||!players)return false;
  const seat=host?"host":"guest";
  if(players[seat]?.id!==clientId||
-   (value&&(window.SHOKOKU_CLOUD_RESEARCH_READY!==true||
-    meta?.status!=="lobby"||!players[seat]?.researchConsent)))return false;
+  (value&&(window.SHOKOKU_CLOUD_RESEARCH_READY!==true||
+   meta?.status!=="lobby"||!players[seat]?.researchConsent)))return false;
+ // A signed-in anonymous Firebase identity is bound to the room seat.
+ // The server verifies this identity and consent before accepting a record.
+ let uid=null;
+ if(value){
+  if(typeof firebase?.auth!=="function")return false;
+  const auth=firebase.auth();
+  if(!auth.currentUser)await auth.signInAnonymously();
+  uid=auth.currentUser?.uid;
+  if(typeof uid!=="string"||uid.length<10)return false;
+ }
  const changed=await room.child("players/"+seat).transaction(old=>
-  old?.id===clientId?{...old,cloudConsent:!!value}:undefined,undefined,false);
+  old?.id===clientId?{...old,cloudConsent:!!value,cloudUid:value?uid:null}:undefined,
+  undefined,false);
  if(!changed.committed)throw Error("参加情報が変更されました");
  return true;
 }
-// A single host-issued record per finished match. The path has a random
-// 128-bit token and contains no room number, participant IDs or device IDs.
-// RTDB backend rules must be set narrowly BEFORE deploying this feature.
+// Only the verified callable server may write research records to Firebase.
+// A browser .set() of match JSON directly to the research DB is prohibited.
 async function publishResearch(match){
  if(window.SHOKOKU_CLOUD_RESEARCH_READY!==true)
   return {saved:false,reason:"backend-not-configured"};
  if(solo||!host||!room||!connected||!db||phase==="none"||!match||
-    match.mode!=="online"||match.schema!==1)return {saved:false,reason:"not-eligible"};
- const json=JSON.stringify(match);
- if(json.length>CLOUD_MAX_CHARS)return {saved:false,reason:"too-large"};
+  match.mode!=="online"||match.schema!==1)return {saved:false,reason:"not-eligible"};
+ if(JSON.stringify(match).length>CLOUD_MAX_CHARS)
+  return {saved:false,reason:"too-large"};
+ if(typeof firebase?.functions!=="function"||typeof firebase?.auth!=="function")
+  return {saved:false,reason:"secure-uploader-unavailable"};
+ const uid=firebase.auth().currentUser?.uid;
+ if(typeof uid!=="string"||uid.length<10)return {saved:false,reason:"no-cloud-auth"};
  const currentRoom=room,currentCode=roomCode,currentRound=meta?.round;
  if(!currentRound)return {saved:false,reason:"no-round"};
- // Re-read consent from the server; a pending SDK listener update must never
- // make a revoked guest opt-in count as true.
  const record=(await currentRoom.child("players").once("value")).val();
  if(room!==currentRoom||roomCode!==currentCode||meta?.round!==currentRound||
-    record?.host?.id!==clientId||
-    record?.host?.cloudConsent!==true||record?.guest?.cloudConsent!==true||
-    record?.host?.researchConsent!==true||record?.guest?.researchConsent!==true)
+  record?.host?.id!==clientId||record?.host?.cloudUid!==uid||
+  record?.host?.cloudConsent!==true||record?.guest?.cloudConsent!==true||
+  record?.host?.researchConsent!==true||record?.guest?.researchConsent!==true)
   return {saved:false,reason:"consent-revoked"};
- // Critical privacy gate: Firebase's broad parent .read grants cannot be
- // revoked by child rules. Never upload if ANY unsigned web client can read
- // the research collection (even if the intended child rule says read:false).
- // A denied probe is necessary but not sufficient for abuse protection.
- let privateReadDenied=false;
- try{await db.ref(CLOUD_ROOT+"/_privacy_probe").once("value");}
- catch(e){privateReadDenied=String(e?.code||"").toUpperCase().includes("PERMISSION_DENIED");}
- if(!privateReadDenied)return {saved:false,reason:"research-storage-not-private"};
+ // Even the signed-in browser must not be able to read the research tree.
+ // A parent RTDB permission can override child .read:false.
+ try{
+  await db.ref(CLOUD_ROOT+"/_privacy_probe").once("value");
+  return {saved:false,reason:"research-storage-not-private"};
+ }catch(e){
+  if(!String(e?.code||"").toUpperCase().includes("PERMISSION_DENIED"))
+   return {saved:false,reason:"privacy-unverified"};
+ }
  if(room!==currentRoom||roomCode!==currentCode||meta?.round!==currentRound)
   return {saved:false,reason:"room-changed"};
- const key=token()+token(),ref=db.ref(CLOUD_ROOT+"/"+key);
- // Firebase RTDB admin export can retrieve this isolated collection even
- // when public/client read access is denied by security rules.
- await ref.set({schema:1,createdAt:firebase.database.ServerValue.TIMESTAMP,
-  expiresAt:Date.now()+14*24*60*60*1000,match});
- return {saved:true};
+ // The result screen is shown before the Firebase finished write resolves.
+ // Observe the authoritative finished state first, without blocking gameplay.
+ let finished=false;
+ for(let attempt=0;attempt<14;attempt++){
+  const seen=(await currentRoom.child("meta").once("value")).val();
+  if(seen?.round!==currentRound)return {saved:false,reason:"round-changed"};
+  if(seen?.status==="finished"){finished=true;break;}
+  await new Promise(resolve=>setTimeout(resolve,250));
+ }
+ if(!finished)return {saved:false,reason:"finish-not-confirmed"};
+ if(room!==currentRoom||roomCode!==currentCode||meta?.round!==currentRound)
+  return {saved:false,reason:"room-changed"};
+ const result=await firebase.functions("asia-northeast1")
+  .httpsCallable("collectShokokuMatch")({
+   roomCode:currentCode,round:currentRound,match
+  });
+ return result?.data?.saved===true?{saved:true}:{saved:false,reason:"secure-uploader-refused"};
 }
 function sendCommand(c){
  if(host||!room||phase!=="playing")return;
