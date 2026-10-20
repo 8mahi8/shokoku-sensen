@@ -1,0 +1,7 @@
+node_modules/
+*.log
+serviceAccount*.json
+*.secret
+.env
+.env.*
+!*.example
