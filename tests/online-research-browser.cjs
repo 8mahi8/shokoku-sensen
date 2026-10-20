@@ -25,7 +25,12 @@ const server=http.createServer((req,res)=>{
    await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
    await page.goto("http://127.0.0.1:8798/"+source+"?qa=1",{waitUntil:"domcontentloaded"});
    await page.locator("#researchConsent").waitFor({state:"visible"});
+   await page.locator("#researchCloudConsent").waitFor({state:"visible"});
    assert.equal(await page.locator("#researchConsent").isChecked(),true,"anonymous local logging defaults on");
+   assert.equal(await page.locator("#researchCloudConsent").isChecked(),false,
+    "cloud collection requires explicit approval, not inherited from local logging");
+   assert.equal(await page.locator("#researchCloudConsent").isDisabled(),true,
+    "cloud consent is unavailable before joining a two-player online room");
    assert.equal(await page.locator("[data-research-export]").first().isDisabled(),true);
    await page.locator("#researchConsent").uncheck();
    assert.equal(await page.locator("#researchConsent").isChecked(),false,"solo recording can be disabled");
