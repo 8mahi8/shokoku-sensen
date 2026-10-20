@@ -3,6 +3,30 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#101c26"><title>小国戦線 III | 1vs1 オンライン対戦</title>
+<!-- =====================================================
+  ★ 学校でキャラ調整する場所 ★
+  左がHP、右が基本攻撃力。好きな数字に書き換えてOK。
+  例：infantry: { hp: 130, damage: 20 },   // 基本歩兵
+  数字だけ変える。キャラ名・括弧・カンマは消さない。
+  保存してGoogle SitesへHTML全文を貼り直し、再公開すると反映。
+  みんなが同じ更新済みページを開いて対戦すること。
+  HPは1〜99999、基本攻撃力は0〜99999の整数。
+  ※ スペル/城/砦のHPや、射程/コスト/速度はここでは変わりません。
+===================================================== -->
+<script id="shokoku-school-unit-stats">
+window.SHOKOKU_UNIT_STATS = {
+  infantry : { hp:  105, damage:  15 }, // 基本歩兵
+  scout    : { hp:  195, damage:  28 }, // 偵察ライダー
+  engineer : { hp:  420, damage:  34 }, // 重装工兵
+  archer   : { hp:   95, damage:  20 }, // 魔導射手
+  sentinel : { hp:  540, damage:  62 }, // 迎撃衛士
+  suppress : { hp:  380, damage:  50 }, // 制圧機兵
+  guardian : { hp: 1400, damage: 115 }, // 守護ゴーレム
+  drone    : { hp:  120, damage:  18 }, // 浮遊ドローン
+  tank     : { hp: 1100, damage: 110 }, // 魔導重戦車
+};
+</script>
+<!-- ================== ★ 調整はここまで ★ ================== -->
 <style>
 :root{color-scheme:dark;--bg:#0b1820;--panel:#122735;--ink:#ecf5ee;--sub:#9fb7b9;--blue:#73d6f5;--red:#ff8794;--gold:#f3d78b}
 *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -1649,6 +1673,21 @@ const CLASSES={
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
  tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,note:"大型・長射程・対空対応の範囲重砲・対城200%"},
 };
+// School-friendly Google Sites HTML: optional, single visible HP / base damage
+// table at the VERY TOP of the pasted document. Only host applies combat
+// values; the same page should be opened by both players for consistent labels.
+// Without this table (regular online.html), all original values remain.
+const schoolStats=window.SHOKOKU_UNIT_STATS;
+if(schoolStats&&typeof schoolStats==="object"){
+ for(const id of Object.keys(CLASSES)){
+  const edit=Object.prototype.hasOwnProperty.call(schoolStats,id)?schoolStats[id]:null;
+  if(!edit||typeof edit!=="object")continue;
+  // Reject malformed numbers rather than corrupting combat state.
+  if(Number.isSafeInteger(edit.hp)&&edit.hp>=1&&edit.hp<=99999)CLASSES[id].hp=edit.hp;
+  if(Number.isSafeInteger(edit.damage)&&edit.damage>=0&&edit.damage<=99999)
+   CLASSES[id].damage=edit.damage;
+ }
+}
 const IDS=Object.keys(CLASSES);
 const SPELLS={
  barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
