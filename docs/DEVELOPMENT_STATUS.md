@@ -13,7 +13,7 @@
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** WebKitの大型入り10体でフレーム間隔が長い現象は、録画を止めても、Canvas描画を試験的に止めても残った。ただし**描画を止めると両場面ともFPSが改善**。ブラウザの画面更新制御・合成処理と実ゲーム処理の違いを切り分ける。CIのFPSを実iPadと同一視しない。新しい公開候補の合格条件は実機Google Sitesでの快適性。
+- **いまの最優先課題:** WebKitの大型入り10体でフレーム間隔が長い現象は、録画を止めても、Canvas描画を試験的に止めても残った。ただし**描画を止めると両場面ともFPSが改善**。2026-10-21はCanvasの可視性を加えた16場面の同一ページ対照試験を投入済み。結果を調査して、Canvas描画命令・合成・戦況更新の寄与を切り分ける。CIのFPSを実iPadと同一視しない。新しい公開候補の合格条件は実機Google Sitesでの快適性。
 - **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
@@ -29,6 +29,7 @@
 - **未検証事項:** 実際の学校iPad Safariは未再測定。表示FPSの低下がJSゲームループ、WebKitの画面合成、ヘッドレスCIのフレーム供給など何に由来するかは未特定。
 - **2026-10-21 分解計測成功:** [WebKit/Chromium場面別フレーム計測](https://github.com/8mahi8/shokoku-sensen/actions/runs/39475276349) と[実Firebase対戦QA](https://github.com/8mahi8/shokoku-sensen/actions/runs/39475276452) が合格。WebKitの大型入り/なしの処理差は主にフレーム間隔の未説明部分に集中。これを直接GPU処理時間と断定しない。CI動画キャプチャと実機性能は区別。
 - **2026-10-21 対照実験も完了:** [録画あり/なしとCanvas描画停止の16場面テスト](https://github.com/8mahi8/shokoku-sensen/actions/runs/39476259487) は成功。WebKit録画なしでは大型なし11.5FPS／大型あり8.5FPS、Canvas停止では大型なし21.7FPS／大型あり12.7FPS。**大型アートの同期JS処理が全ての原因とはいえない**。視覚品質や遮蔽の変更はしていない。
+- **2026-10-21 今回の新しい検証コード（結果判定前）:** [commit e31a88a](https://github.com/8mahi8/shokoku-sensen/commit/e31a88a4de574bf34692950d828a3dd94017c159) で同一WebKitタブ・同一画面を使う比較を8→16場面へ拡張。10体の大型あり/なしを順序反転し、①通常描画、②Canvas描画停止、③描画停止＋Canvas非表示、④通常描画＋Canvas非表示を分離。Canvas非表示はCSS `visibility:hidden` で合成側を切り分けるQA限定操作。**まだFPS改善を示すものではない**。試験結果は [GitHub Actions](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483192427) で確認する。
 
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
