@@ -13,7 +13,7 @@
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** WebKitのカードHUD非表示では大型あり/なしが約62 FPSで一致するが、CSSフィルター削除と肖像Canvas隠し/PNG変換は改善せず。新しい交絡として大型場面の5枚全てに `.card.unavailable`（CSS opacity .58）が適用され、大型なし0枚。QAで親カード透明度のみを解除し、GPU/画面合成コストを確かめる。実機iPadの測定は別。本番HTMLは未変更。
+- **いまの最優先課題:** 固定10体・Canvas描画停止＋非表示でも大型あり/なしのrAF差はカードHUD全体を消すと消失。一方CSS filter/opacityと肖像画Canvasの個別変更は大きく効かない。次は**同じカード構成・資源・使用可能状態のUI**を大型あり/なし両試験に表示する統制を優先し、差がまだ残るか確認する。UIを消す最適化は不採用。本番/Google Sitesは未変更、学校iPad性能は未測定。
 - **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
@@ -36,7 +36,8 @@
 - **2026-10-21 Canvas＋カードHUD非表示の検証成功:** [run 39485586259](https://github.com/8mahi8/shokoku-sensen/actions/runs/39485586259) は全24試行成功。固定10体・Canvas描画停止＋Canvas非表示では、大型なし62.05 FPS・大型あり45.90 FPS。そこから**カードHUDも非表示**にすると大型なし62.07 FPS・大型あり62.24 FPSとなり差がほぼ消失。つまり**このヘッドレスWebKit環境ではカードHUDの視覚処理が大型あり/なしのrAF差と関係する可能性が高い**。ただし表示非表示は見た目の保持を満たさず、即時のゲーム変更には使わない。
 - **2026-10-21 CSS filter 除去は逆効果（不採用）:** [run 39486294923](https://github.com/8mahi8/shokoku-sensen/actions/runs/39486294923) の32試行は成功。10体固定・Canvas描画停止＋非表示・カード表示ありの大型入りは CSS filter有りで46.03/45.99 FPS（5枚にフィルター適用）、filter:noneへ変更すると40.99/40.71 FPS（適用0）へ**悪化**。大型なしはどちらも約62 FPS。このLinux WebKitでフィルター単独が根本原因との仮説は支持されず、製品CSSを変えない。
 - **2026-10-21 肖像画を隠す/PNGに変える方法も効果なし:** [run 39486965057](https://github.com/8mahi8/shokoku-sensen/actions/runs/39486965057) の40試行成功。固定10体・Canvas描画停止＋Canvas非表示＋カード表示で、肖像Canvasを隠した大型入りは45.58/45.30 FPS、5枚を同一ピクセルPNGへ置換した大型入りは45.90/46.85 FPS。どちらも標準45〜46 FPSと大差なし。PNGへの本体変更は不採用。**ただし大型あり試験では`#cards .card.unavailable`が5枚、大型なしは0枚**で、肖像Canvasそのものよりカード全体の透明度/合成負担が原因候補。
-- **2026-10-21 使用不可カードの透過指定の検証を追加（結果待ち）:** [commit 10ceb0e](https://github.com/8mahi8/shokoku-sensen/commit/10ceb0eb6a35c8badebef2aeaf86f8faf8c4efc1) でQA専用に `.card.unavailable/.card.depleted` の opacityを1へ変更（CSSフィルターは残す）。カードHUD表示を保ち、固定戦場のCanvas描画停止/非表示と実Canvas描画有りをABBA計8回検証。結果はこのコミットのGitHub Actions実行履歴を参照。**製品HTMLでは見た目を一切変更していない**。
+- **2026-10-21 使用不可カードのopacity解除も大幅改善なし:** [run 39487709725](https://github.com/8mahi8/shokoku-sensen/actions/runs/39487709725) の48試行は成功。固定10体、Canvas描画停止＋非表示、カード表示ありの大型入りはopacity .58で約46 FPS、1へ変更後47.06/46.12 FPS（平均46.59）、改善小。固定描画ありでは大型入りopacity 1が11.63/11.40 FPSで、従来の約11 FPSと小差。カード5枚が使用不可の条件・CSS filter保持で測定。opacityだけの改変はゲームへ反映しない。
+- **Phase 1 現時点の根拠付き結論:** CIヘッドレスWebKit上、(a)大型10体の戦闘計算停止・描画停止で性能が回復、(b)固定してCanvasも隠してなおカードHUD表示による場面差あり、(c)カードHUD全体を隠すと大型あり/なしとも約62FPS、(d)肖像隠し/PNG化、CSS filter/opacity個別変更ではFPS差は十分解消しない。**個々の小さなCSS指定が原因だとは断定せず、カードUIの構造/状態、DOM・合成負荷などを次の対照対象とする**。現場実機のiPadで同等の再現がない以上、数値を製品の性能改善値として扱わない。バランス・公開版・本体レンダリング変更なし。
 
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
