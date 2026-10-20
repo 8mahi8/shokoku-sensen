@@ -6,8 +6,6 @@
 "use strict";
 const FIREBASE_DB_URL="https://mygame-df915-default-rtdb.firebaseio.com/";
 const ROOT="shokokuRooms1v1";
-// Research records live outside the match/room tree. Never use BRAWL paths.
-const CLOUD_ROOT="shokokuResearchV1",CLOUD_MAX_CHARS=65000;
 const $=id=>document.getElementById(id);
 const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)crypto.getRandomValues(a);else throw Error("安全な乱数が使えません");return Array.from(a,x=>x.toString(36)).join("-");};
 const clientId=token(), ROOM_VERSION=2;
@@ -64,8 +62,6 @@ function updateUI(){
  window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
   ownConsent:!!players?.[host?"host":"guest"]?.researchConsent,
   bothConsent:!!room&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent,
-  ownCloudConsent:players?.[host?"host":"guest"]?.cloudConsent===true,
-  bothCloudConsent:!!room&&players?.host?.cloudConsent===true&&players?.guest?.cloudConsent===true,
   playing:meta?.status==="playing"});
 }
 function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
@@ -302,7 +298,7 @@ async function create(){
    const now=Date.now()+serverOffset;
    const proposed={
     meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
-    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true,cloudConsent:false}}
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true}}
    };
    const result=await ref.transaction(old=>{
     if(old===null)return proposed;
@@ -324,7 +320,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true,cloudConsent:false}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -386,80 +382,6 @@ async function setResearchConsent(value){
   old?.id===clientId?{...old,researchConsent:!!value}:undefined,undefined,false);
  if(!changed.committed)throw Error("参加情報が変更されました");
  return true;
-}
-// Cloud collection is opt-in per seat and per room. Never auto-enable it
-// for old clients, or permit enabling after the match has already started.
-async function setCloudConsent(value){
- if(solo||!room||!players)return false;
- const seat=host?"host":"guest";
- if(players[seat]?.id!==clientId||
-  (value&&(window.SHOKOKU_CLOUD_RESEARCH_READY!==true||
-   meta?.status!=="lobby"||!players[seat]?.researchConsent)))return false;
- // A signed-in anonymous Firebase identity is bound to the room seat.
- // The server verifies this identity and consent before accepting a record.
- let uid=null;
- if(value){
-  if(typeof firebase?.auth!=="function")return false;
-  const auth=firebase.auth();
-  if(!auth.currentUser)await auth.signInAnonymously();
-  uid=auth.currentUser?.uid;
-  if(typeof uid!=="string"||uid.length<10)return false;
- }
- const changed=await room.child("players/"+seat).transaction(old=>
-  old?.id===clientId?{...old,cloudConsent:!!value,cloudUid:value?uid:null}:undefined,
-  undefined,false);
- if(!changed.committed)throw Error("参加情報が変更されました");
- return true;
-}
-// Only the verified callable server may write research records to Firebase.
-// A browser .set() of match JSON directly to the research DB is prohibited.
-async function publishResearch(match){
- if(window.SHOKOKU_CLOUD_RESEARCH_READY!==true)
-  return {saved:false,reason:"backend-not-configured"};
- if(solo||!host||!room||!connected||!db||phase==="none"||!match||
-  match.mode!=="online"||match.schema!==1)return {saved:false,reason:"not-eligible"};
- if(JSON.stringify(match).length>CLOUD_MAX_CHARS)
-  return {saved:false,reason:"too-large"};
- if(typeof firebase?.functions!=="function"||typeof firebase?.auth!=="function")
-  return {saved:false,reason:"secure-uploader-unavailable"};
- const uid=firebase.auth().currentUser?.uid;
- if(typeof uid!=="string"||uid.length<10)return {saved:false,reason:"no-cloud-auth"};
- const currentRoom=room,currentCode=roomCode,currentRound=meta?.round;
- if(!currentRound)return {saved:false,reason:"no-round"};
- const record=(await currentRoom.child("players").once("value")).val();
- if(room!==currentRoom||roomCode!==currentCode||meta?.round!==currentRound||
-  record?.host?.id!==clientId||record?.host?.cloudUid!==uid||
-  record?.host?.cloudConsent!==true||record?.guest?.cloudConsent!==true||
-  record?.host?.researchConsent!==true||record?.guest?.researchConsent!==true)
-  return {saved:false,reason:"consent-revoked"};
- // Even the signed-in browser must not be able to read the research tree.
- // A parent RTDB permission can override child .read:false.
- try{
-  await db.ref(CLOUD_ROOT+"/_privacy_probe").once("value");
-  return {saved:false,reason:"research-storage-not-private"};
- }catch(e){
-  if(!String(e?.code||"").toUpperCase().includes("PERMISSION_DENIED"))
-   return {saved:false,reason:"privacy-unverified"};
- }
- if(room!==currentRoom||roomCode!==currentCode||meta?.round!==currentRound)
-  return {saved:false,reason:"room-changed"};
- // The result screen is shown before the Firebase finished write resolves.
- // Observe the authoritative finished state first, without blocking gameplay.
- let finished=false;
- for(let attempt=0;attempt<14;attempt++){
-  const seen=(await currentRoom.child("meta").once("value")).val();
-  if(seen?.round!==currentRound)return {saved:false,reason:"round-changed"};
-  if(seen?.status==="finished"){finished=true;break;}
-  await new Promise(resolve=>setTimeout(resolve,250));
- }
- if(!finished)return {saved:false,reason:"finish-not-confirmed"};
- if(room!==currentRoom||roomCode!==currentCode||meta?.round!==currentRound)
-  return {saved:false,reason:"room-changed"};
- const result=await firebase.functions("asia-northeast1")
-  .httpsCallable("collectShokokuMatch")({
-   roomCode:currentCode,round:currentRound,match
-  });
- return result?.data?.saved===true?{saved:true}:{saved:false,reason:"secure-uploader-refused"};
 }
 function sendCommand(c){
  if(host||!room||phase!=="playing")return;
@@ -566,7 +488,7 @@ const api={
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
   get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
   get researchGuestControl(){return players?.guest?.botControl===true?"bot":players?.guest?.botControl===false?"human":"unknown"},
-  setResearchConsent,setCloudConsent,publishResearch,
+  setResearchConsent,
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
