@@ -764,6 +764,16 @@ async function publishResearch(match){
     record?.host?.cloudConsent!==true||record?.guest?.cloudConsent!==true||
     record?.host?.researchConsent!==true||record?.guest?.researchConsent!==true)
   return {saved:false,reason:"consent-revoked"};
+ // Critical privacy gate: Firebase's broad parent .read grants cannot be
+ // revoked by child rules. Never upload if ANY unsigned web client can read
+ // the research collection (even if the intended child rule says read:false).
+ // A denied probe is necessary but not sufficient for abuse protection.
+ let privateReadDenied=false;
+ try{await db.ref(CLOUD_ROOT+"/_privacy_probe").once("value");}
+ catch(e){privateReadDenied=String(e?.code||"").toUpperCase().includes("PERMISSION_DENIED");}
+ if(!privateReadDenied)return {saved:false,reason:"research-storage-not-private"};
+ if(room!==currentRoom||roomCode!==currentCode||meta?.round!==currentRound)
+  return {saved:false,reason:"room-changed"};
  const key=token()+token(),ref=db.ref(CLOUD_ROOT+"/"+key);
  // Firebase RTDB admin export can retrieve this isolated collection even
  // when public/client read access is denied by security rules.
