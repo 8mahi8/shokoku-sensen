@@ -70,7 +70,7 @@ assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
  "Published modular online.html keeps its original balanced defaults");
 
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=9')&&page.includes('./online-research.js?v=2')&&page.includes('./online-game.js?v=13'));
+assert.ok(page.includes('./online-net.js?v=10')&&page.includes('./online-research.js?v=3')&&page.includes('./online-game.js?v=13'));
 assert.ok(research.includes('researchConsent')&&research.includes('MAX_MATCHES=8'));
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
