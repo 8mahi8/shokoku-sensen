@@ -13,7 +13,7 @@
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** WebKitの固定10体試験で大型入りはCanvas描画とシミュレーションを止めると45.3FPSまで回復するが大型なし54.3FPSとの差が残る。戦闘/Canvasの寄与を分離できたが単一原因は未特定。今度はQA限定のCanvas/カードHUD非表示で静止画像・DOM合成の寄与を調べる。CI値と実iPad FPSを混同せず、ゲームバランス・公開画面は変えない。
+- **いまの最優先課題:** WebKitの固定10体でCanvasとカードHUDも非表示にすると大型あり/なしがともに62 FPSになり差が消えた。**カードHUDの視覚処理が重要な原因候補**だが、UIを消す変更は採用しない。`filter:saturate()/grayscale()` をQA限定で無効化して負荷を検証中。FPS改善が数値と目視の両面で確認できる場合だけ、見た目とゲームルールを保つ最小変更を開発版で検討。CI値と実iPad FPSを混同しない。
 - **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
@@ -33,7 +33,8 @@
 - **2026-10-21 大型アートのみの置換対照も成功:** [Actions #39483775642](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483775642)、[commit 5a4c272](https://github.com/8mahi8/shokoku-sensen/commit/5a4c27270c399bc1b76cd78f1128a66b1119efca)。同じ大型ありの戦闘で、戦車＋ガルドの**描画だけ**簡単な矩形に差し替えたABBA 4試行。通常アート 9.70／9.67 FPS、簡易図形 10.09／10.07 FPS（ヘッドレスWebKit）。変化は約+0.4 FPSと小さく、ユニットの描画の複雑さ単独で大型場面のFPS低下を説明できない。ただし試行回数は少なく戦闘進行にばらつきがある。QAランタイム限定で、HP/コスト/移動/攻撃/公開アートは**一切変更していない**。
 - **Phase 1 次の切り分け:** 大型あり/なしで戦闘結果や生存数が変わることが残る交絡。実ゲーム処理とrAFフレーム供給の外部要因を分けるため、固定されたユニットの場面（同じ表示状態/同じカメラ/同じDPR）と、実移動する戦闘を別々に比較し、可能なら有頭WebKit・学校実機の表示も確認する。**ヘッドレスCIだけで画面合成やSafari実機の原因と断定しない**。
 - **2026-10-21 固定10体 vs 通常戦闘の対照実験成功:** [run 39484912255](https://github.com/8mahi8/shokoku-sensen/actions/runs/39484912255) 完全成功。ローカルQA配信HTMLだけの戦闘tick＋S.clock停止で、実際に合法召喚した10体を維持（固定中は経過0・ユニット位置不変・大型数不変、描画エラー0）。2試行平均：通常戦闘・描画あり 大型なし11.21／大型あり8.09 FPS、固定戦場・描画あり 13.05／10.97 FPS、通常戦闘・Canvas描画停止21.81／12.73 FPS、固定戦場・Canvas描画停止54.33／45.34 FPS。描画命令と戦闘tickを止めると大型ありでも45 FPSに回復したが、大型なしとの差は残る。計測画像 fixed-light / fixed-heavy をGitHub Actionsから実際に取得して目視確認済み：10体描画・戦車/ゴーレムの通常絵・重なり方を確認。**固定場面は実iPad挙動を証明せず、視覚品質・戦闘バランス・公開HTMLは変更していない**。
-- **2026-10-21 表示HUD起因の残差分解を追加（結果待ち）:** [commit 74c119e](https://github.com/8mahi8/shokoku-sensen/commit/74c119e7dda11fa24443a97b7f6f0b636e05ae3f) で固定10体・Canvas描画停止に対し、①Canvasだけ非表示、②CanvasとカードHUDを両方非表示にする8試行を追加。HUDの静止ポートレート・DOM合成が低FPS差を生むか確かめる。CSS visibility はQAのみで実ゲーム画面を隠さない。CI [run 39485586259](https://github.com/8mahi8/shokoku-sensen/actions/runs/39485586259) を確認後に結論更新。
+- **2026-10-21 Canvas＋カードHUD非表示の検証成功:** [run 39485586259](https://github.com/8mahi8/shokoku-sensen/actions/runs/39485586259) は全24試行成功。固定10体・Canvas描画停止＋Canvas非表示では、大型なし62.05 FPS・大型あり45.90 FPS。そこから**カードHUDも非表示**にすると大型なし62.07 FPS・大型あり62.24 FPSとなり差がほぼ消失。つまり**このヘッドレスWebKit環境ではカードHUDの視覚処理が大型あり/なしのrAF差と関係する可能性が高い**。ただし表示非表示は見た目の保持を満たさず、即時のゲーム変更には使わない。
+- **2026-10-21 CSS filter 単独の無効化検証を追加（結果待ち）:** [commit 54f2dec](https://github.com/8mahi8/shokoku-sensen/commit/54f2decf0d881e0c585cc8fe6ec1fa1b2506c0d1) で、カードを表示したまま `filter:saturate()` と `grayscale()` のみをQA限定で解除する8試行を追加。CSSフィルターのGPU/画面合成負荷と、静止肖像Canvasなど他要因を区別する。試験の適用可否・`filteredCardCount`・FPSを自動記録。[run 39486294923](https://github.com/8mahi8/shokoku-sensen/actions/runs/39486294923) の結果を確認してから最小限の表示最適化を検討する。
 
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
