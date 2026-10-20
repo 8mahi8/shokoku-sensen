@@ -34,7 +34,14 @@ const patterns=[
  ["live",["light","heavy","heavy","light"],true],
  ["freeze",["light","heavy","heavy","light"],true]
 ];
-const schedule=patterns.flatMap(([mode,scenes,noPaint])=>scenes.map(scene=>({mode,scene,noPaint})));
+const baseline=patterns.flatMap(([mode,scenes,noPaint])=>scenes.map(scene=>({mode,scene,noPaint})));
+const uiControl=[
+ // With both the battlefield Canvas and Canvas drawing disabled, isolate
+ // card portraits and the bottom cards HUD. Preserve layout in both cases.
+ ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,hideCards:false})),
+ ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,hideCards:true}))
+];
+const schedule=[...baseline,...uiControl];
 const rows=[];
 (async()=>{
  let browser,context;
@@ -62,6 +69,9 @@ const rows=[];
    const trial=schedule[i];
    const setup=await page.evaluate(control=>{
     window.__shokokuQa.setDrawDisabledForQa(false);
+    document.getElementById("field").style.visibility="visible";
+    document.getElementById("cards").style.visibility="visible";
+    document.getElementById("nextCard").style.visibility="visible";
     window.__qaTickPause=false;
     // Both paths use the real legal-card summon process. Paused scenes
     // enter frozen mode before the browser can schedule the next rAF tick.
@@ -75,6 +85,9 @@ const rows=[];
    await page.waitForTimeout(300);
    const measured=await page.evaluate(async control=>{
     window.__shokokuQa.setDrawDisabledForQa(control.noPaint);
+    document.getElementById("field").style.visibility=control.canvasHidden?"hidden":"visible";
+    document.getElementById("cards").style.visibility=control.hideCards?"hidden":"visible";
+    document.getElementById("nextCard").style.visibility=control.hideCards?"hidden":"visible";
     // Keep HUD, other DOM, Canvas and rAF alive. Only the battle simulation
     // clock and 30Hz tick are frozen in the injected localhost HTML.
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -107,11 +120,15 @@ const rows=[];
      unitsStart:before.units.length,unitsEnd:after.units.length,
      heaviesEnd:after.units.filter(u=>u.key==="tank"||u.key==="guardian").length,
      paused:!!window.__qaTickPause,drawDisabled:!!control.noPaint,
+     canvasVisible:getComputedStyle(cv).visibility==="visible",
+     cardsVisible:getComputedStyle(document.getElementById("cards")).visibility==="visible",
      backing:[cv.width,cv.height],frameError:window.__onlineFrameError||null
     };
    },trial);
    assert.equal(measured.paused,trial.mode==="freeze","simulator pause applies");
    assert.equal(measured.drawDisabled,trial.noPaint,"render control applies");
+   assert.equal(measured.canvasVisible,!trial.canvasHidden,"canvas hide control applies");
+   assert.equal(measured.cardsVisible,!trial.hideCards,"cards hide control applies");
    assert.deepEqual(measured.backing,expectedBacking,"constant Canvas size");
    assert.equal(measured.frameError,null,"no draw exceptions");
    assert.ok(measured.frameSamples>=8,"frame samples exist");
@@ -138,9 +155,10 @@ const rows=[];
    notes:["Fixed controls keep ten legal units and their initial health untouched",
     "Frozen-world patch exists in QA-served HTML only (not repository HTML)",
     "Live rows intentionally permit deaths and moving projectiles",
+    "QA-only visibility controls isolate battlefield Canvas and card HUD compositor contribution",
     "Headless Linux WebKit is not an actual physical iPad Safari"]
   },null,2));
-  console.log("PASS: matched WebKit fixed 10-unit vs live-battle QA and no-paint controls");
+  console.log("PASS: WebKit fixed-vs-live, no-paint, and hidden-canvas/cards controls");
  }finally{
   await context?.close().catch(()=>{});
   await browser?.close().catch(()=>{});
