@@ -92,6 +92,15 @@ const deadline=async (f,label,timeout=18000)=>{
   },"guest render + snapshot diagnostics",20000);
   const perfText=await perf.innerText();
   console.log("GUEST PERF",JSON.stringify({text:perfText}));
+  const hostStats=await host.evaluate(()=>window.__shokokuNetQa.stats());
+  assert.ok(hostStats.snapshotChars>0&&hostStats.encodeMs>=0,
+   "host diagnostics should observe payload work");
+  const guestStats=await guest.evaluate(()=>window.__shokokuNetQa.stats());
+  assert.ok(guestStats.applyMs>=0&&guestStats.coalesced>=0&&guestStats.packets>0,
+   "guest diagnostics should measure applied snapshots");
+  assert.ok(perfText.includes("反映 ")&&perfText.includes("最新優先 "),
+   "WebKit iPad shows rendering-versus-network diagnostics without developer tools");
+  console.log("SYNC DIAGNOSTICS",JSON.stringify({host:hostStats,guest:guestStats}));
   // The BOT has already spent a card, so its live hand rotation differs legitimately.
   // Ensure it still owns the same card types and honors the host's authoritative deck.
   const cards=t=>[...packet.world.hand[t],...packet.world.queue[t]].sort();
