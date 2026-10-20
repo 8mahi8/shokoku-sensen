@@ -6,6 +6,8 @@
 "use strict";
 const FIREBASE_DB_URL="https://mygame-df915-default-rtdb.firebaseio.com/";
 const ROOT="shokokuRooms1v1";
+// Research records live outside the match/room tree. Never use BRAWL paths.
+const CLOUD_ROOT="shokokuResearchV1",CLOUD_MAX_CHARS=65000;
 const $=id=>document.getElementById(id);
 const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)crypto.getRandomValues(a);else throw Error("安全な乱数が使えません");return Array.from(a,x=>x.toString(36)).join("-");};
 const clientId=token(), ROOM_VERSION=2;
@@ -62,6 +64,8 @@ function updateUI(){
  window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
   ownConsent:!!players?.[host?"host":"guest"]?.researchConsent,
   bothConsent:!!room&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent,
+  ownCloudConsent:players?.[host?"host":"guest"]?.cloudConsent===true,
+  bothCloudConsent:!!room&&players?.host?.cloudConsent===true&&players?.guest?.cloudConsent===true,
   playing:meta?.status==="playing"});
 }
 function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
@@ -298,7 +302,7 @@ async function create(){
    const now=Date.now()+serverOffset;
    const proposed={
     meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
-    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true}}
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true,cloudConsent:false}}
    };
    const result=await ref.transaction(old=>{
     if(old===null)return proposed;
@@ -320,7 +324,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true,cloudConsent:false}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -382,6 +386,43 @@ async function setResearchConsent(value){
   old?.id===clientId?{...old,researchConsent:!!value}:undefined,undefined,false);
  if(!changed.committed)throw Error("参加情報が変更されました");
  return true;
+}
+// Cloud collection is opt-in per seat and per room. Never auto-enable it
+// for old clients, or permit enabling after the match has already started.
+async function setCloudConsent(value){
+ if(solo||!room||!players)return false;
+ const seat=host?"host":"guest";
+ if(players[seat]?.id!==clientId||
+   (value&&(meta?.status!=="lobby"||!players[seat]?.researchConsent)))return false;
+ const changed=await room.child("players/"+seat).transaction(old=>
+  old?.id===clientId?{...old,cloudConsent:!!value}:undefined,undefined,false);
+ if(!changed.committed)throw Error("参加情報が変更されました");
+ return true;
+}
+// A single host-issued record per finished match. The path has a random
+// 128-bit token and contains no room number, participant IDs or device IDs.
+// RTDB backend rules must be set narrowly BEFORE deploying this feature.
+async function publishResearch(match){
+ if(solo||!host||!room||!connected||!db||phase==="none"||!match||
+    match.mode!=="online"||match.schema!==1)return {saved:false,reason:"not-eligible"};
+ const json=JSON.stringify(match);
+ if(json.length>CLOUD_MAX_CHARS)return {saved:false,reason:"too-large"};
+ const currentRoom=room,currentCode=roomCode,currentRound=meta?.round;
+ if(!currentRound)return {saved:false,reason:"no-round"};
+ // Re-read consent from the server; a pending SDK listener update must never
+ // make a revoked guest opt-in count as true.
+ const record=(await currentRoom.child("players").once("value")).val();
+ if(room!==currentRoom||roomCode!==currentCode||meta?.round!==currentRound||
+    record?.host?.id!==clientId||
+    record?.host?.cloudConsent!==true||record?.guest?.cloudConsent!==true||
+    record?.host?.researchConsent!==true||record?.guest?.researchConsent!==true)
+  return {saved:false,reason:"consent-revoked"};
+ const key=token()+token(),ref=db.ref(CLOUD_ROOT+"/"+key);
+ // Firebase RTDB admin export can retrieve this isolated collection even
+ // when public/client read access is denied by security rules.
+ await ref.set({schema:1,createdAt:firebase.database.ServerValue.TIMESTAMP,
+  expiresAt:Date.now()+14*24*60*60*1000,match});
+ return {saved:true};
 }
 function sendCommand(c){
  if(host||!room||phase!=="playing")return;
@@ -488,7 +529,7 @@ const api={
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
   get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
   get researchGuestControl(){return players?.guest?.botControl===true?"bot":players?.guest?.botControl===false?"human":"unknown"},
-  setResearchConsent,
+  setResearchConsent,setCloudConsent,publishResearch,
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
