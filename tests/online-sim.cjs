@@ -3,7 +3,7 @@
 const assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm");
 const {webcrypto}=require("node:crypto"),{performance}=require("node:perf_hooks");
 const source=fs.readFileSync("online-net.js","utf8");
-const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,restFetchCount=0,heldExitWrite=false,refreshCount=0;
+const store={},listeners=[],writes=[];let pushId=0,virtualNow=1000,holdNextStateWrite=false,holdStateListener=false,restFetchCount=0,heldExitWrite=false,refreshCount=0,privateResearchReads=false;
 const clone=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
 const parts=p=>p.split("/").filter(Boolean);
 function read(path){
@@ -38,7 +38,11 @@ class Snapshot{
 class Ref{
  constructor(path){this.path=path}
  child(child){return new Ref(this.path+"/"+child)}
- once(){return Promise.resolve(new Snapshot(this,read(this.path)))}
+ once(){
+  if(privateResearchReads&&this.path==="shokokuResearchV1/_privacy_probe")
+   return Promise.reject(Object.assign(Error("Permission denied"),{code:"PERMISSION_DENIED"}));
+  return Promise.resolve(new Snapshot(this,read(this.path)));
+ }
  on(event,fn){
   listeners.push({path:this.path,event,fn});
   queueMicrotask(()=>{
@@ -212,5 +216,44 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  assert.equal(guest.get("netCreate").disabled,false,"room picker remains interactive during stalled cleanup");
  assert.equal(refreshCount,0,"no iframe navigation even on stalled Firebase");
  assert.ok(writes.every(p=>p.startsWith("shokokuRooms1v1/")),"must never write BRAWL rooms");
- console.log("PASS: 1v1, new-round sequence rollover, non-blocking new game, no iframe reload, stuck publisher and listener recovery");
+ // Separate cloud upload opt-in: no implicit consent, no room/player IDs,
+ // no upload if the Firebase collection is anonymously readable.
+ heldExitWrite=false;
+ const blue=client(),red=client();
+ await settle();
+ await blue.click("netCreate");await settle();
+ const cloudRoom=blue.get("netRoom").textContent;
+ red.get("netJoinCode").value=cloudRoom;await red.click("netJoin");await settle();
+ assert.equal(read("shokokuRooms1v1/"+cloudRoom+"/players/host/cloudConsent"),false);
+ assert.equal(read("shokokuRooms1v1/"+cloudRoom+"/players/guest/cloudConsent"),false);
+ const match={schema:1,mode:"online",actions:[{team:1,card:"scout",t:1,x:400,y:300}],
+  samples:[{t:0,units:[]}],result:{winner:1,duration:25,castleHp:[2000,0]}};
+ assert.equal((await blue.api.publishResearch(match)).saved,false,"cloud off by default");
+ await red.api.setCloudConsent(true);await settle();
+ assert.equal((await blue.api.publishResearch(match)).saved,false,"host alone has not opted in");
+ await blue.api.setCloudConsent(true);await settle();
+ assert.equal((await blue.api.publishResearch(match)).reason,"research-storage-not-private",
+  "public readable Firebase research tree is forbidden");
+ assert.equal(read("shokokuResearchV1"),null,"privacy probe writes no research data");
+ privateResearchReads=true;
+ assert.equal((await blue.api.publishResearch(match)).saved,true,"both opted-in peers can write to private collection");
+ const saved=read("shokokuResearchV1"),ids=Object.keys(saved||{});
+ assert.equal(ids.length,1);
+ assert.deepEqual(Object.keys(saved[ids[0]].match).sort(),Object.keys(match).sort());
+ assert.equal(saved[ids[0]].expiresAt>0,true);
+ assert.ok(!JSON.stringify(saved).includes(cloudRoom),"cloud payload omits room number");
+ assert.ok(!JSON.stringify(saved).includes("clientId"),"cloud payload omits device identity");
+ assert.ok(writes.filter(p=>p.startsWith("shokokuResearchV1/")).length===1,
+  "only one authorized private write");
+ await red.api.setCloudConsent(false);await settle();
+ assert.equal((await blue.api.publishResearch(match)).reason,"consent-revoked",
+  "turning off guest consent cancels later uploads");
+ assert.equal(await red.api.setCloudConsent(true),true,"can opt back in while still in lobby");
+ await blue.click("netReady");await red.click("netReady");await settle();
+ await blue.click("netStart");await settle();
+ assert.equal(await red.api.setCloudConsent(false),true,"either player may withdraw during battle");
+ assert.equal(await red.api.setCloudConsent(true),false,"no late opt-in while battle ongoing");
+ assert.equal((await blue.api.publishResearch(match)).saved,false,"withdrawal blocks cloud save");
+ assert.equal((await red.api.publishResearch(match)).saved,false,"guest never uploads");
+ console.log("PASS: 1v1/reconnect/rematch + cloud off by default, bilateral consent, public-read guard, revocation and isolated storage");
 })().catch(e=>{console.error(e);process.exitCode=1});
