@@ -8,7 +8,7 @@
 const {onCall,HttpsError}=require("firebase-functions/v2/https");
 const {initializeApp}=require("firebase-admin/app");
 const {getDatabase}=require("firebase-admin/database");
-const {validateAdmission,storageKey}=require("../../tools/research/collector-core.cjs");
+const {validateAdmission,storageKey}=require("./collector-core.cjs");
 const DB_URL="https://mygame-df915-default-rtdb.firebaseio.com";
 initializeApp({databaseURL:DB_URL});
 const db=getDatabase();
