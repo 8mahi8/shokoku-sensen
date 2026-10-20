@@ -13,7 +13,7 @@
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** WebKit相当で大型キャラ入り10体の更新間隔が大型なし10体より長い原因を切り分ける。大型キャラの描画関数単体は明確なボトルネックと証明できなかった。**次はフレーム全体のJavaScript処理時間／requestAnimationFrame待機／Canvas描画要求の違い**を測る。
+- **いまの最優先課題:** [フレーム別の計測](https://github.com/8mahi8/shokoku-sensen/actions/runs/39475276349)で、WebKitの大型なし10体は約10.6〜10.7 FPS、大型入り10体は約6.6〜6.8 FPS。**ゲーム内JavaScript処理の平均は両者約6〜7ms、描画外のフレーム待機が大型入りで約147〜151msと長い**。次は動画録画有無の同条件比較結果から、CI由来の遅延とブラウザ描画要因を切り分ける。
 - **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
@@ -27,6 +27,7 @@
 - **2026-10-21 Phase 1進展:** [反復した大型あり／なし比較とアート種別ごとの描画プロファイル](https://github.com/8mahi8/shokoku-sensen/actions/runs/39473479479) が成功。WebKit大型なし10体は 11.0 / 10.7 FPS、大型入り10体は 6.9 / 6.8 FPS。Chromium両者約60 FPS。
 - WebKitのCanvas描画HUDは大型なし平均5.7〜6.2ms、大型入り平均5.4〜6.1ms。ユニット描画の累積CPU時間も大型入り側が増えた結果ではなく、**FPS差を大型アートのCPU描画負荷と断定できない**。
 - **未検証事項:** 実際の学校iPad Safariは未再測定。表示FPSの低下がJSゲームループ、WebKitの画面合成、ヘッドレスCIのフレーム供給など何に由来するかは未特定。
+- **2026-10-21 分解計測成功:** [WebKit/Chromium場面別フレーム計測](https://github.com/8mahi8/shokoku-sensen/actions/runs/39475276349) と[実Firebase対戦QA](https://github.com/8mahi8/shokoku-sensen/actions/runs/39475276452) が合格。WebKitの大型入り/なしの処理差は主にフレーム間隔の未説明部分に集中。これを直接GPU処理時間と断定しない。CI動画キャプチャと実機性能は区別。
 
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
