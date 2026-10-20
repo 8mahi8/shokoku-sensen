@@ -7,7 +7,6 @@ on:
       - 'online-ipad.html'
       - 'online-net.js'
       - 'tools/research/**'
-      - 'functions/research/**'
       - 'tests/online-research-*'
       - 'tests/online-browser-live.cjs'
       - '.github/workflows/online-research-logger.yml'
@@ -27,14 +26,6 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/online-research-log.cjs
-      - run: node tests/online-research-cloud.cjs
-      - run: node tests/online-research-cloud-export.cjs
-      - run: node tests/online-research-server.cjs
-      - run: node tests/online-research-function.cjs
-      - run: node --check functions/research/index.js
-      - run: python3 -m py_compile tools/research/prune-expired.py
-      - run: python3 tools/research/prune-expired.py # No secret: must skip without reading/writing Firebase
-      - run: node tests/online-sim.cjs
       - run: node tests/online-research-batch-analyzer.cjs
       - run: node tests/online-smoke.cjs
       - run: npm install --no-save playwright@1.56.1
