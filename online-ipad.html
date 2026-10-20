@@ -4313,8 +4313,19 @@ function start(){
    S.selected=Number(e.key)===1?"infantry":S.hand[ME()][Number(e.key)-2]||null;buildCards();
   }
  });
+ // Browser-only frame split for localhost ?qa; public play stays uninstrumented.
+ // Frame-gap remainder includes browser scheduling/compositing/other tasks;
+ // it is NOT a direct GPU or Canvas execution-time measurement.
+ const qaFrameBench=(["localhost","127.0.0.1"].includes(location.hostname)&&
+   new URLSearchParams(location.search).has("qa"))
+  ?{samples:[],prevTotalMs:0}:null;
  let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
  function frame(now){
+  const qa=qaFrameBench,started=qa?performance.now():0;
+  const datum=qa?{gapMs:Math.max(0,now-previous),phase:S.phase,
+   units:S.units.length,heavy:S.units.filter(u=>u.key==="tank"||u.key==="guardian").length,
+   logicMs:0,hudMs:0,networkMs:0,drawMs:0,totalMs:0,
+   gapAfterPrevMs:Math.max(0,now-previous-qa.prevTotalMs)}:null;
   try{
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
@@ -4338,17 +4349,23 @@ function start(){
    }
    if(iter===5)acc=0;
   }else acc=0;
+  if(qa)datum.logicMs=performance.now()-started;
   if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle")){
    if(S.phase==="prep")botPreparation();
    else botStep(delta*S.speed);
   }
+  const hudStart=qa?performance.now():0;
   S.hudTick+=delta;
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
+  if(qa)datum.hudMs=performance.now()-hudStart;
+  const networkStart=qa?performance.now():0;
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
+  if(qa)datum.networkMs=performance.now()-networkStart;
   if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
   guestLastPaint=now;
-  const paintStart=perfPanel?performance.now():0;
+  const paintStart=(perfPanel||qa)?performance.now():0;
   draw();
+  if(qa)datum.drawMs=performance.now()-paintStart;
   if(perfPanel)samplePerf(now,performance.now()-paintStart);
   }catch(error){
    // The interaction layer may remain alive after a Canvas exception.
@@ -4358,7 +4375,15 @@ function start(){
     lastFrameErrorAt=now;
     console.warn("Online frame recovered after exception:",error);
    }
-  }finally{requestAnimationFrame(frame)}
+  }finally{
+   if(qa){
+    datum.totalMs=performance.now()-started;
+    qa.prevTotalMs=datum.totalMs;
+    if(qa.samples.length>=1000)qa.samples.shift();
+    qa.samples.push(datum);
+   }
+   requestAnimationFrame(frame);
+  }
  }
  requestAnimationFrame(frame);
 }
@@ -4366,6 +4391,8 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ resetFrameBench:()=>{if(qaFrameBench){qaFrameBench.samples=[];qaFrameBench.prevTotalMs=0;}},
+ frameBench:()=>qaFrameBench?qaFrameBench.samples.map(x=>({...x})):[],
  // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
  fireStress:(team=1,x=640,y=330)=>{
   if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team))return false;
