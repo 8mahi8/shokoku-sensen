@@ -23,7 +23,9 @@ const scenes=[
  {id:"standard",units:14,large:0,spells:0,description:"mid-match infantry/scout/engineer/archer engagement"},
  {id:"light",units:10,large:0,spells:0,description:"exactly 10 ordinary units at same frontline as heavy control"},
  {id:"heavy",units:10,large:2,spells:0,description:"tank vs guardian with infantry and archers"},
- {id:"spell",units:8,large:0,spells:1,description:"suppressor and archer vs drones/sentinel with live barrage"}
+ {id:"spell",units:8,large:0,spells:1,description:"suppressor and archer vs drones/sentinel with live barrage"},
+ {id:"heavy",trial:2,units:10,large:2,spells:0,description:"repeat tank/guardian after other scenarios"},
+ {id:"light",trial:2,units:10,large:0,spells:0,description:"repeat matched control in reverse order"}
 ];
 const allResults=[];
 const round=n=>Math.round(n*10)/10;
@@ -40,7 +42,7 @@ const round=n=>Math.round(n*10)/10;
    });
    for(const scene of scenes){
     // A fresh page resets one-way DPR/quality adaptation so scenes are comparable.
-    const page=await context.newPage(),errors=[],tag=profile.name+"-"+scene.id;
+    const page=await context.newPage(),errors=[],tag=profile.name+"-"+scene.id+"-t"+(scene.trial||1);
     const movie=page.video();
     page.on("pageerror",e=>errors.push(e.message));
     await page.route("**/www.gstatic.com/firebasejs/**",route=>route.abort());
@@ -50,6 +52,22 @@ const round=n=>Math.round(n*10)/10;
     await page.locator("#netSolo").click();
     await page.waitForFunction(()=>window.__shokokuQa?.snapshot()?.phase==="prep");
     await page.waitForFunction(()=>window.KokokuArt?.drawUnit,null,{timeout:15000});
+    // Instrument only QA browser paint callbacks (never shipping game logic).
+    // Compare total draw cost AND cost per art invocation for each actual unit.
+    await page.evaluate(()=>{
+     const orig=window.KokokuArt.drawUnit;
+     window.__shokokuArtProfile={byKind:{},totalMs:0,totalCalls:0};
+     window.KokokuArt.drawUnit=function(...args){
+      const start=performance.now(),id=String(args[1]?.key||"unknown");
+      try{return orig.apply(this,args);}
+      finally{
+       const ms=performance.now()-start,p=window.__shokokuArtProfile;
+       const s=p.byKind[id]||(p.byKind[id]={calls:0,ms:0,maxMs:0});
+       s.calls++;s.ms+=ms;s.maxMs=Math.max(ms,s.maxMs);
+       p.totalMs+=ms;p.totalCalls++;
+      }
+     };
+    });
     const setup=await page.evaluate(s=>window.__shokokuQa.seedRealisticBattle(s),scene.id);
     assert.ok(setup&&setup.actions.every(a=>a.ok),tag+" must use real legal cards");
     assert.equal(setup.units,scene.units,tag+" initial unit count");
@@ -66,6 +84,9 @@ const round=n=>Math.round(n*10)/10;
     await shot("00-enter");
     await page.waitForTimeout(950);
     await shot("01-first-second");
+    // Reset instrumentation after initial sprite loads/first-frame effects so
+    // the 3.5s measure reflects steady-state battle artwork.
+    await page.evaluate(()=>{window.__shokokuArtProfile={byKind:{},totalMs:0,totalCalls:0};});
     const measure=await page.evaluate(async()=>{
      const start=performance.now(),gaps=[],positions=new Map();
      const first=window.__shokokuQa.snapshot();
@@ -85,21 +106,28 @@ const round=n=>Math.round(n*10)/10;
      }
      gaps.sort((a,b)=>a-b);
      const percentile=p=>Math.round(gaps[Math.min(gaps.length-1,Math.floor(gaps.length*p))]||0);
+     const art=window.__shokokuArtProfile;
      return {fps:Math.round(gaps.length*1000/(now-start)*10)/10,frameCount:gaps.length,
       gapP50Ms:percentile(.50),gapP95Ms:percentile(.95),gapMaxMs:percentile(.9999),
       unitsInitially:positions.size,unitsFinal:q.units.length,moved,
+      artCalls:art.totalCalls,artMs:Math.round(art.totalMs*10)/10,
+      artByKind:Object.fromEntries(Object.entries(art.byKind).map(([kind,v])=>
+       [kind,{calls:v.calls,ms:Math.round(v.ms*10)/10,
+        msPerCall:Math.round(v.ms/Math.max(1,v.calls)*1000)/1000,
+        maxMs:Math.round(v.maxMs*10)/10}])),
       ...s,qaOverlay:document.querySelector('[aria-label="通信・描画の診断"]')?.textContent||""};
     });
     await shot("02-engaged");
-    const row={profile:profile.name,scene:scene.id,description:scene.description,setup,measure};
+    const row={profile:profile.name,scene:scene.id,trial:scene.trial||1,description:scene.description,setup,measure};
     allResults.push(row);
     assert.ok(measure.frameCount>0,tag+" must render future frames");
     assert.ok(measure.moved>0,tag+" must show real movement");
     assert.equal(measure.frameError,null,tag+" cannot have recovered frame exceptions");
     assert.deepEqual(errors,[],tag+" must have no uncaught browser errors");
     console.log("REALISTIC BATTLE",JSON.stringify({profile:profile.name,scene:scene.id,
-     units:scene.units,large:scene.large,spells:scene.spells,
+     trial:scene.trial||1,units:scene.units,large:scene.large,spells:scene.spells,
      fps:measure.fps,p95:measure.gapP95Ms,moved:measure.moved,ends:measure.unitsFinal,
+     artCalls:measure.artCalls,artMs:measure.artMs,artByKind:measure.artByKind,
      effects:measure.effects,projectiles:measure.projectiles,
      cachedTiles:measure.cachedTiles}));
     await page.close();
