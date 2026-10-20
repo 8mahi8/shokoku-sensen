@@ -29,7 +29,8 @@
 - **未検証事項:** 実際の学校iPad Safariは未再測定。表示FPSの低下がJSゲームループ、WebKitの画面合成、ヘッドレスCIのフレーム供給など何に由来するかは未特定。
 - **2026-10-21 分解計測成功:** [WebKit/Chromium場面別フレーム計測](https://github.com/8mahi8/shokoku-sensen/actions/runs/39475276349) と[実Firebase対戦QA](https://github.com/8mahi8/shokoku-sensen/actions/runs/39475276452) が合格。WebKitの大型入り/なしの処理差は主にフレーム間隔の未説明部分に集中。これを直接GPU処理時間と断定しない。CI動画キャプチャと実機性能は区別。
 - **2026-10-21 対照実験も完了:** [録画あり/なしとCanvas描画停止の16場面テスト](https://github.com/8mahi8/shokoku-sensen/actions/runs/39476259487) は成功。WebKit録画なしでは大型なし11.5FPS／大型あり8.5FPS、Canvas停止では大型なし21.7FPS／大型あり12.7FPS。**大型アートの同期JS処理が全ての原因とはいえない**。視覚品質や遮蔽の変更はしていない。
-- **2026-10-21 今回の新しい検証コード（結果判定前）:** [commit e31a88a](https://github.com/8mahi8/shokoku-sensen/commit/e31a88a4de574bf34692950d828a3dd94017c159) で同一WebKitタブ・同一画面を使う比較を8→16場面へ拡張。10体の大型あり/なしを順序反転し、①通常描画、②Canvas描画停止、③描画停止＋Canvas非表示、④通常描画＋Canvas非表示を分離。Canvas非表示はCSS `visibility:hidden` で合成側を切り分けるQA限定操作。**まだFPS改善を示すものではない**。試験結果は [GitHub Actions](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483192427) で確認する。
+- **2026-10-21 WebKit合成の対照実験成功:** [16条件の同一ページ計測](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483192427) はCI成功、ガルドのキャッシュ完成確認。各条件2試行平均で、大型なし／大型あり：通常描画 13.1／9.8 FPS、Canvas描画停止 24.0／14.3 FPS、描画停止＋Canvas非表示 29.6／16.5 FPS、通常描画＋Canvas非表示 15.1／10.5 FPS。**Canvas描画も表示も止めても場面差が残るため、Canvasの合成のみが唯一の原因という仮説は支持されない**。JS処理時間は各条件わずかで、差の大半はフレーム間隔の未説明部分。10体は初期召喚数で、測定時の生存体数は変化するため因果はまだ確定しない。頭なしLinux WebKitの結果であり実iPad FPSではない。実ゲームの視覚変更なし。
+- **2026-10-21 追加の描画単独比較:** [commit 5a4c272](https://github.com/8mahi8/shokoku-sensen/commit/5a4c27270c399bc1b76cd78f1128a66b1119efca) で、同じ大型ユニットの実戦闘を維持したまま、**大型2体の描画だけQA中に単純な図形へ差し替える**ABBA比較4場面を追加。HP/攻撃/コスト/AI/位置/通信/公開版には変更なし。CIは [Actions #39483775642](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483775642) で判定する。数値を確認するまでは速度改善を主張しない。
 
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
