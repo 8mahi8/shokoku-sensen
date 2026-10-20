@@ -49,6 +49,21 @@ const CLASSES={
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
  tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,note:"大型・長射程・対空対応の範囲重砲・対城200%"},
 };
+// School-friendly Google Sites HTML: optional, single visible HP / base damage
+// table at the VERY TOP of the pasted document. Only host applies combat
+// values; the same page should be opened by both players for consistent labels.
+// Without this table (regular online.html), all original values remain.
+const schoolStats=window.SHOKOKU_UNIT_STATS;
+if(schoolStats&&typeof schoolStats==="object"){
+ for(const id of Object.keys(CLASSES)){
+  const edit=Object.prototype.hasOwnProperty.call(schoolStats,id)?schoolStats[id]:null;
+  if(!edit||typeof edit!=="object")continue;
+  // Reject malformed numbers rather than corrupting combat state.
+  if(Number.isSafeInteger(edit.hp)&&edit.hp>=1&&edit.hp<=99999)CLASSES[id].hp=edit.hp;
+  if(Number.isSafeInteger(edit.damage)&&edit.damage>=0&&edit.damage<=99999)
+   CLASSES[id].damage=edit.damage;
+ }
+}
 const IDS=Object.keys(CLASSES);
 const SPELLS={
  barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
