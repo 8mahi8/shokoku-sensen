@@ -198,16 +198,36 @@ const deadline=async (f,label,timeout=18000)=>{
    if(scenario==="heavy")
     assert.deepEqual(seeded.heavy.slice().sort(),["guardian","tank"],
      "real heavy artwork for tank and guardian");
-   const synced=await deadline(async()=>{
+   // Capture a FIXED authoritative seq before waiting for WebKit. A guest may
+   // legitimately trail the continuously published host by 1–3 packets.
+   // Requiring it to overtake a constantly moving state.json seq was flaky.
+   const firstScene=await deadline(async()=>{
     const packet=await state();
-    if(packet?.round!==round||!packet?.world?.units||packet.world.units.length!==expected)return null;
+    if(packet?.round!==round||packet?.world?.phase!=="battle"||
+       packet.world.elapsed<100||!Array.isArray(packet.world.units)||
+       packet.world.units.length<1||packet.world.units.length>expected)return null;
+    return {seq:packet.seq,unitCount:packet.world.units.length};
+   },"realistic "+scenario+" host published initial scene",18000);
+   const synced=await deadline(async()=>{
     const guestInfo=await guest.evaluate(()=>({
      seq:window.__onlineSeq||0,scene:window.__shokokuQa.snapshot(),
      diag:window.ShokokuNet.syncDiagnostics()
     }));
-    if(guestInfo.scene.units.length!==expected||guestInfo.seq<packet.seq)return null;
+    if(guestInfo.seq<firstScene.seq||guestInfo.scene.elapsed<100||
+       guestInfo.scene.units.length===0||guestInfo.scene.phase!=="battle")return null;
     return guestInfo;
-   },"realistic "+scenario+" host world reaches WebKit guest",22000);
+   },"realistic "+scenario+" host world reaches WebKit guest",22000).catch(async error=>{
+    const server=await state().catch(()=>null);
+    const guestInfo=await guest.evaluate(()=>({
+     seq:window.__onlineSeq||0,scene:window.__shokokuQa.snapshot(),
+     diagnostics:window.ShokokuNet.syncDiagnostics()
+    })).catch(e=>({error:String(e)}));
+    console.error("REALISTIC GUEST SYNC FAILURE",JSON.stringify({
+     scenario,round,firstScene,server:{seq:server?.seq,count:server?.world?.units?.length,
+      elapsed:server?.world?.elapsed,phase:server?.world?.phase},guest:guestInfo
+    }));
+    throw error;
+   });
    assert.equal(synced.scene.phase,"battle","guest must display real battle "+scenario);
    assert.equal(synced.diag.error,"","guest application errors in "+scenario);
    await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-initial.png"),
