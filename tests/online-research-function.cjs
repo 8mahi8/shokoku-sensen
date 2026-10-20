@@ -62,10 +62,10 @@ async function denied(req,code){
   assert.ok(!json.includes(secret),"no player UID or room ID in stored payload");
  }
  assert.equal((await handler(caller)).duplicate,true,"repeat request must not duplicate");
- assert.equal(store.get("shokokuResearchRateV1/users/"+uid+"/"+new Date().toISOString().slice(0,10)),1,
+ assert.equal(store.get("shokokuResearchRateV1/"+new Date().toISOString().slice(0,10)+"/users/"+uid),1,
   "duplicate does not consume more quota");
  root.meta.round=2;root.meta.startedAt=now-180000;
- store.set("shokokuResearchRateV1/users/"+uid+"/"+new Date().toISOString().slice(0,10),12);
+ store.set("shokokuResearchRateV1/"+new Date().toISOString().slice(0,10)+"/users/"+uid,12);
  await denied({...caller,data:{...input,round:2}},"resource-exhausted");
  assert.equal(store.size>0,true);
  console.log("PASS: callable requires App Check+Auth, rejects forged consent/state, stores anonymously, idempotency, rate limiting");
