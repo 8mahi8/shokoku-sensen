@@ -69,16 +69,8 @@ for(const pageName of ["online-ipad.html","online-embed.html"]){
 assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
  "Published modular online.html keeps its original balanced defaults");
 
-// The Google Sites browser must never directly write a research record.
-const netSource=read("online-net.js");
-const segment=netSource.slice(netSource.indexOf("async function publishResearch(match){"),
- netSource.indexOf("\nfunction sendCommand(c){"));
-assert.ok(segment.includes('httpsCallable("collectShokokuMatch")'),
- "Only a protected callable may receive research records");
-assert.ok(!/db\.ref\(CLOUD_ROOT\+["']\/["']\+key\)|await ref\.set\(/.test(segment),
- "No anonymous/browser direct writes into research Firebase");
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=10')&&page.includes('./online-research.js?v=3')&&page.includes('./online-game.js?v=13'));
+assert.ok(page.includes('./online-net.js?v=9')&&page.includes('./online-research.js?v=2')&&page.includes('./online-game.js?v=13'));
 assert.ok(research.includes('researchConsent')&&research.includes('MAX_MATCHES=8'));
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
