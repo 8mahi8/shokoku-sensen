@@ -10,7 +10,8 @@ const match={schema:1,mode:"online",matchType:"human-vs-human",
   forts:[[1,12],[0,15],[2,10]],units:[[1,"infantry",300,230,105]]}],
  result:{winner:1,duration:270,castleHp:[3000,2700],fortOwners:[1,0,2]},
  clientId:"IGNORED-CLIENT-ID",roomCode:"IGNORED-ROOM",privateInfo:"DO NOT STORE"};
-const room={meta:{status:"finished",round:2,version:2,startedAt:now-6*60000},
+const room={result:{winner:1},
+ meta:{status:"finished",round:2,version:2,startedAt:now-6*60000},
  players:{host:{cloudConsent:true,researchConsent:true,cloudUid:uid},
  guest:{cloudConsent:true,researchConsent:true,cloudUid:"different-anonymous-uid"}}};
 const args={roomCode:"12345",round:2,uid,room,now,attested:true,match};
@@ -24,6 +25,7 @@ const fail=(patch)=>assert.throws(()=>validateAdmission({...args,...patch}),/una
 fail({uid:"different-user-id-xxxx"});
 fail({attested:false});
 fail({room:{...room,meta:{...room.meta,status:"playing"}}});
+fail({room:{...room,result:{winner:2}}});
 fail({room:{...room,meta:{...room.meta,round:3}}});
 fail({room:{...room,meta:{...room.meta,startedAt:now-9*60000}}});
 fail({room:{...room,players:{...room.players,guest:{...room.players.guest,cloudConsent:false}}}});
