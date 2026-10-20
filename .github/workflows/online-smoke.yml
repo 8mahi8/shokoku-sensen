@@ -27,6 +27,9 @@ jobs:
         run: |
           code=$(curl -sS --max-time 12 -o /tmp/rtdb-probe.txt -w '%{http_code}' 'https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1/__read_probe__.json') || code=NETWORK_ERROR
           echo "RTDB_PROBE_HTTP=$code"
+          # Probe only access status; never print room keys or private data.
+          root_code=$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' 'https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1.json?shallow=true') || root_code=NETWORK_ERROR
+          echo "RTDB_ROOM_LIST_HTTP=$root_code"
           if test -f /tmp/rtdb-probe.txt; then head -c 180 /tmp/rtdb-probe.txt; echo; fi
       - name: Prepare Google Sites paste file
         run: cp online-ipad.html Shokoku_III_1v1_school_iPad.txt
