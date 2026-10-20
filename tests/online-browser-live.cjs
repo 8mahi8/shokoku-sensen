@@ -36,14 +36,19 @@ const deadline=async (f,label,timeout=18000)=>{
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
   await guest.locator("#netJoinCode").fill(code);await guest.locator("#netJoin").click();
   await deadline(async()=>(await guest.locator("#netRoom").innerText()).trim()===code,"guest join");
-  // Consent must require both peers and must not send game logs to Firebase.
-  await host.locator("#researchConsent").check();
-  await deadline(async()=>{const r=await fetch(urlDB+"/"+code+"/players/host/researchConsent.json");
-   return r.ok&&(await r.json())===true;},"host research consent stored as boolean",20000);
-  assert.equal(await host.evaluate(()=>window.ShokokuResearch.active),false,"no recording before both consent");
+  // Friend-only telemetry starts ON without a two-person setup ritual.
+  // Both participants can see the notice and opt out before or during play.
+  await deadline(async()=>(await host.locator("#researchConsent").isChecked())&&
+    (await guest.locator("#researchConsent").isChecked()),"recording defaults visible to both peers",20000);
+  assert.equal(await host.evaluate(()=>window.ShokokuResearch.active),false,"no recording outside a match");
+  await guest.locator("#researchConsent").uncheck();
+  await deadline(async()=>{const response=await fetch(urlDB+"/"+code+"/players/guest/researchConsent.json");
+    return response.ok&&(await response.json())===false;},"guest disables recording for both peers",20000);
+  await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("記録 OFF"),
+    "host sees opt-out",20000);
   await guest.locator("#researchConsent").check();
-  await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("双方の同意あり"),
-   "bilateral consent visible to host",20000);
+  await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("記録 ON"),
+    "host sees recording restored",20000);
   // Guest device can substitute a tactical robot: toggling also readies it.
   await deadline(async()=>await guest.locator("#netGuestBot").isVisible(),"guest BOT toggle visible");
   await guest.locator("#netGuestBot").click();
@@ -138,8 +143,17 @@ const deadline=async (f,label,timeout=18000)=>{
   assert.ok(recovered.restSeq>seqBefore,"REST recovered a newer guest world");
   await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
   console.log("GUEST REST RECOVERY",JSON.stringify({from:seqBefore,to:recovered.seq,rest:recovered.restSeq}));
+  // Actual new-game button path must return to the room picker inside Sites,
+  // without iframe location.reload() or awaiting a Firebase round-trip.
+  const originalUrl=guest.url();
+  await guest.evaluate(()=>document.getElementById("newRoom").click());
+  await deadline(async()=>guest.locator("#onlinePanel").isVisible()&&
+    (await guest.locator("#netRoom").innerText()).trim()==="-----"&&
+    await guest.locator("#netCreate").isEnabled(),"embedded guest can begin a new game",6000);
+  assert.equal(guest.url(),originalUrl,"new game must not reload the iframe");
+  assert.equal(await guest.evaluate(()=>window.__onlineSeq),0,"old round cursor resets");
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
-  console.log("PASS: Chromium host + WebKit iPad inline guest, real Firebase BOT auto-ready, auto-deploy, manual override and sync in room "+code);
+  console.log("PASS: Chromium host + WebKit iPad inline guest, default-on opt-out telemetry, recovery and non-blocking new game in room "+code);
  }finally{
   for(const p of pages){try{await p.close()}catch{}}
   if(browser)try{await browser.close()}catch{}
