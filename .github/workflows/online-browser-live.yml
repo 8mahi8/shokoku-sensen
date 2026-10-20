@@ -23,3 +23,9 @@ jobs:
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium webkit
       - run: node tests/online-browser-live.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: online-real-firebase-guest-video
+          path: qa-online-guest-visual/
+          retention-days: 14
