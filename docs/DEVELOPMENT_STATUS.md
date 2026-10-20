@@ -78,7 +78,7 @@
 - Cloud Functionsの試作ソースや資料は**将来必要になったときだけ再評価する参考コード**として未デプロイのまま保持し、現行ゲームに読み込ませない。Firebaseの管理者認証、課金、権限、Google Sites本番操作を行っていない。
 - 調査の結論：Firebaseでは既にゲーム状態・勝敗を試合中に送っているため、有料サーバーを新設せず既存RTDBから軽い集計を残す可能性はある。ただし**既存RTDBルール全文を管理者として読めていない**ため、新しい公開書込パスは設定しない。無制限な匿名書込・親ルールによる公開閲覧リスクを知らずに有効化しない。<https://firebase.google.com/docs/database/security/core-syntax>
 - 当面は遊び心地の維持を最優先。現段階で**友達同士の試合の自動回収は未実装**。既存ローカルJSONはホストが送れば分析できる。自動回収の「できる/できない」はFirebaseルール閲覧可否と最小構成の見通しが立ってから再判断。検証に先立つ新たなコードの追加・課金・外部送信はしない。
-- ソース復元後のGitHub Actions smoke、研究ローカルQA、ブラウザ実Firebase検証結果は別途確認。main・学校Google Sitesは従来のまま。
+- **復元後の検証結果:** [Online smoke #39510705686](https://github.com/8mahi8/shokoku-sensen/actions/runs/39510705686) 合格（HTML/JS・HP火力調整・再戦）。[iPad UI #39510638750](https://github.com/8mahi8/shokoku-sensen/actions/runs/39510638750) 合格。[実Firebase 7連戦 #39510996494](https://github.com/8mahi8/shokoku-sensen/actions/runs/39510996494) 合格、テストルーム削除確認。ローカル記録のChromium/WebKit/Google Sites貼り付け用HTMLでのブラウザQAは[研究QA #39510985497](https://github.com/8mahi8/shokoku-sensen/actions/runs/39510985497) の全画面PASSログを確認（後続プッシュによるワークフローcancel）。次の[同内容の研究QA #39510996483](https://github.com/8mahi8/shokoku-sensen/actions/runs/39510996483) は最新結果の確認対象。main・学校Google Sitesは従来のまま。
 
 ## 2026-10-21 ユーザーによる方針修正｜友達と遊ぶだけの軽量運用を優先
 
