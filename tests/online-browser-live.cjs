@@ -48,8 +48,8 @@ const deadline=async (f,label,timeout=18000)=>{
   for(const p of [host,guest]){
    assert.equal(await p.locator("#researchCloudConsent").isChecked(),false,
     "cloud recording must be opt-in, never inherited from local recording");
-   assert.equal(await p.locator("#researchCloudConsent").isEnabled(),true,
-    "each player must be able to grant consent before a match");
+   assert.equal(await p.locator("#researchCloudConsent").isDisabled(),true,
+    "cloud opt-in remains disabled until protected Firebase backend is configured");
   }
   const [hostCloud,guestCloud]=await Promise.all(["host","guest"].map(async seat=>{
    const resp=await fetch(urlDB+"/"+code+"/players/"+seat+"/cloudConsent.json");
