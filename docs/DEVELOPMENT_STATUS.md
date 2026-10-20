@@ -13,7 +13,7 @@
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** **Phase 1継続。** HUD差分更新は固定10体Canvas停止で改善したが、実際に動く18/20体のheadless WebKitは両方7.1 FPSで、実機iPad快適性をCIだけで判断できない。Chromium Google Sites相当画面は両場面約60.1 FPS。実Firebase同一ルーム7試合・描画QA・録画抜粋レビューは成功。今後は新機能／画質低下／ゲームバランス変更より、**学校iPad Google Sitesでゲスト体感・FPS・表示更新を実測**するのが次の決定材料。Phase 2の連戦基礎7試合は先行合格、実断線復帰などは未確認。PR #22はDraftのまま、本番を変更しない。
+- **いまの最優先課題:** **Phase 1継続。** HUD差分更新は固定10体Canvas停止で改善したが、実際に動く18/20体のheadless WebKitは両方7.1 FPSで、学校iPad快適性をCIだけで判断できない。Chromium Google Sites相当画面は両場面約60.1 FPS。実Firebase同一ルーム7試合・実WebKitゲストのSDK＋ブラウザ通信断／再接続・描画QA・録画抜粋レビューは自動テスト成功。**学校iPad Google Sitesでゲスト体感・FPS・戦況更新の実測**が次のPhase 1判定材料。Phase 2の連戦と擬似断線復旧は先行確認済みだが、学校実機の回線切替・タブ強制終了からの戻り・本番画面の復旧は未確認。PR #22はDraftのまま公開版は変更しない。
 - **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
@@ -53,6 +53,9 @@
 
 - **2026-10-21 実戦8～20体 WebKit/Chromium映像計測完了:** [Actions #39493068175](https://github.com/8mahi8/shokoku-sensen/actions/runs/39493068175) 全試行成功。正規カード10操作で18体（各軍9体・消費11）、20体（各軍10体・消費10）を初期配置し、戦闘継続・移動・弾/エフェクトと描画フレームの回帰検証に合格。WebKit 1194×834録画あり：14体6.8 FPS、18体7.1、20体7.1。Chromium 900×520 Sites相当：14体60.2、18体60.1、20体60.1 FPS。これらは**別ブラウザ/別画面条件のLinux CI**であり学校の実機FPSではない。録画から約1秒・3秒・5秒の複数フレームと交戦前後スクリーンショットを人手で目視確認。密集時は部隊が重なるが、勝手に透明化や召喚/当たり判定変更はしていない。HUD配置・部隊の描画・動きの進行に明白な破綻なし。動画の全時間を連続再生して品質確認済みとは主張しない。
 - **2026-10-21 7試合のFirebase連戦記録と掃除確認:** [Actions #39493068054](https://github.com/8mahi8/shokoku-sensen/actions/runs/39493068054) で青ホストChromium + 赤WebKitゲストによる単一テストルームの開始7回・再戦6回成功。14・10・大型10・砲撃8・18・20体のゲスト反映成功、REST復旧/ルーム変更/フレームエラー0を確認。**CLEANUP: confirmed** で対象一時ルームのRTDB削除も確認済み。ゲストWebKitの1.5秒ごとのフレームは6～12サンプル・p95 gap 432～772msで、実装の対戦進行は正しくてもCI性能の快適性は未合格。学校iPad/SitesのA/B実測まではPhase 1を未完とする。
+
+- **2026-10-21 実Firebase WebKitゲストの通信断・復帰試験に成功:** [Actions #39495374387](https://github.com/8mahi8/shokoku-sensen/actions/runs/39495374387) 成功。[tests/online-browser-live.cjs](../tests/online-browser-live.cjs) を拡張し、進行中の同一ルームでゲストの Firebase SDK `goOffline()` と Playwright BrowserContext の `setOffline(true)` を併用して**実際のSDKソケットを閉じるQA専用切断**を実施。既存のWebKitヘッドレス環境では BrowserContext 単体のoffline指定だけで古いWebSocketが続き、初回 [CI #39495079935](https://github.com/8mahi8/shokoku-sensen/actions/runs/39495079935) はテスト条件不備として失敗した（ゲーム不具合と断定しない）。修正版ではゲストseq=94で固定、ホストはseq99→116へ進行。SDK `goOnline()` とブラウザonline復帰後、ゲストはseq119を受信、`connected:true`、試合継続。復旧後も同一ルームの7試合／6再戦（通常8〜20体、戦車・ゴーレム・砲撃）、旧スナップショットの除外・ルーム画面へ戻る動線が通過。`CLEANUP: confirmed` でこのテストだけのFirebase一時ルーム削除確認済み。**実iPadのWi-Fi切断・Google Sites iframe・端末スリープは未検証**。本体JS・main・Google Sites公開版は変更なし。
+- **2026-10-21 学校iPadでの実測手順を作成:** [docs/IPAD_PHASE1_CHECKLIST.md](./IPAD_PHASE1_CHECKLIST.md)。本番公開後にタイトル3回タップで表示する端末内診断から、FPS/通信更新頻度と8～20体・大型・再戦の体感を簡潔に記録する方針。名前・ルーム番号の共有は不要、診断値は端末内表示でFirebaseへ自動送信されない。現時点では文書作成のみで、学校の実測を代行・完了したものではない。
 
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
