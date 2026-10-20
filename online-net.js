@@ -393,7 +393,8 @@ async function setCloudConsent(value){
  if(solo||!room||!players)return false;
  const seat=host?"host":"guest";
  if(players[seat]?.id!==clientId||
-   (value&&(meta?.status!=="lobby"||!players[seat]?.researchConsent)))return false;
+   (value&&(window.SHOKOKU_CLOUD_RESEARCH_READY!==true||
+    meta?.status!=="lobby"||!players[seat]?.researchConsent)))return false;
  const changed=await room.child("players/"+seat).transaction(old=>
   old?.id===clientId?{...old,cloudConsent:!!value}:undefined,undefined,false);
  if(!changed.committed)throw Error("参加情報が変更されました");
@@ -403,6 +404,8 @@ async function setCloudConsent(value){
 // 128-bit token and contains no room number, participant IDs or device IDs.
 // RTDB backend rules must be set narrowly BEFORE deploying this feature.
 async function publishResearch(match){
+ if(window.SHOKOKU_CLOUD_RESEARCH_READY!==true)
+  return {saved:false,reason:"backend-not-configured"};
  if(solo||!host||!room||!connected||!db||phase==="none"||!match||
     match.mode!=="online"||match.schema!==1)return {saved:false,reason:"not-eligible"};
  const json=JSON.stringify(match);
