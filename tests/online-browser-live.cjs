@@ -187,6 +187,46 @@ const deadline=async (f,label,timeout=18000)=>{
      (await host.locator("#overlay").evaluate(e=>e.classList.contains("hidden")))&&
      (await guest.locator("#overlay").evaluate(e=>e.classList.contains("hidden")));
    },"round "+round+" guest gets fresh snapshot and gameplay overlay",22000);
+   // Build realistic combat with actual legal costs/deployments on host.
+   // The resulting WebKit guest render uses real Firebase state, not
+   // a directly injected client-side fake or 130-unit stress preset.
+   const scenario={2:"standard",3:"heavy",4:"spell"}[round];
+   const expected={standard:14,heavy:10,spell:8}[scenario];
+   const seeded=await host.evaluate(s=>window.__shokokuQa.seedRealisticBattle(s),scenario);
+   assert.ok(seeded&&seeded.units===expected&&seeded.actions.every(a=>a.ok),
+    "legal realistic host scene "+scenario);
+   if(scenario==="heavy")
+    assert.deepEqual(seeded.heavy.slice().sort(),["guardian","tank"],
+     "real heavy artwork for tank and guardian");
+   const synced=await deadline(async()=>{
+    const packet=await state();
+    if(packet?.round!==round||!packet?.world?.units||packet.world.units.length!==expected)return null;
+    const guestInfo=await guest.evaluate(()=>({
+     seq:window.__onlineSeq||0,scene:window.__shokokuQa.snapshot(),
+     diag:window.ShokokuNet.syncDiagnostics()
+    }));
+    if(guestInfo.scene.units.length!==expected||guestInfo.seq<packet.seq)return null;
+    return guestInfo;
+   },"realistic "+scenario+" host world reaches WebKit guest",22000);
+   assert.equal(synced.scene.phase,"battle","guest must display real battle "+scenario);
+   assert.equal(synced.diag.error,"","guest application errors in "+scenario);
+   await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-initial.png"),
+    fullPage:false});
+   await delay(1100);
+   await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-after-1100ms.png"),
+    fullPage:false});
+   const later=await guest.evaluate(()=>({
+    phase:window.__shokokuQa.snapshot().phase,
+    count:window.__shokokuQa.snapshot().units.length,
+    perf:window.ShokokuNet.syncDiagnostics(),
+    frameError:window.__onlineFrameError||null
+   }));
+   assert.equal(later.frameError,null,"WebKit guest should not throw during "+scenario);
+   console.log("REAL FIREBASE GUEST SCENE",JSON.stringify({
+    scenario,initialUnits:seeded.units,heavy:seeded.heavy,
+    packetStats:{seq:synced.seq,updatesHz:synced.diag.updatesHz,applyMs:synced.diag.applyMs},
+    after1100ms:{count:later.count,updatesHz:later.perf.updatesHz,applyMs:later.perf.applyMs}
+   }));
   }
   console.log("CONSECUTIVE ROUNDS: 4 starts incl. 3 repeated rematches in one real Firebase room");
   // Actual new-game button path must return to the room picker inside Sites,
