@@ -8,13 +8,13 @@
 
 ## 現在地
 
-- **優先段階: 安定版1vs1の継続運用（実機最終確認待ち）＋ 新運用Phase 2／4 — 匿名対戦データの自動蓄積基盤（開発・未公開）**
+- **優先段階: 友達1vs1の安定運用 ＋ Phase 2／4 — 既存Firebaseのルーム内へ匿名ログを一時保存しスマホで一括回収（開発PR・未公開）**
 - **対象ゲーム:** 小国戦線III — FORTRESS FRONT、学校iPad＋Google Sites埋め込み、身内1vs1
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** ユーザーと合意した運用ロードマップは「安定版の実機確認→友人戦ログの安全な自動蓄積→実戦ログでBOTを研究→バランスはユーザー判断」。1vs1描画・再戦・Firebase断線復帰は前段階のCIで合格したが学校実機FPSは未判定。**現在は研究データの収集側を開発PR #22で実装中、Firebase側の非公開ルールと書込濫用対策が未構成なのでクラウド送信の起動をハードOFFにした。**
-- **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
+- **いまの最優先課題:** 学校では友達と遊ぶだけ、帰宅後にスマホでルーム番号なしの研究ログ一括回収→BOT研究。**専用サーバー・課金・複雑な認証は作らない。**既存の対戦ルームに匿名ログを同意時だけ残す軽量方式を開発PR #22に実装、実Firebaseの一時ルーム保存は検証合格。ルーム一覧は未認証の公開読み取りが可能（HTTP 200）なので**所有者だけに秘密の記録にはできない**。その制約は回収ページに明記し、本番Google Sites/mainは変更しない。
+- **次の公開版候補:** 本人が採用を判断した場合に限り、友達用1vs1の軽量ログ回収＋学校用HP/攻撃力調整。新モードや戦闘バランスは増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
 ## 完了していること（根拠付き）
@@ -71,6 +71,14 @@
 - [管理者削除処理](../tools/research/prune-expired.py)に14日期限の研究レコードと送信計数のUTC日バケット削除を追加。開発ブランチの[firebase.json](../firebase.json)は研究用Function codebaseのみを定義し、[研究ルール断片](./firebase-research.rules.fragment.json)は実プロジェクトを上書きしない**参考用**。
 - [研究クラウドCI #39505314534](https://github.com/8mahi8/shokoku-sensen/actions/runs/39505314534) と [Online smoke #39505790098](https://github.com/8mahi8/shokoku-sensen/actions/runs/39505790098) は成功。Callable単体の模擬Firebase検証を追加して再実行中。WebKit/Chromiumの実対戦は[前回成功 #39504538575](https://github.com/8mahi8/shokoku-sensen/actions/runs/39504538575)。実Firebase研究領域への書込・管理側自動受渡しは未検証・未開始。
 - **本番化の残課題:** 現在のRTDBルーム権限が匿名の座席同意書換えを許すなら、サーバーがUIDをチェックしても第三者による同意偽装を完全防止できない。既存ルールの管理者取得と精査、必要なら同意をサーバー管理へ移管、学校Google Sites iframeのAuth/App Check対応、Cloud Functionsの利用料金承認、研究ツリーが誰からも読めないことの検証、14日後の本番削除検証を終えるまで**READYフラグをONにしない**。本番Firebase権限/料金/main/Google Sitesは変更していない。[詳細](./RESEARCH_CLOUD.md)。
+
+## 2026-10-21 軽量研究ログ｜ユーザーと合意した新方式（最新）
+
+- **目的:** 君が学校iPadから直接ログを送れない問題の解決。ルーム番号を覚えなくても、帰宅後スマホの[一括回収ページ](../research-recover.html)から「ルーム内ログを検索して一括回収」を1回押し、BOT研究用JSONをダウンロードできる設計。Firebase管理者エクスポートからのオフライン変換も用意。
+- **ゲーム側:** 元の `online-research.js` のローカル記録を保ち、両者が「研究用ログをルームに保存」へ**初期OFFから明示的に同意**した試合のみ、終了後ホストが既存 `/shokokuRooms1v1/<room>/researchRounds/<round>` へ匿名カード使用・戦況・勝敗を記録。部屋内の再戦でもラウンド別に保持。専用Cloud Functions・新Firebaseルート・追加課金契約・プレイヤー識別子は不要。
+- **回収ページ:** `research-recover.html` はFirebase RESTのshallowルーム一覧を取得し、研究ログのみJSONに統合。2026-10-21の[smoke #39516508715](https://github.com/8mahi8/shokoku-sensen/actions/runs/39516508715)で**ルーム一覧の未認証GETがHTTP 200**。変換単体[研究QA #39516477222](https://github.com/8mahi8/shokoku-sensen/actions/runs/39516477222) 合格。実Firebase[仮ルームでの保存 #39516477041](https://github.com/8mahi8/shokoku-sensen/actions/runs/39516477041) 合格（カード行動7件・戦況サンプル2件）かつ終了後の仮ルーム削除を確認。スマホ風ブラウザの**一括回収の実Firebase E2E**は追加テストを確認すること。
+- **運用上の制約:** 誰でもルーム一覧を読める既存RTDB設定につき、ゲーム管理者以外から絶対に読めないという保証はない。名前・端末ID・チャットを含まず、ルーム保存は明示同意で初期OFF。プライベートなログ保管ではない。ルームが24時間後に再利用される場合、残した試合ログも消えるため**当日回収が目安**。本人と友達の実iPad＋スマホ運用は未検証。
+- **開発の範囲:** main/Google Sitesは未変更、PR #22はDraft、開発版のテストを完成してから公開採用を本人が決める。軽量版運用の説明: [RESEARCH_LITE.md](./RESEARCH_LITE.md)。過去のCloud Functions実験は[凍結した参考資料](./RESEARCH_CLOUD.md)であり本番要件ではない。
 
 ## 2026-10-21 軽量化を実行｜開発版をローカル記録へ戻す
 
