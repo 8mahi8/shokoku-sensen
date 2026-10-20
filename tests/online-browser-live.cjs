@@ -4,6 +4,7 @@
 const {chromium,webkit}=require("playwright"),fs=require("node:fs"),http=require("node:http"),path=require("node:path");
 const assert=require("node:assert/strict");
 const root=process.cwd(),urlDB="https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1";
+const qaVideoDir=path.join(root,"qa-online-guest-visual");fs.mkdirSync(qaVideoDir,{recursive:true});
 const mime={".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8"};
 const server=http.createServer((req,res)=>{
  const file=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
@@ -18,14 +19,15 @@ const deadline=async (f,label,timeout=18000)=>{
  throw Error("Timed out "+label+" "+(error?.message||""));
 };
 (async()=>{
- let browser,guestBrowser,code="",pages=[];
+ let browser,guestBrowser,hostCtx,guestCtx,code="",pages=[];
  try{
   await new Promise(r=>server.listen(8765,"127.0.0.1",r));
   browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
   guestBrowser=await webkit.launch({headless:true});
-  const hostCtx=await browser.newContext({viewport:{width:1194,height:834}});
-  const guestCtx=await guestBrowser.newContext({
-   viewport:{width:1194,height:834},deviceScaleFactor:2,hasTouch:true
+  hostCtx=await browser.newContext({viewport:{width:1194,height:834}});
+  guestCtx=await guestBrowser.newContext({
+   viewport:{width:1194,height:834},deviceScaleFactor:2,hasTouch:true,
+   recordVideo:{dir:qaVideoDir,size:{width:1194,height:834}}
   });
   const host=await hostCtx.newPage(),guest=await guestCtx.newPage();
   pages=[host,guest];const errors=[];
@@ -92,6 +94,7 @@ const deadline=async (f,label,timeout=18000)=>{
   },"guest render + snapshot diagnostics",20000);
   const perfText=await perf.innerText();
   console.log("GUEST PERF",JSON.stringify({text:perfText}));
+  await guest.screenshot({path:path.join(qaVideoDir,"guest-prep.png"),fullPage:false});
   const hostStats=await host.evaluate(()=>window.__shokokuNetQa.stats());
   assert.ok(hostStats.snapshotChars>0&&hostStats.encodeMs>=0,
    "host diagnostics should observe payload work");
@@ -119,6 +122,9 @@ const deadline=async (f,label,timeout=18000)=>{
   // Firebase having state is not enough: the WebKit receiver must apply it.
   await deadline(async()=>(await guest.evaluate(()=>window.__onlineSeq||0))>=afterManual.seq,
    "WebKit guest receives and applies manual guest summon",18000);
+  await guest.screenshot({path:path.join(qaVideoDir,"guest-battle-after-summons.png"),fullPage:false});
+  await delay(1200);
+  await guest.screenshot({path:path.join(qaVideoDir,"guest-battle-1200ms-later.png"),fullPage:false});
   // Regression: guest remains interactive but battle snapshots cease,
   // including the minute around a host-fired barrage ("ファイヤー").
   // Keep the real RTDB test room as the only temporary write target.
@@ -152,6 +158,7 @@ const deadline=async (f,label,timeout=18000)=>{
   assert.ok(recovered.restSeq>seqBefore,"REST recovered a newer guest world");
   await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
   console.log("GUEST REST RECOVERY",JSON.stringify({from:seqBefore,to:recovered.seq,rest:recovered.restSeq}));
+  await guest.screenshot({path:path.join(qaVideoDir,"guest-after-network-recovery.png"),fullPage:false});
   // Continuous school 1v1: a single Firebase room must survive three
   // rapid full host->guest round transitions, not merely one new-game click.
   // Do not add extra local test rooms or ever modify the existing real-player data.
@@ -195,6 +202,8 @@ const deadline=async (f,label,timeout=18000)=>{
   console.log("PASS: Chromium host + WebKit iPad inline guest, default-on opt-out telemetry, recovery and non-blocking new game in room "+code);
  }finally{
   for(const p of pages){try{await p.close()}catch{}}
+  if(hostCtx)try{await hostCtx.close()}catch{}
+  if(guestCtx)try{await guestCtx.close()}catch{}
   if(browser)try{await browser.close()}catch{}
   if(guestBrowser)try{await guestBrowser.close()}catch{}
   if(code){
