@@ -13,7 +13,7 @@
 - **公開版:** 学校Google Sitesで現在遊べるHTML（直接貼り付けなのでGitHub側の変更では自動更新されない）
 - **本番 main:** `7db1c98cb51d9841f5f43941767c9972cbef932d`（この文書作成時の確認値。更新時は再確認）
 - **開発候補:** PR [#22](https://github.com/8mahi8/shokoku-sensen/pull/22) / `perf/online-guest-snapshot-diagnostics-20261020`、**Draft・未公開**
-- **いまの最優先課題:** WebKit大型あり10体はCanvas描画停止＋非表示でも低FPS（16.5 FPS 対 大型なし29.6 FPS）、大型アートだけ簡易図形にしても9.7→10.1 FPSの小差。**Canvas合成／大型アートだけを原因とみなさない**。次はシミュレーション進行・生存数とブラウザのrAF供給を切り分ける固定戦場実験。CIのFPSを実iPadと同一視しない。新しい公開候補の合格条件は実機Google Sitesでの快適性。
+- **いまの最優先課題:** WebKitの固定10体試験で大型入りはCanvas描画とシミュレーションを止めると45.3FPSまで回復するが大型なし54.3FPSとの差が残る。戦闘/Canvasの寄与を分離できたが単一原因は未特定。今度はQA限定のCanvas/カードHUD非表示で静止画像・DOM合成の寄与を調べる。CI値と実iPad FPSを混同せず、ゲームバランス・公開画面は変えない。
 - **次の公開版候補:** 快適性アップデート。新機能やバランスを増やさない。
 - **ユーザーの修正判断:** 戦車やゴーレムの背後に歩兵が隠れるのは戦術になり得るため**仕様として残す**。透明化や無理な前面表示を勝手に行わない。
 
@@ -32,7 +32,8 @@
 - **2026-10-21 WebKit合成の対照実験成功:** [16条件の同一ページ計測](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483192427) はCI成功、ガルドのキャッシュ完成確認。各条件2試行平均で、大型なし／大型あり：通常描画 13.1／9.8 FPS、Canvas描画停止 24.0／14.3 FPS、描画停止＋Canvas非表示 29.6／16.5 FPS、通常描画＋Canvas非表示 15.1／10.5 FPS。**Canvas描画も表示も止めても場面差が残るため、Canvasの合成のみが唯一の原因という仮説は支持されない**。JS処理時間は各条件わずかで、差の大半はフレーム間隔の未説明部分。10体は初期召喚数で、測定時の生存体数は変化するため因果はまだ確定しない。頭なしLinux WebKitの結果であり実iPad FPSではない。実ゲームの視覚変更なし。
 - **2026-10-21 大型アートのみの置換対照も成功:** [Actions #39483775642](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483775642)、[commit 5a4c272](https://github.com/8mahi8/shokoku-sensen/commit/5a4c27270c399bc1b76cd78f1128a66b1119efca)。同じ大型ありの戦闘で、戦車＋ガルドの**描画だけ**簡単な矩形に差し替えたABBA 4試行。通常アート 9.70／9.67 FPS、簡易図形 10.09／10.07 FPS（ヘッドレスWebKit）。変化は約+0.4 FPSと小さく、ユニットの描画の複雑さ単独で大型場面のFPS低下を説明できない。ただし試行回数は少なく戦闘進行にばらつきがある。QAランタイム限定で、HP/コスト/移動/攻撃/公開アートは**一切変更していない**。
 - **Phase 1 次の切り分け:** 大型あり/なしで戦闘結果や生存数が変わることが残る交絡。実ゲーム処理とrAFフレーム供給の外部要因を分けるため、固定されたユニットの場面（同じ表示状態/同じカメラ/同じDPR）と、実移動する戦闘を別々に比較し、可能なら有頭WebKit・学校実機の表示も確認する。**ヘッドレスCIだけで画面合成やSafari実機の原因と断定しない**。
-- **2026-10-21 固定戦場コントロール投入（結果判定前）:** [commit a9b910b](https://github.com/8mahi8/shokoku-sensen/commit/a9b910b8c3e7db839ae83f918e0cf0efb66c0e8c)で [`tests/online-static-war-vs-live.cjs`](../tests/online-static-war-vs-live.cjs)を追加し、[commit 5f4ca87](https://github.com/8mahi8/shokoku-sensen/commit/5f4ca87433cd2a4f877c8f93e89bf78880a09d49)でWebKit CIに連結。ローカルQA提供時にのみHTMLの戦闘 tick とゲームアニメーション時計を停止し、正規召喚した10体のHP・ユニット数・位置・大きさを一切変更せずrAF描画を継続。通常戦闘・固定戦場それぞれで大型あり/なし、Canvas描画あり/なし、ABBA順を比較する16試行。固定条件は戦闘経過0、ユニット数10固定、位置不変を自動assert。**ゲーム本体・配布HTML・通信・カードバランスには変更なし**。CI [run 39484912255](https://github.com/8mahi8/shokoku-sensen/actions/runs/39484912255) の合否と数値確認前なので、改善効果や原因確定とはしない。
+- **2026-10-21 固定10体 vs 通常戦闘の対照実験成功:** [run 39484912255](https://github.com/8mahi8/shokoku-sensen/actions/runs/39484912255) 完全成功。ローカルQA配信HTMLだけの戦闘tick＋S.clock停止で、実際に合法召喚した10体を維持（固定中は経過0・ユニット位置不変・大型数不変、描画エラー0）。2試行平均：通常戦闘・描画あり 大型なし11.21／大型あり8.09 FPS、固定戦場・描画あり 13.05／10.97 FPS、通常戦闘・Canvas描画停止21.81／12.73 FPS、固定戦場・Canvas描画停止54.33／45.34 FPS。描画命令と戦闘tickを止めると大型ありでも45 FPSに回復したが、大型なしとの差は残る。計測画像 fixed-light / fixed-heavy をGitHub Actionsから実際に取得して目視確認済み：10体描画・戦車/ゴーレムの通常絵・重なり方を確認。**固定場面は実iPad挙動を証明せず、視覚品質・戦闘バランス・公開HTMLは変更していない**。
+- **2026-10-21 表示HUD起因の残差分解を追加（結果待ち）:** [commit 74c119e](https://github.com/8mahi8/shokoku-sensen/commit/74c119e7dda11fa24443a97b7f6f0b636e05ae3f) で固定10体・Canvas描画停止に対し、①Canvasだけ非表示、②CanvasとカードHUDを両方非表示にする8試行を追加。HUDの静止ポートレート・DOM合成が低FPS差を生むか確かめる。CSS visibility はQAのみで実ゲーム画面を隠さない。CI [run 39485586259](https://github.com/8mahi8/shokoku-sensen/actions/runs/39485586259) を確認後に結論更新。
 
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
