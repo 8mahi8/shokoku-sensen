@@ -91,7 +91,7 @@ const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elap
  uid:0,botThink:0,botPrepDone:false,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
- S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
+ S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.clock=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
  S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];qaRaceBudgetPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
@@ -2174,12 +2174,12 @@ function cachedSprite(u,pose){
 function guestSimplifyVisuals(){
  // Tablet guests are playback clients; offload dense decorative rendering
  // instead of risking delayed inputs and dropped RTDB updates.
- return !NET.isHost&&S.view.dpr<=1.01&&S.units.length>=55;
+ return !NET.isHost&&((guestLowPower&&S.units.length>=28)||(S.view.dpr<=1.01&&S.units.length>=55));
 }
 function renderCrowdedUnit(u){
  // Host and small fights retain full artwork. Densely populated guest iPads
  // use pose tiles for even their heavyweight units.
- if(!useDenseSpriteCache||denseCacheBroken||S.units.length<40||
+ if(!useDenseSpriteCache||denseCacheBroken||S.units.length<(!NET.isHost&&guestLowPower?28:40)||
    ((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals())||
    !window.KokokuArt){
   fullSpritesRendered++;drawUnit(u);return;
