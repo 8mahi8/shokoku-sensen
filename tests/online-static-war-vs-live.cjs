@@ -45,7 +45,11 @@ const filterControls=[
  ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,filterOff:false})),
  ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,filterOff:true}))
 ];
-const schedule=[...baseline,...uiControl,...filterControls];
+const portraitControls=[
+ ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,portraitHidden:true})),
+ ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,portraitImages:true}))
+];
+const schedule=[...baseline,...uiControl,...filterControls,...portraitControls];
 const rows=[];
 (async()=>{
  let browser,context;
@@ -67,7 +71,8 @@ const rows=[];
   await page.evaluate(()=>{
    window.__shokokuQa.setDpr(1);window.__qaTickPause=false;
    const style=document.createElement("style");
-   style.textContent="body.qa-no-card-filter .card.unavailable,body.qa-no-card-filter .card.depleted{filter:none!important}";
+   style.textContent="body.qa-no-card-filter .card.unavailable,body.qa-no-card-filter .card.depleted{filter:none!important}"+
+    "body.qa-hide-card-portraits #cards .cardPortrait{visibility:hidden!important}";
    document.head.append(style);
   });
   const expectedBacking=await page.evaluate(()=>[
@@ -81,7 +86,7 @@ const rows=[];
     document.getElementById("field").style.visibility="visible";
     document.getElementById("cards").style.visibility="visible";
     document.getElementById("nextCard").style.visibility="visible";
-    document.body.classList.remove("qa-no-card-filter");
+    document.body.classList.remove("qa-no-card-filter","qa-hide-card-portraits");
     window.__qaTickPause=false;
     // Both paths use the real legal-card summon process. Paused scenes
     // enter frozen mode before the browser can schedule the next rAF tick.
@@ -92,6 +97,23 @@ const rows=[];
    assert.ok(setup&&setup.actions.every(a=>a.ok), "legal deployment");
    assert.equal(setup.units,10,"10 initial real summoned units");
    assert.equal(setup.heavy.length,trial.scene==="heavy"?2:0,"heavy category");
+   if(trial.portraitImages){
+    const changed=await page.evaluate(async()=>{
+     const originals=[...document.querySelectorAll("#cards canvas.cardPortrait")];
+     const replacements=[];
+     for(const canvas of originals){
+      const image=document.createElement("img");
+      image.className=canvas.className;
+      image.setAttribute("aria-hidden","true");
+      image.src=canvas.toDataURL("image/png");
+      await image.decode();
+      canvas.replaceWith(image);
+      replacements.push(image);
+     }
+     return replacements.length;
+    });
+    assert.equal(changed,5,"all five portraits swapped to identical PNG images");
+   }
    await page.waitForTimeout(300);
    const measured=await page.evaluate(async control=>{
     window.__shokokuQa.setDrawDisabledForQa(control.noPaint);
@@ -99,6 +121,7 @@ const rows=[];
     document.getElementById("cards").style.visibility=control.hideCards?"hidden":"visible";
     document.getElementById("nextCard").style.visibility=control.hideCards?"hidden":"visible";
     document.body.classList.toggle("qa-no-card-filter",!!control.filterOff);
+    document.body.classList.toggle("qa-hide-card-portraits",!!control.portraitHidden);
     // Keep HUD, other DOM, Canvas and rAF alive. Only the battle simulation
     // clock and 30Hz tick are frozen in the injected localhost HTML.
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -134,6 +157,8 @@ const rows=[];
      canvasVisible:getComputedStyle(cv).visibility==="visible",
      cardsVisible:getComputedStyle(document.getElementById("cards")).visibility==="visible",
      filterOff:document.body.classList.contains("qa-no-card-filter"),
+     portraitHidden:document.body.classList.contains("qa-hide-card-portraits"),
+     portraitImages:document.querySelectorAll("#cards img.cardPortrait").length,
      unavailableCount:document.querySelectorAll("#cards .card.unavailable").length,
      filteredCardCount:[...document.querySelectorAll("#cards .card")].filter(c=>getComputedStyle(c).filter!=="none").length,
      backing:[cv.width,cv.height],frameError:window.__onlineFrameError||null
@@ -144,6 +169,8 @@ const rows=[];
    assert.equal(measured.canvasVisible,!trial.canvasHidden,"canvas hide control applies");
    assert.equal(measured.cardsVisible,!trial.hideCards,"cards hide control applies");
    assert.equal(measured.filterOff,!!trial.filterOff,"CSS filter isolation applies");
+   assert.equal(measured.portraitHidden,!!trial.portraitHidden,"portrait visibility control applies");
+   assert.equal(measured.portraitImages,trial.portraitImages?5:0,"PNG portrait control applies");
    if(trial.filterOff)assert.equal(measured.filteredCardCount,0,"CSS card filters really removed");
    assert.deepEqual(measured.backing,expectedBacking,"constant Canvas size");
    assert.equal(measured.frameError,null,"no draw exceptions");
@@ -162,6 +189,9 @@ const rows=[];
      !rows.slice(0,-1).some(r=>r.mode==="freeze"&&!r.noPaint&&r.scene===trial.scene)){
     await page.screenshot({path:path.join(out,"fixed-"+trial.scene+".png"),animations:"disabled"});
    }
+   if(trial.portraitImages&&!rows.slice(0,-1).some(r=>r.portraitImages&&r.scene===trial.scene)){
+    await page.screenshot({path:path.join(out,"png-card-"+trial.scene+".png"),animations:"disabled"});
+   }
   }
   // Guardrail: expected actual visual battles + fixed controls, no fabricated
   // offline FPS claims or unreviewed production optimization.
@@ -173,9 +203,10 @@ const rows=[];
     "Live rows intentionally permit deaths and moving projectiles",
     "QA-only visibility controls isolate battlefield Canvas and card HUD compositor contribution",
     "QA-only filter:none removes CSS filters without hiding cards or touching game balance",
+    "QA-only card portrait visibility and PNG substitution isolate Canvas card composition",
     "Headless Linux WebKit is not an actual physical iPad Safari"]
   },null,2));
-  console.log("PASS: WebKit fixed-vs-live, DOM visibility, and CSS card filter isolation");
+  console.log("PASS: WebKit fixed-vs-live, visibility, CSS filters, and static PNG portraits");
  }finally{
   await context?.close().catch(()=>{});
   await browser?.close().catch(()=>{});
