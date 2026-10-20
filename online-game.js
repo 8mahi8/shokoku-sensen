@@ -3677,7 +3677,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     [[1,"infantry",650,396],[1,"infantry",667,451],[1,"scout",648,491],
      [1,"infantry",677,380],[1,"archer",634,470]],
     [[2,"infantry",844,397],[2,"infantry",828,449],[2,"scout",858,486],
-     [2,"infantry",818,381],[2,"archer",865,466]]
+     [2,"infantry",829,381],[2,"archer",865,466]]
    ],
    // Twenty legal units (10 per team): four infantry cards and one
    // archer card consume 10 energy, staying within the 12-cost limit.
@@ -3685,7 +3685,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
     [[1,"infantry",644,398],[1,"infantry",671,440],[1,"infantry",649,477],
      [1,"infantry",679,385],[1,"archer",633,470]],
     [[2,"infantry",845,400],[2,"infantry",821,445],[2,"infantry",850,482],
-     [2,"infantry",815,383],[2,"archer",864,470]]
+     [2,"infantry",827,383],[2,"archer",864,470]]
    ],
    spell:[
     [[1,"suppress",668,429],[1,"archer",647,475],[1,"barrage",830,435]],
@@ -3705,7 +3705,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
    for(const [side,id,x,y] of actions){
     const before=S.energy[side],ok=playCard(side,id,x,y);
     summary.actions.push({team:side,id,ok,energyBefore:before,energyAfter:S.energy[side]});
-    if(!ok)throw Error("Realistic QA scene cannot legally play "+side+":"+id);
+    if(!ok)throw Error("Realistic QA scene cannot legally play "+side+":"+id+" at "+x+","+y+" energy="+before+" border="+border(side));
    }
   }
   summary.units=S.units.length;summary.byTeam[1]=S.units.filter(u=>u.team===1).length;
