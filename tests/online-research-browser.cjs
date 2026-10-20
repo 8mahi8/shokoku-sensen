@@ -25,6 +25,11 @@ const server=http.createServer((req,res)=>{
    await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
    await page.goto("http://127.0.0.1:8798/"+source+"?qa=1",{waitUntil:"domcontentloaded"});
    await page.locator("#researchConsent").waitFor({state:"visible"});
+   await page.locator("#researchArchiveConsent").waitFor({state:"visible"});
+   assert.equal(await page.locator("#researchArchiveConsent").isChecked(),false,
+    "room log archive requires explicit consent from both participants");
+   assert.equal(await page.locator("#researchArchiveConsent").isDisabled(),true,
+    "cannot consent outside a room");
    assert.equal(await page.locator("#researchConsent").isChecked(),true,"anonymous local logging defaults on");
    assert.equal(await page.locator("[data-research-export]").first().isDisabled(),true);
    await page.locator("#researchConsent").uncheck();
