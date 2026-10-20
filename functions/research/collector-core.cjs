@@ -67,6 +67,7 @@ function validateAdmission({roomCode,round,uid,room,now,attested,match}){
   throw Error("unauthorized");
  const meta=room.meta||{},h=room.players?.host||{},g=room.players?.guest||{};
  if(meta.status!=="finished"||meta.round!==round||meta.version!==2||
+   !integer(room.result?.winner,0,2)||room.result.winner!==match?.result?.winner||
    !finite(meta.startedAt,now-8*60*1000,now)||
    h.cloudUid!==uid||h.cloudConsent!==true||g.cloudConsent!==true||
    h.researchConsent!==true||g.researchConsent!==true||
