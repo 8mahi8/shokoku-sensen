@@ -59,6 +59,8 @@
 
 - **2026-10-21 Phase 1学校iPadテスト用HTMLを準備:** 開発ブランチの `online-ipad.html`（Git blob SHA `f7e0fa7d23b6d4641d89687497add4dde014a272`）を、既存 [Online 1v1 smoke #39493081154](https://github.com/8mahi8/shokoku-sensen/actions/runs/39493081154) の成功アーティファクト `Shokoku_III_1v1_school_iPad.txt` から取得。UTF-8 **320,227 bytes**、Git blob SHA一致・インラインJS構文検証成功。チャットに「Shokoku_III_Phase1_Google_Sites_Copy.txt」「Shokoku_III_Phase1_Google_Sites_Test.html」を添付して実機QAを依頼。両ファイルは同一バイト列。**Google Sitesへの実貼り付け・本番反映・実iPad測定は未実施**。本体に検査用の特別コードは追加しない。診断はゲームタイトル3回タップ。できればGoogle Sites上の別テストページに貼って既存ページを保存。公開版の定義はユーザー自身がHTML全文を貼って友達とオンライン対戦できる状態であり、この段階はあくまで公開候補準備。
 
+- **2026-10-21 学校からのHP/攻撃力簡易編集欄を実装・検証:** `online-ipad.html`/`online-embed.html` のHTML冒頭へ `window.SHOKOKU_UNIT_STATS` を追加。基本歩兵・偵察ライダー・重装工兵・魔導射手・迎撃衛士・制圧機兵・守護ゴーレム・ドローン・戦車の**全9キャラのHPと基本攻撃力**を1か所で編集可能。`online-game.js` の起動時に合法な整数だけ `CLASSES` へ適用し、攻撃・被弾の実パラメータに反映。通常 `online.html` の既定値、城/砦、スペル、コスト等は不変更。`tests/online-smoke.cjs` で9種類すべての既定値、一部書換え時のHP/攻撃力への反映、他パラメータ不変、異常値時の安全な既定値を検証し [smoke #39499222485](https://github.com/8mahi8/shokoku-sensen/actions/runs/39499222485) 成功。実Firebase連戦/ゲスト切断復帰 [Actions #39499112116](https://github.com/8mahi8/shokoku-sensen/actions/runs/39499112116) 成功、学校iPad相当UI [Actions #39499112246](https://github.com/8mahi8/shokoku-sensen/actions/runs/39499112246) 成功。Actionsが生成した `online-ipad.html` コピーファイルをChatGPT内でTXT/HTMLとして渡し、Git blob SHA `b7fbf1dc30909499484364d442bc72c3d6c3f252` 一致・インラインJS構文も確認。**main/既存Google Sitesへの反映はしていない。** 編集したHTML全文をGoogle Sitesに貼り直し再公開する必要がある。変更後の学校実機対戦はまだ。
+
 ## ロードマップ（順序固定・途中で改善余地は再評価）
 
 1. **Phase 1 — 描画・通信最適化（作業中）:** 大型アート・通常兵と比較、同数・同解像度・反復測定、ゲストの表示FPS/反映間隔/処理時間を独立把握。大きな差の原因に絞って描画改修。
