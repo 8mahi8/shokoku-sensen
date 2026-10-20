@@ -41,7 +41,11 @@ const uiControl=[
  ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,hideCards:false})),
  ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,hideCards:true}))
 ];
-const schedule=[...baseline,...uiControl];
+const filterControls=[
+ ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,filterOff:false})),
+ ...["light","heavy","heavy","light"].map(scene=>({mode:"freeze",scene,noPaint:true,canvasHidden:true,filterOff:true}))
+];
+const schedule=[...baseline,...uiControl,...filterControls];
 const rows=[];
 (async()=>{
  let browser,context;
@@ -60,7 +64,12 @@ const rows=[];
    null,{timeout:35000}).then(()=>true).catch(()=>false);
   // Constant backing resolution for the entire test, avoiding adaptation
   // or per-condition changes in the DPR. This is only a test-browser override.
-  await page.evaluate(()=>{window.__shokokuQa.setDpr(1);window.__qaTickPause=false;});
+  await page.evaluate(()=>{
+   window.__shokokuQa.setDpr(1);window.__qaTickPause=false;
+   const style=document.createElement("style");
+   style.textContent="body.qa-no-card-filter .card.unavailable,body.qa-no-card-filter .card.depleted{filter:none!important}";
+   document.head.append(style);
+  });
   const expectedBacking=await page.evaluate(()=>[
    document.getElementById("field").width,document.getElementById("field").height]);
   console.log("FIXED CONTROL CONFIG",JSON.stringify({atlasReady,expectedBacking}));
@@ -72,6 +81,7 @@ const rows=[];
     document.getElementById("field").style.visibility="visible";
     document.getElementById("cards").style.visibility="visible";
     document.getElementById("nextCard").style.visibility="visible";
+    document.body.classList.remove("qa-no-card-filter");
     window.__qaTickPause=false;
     // Both paths use the real legal-card summon process. Paused scenes
     // enter frozen mode before the browser can schedule the next rAF tick.
@@ -88,6 +98,7 @@ const rows=[];
     document.getElementById("field").style.visibility=control.canvasHidden?"hidden":"visible";
     document.getElementById("cards").style.visibility=control.hideCards?"hidden":"visible";
     document.getElementById("nextCard").style.visibility=control.hideCards?"hidden":"visible";
+    document.body.classList.toggle("qa-no-card-filter",!!control.filterOff);
     // Keep HUD, other DOM, Canvas and rAF alive. Only the battle simulation
     // clock and 30Hz tick are frozen in the injected localhost HTML.
     await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
@@ -122,6 +133,9 @@ const rows=[];
      paused:!!window.__qaTickPause,drawDisabled:!!control.noPaint,
      canvasVisible:getComputedStyle(cv).visibility==="visible",
      cardsVisible:getComputedStyle(document.getElementById("cards")).visibility==="visible",
+     filterOff:document.body.classList.contains("qa-no-card-filter"),
+     unavailableCount:document.querySelectorAll("#cards .card.unavailable").length,
+     filteredCardCount:[...document.querySelectorAll("#cards .card")].filter(c=>getComputedStyle(c).filter!=="none").length,
      backing:[cv.width,cv.height],frameError:window.__onlineFrameError||null
     };
    },trial);
@@ -129,6 +143,8 @@ const rows=[];
    assert.equal(measured.drawDisabled,trial.noPaint,"render control applies");
    assert.equal(measured.canvasVisible,!trial.canvasHidden,"canvas hide control applies");
    assert.equal(measured.cardsVisible,!trial.hideCards,"cards hide control applies");
+   assert.equal(measured.filterOff,!!trial.filterOff,"CSS filter isolation applies");
+   if(trial.filterOff)assert.equal(measured.filteredCardCount,0,"CSS card filters really removed");
    assert.deepEqual(measured.backing,expectedBacking,"constant Canvas size");
    assert.equal(measured.frameError,null,"no draw exceptions");
    assert.ok(measured.frameSamples>=8,"frame samples exist");
@@ -156,9 +172,10 @@ const rows=[];
     "Frozen-world patch exists in QA-served HTML only (not repository HTML)",
     "Live rows intentionally permit deaths and moving projectiles",
     "QA-only visibility controls isolate battlefield Canvas and card HUD compositor contribution",
+    "QA-only filter:none removes CSS filters without hiding cards or touching game balance",
     "Headless Linux WebKit is not an actual physical iPad Safari"]
   },null,2));
-  console.log("PASS: WebKit fixed-vs-live, no-paint, and hidden-canvas/cards controls");
+  console.log("PASS: WebKit fixed-vs-live, DOM visibility, and CSS card filter isolation");
  }finally{
   await context?.close().catch(()=>{});
   await browser?.close().catch(()=>{});
