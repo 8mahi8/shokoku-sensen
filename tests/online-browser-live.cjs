@@ -43,6 +43,22 @@ const deadline=async (f,label,timeout=18000)=>{
   await deadline(async()=>(await host.locator("#researchConsent").isChecked())&&
     (await guest.locator("#researchConsent").isChecked()),"recording defaults visible to both peers",20000);
   assert.equal(await host.evaluate(()=>window.ShokokuResearch.active),false,"no recording outside a match");
+  // New cloud collection is separate from default-on LOCAL logging.
+  // Never opt the real CI Firebase test room into research cloud writes.
+  for(const p of [host,guest]){
+   assert.equal(await p.locator("#researchCloudConsent").isChecked(),false,
+    "cloud recording must be opt-in, never inherited from local recording");
+   assert.equal(await p.locator("#researchCloudConsent").isEnabled(),true,
+    "each player must be able to grant consent before a match");
+  }
+  const [hostCloud,guestCloud]=await Promise.all(["host","guest"].map(async seat=>{
+   const resp=await fetch(urlDB+"/"+code+"/players/"+seat+"/cloudConsent.json");
+   if(!resp.ok)throw Error("test room cloud consent not readable");
+   return resp.json();
+  }));
+  assert.equal(hostCloud,false,"host cloud consent false on room creation");
+  assert.equal(guestCloud,false,"guest cloud consent false on joining");
+  console.log("RESEARCH CLOUD OFF",JSON.stringify({host:hostCloud,guest:guestCloud}));
   await guest.locator("#researchConsent").uncheck();
   await deadline(async()=>{const response=await fetch(urlDB+"/"+code+"/players/guest/researchConsent.json");
     return response.ok&&(await response.json())===false;},"guest disables recording for both peers",20000);
