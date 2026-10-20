@@ -11,6 +11,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 DB = "https://mygame-df915-default-rtdb.firebaseio.com"
@@ -63,14 +64,38 @@ def run(apply=False):
         if not isinstance(expires, (int, float)) or expires > now_ms:
             continue
         eligible.append(key)
+    # Quota buckets contain Firebase anonymous auth UIDs. Remove whole
+    # UTC-day buckets after 14 days too; otherwise pseudonymous IDs accumulate.
+    cutoff = (datetime.now(timezone.utc).date() - timedelta(days=14)).isoformat()
+    quotas = requests.get(
+        DB + "/shokokuResearchRateV1.json",
+        params={
+            "orderBy": '"$key"',
+            "endAt": json.dumps(cutoff),
+            "limitToFirst": "30",
+        },
+        headers=headers,
+        timeout=30,
+    )
+    quotas.raise_for_status()
+    days = quotas.json() or {}
+    if not isinstance(days, dict):
+        raise ValueError("Unexpected quota cleanup response")
+    old_days = [key for key in days if re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", key)
+                and key <= cutoff]
     if apply:
         for key in eligible:
             url = DB + "/" + ROOT + "/" + quote(key, safe="") + ".json"
             reply = requests.delete(url, headers=headers, timeout=25)
             reply.raise_for_status()
-    # Only counts are logged, never private record IDs, match JSON or tokens.
-    print("Research cleanup: eligible=%d, deleted=%d" %
-          (len(eligible), len(eligible) if apply else 0))
+        for day in old_days:
+            url = DB + "/shokokuResearchRateV1/" + quote(day, safe="") + ".json"
+            reply = requests.delete(url, headers=headers, timeout=25)
+            reply.raise_for_status()
+    # Log only counts. Never print private keys, client IDs or match payloads.
+    print("Research cleanup: matches eligible=%d deleted=%d, quota days eligible=%d deleted=%d" %
+          (len(eligible), len(eligible) if apply else 0,
+           len(old_days), len(old_days) if apply else 0))
     return 0
 
 
