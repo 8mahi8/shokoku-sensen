@@ -512,12 +512,15 @@ function setupRoom(code,isHost){
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
+ const openedRoom=room;
  if(connected)registerPresence().catch(setError);
  attach(room.child("players"),"value",snap=>{
+  if(room!==openedRoom)return;
   players=snap.val();
   updateUI();
  });
  attach(room.child("meta"),"value",snap=>{
+  if(room!==openedRoom)return;
   const before=meta?.status,priorRound=meta?.round;
   meta=snap.val();
   // Short lobby transitions may be skipped: detect new rounds by number.
@@ -548,11 +551,13 @@ function setupRoom(code,isHost){
   updateUI();
  });
  attach(room.child("result"),"value",snap=>{
+  if(room!==openedRoom)return;
   result=snap.val();
   if(result&&!host&&meta?.status==="finished")game?.showResult?.(result);
  });
  if(host){
   attach(room.child("commands"),"child_added",async snap=>{
+   if(room!==openedRoom)return;
    const data=snap.val();if(!data)return;
    // Only accepted orders from this room's registered guest; all gameplay checks run in host.
    if(meta?.status==="playing"&&data.round===meta.round&&data.by===players?.guest?.id&&players?.guest?.online&&
@@ -566,9 +571,11 @@ function setupRoom(code,isHost){
   });
  }else{
   attach(room.child("state"),"value",snap=>{
+   if(room!==openedRoom)return;
    if(!qaMuteSdkSnapshots)receiveGuestWorld(snap.val());
   });
   attach(room.child("feedback"),"value",snap=>{
+   if(room!==openedRoom)return;
    const feedback=snap.val();
    if(feedback?.seq===commandSeq)show(feedback.message);
   });
@@ -728,7 +735,7 @@ async function rematch(){
  }catch(e){setError(e)}finally{$("start").disabled=false;}
 }
 function resetLobby(){
- const leaving=room,seat=host?"host":"guest";
+ const leaving=room,seat=host?"host":"guest",leavingDisconnect=disconnectOp;
  // Return to the room picker immediately. Never block Safari/Sites navigation
  // on a Firebase read/write; onDisconnect remains a fallback for stale presence.
  room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;
@@ -748,7 +755,11 @@ function resetLobby(){
   // Only change our own seat; a new visitor could have claimed a stale seat.
   leaving.child("players/"+seat).transaction(old=>
    old?.id===clientId?{...old,online:false,ready:false}:undefined,
-   undefined,false).catch(e=>console.warn("Room exit cleanup:",e));
+   undefined,false).then(()=>{
+    // Remove the OLD disconnect hook only after the explicit leave is settled.
+    // Otherwise it could mark a replacement guest offline later.
+    leavingDisconnect?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
+   }).catch(e=>console.warn("Room exit cleanup:",e));
  }
 }
 const api={
