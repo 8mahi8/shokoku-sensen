@@ -51,6 +51,14 @@ const deadline=async (f,label,timeout=18000)=>{
   await guest.locator("#researchConsent").check();
   await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("記録 ON"),
     "host sees recording restored",20000);
+  // Explicit opt-in on THIS disposable research QA room, never on real games.
+  await host.locator("#researchArchiveConsent").check();
+  await guest.locator("#researchArchiveConsent").check();
+  await deadline(async()=>{
+   const response=await fetch(urlDB+"/"+code+"/players.json");
+   const peers=response.ok?await response.json():null;
+   return peers?.host?.archiveConsent===true&&peers?.guest?.archiveConsent===true;
+  },"both peers opt into archive",20000);
   // Guest device can substitute a tactical robot: toggling also readies it.
   await deadline(async()=>await guest.locator("#netGuestBot").isVisible(),"guest BOT toggle visible");
   await guest.locator("#netGuestBot").click();
@@ -215,6 +223,25 @@ const deadline=async (f,label,timeout=18000)=>{
   }));
   await guest.screenshot({path:path.join(qaVideoDir,"guest-after-physical-reconnect.png"),
    fullPage:false});
+  // Finish a recorded match in the existing QA room, then confirm that
+  // the REAL Firebase permission allows an optional in-room archive.
+  const finalWorld=(await state()).world;
+  assert.ok(finalWorld?.capitals?.length===2&&finalWorld?.forts?.length===3);
+  await host.evaluate(w=>{
+   window.ShokokuResearch.finish(w);
+   window.ShokokuNet.finish({result:"win",reason:"QA archive"});
+  },finalWorld);
+  const archived=await deadline(async()=>{
+   const response=await fetch(urlDB+"/"+code+"/researchRounds/1.json");
+   return response.ok?(await response.json())?.match:null;
+  },"existing room accepts consented research record",15000);
+  assert.equal(archived.schema,1);
+  assert.equal(archived.mode,"online");
+  assert.ok(Array.isArray(archived.actions)&&Array.isArray(archived.samples));
+  assert.ok(!JSON.stringify(archived).includes(code));
+  console.log("PASS LIVE RESEARCH ROOM ARCHIVE",JSON.stringify({
+   actions:archived.actions.length,samples:archived.samples.length
+  }));
   // Continuous school 1v1: one temporary Firebase room must survive six
   // host->guest rematches, including realistic 18/20-unit battles.
   // No permanent room or change to the public Google Sites deployment.
