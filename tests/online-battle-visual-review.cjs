@@ -21,6 +21,7 @@ const profiles=[
 ];
 const scenes=[
  {id:"standard",units:14,large:0,spells:0,description:"mid-match infantry/scout/engineer/archer engagement"},
+ {id:"light",units:10,large:0,spells:0,description:"exactly 10 ordinary units at same frontline as heavy control"},
  {id:"heavy",units:10,large:2,spells:0,description:"tank vs guardian with infantry and archers"},
  {id:"spell",units:8,large:0,spells:1,description:"suppressor and archer vs drones/sentinel with live barrage"}
 ];
