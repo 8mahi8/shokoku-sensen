@@ -5208,11 +5208,17 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  // Enabled only on loopback ?qa=1; a live CI host may send the result to its
  // temporary Firebase room so a WebKit guest can be visually inspected too.
  seedRealisticBattle:(scenario="heavy")=>{
-  if(!NET.isHost||!["standard","heavy","spell"].includes(scenario))return null;
+  if(!NET.isHost||!["standard","light","heavy","spell"].includes(scenario))return null;
   const setups={
    standard:[
     [[1,"infantry",641,405],[1,"scout",658,448],[1,"archer",629,475],[1,"infantry",651,455]],
     [[2,"infantry",837,415],[2,"engineer",851,452],[2,"archer",863,479],[2,"infantry",850,435]]
+   ],
+   // Exactly ten ordinary units at the SAME summon positions as the two-heavy
+   // scene. Compare like-for-like counts when isolating expensive tank/golem art.
+   light:[
+    [[1,"infantry",668,428],[1,"scout",655,465],[1,"archer",635,388]],
+    [[2,"infantry",831,430],[2,"engineer",846,463],[2,"archer",860,386]]
    ],
    heavy:[
     [[1,"tank",668,428],[1,"infantry",655,465],[1,"archer",635,388]],
