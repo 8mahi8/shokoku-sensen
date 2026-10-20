@@ -72,6 +72,10 @@ assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
 const page=read("online.html");
 assert.ok(page.includes('./online-net.js?v=9')&&page.includes('./online-research.js?v=2')&&page.includes('./online-game.js?v=13'));
 assert.ok(research.includes('researchConsent')&&research.includes('MAX_MATCHES=8'));
+assert.ok(net.includes("researchRounds/"),"room-scoped research data only");
+assert.ok(research.includes("researchArchiveConsent"),"both peers explicitly opt in");
+assert.ok(!net.includes('db.ref("shokokuResearchV1'),"no separate public research path");
+assert.ok(read("research-recover.html").includes("shokokuRooms1v1"),"phone recovery page exists");
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
 assert.ok(net.includes('packet.round!==meta?.round'));
