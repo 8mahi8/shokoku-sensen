@@ -205,10 +205,12 @@ function syncOnline(o){
  const cloud=$("researchCloudConsent");
  if(cloud){
   cloud.checked=inRoom&&ownCloudConsent;
-  cloud.disabled=!inRoom||(playing&&!ownCloudConsent);
+  cloud.disabled=window.SHOKOKU_CLOUD_RESEARCH_READY!==true||
+   !inRoom||(playing&&!ownCloudConsent);
  }
  const cloudHint=$("researchCloudHint");
- if(cloudHint)cloudHint.textContent=inRoom?
+ if(cloudHint)cloudHint.textContent=window.SHOKOKU_CLOUD_RESEARCH_READY!==true?
+  "研究用クラウド保存は準備中です。現在は端末内のみ記録します":inRoom?
   bothCloudConsent?"双方が同意中。試合完了後にホストから研究用Firebaseへ自動送信（匿名）":
   "クラウド送信は未同意。双方がチェックした試合だけ送信。既送信分の削除は管理者へ":
   "クラウドは初期OFF。オンラインルーム参加後に双方が同意できます";
