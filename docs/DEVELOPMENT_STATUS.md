@@ -65,6 +65,13 @@
 - **2026-10-21 新運用Phase 2の自動テスト合格:** [Online 1v1 smoke #39501431890](https://github.com/8mahi8/shokoku-sensen/actions/runs/39501431890) で初期OFF・両者同意・同意撤回・匿名な分離パス・公開読取禁止・1日送信試行上限・ローカル保存継続を模擬確認。[研究用ブラウザQA #39502148149](https://github.com/8mahi8/shokoku-sensen/actions/runs/39502148149) は3画面（Chromium通常、WebKit学校iPad、Chromium埋込）で既存記録/共有/消去・簡易編集HTML・構文が合格。最新の明示的なbackend-readyゲート追加後のCIは別途実施・結果を確認する。
 - **2026-10-21 研究データ管理器も試作:** [tools/research/import-firebase-export.cjs](../tools/research/import-firebase-export.cjs) は管理者が取り出したFirebase JSONから余計な識別子を排除して既存BOT研究用形式に変換。[テスト](../tests/online-research-cloud-export.cjs) 合格。期限14日で `expiresAt` を付与し、[管理者限定クリーンアップ](../tools/research/prune-expired.py) と[日次Actions案](../.github/workflows/online-research-retention.yml) を開発ブランチに配置したが、**main未統合・管理用Secret未設定につき現在は削除ジョブも稼働していない**。公開リポジトリへ生のログや認証情報を出さない。Firebaseの認証・読み取り保護と管理側への自動受け渡し経路は未完了。
 
+## 2026-10-21 新運用Phase 2｜安全なサーバー受付を試作（未デプロイ）
+- 当初の**ブラウザが研究ツリーへ直接 `.set()` する設計は安全性不足と判明し、完全撤去**。 `online-net.js` および貼付け用HTML `online-ipad.html` / `online-embed.html` に同期。今のゲームは通常のFirebase対戦通信のみ、研究ログのクラウド自動送信は依然**ハードOFF**で公開版/mainとも変更なし。
+- 新規に[Firebase Callable受付](../functions/research/index.js)（Cloud Functions v2、App Check/匿名Firebase Auth必須）と[厳格検証](../functions/research/collector-core.cjs)を実装。サーバー側でホスト認証UID・ゲストUID相違・両者同意・試合終了・ラウンド・確定勝敗・送信データの許可フィールドをチェック。UID/ルーム番号は保存本体に含めない。同一ラウンドは決定的SHA-256キーで重複抑止し、1UID/UTC日12回・全体/UTC日150回をサーバー側で制限。これは**仮実装／模擬テスト済み**であり未デプロイ。
+- [管理者削除処理](../tools/research/prune-expired.py)に14日期限の研究レコードと送信計数のUTC日バケット削除を追加。開発ブランチの[firebase.json](../firebase.json)は研究用Function codebaseのみを定義し、[研究ルール断片](./firebase-research.rules.fragment.json)は実プロジェクトを上書きしない**参考用**。
+- [研究クラウドCI #39505314534](https://github.com/8mahi8/shokoku-sensen/actions/runs/39505314534) と [Online smoke #39505790098](https://github.com/8mahi8/shokoku-sensen/actions/runs/39505790098) は成功。Callable単体の模擬Firebase検証を追加して再実行中。WebKit/Chromiumの実対戦は[前回成功 #39504538575](https://github.com/8mahi8/shokoku-sensen/actions/runs/39504538575)。実Firebase研究領域への書込・管理側自動受渡しは未検証・未開始。
+- **本番化の残課題:** 現在のRTDBルーム権限が匿名の座席同意書換えを許すなら、サーバーがUIDをチェックしても第三者による同意偽装を完全防止できない。既存ルールの管理者取得と精査、必要なら同意をサーバー管理へ移管、学校Google Sites iframeのAuth/App Check対応、Cloud Functionsの利用料金承認、研究ツリーが誰からも読めないことの検証、14日後の本番削除検証を終えるまで**READYフラグをONにしない**。本番Firebase権限/料金/main/Google Sitesは変更していない。[詳細](./RESEARCH_CLOUD.md)。
+
 ## 2026-10-21 合意した新しい運用ロードマップ（優先）
 1. **安定版1vs1の維持:** キャラHP/火力はユーザー判断。性能と学校iPad最終確認は必要なときだけ検証。
 2. **対戦データの安全な自動収集（現在）:** 友達同士のオンライン対戦でも、両者が明確に同意すれば研究ログが残る基盤を構築。**開発版の送信コードは完成したが、Firebaseの非公開設定・サーバー側の送信濫用対策・権限確認が終わるまで全送信をハードOFF。** main/Google Sitesは未変更。
