@@ -152,6 +152,36 @@ const deadline=async (f,label,timeout=18000)=>{
   assert.ok(recovered.restSeq>seqBefore,"REST recovered a newer guest world");
   await guest.evaluate(()=>window.__shokokuNetQa.muteSdkSnapshots(false));
   console.log("GUEST REST RECOVERY",JSON.stringify({from:seqBefore,to:recovered.seq,rest:recovered.restSeq}));
+  // Continuous school 1v1: a single Firebase room must survive three
+  // rapid full host->guest round transitions, not merely one new-game click.
+  // Do not add extra local test rooms or ever modify the existing real-player data.
+  for(const round of [2,3,4]){
+   await host.evaluate(()=>window.ShokokuNet.finish({result:"win",reason:"QA round transition"}));
+   await deadline(async()=>{
+    const r=await fetch(urlDB+"/"+code+"/meta.json");
+    return r.ok&&(await r.json())?.status==="finished";
+   },"round "+(round-1)+" finish persisted",18000);
+   await host.evaluate(()=>window.ShokokuNet.rematch());
+   await deadline(async()=>{
+    const r=await fetch(urlDB+"/"+code+"/meta.json");
+    const m=r.ok?await r.json():null;
+    return m?.round===round&&m?.status==="lobby"&&
+     (await host.locator("#onlinePanel").isVisible())&&
+     (await guest.locator("#onlinePanel").isVisible());
+   },"round "+round+" both clients returned to lobby",18000);
+   await guest.locator("#netReady").click();
+   await host.locator("#netReady").click();
+   await deadline(async()=>host.locator("#netStart").isEnabled(),"round "+round+" ready",18000);
+   await host.locator("#netStart").click();
+   await deadline(async()=>{
+    const w=await state();
+    return w?.round===round&&w?.seq>=1&&
+     (await guest.evaluate(()=>window.__onlineSeq||0))>=1&&
+     (await host.locator("#overlay").evaluate(e=>e.classList.contains("hidden")))&&
+     (await guest.locator("#overlay").evaluate(e=>e.classList.contains("hidden")));
+   },"round "+round+" guest gets fresh snapshot and gameplay overlay",22000);
+  }
+  console.log("CONSECUTIVE ROUNDS: 4 starts incl. 3 repeated rematches in one real Firebase room");
   // Actual new-game button path must return to the room picker inside Sites,
   // without iframe location.reload() or awaiting a Firebase round-trip.
   const originalUrl=guest.url();
