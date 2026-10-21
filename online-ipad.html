@@ -1111,8 +1111,8 @@ function syncOnline(o){
  }
  const archiveHint=$("researchArchiveHint");
  if(archiveHint)archiveHint.textContent=!inRoom?"オンライン参加後に選べます":
-  bothArchiveConsent?"両者ON：試合後にFirebaseへ保存。スマホの一括回収ページで取得できます":
-  "両者がONの試合だけルームにも保存。OFFなら従来の端末記録のみ";
+  bothArchiveConsent?"研究ログ保存 ON：試合後にFirebaseへ保存。スマホから一括回収できます":
+  "研究ログ保存 OFF：どちらかがOFF。端末内の記録のみ";
  const hint=$("researchHint");
  if(hint)hint.textContent=inRoom?
   onlineBoth?"匿名対戦記録 ON（ホスト端末のみ）。どちらも停止できます":
@@ -1141,12 +1141,12 @@ function init(){
   '<button type="button" id="researchClear">記録削除</button></div>'+
   '<div id="researchStatus" role="status"></div>'+
   '<textarea id="researchText" hidden readonly aria-label="JSONコピー用テキスト" style="width:100%;height:55px"></textarea>'+
-  '<small>身内対戦の改善用にカード使用・戦況・勝敗を端末内へ匿名記録します（初期ON・停止可）。名前・ルーム番号・端末ID・チャットは研究ログに含めません。Firebaseへの試合ログ保存は、別の項目でオンラインの両者がONにした場合だけです。JSONは任意で書き出せます。</small>';
+  '<small>身内対戦の改善用にカード使用・戦況・勝敗を端末内へ匿名記録します（初期ON・停止可）。名前・ルーム番号・端末ID・チャットは研究ログに含めません。Firebaseのルームへの匿名試合ログ保存も初期ONです。本人・友達どちらでもOFFにでき、どちらかがOFFなら送信されません。JSONは任意で書き出せます。</small>';
  controls.insertAdjacentHTML("beforeend",
   '<div style="border-top:1px solid #668c95;padding-top:7px;margin-top:7px">'+
-  '<label><input id="researchArchiveConsent" type="checkbox"> 研究用ログをルームに保存（初期OFF）</label>'+
-  '<div id="researchArchiveHint">オンラインの両者がONにしたときだけFirebaseへ記録します</div>'+
-  '<small>ルーム番号から参照できる既存Firebase領域に保存します。アクセス権は現在のFirebaseルール次第で、完全な非公開保存ではありません。個人名等は保存しません。端末内記録は別に残ります。</small></div>');
+  '<label><input id="researchArchiveConsent" type="checkbox"> 研究用ログをルームに保存（初期ON・変更可）</label>'+
+  '<div id="researchArchiveHint">参加した2人がONのときだけFirebaseへ記録します。不要ならOFFにしてください</div>'+
+  '<small>ルーム番号から参照できる既存Firebase領域に保存します。第三者が読み取れる可能性があります。カード・戦況・勝敗だけを研究ログに保存し、個人名等は含めません。端末内記録は別に残ります。</small></div>');
  panel.insertBefore(controls,$("netStatus"));
  const endTools=document.createElement("div");
  endTools.style.cssText="margin-top:7px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap";
