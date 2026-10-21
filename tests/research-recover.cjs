@@ -4,13 +4,18 @@ const html=fs.readFileSync("research-recover.html","utf8");
 const script=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]);
 assert.equal(script.length,1,"self-contained recovery tool");
 const dom=new Map();
+let sharedPayload=null;
+class TestFile {
+ constructor(parts,name,opts){this.body=parts.join("");this.name=name;this.type=opts.type;}
+}
 const getElementById=id=>{
  if(!dom.has(id))dom.set(id,{disabled:false,files:[],textContent:"",handlers:{},
   addEventListener(event,fn){this.handlers[event]=fn}});
  return dom.get(id);
 };
 const context=vm.createContext({document:{getElementById},fetch:async()=>{throw Error("network must not be called for import");},
- URL,Blob,setTimeout,clearTimeout,console,Date,Promise,JSON,Object,Number});
+ URL,Blob,File:TestFile,navigator:{canShare:()=>true,share:async p=>{sharedPayload=p;}},
+ setTimeout,clearTimeout,console,Date,Promise,JSON,Object,Number});
 new vm.Script(script[0],{filename:"research-recover.html#script"}).runInContext(context);
 const exported={schema:1,mode:"online",matchType:"human-vs-human",extraIdentity:"NEVER_INCLUDE",
  actions:[{t:4,phase:"battle",team:1,card:"scout",x:450,y:250,energyBefore:8,
@@ -42,8 +47,10 @@ const batch=vm.runInContext("batch",context);
 assert.equal(batch.format,"shokoku-anonymous-match-batch");
 assert.equal(batch.matches.length,3);
 assert.equal(getElementById("download").disabled,false);
+assert.equal(getElementById("share").disabled,false);
 loaded({shokokuRooms1v1:{"12345":{meta:{status:"playing"}}}});
 assert.equal(getElementById("download").disabled,true);
+assert.equal(getElementById("share").disabled,true);
 assert.equal(getMatches({shokokuRooms1v1:{"12345":{researchRounds:{"1":{schema:1,match:{...exported,result:null}}}}}}).length,0);
 
 const tainted={...exported,
@@ -82,4 +89,13 @@ const completeBatch=getMatches({"12345":{researchRounds:{"1":{schema:1,match:all
 assert.equal(completeBatch[0].actions.length,11,"all valid card types remain supported");
 assert.equal(completeBatch[0].actions[0].phase,"prep");
 
+loaded({shokokuRooms1v1:rooms});
+getElementById("share").handlers.click().then(()=>{
+ assert.ok(sharedPayload?.files?.length===1,"iPhone share sheet receives one JSON file");
+ assert.equal(sharedPayload.files[0].name,"shokoku-research-recovered.json");
+ const shared=JSON.parse(sharedPayload.files[0].body);
+ assert.equal(shared.matches.length,3,"all opted-in matches shared together");
+ assert.ok(!JSON.stringify(shared).includes("NEVER_INCLUDE"));
+ console.log("PASS: phone recovery sanitizes data and passes one anonymous JSON file to native share");
+}).catch(err=>{console.error(err);process.exitCode=1;});
 console.log("PASS: recovery page converts multiple room rounds into bot-analysis JSON without room IDs, device IDs or network calls");
