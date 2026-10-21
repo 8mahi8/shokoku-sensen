@@ -73,7 +73,15 @@ const page=read("online.html");
 assert.ok(page.includes('./online-net.js?v=9')&&page.includes('./online-research.js?v=2')&&page.includes('./online-game.js?v=13'));
 assert.ok(research.includes('researchConsent')&&research.includes('MAX_MATCHES=8'));
 assert.ok(net.includes("researchRounds/"),"room-scoped research data only");
-assert.ok(research.includes("researchArchiveConsent"),"both peers explicitly opt in");
+assert.ok(research.includes("researchArchiveConsent"),"both peers see archive controls");
+assert.equal((net.match(/researchConsent:true,archiveConsent:true/g)||[]).length,2,
+ "host and guest both initialize archive ON in new rooms");
+assert.ok(!net.includes("researchConsent:true,archiveConsent:false"),
+ "cloud archive must not silently start OFF for either seat");
+assert.ok(research.includes("研究用ログをルームに保存（初期ON・変更可）"),
+ "UI explains current default clearly");
+assert.ok(net.includes("archiveConsent:value?old.archiveConsent===true:false"),
+ "overall research opt-out must also disable cloud archive");
 assert.ok(research.includes("Firebaseへの試合ログ保存は、別の項目でオンラインの両者がON"),
  "local notice distinguishes recording from consented Firebase archive");
 assert.ok(!research.includes("自動送信もしません"),"no unconditional never-send claim");
