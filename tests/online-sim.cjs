@@ -225,24 +225,27 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
   samples:[{t:12,energy:[8,7],castles:[3000,2940],
    forts:[[0,10],[1,12],[2,13]],units:[[1,"scout",425,260,140]]}],
   result:{winner:1,duration:40,castleHp:[3000,2940],fortOwners:[0,1,2]}};
- assert.equal(read("shokokuRooms1v1/"+researchRoom+"/players/host/archiveConsent"),false);
- assert.equal(read("shokokuRooms1v1/"+researchRoom+"/players/guest/archiveConsent"),false);
+ // Both peers start with anonymous cloud archiving enabled, with visible
+ // per-seat opt-out controls. Turning it off on one seat prevents uploading.
+ assert.equal(read("shokokuRooms1v1/"+researchRoom+"/players/host/archiveConsent"),true);
+ assert.equal(read("shokokuRooms1v1/"+researchRoom+"/players/guest/archiveConsent"),true);
  assert.equal(await blue.api.archiveRound(archiveRecord).then(x=>x.saved),false,
   "no upload before match finish");
- await red.api.setArchiveConsent(true);await settle();
+ assert.equal(await blue.api.setArchiveConsent(false),true);
+ await settle();
  await blue.click("netReady");await red.click("netReady");await settle();
  await blue.click("netStart");await settle();
  blue.api.finish({result:"win",reason:"archive test"});await settle();
  assert.equal((await blue.api.archiveRound(archiveRecord)).saved,false,
-  "only guest consent is insufficient");
+  "one peer opting out prevents automatic upload");
  assert.equal(read("shokokuRooms1v1/"+researchRoom+"/researchRounds"),null);
- // In another room, both partners explicitly opt in before the start.
+ // In a new room, no checkbox clicks are needed for friend-only matches.
  const host2=client(),guest2=client();await settle();
  await host2.click("netCreate");await settle();
  const id2=host2.get("netRoom").textContent;
  guest2.get("netJoinCode").value=id2;await guest2.click("netJoin");await settle();
- assert.equal(await host2.api.setArchiveConsent(true),true);
- assert.equal(await guest2.api.setArchiveConsent(true),true);await settle();
+ assert.equal(read("shokokuRooms1v1/"+id2+"/players/host/archiveConsent"),true);
+ assert.equal(read("shokokuRooms1v1/"+id2+"/players/guest/archiveConsent"),true);
  await host2.click("netReady");await guest2.click("netReady");await settle();
  await host2.click("netStart");await settle();
  host2.api.finish({result:"win",reason:"archive test"});await settle();
@@ -258,6 +261,13 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await guest2.api.setArchiveConsent(false);await settle();
  assert.equal((await host2.api.archiveRound(archiveRecord)).saved,false,
   "guest may withdraw after completion to block future writes");
+ // Turning off the overall research toggle also disables Firebase upload.
+ // Turning it back on cannot silently undo this particular opt-out.
+ assert.equal(await host2.api.setResearchConsent(false),true);await settle();
+ assert.equal(read("shokokuRooms1v1/"+id2+"/players/host/archiveConsent"),false);
+ assert.equal(await host2.api.setResearchConsent(true),false,
+  "research cannot restart after the match starts");
+ assert.equal(read("shokokuRooms1v1/"+id2+"/players/host/archiveConsent"),false);
  assert.ok(writes.every(p=>p.startsWith("shokokuRooms1v1/")),"must never write BRAWL rooms");
  console.log("PASS: 1v1, new-round sequence rollover, non-blocking new game, no iframe reload, stuck publisher and listener recovery");
 })().catch(e=>{console.error(e);process.exitCode=1});
