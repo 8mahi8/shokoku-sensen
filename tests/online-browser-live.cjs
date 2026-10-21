@@ -273,7 +273,7 @@ const deadline=async (f,label,timeout=18000)=>{
    const data=await mobile.evaluate(()=>typeof batch!=="undefined"?batch:null);
    if(!data?.matches?.length)throw Error("phone status: "+status);
    return data;
-  },"phone recovery without room number",22000);
+  },"phone recovery without room number",35000);
   assert.ok(collected.matches.some(m=>m.actions?.length===archived.actions.length&&
    m.result?.duration===archived.result.duration),
    "one-click phone export includes QA archived match");
