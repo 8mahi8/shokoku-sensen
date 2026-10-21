@@ -174,6 +174,15 @@
 - **現在の次段階:** 開発版の自動テスト受入れは合格。Google Sitesでの実機1vs1・帰宅後iPhone回収および公開読取の運用可否は未確認。**Google Sites/main/管理者Firebase設定は未変更**。
 - 学校で遊ぶ身内1vs1を最優先にし、BOT/HP/攻撃力・リアルタイム通信方式に変更なし。研究ログは両者同意が必要な初期OFFのまま。
 
+## 2026-10-22 学校試用直前｜スマホ用コピーの予備手段追加
+
+- PR #22の研究ログ回収ページに `JSONをコピー・表示` ボタンを追加。Google Sites iframe上でOSのファイル保存や `navigator.share` が制限されても、匿名JSONテキストを表示・選択して手動コピーできる。コピーAPIが許可されていれば自動コピー。**端末外送信・ゲームの対戦通信・Firebaseルール変更はなし**。
+- JSONの再読み込みが失敗した場合は、保存・共有・コピーの全ボタンを無効化し、以前表示されたコピー用テキストも消す。スマホの操作を想定した退避機能のみ。
+- `tests/research-recover.cjs` にコピー用テキストの匿名化・選択可能性・失敗時の消去を追加。Chromium/WebKitの `tests/online-research-browser.cjs` でもコピー用JSONの表示を検証。
+- [Online smoke #39652978840](https://github.com/8mahi8/shokoku-sensen/actions/runs/39652978840) **SUCCESS**。[研究ブラウザQA #39653007400](https://github.com/8mahi8/shokoku-sensen/actions/runs/39653007400) **SUCCESS**。実Firebase通し試験は直前のゲーム・保存・回収の同じ処理経路で[#39651854783](https://github.com/8mahi8/shokoku-sensen/actions/runs/39651854783) **SUCCESS**。
+- `docs/ONLINE_1V1.md` を直し、**学校iPadはGitHub PagesのURLを埋めるのではなく、単体HTML全文をGoogle Sitesの「埋め込みコード」へ貼り付ける**手順に統一。最新ブランチの成果物を使い、mainのRaw旧版と混同しない。
+- **進行位置 Phase 3/4。次は本人による実iPad/実iPhoneでの試用と採用判断だけ。** 本番の main / Google Sites / Firebase管理者設定は変更せず、PR #22 はDraftのまま。研究ログが他者に閲覧され得る制約も維持。新機能拡張はここで一区切り。
+
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
 
 **開発位置｜小国戦線III**
