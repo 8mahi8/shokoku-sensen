@@ -19,7 +19,7 @@ button:disabled{opacity:.55}input[type=file]{max-width:100%}#status{white-space:
 </section>
 <section class="card">
 <h2>方法B｜公開読み取りが可能なら直接取得</h2>
-<p>既存Firebaseでルーム一覧を公開読み取りできる場合に限り、試合ログを自動で探します。読み取り拒否なら使用できません。<strong>この方法で成功する設定では、他の人も同じログを読める可能性があります。</strong> プライベートに保ちたい場合は方法Aを使ってください。</p>
+<p>既存Firebaseでルーム一覧を公開読み取りできる場合に限り、試合ログを自動で探します。読み取り拒否なら使用できません。<strong>この方法で成功する設定では、他の人も同じログを読める可能性があります。</strong> 方法Aでも既にFirebaseへ保存されたログの公開範囲は変わりません。非公開にするにはFirebase側の権限設定が別途必要です。</p>
 <button id="fetchAll">ルーム内ログを検索して一括回収</button>
 </section>
 <section class="card">
@@ -86,6 +86,11 @@ function getMatches(raw){
  out.sort((a,b)=>a.at-b.at);
  return out.map(x=>x.match);
 }
+function clearRecovered(){
+ batch=null;
+ byId("download").disabled=true;
+ byId("share").disabled=true;
+}
 function loaded(raw){
  const matches=getMatches(raw);
  batch={schema:1,format:"shokoku-anonymous-match-batch",matches};
@@ -104,13 +109,15 @@ function download(){
 }
 byId("file").addEventListener("change",()=>{byId("convert").disabled=!byId("file").files.length;});
 byId("convert").addEventListener("click",async()=>{
+ clearRecovered();
  try{
   const f=byId("file").files[0];if(!f||f.size>40*1024*1024)throw Error("40MB以下のJSONを選んでください");
   loaded(JSON.parse(await f.text()));
  }catch(e){byId("status").textContent="変換できませんでした: "+e.message;}
 });
 byId("fetchAll").addEventListener("click",async()=>{
- const btn=byId("fetchAll");btn.disabled=true;byId("status").textContent="ルーム一覧の読み取り権限を確認中…";
+ const btn=byId("fetchAll");btn.disabled=true;clearRecovered();
+ byId("status").textContent="ルーム一覧の読み取り権限を確認中…";
  try{
   const res=await fetch(ROOT+".json?shallow=true",{cache:"no-store"});
   if(!res.ok)throw Error("Firebaseのルーム一覧を読めません。方法Aを使ってください（HTTP "+res.status+"）。");
