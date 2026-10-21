@@ -152,10 +152,19 @@ const deadline=async (f,label,timeout=18000)=>{
   },"host battle continues after barrage",15000);
   assert.equal(firedState.world.phase,"battle","host battle remains active after barrage");
   // RTDB may omit empty spell arrays after impact; the receiver must still paint.
-  // Without listener delivery, WebKit still paints but retains an old world.
+  // Muting SDK snapshots does NOT mute the independent REST recovery watchdog.
+  // If the watchdog recovered already, a higher seq is CORRECT rather than a
+  // frozen-world failure: prove it came from REST, not the muted SDK listener.
   await delay(650);
-  assert.equal(await guest.evaluate(()=>window.__onlineSeq||0),seqBefore,
-   "muted guest listener should keep a frozen visual world");
+  const muted=await guest.evaluate(()=>window.__shokokuNetQa.stats());
+  assert.ok(muted.seq>=seqBefore,"guest must not move backward while SDK snapshots muted");
+  if(muted.seq>seqBefore){
+   assert.ok(muted.restSeq>=muted.seq&&muted.restSeq>seqBefore,
+    "with SDK muted, newer state must come from REST recovery");
+   console.log("AUTOMATIC GUEST REST RECOVERY",JSON.stringify({
+    from:seqBefore,to:muted.seq,rest:muted.restSeq
+   }));
+  }
   // Fast-forward only the staleness watchdog; the subsequent REST read
   // still hits real Firebase, so the test cannot pass on a cached SDK state.
   await guest.evaluate(()=>window.__shokokuNetQa.triggerRecovery());
