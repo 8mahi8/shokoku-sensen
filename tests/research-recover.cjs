@@ -115,5 +115,37 @@ getElementById("share").handlers.click().then(async()=>{
  assert.equal(getElementById("share").disabled,true);
  assert.match(getElementById("status").textContent,/変換できませんでした/);
  console.log("PASS: failed Firebase or imported recovery never leaves a stale export enabled");
+
+ // Simulate 48 real-world room keys, with only one archived match.
+ // Slow asynchronous responses must use parallelism WITHOUT exceeding the
+ // 12-request cap; a failed room must never produce a partial "success".
+ const manyCodes=Array.from({length:48},(_,i)=>String(10000+i));
+ let activeReads=0,peakReads=0,roomReads=0,failOne=false;
+ context.fetch=async url=>{
+  if(url.endsWith("shokokuRooms1v1.json?shallow=true"))
+   return {ok:true,json:async()=>Object.fromEntries(manyCodes.map(k=>[k,true]))};
+  assert.match(url,/\/researchRounds\.json$/);
+  roomReads++;activeReads++;peakReads=Math.max(activeReads,peakReads);
+  await new Promise(r=>setTimeout(r,12));
+  activeReads--;
+  if(failOne&&url.includes("/10001/"))return {ok:false,status:403};
+  const match=url.includes("/10000/")?{"1":{schema:1,createdAt:100,match:exported}}:null;
+  return {ok:true,json:async()=>match};
+ };
+ await getElementById("fetchAll").handlers.click();
+ assert.equal(peakReads,12,"run no more than 12 Firebase GETs concurrently");
+ assert.equal(roomReads,48,"read only the bounded set of 48 research round nodes");
+ assert.equal(vm.runInContext("batch",context).matches.length,1);
+ assert.equal(getElementById("download").disabled,false);
+ assert.match(getElementById("status").textContent,/1試合を回収/);
+
+ failOne=true;roomReads=0;
+ await getElementById("fetchAll").handlers.click();
+ assert.equal(roomReads,48,"finish outstanding workers before showing errors");
+ assert.equal(vm.runInContext("batch",context),null,"partial scan cannot be exported");
+ assert.equal(getElementById("download").disabled,true);
+ assert.equal(getElementById("share").disabled,true);
+ assert.match(getElementById("status").textContent,/1ルームの読み取りに失敗/);
+ console.log("PASS: 48-room bounded parallel recovery and complete failure handling");
 }).catch(err=>{console.error(err);process.exitCode=1;});
 console.log("PASS: recovery page converts multiple room rounds into bot-analysis JSON without room IDs, device IDs or network calls");
