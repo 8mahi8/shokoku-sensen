@@ -137,6 +137,15 @@
 - **完了確認:** 研究ブラウザQA [#39595136189](https://github.com/8mahi8/shokoku-sensen/actions/runs/39595136189) SUCCESS。実ログで Chromium / WebKit のスマホサイズでの回収・共有シート（ブラウザ側スタブ）・JSONダウンロードが全てPASS。オンラインゲームのローカル記録のChromium/WebKit/埋込もPASS。実Firebase一時ルームE2Eは先行[#39516983565](https://github.com/8mahi8/shokoku-sensen/actions/runs/39516983565)でPASS。
 - **残る受入条件:** 実際の学校iPad＋Google Sitesと帰宅後スマホの実機手動確認、公開可能な匿名ログの運用同意。main/Google Sitesを勝手に更新しない。
 
+## 2026-10-21 夜｜学校用候補の回収再試行バグ修正／成功確認
+
+- **ユーザー操作を妨げる不整合を修正**: `research-recover.html` の再取得失敗後に以前の成功データが共有可能なまま残る状態を修正。Firebase一括回収・管理者JSON取込の開始時に保持バッチと保存/共有ボタンをクリアする。成功時だけ改めて有効化。
+- **誤解を招く説明を修正**: 管理者JSON経由で回収してもFirebase上に保存済みの対戦ログの読み取り権限は変わらないと明記。
+- **追加テスト**: [commit 9c8d114](https://github.com/8mahi8/shokoku-sensen/commit/9c8d11412dcb447ff7dfacc01d6286e6c2e00461) で失敗時に古いJSONが残らない回帰テストを追加。
+- **合格したQA**: [Online smoke #39595856053](https://github.com/8mahi8/shokoku-sensen/actions/runs/39595856053) と[研究ログブラウザQA #39595856072](https://github.com/8mahi8/shokoku-sensen/actions/runs/39595856072)、共に SUCCESS。実iPadではない。前者の成果物 `Shokoku-III-1v1-iPad` に単体HTML（貼付け用TXT）とスマホ回収HTMLを同梱。
+- **公開候補の位置**: 開発PR #22のみ。現在の main / Google Sites / Firebase管理者設定は未変更。実学校iPadの対戦と実スマホ回収、匿名ログの公開閲覧可能性の運用同意が未完了。本人の採用判断前に公開しない。
+- [学校で使う前の最終チェック](./RESEARCH_LITE.md) を更新済み。新しい機能や管理基盤は追加しない。
+
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
 
 **開発位置｜小国戦線III**
