@@ -78,6 +78,10 @@ assert.ok(research.includes("Firebaseへの試合ログ保存は、別の項目�
  "local notice distinguishes recording from consented Firebase archive");
 assert.ok(!research.includes("自動送信もしません"),"no unconditional never-send claim");
 assert.ok(!research.includes("回収は管理者エクスポート"),"phone recovery should not imply admin-only export");
+assert.ok(research.includes("Resyncing immediately with the OLD cached"),
+ "archive consent UI must not restore a stale value after successful transaction");
+assert.ok(!/if\(!accepted\)e\.target\.checked=!value;\s*\}catch[^]*?syncOnline\(\);\s*\}\);/.test(research),
+ "archive consent handler must not blindly sync stale state after Firebase acknowledgement");
 for(const p of ["online-ipad.html","online-embed.html"]){
  const html=read(p);
  assert.ok(html.includes("Firebaseへの試合ログ保存は、別の項目でオンラインの両者がON"),
