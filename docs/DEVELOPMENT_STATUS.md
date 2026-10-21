@@ -127,6 +127,15 @@
 - **権限と公開範囲は未解決:** 管理者のFirebase RTDB Rules全文はこの接続から読めない。親ノードで読み取り許可されている場合、子ノードの拒否設定ではプライベート化できない。匿名公開読取の可能性を隠さず、今は開発PR限定。
 - **この修正はデータ回収時の形式検査のみ。** 試合の描画・BOT・HP/攻撃力・通信・ルーム保存タイミングには変更なし。main/学校Google Sitesは未変更。
 
+## 2026-10-21 続行｜スマホ用回収データの最小強化
+
+- 前回修正の研究ログQA [#39565086181](https://github.com/8mahi8/shokoku-sensen/actions/runs/39565086181) は**成功**。
+- [commit d898282](https://github.com/8mahi8/shokoku-sensen/commit/d898282b96ebca2e7ce8a461112ad7038212fe58) でスマホ回収の匿名化に実ゲームのカード11種・ユニット9種の許可一覧を追加。将来カードを追加する際は一括回収の許可一覧も更新する。
+- [commit 27fa807](https://github.com/8mahi8/shokoku-sensen/commit/27fa807fb15d35dbad640435813f709078597087) で、スマホ上の回収済みJSONをOS共有シートへ渡すボタンを追加。対応しないブラウザでは従来のJSON保存を使う。
+- [commit a06e865](https://github.com/8mahi8/shokoku-sensen/commit/a06e86520791d1840f57501546d055c79028242d) で共有用JSONの検証テスト追加。実iPhone Safari/Google Sitesへの公開反映はまだ。
+- 本番Firebaseルールの管理者全文は未取得。公開ルーム閲覧のリスクは残るため、データは**匿名・明示同意・公開可能性あり**の運用のみに限定。本番設定は変えない。
+- 残る受入条件：回収ページのブラウザQA・実Firebaseテスト成功を確認後、学校iPadとスマホでの手動実証。main/Google Sitesを勝手に更新しない。
+
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
 
 **開発位置｜小国戦線III**
