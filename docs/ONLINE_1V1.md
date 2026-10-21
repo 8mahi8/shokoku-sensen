@@ -9,15 +9,18 @@
 - BOT版から分離したゲーム: [online-game.js](../online-game.js)
 - キャラ原画・描画: [gald-source.html](../gald-source.html), [gald-render.js](../gald-render.js), [v3-art.js](../v3-art.js)
 
-## 学校iPadでの公開方法（BRAWLと同じ方式）
-1. **PC**で [online-embed.html（Raw表示）](https://raw.githubusercontent.com/8mahi8/shokoku-sensen/main/online-embed.html) を開く。
-2. HTMLの全文をコピー。
-3. Google Sites のオンライン対戦用ページで「挿入 → 埋め込む → 埋め込みコード」に貼り付ける。
-4. 埋め込みの縦幅を十分に広くし、公開する。なるべく横向きのiPadで遊ぶ。
-5. 片方が「ルームを作成」、他方が5桁番号で「ルームに参加」。2人とも「準備完了」を押して、ホストが「対戦スタート」。
-6. 準備フェーズ10秒、制限時間5分。両者同じカード、資源と部隊制限。ホスト青軍／ゲスト赤軍。Google Sites上ではPCから埋め込むだけでよく、Driveへの転送は不要。
+## 学校iPadでのテスト導入（BRAWLと同じ直接コード埋め込み方式）
 
-**注意**: GitHub Pagesのドメインが学校の端末でブロックされる場合は Google Sites 埋め込み版を使う。Google Sitesのiframeのネットワーク制限やFirebase SDKの読み込み制限がある場合、個々の学校の環境で動作確認が必要です。
+**公開版の判断はまだ。PR #22 はDraft、mainと今のGoogle Sitesは未変更。下の作業は本人が試用を決めた後だけ。**
+
+1. 開発ブランチの [最新Google Sites用HTML ZIP成果物](https://github.com/8mahi8/shokoku-sensen/actions/workflows/online-smoke.yml) から `Shokoku-III-1v1-iPad` を取得する。中の `Shokoku_III_1v1_school_iPad.txt` は**HTML全文を貼り付けるためのテキスト**。**main側のRaw HTMLは旧公開版なので流用しない**。
+2. コードの全文をコピーして Google Sites のオンライン対戦ページで **「挿入 → 埋め込む → 埋め込みコード」** に貼り付ける。**GitHub PagesなどのURLを埋め込む方式ではない**。長くて分割表示されても、コード全体を1回で貼る。
+3. Google Sitesの埋め込みサイズを横長・縦幅十分に調節して公開。友達2人が同じ最新版のページをiPad Safariで開き直し、横向きで遊ぶ。
+4. ホストがルーム作成、もう1人が5桁番号で参加。双方「準備完了」→ホスト「対戦スタート」。準備10秒、試合5分。ホスト青軍・ゲスト赤軍。
+5. 研究ログも収集したい場合**だけ**、試合前に両者が「研究用ログをルームに保存」をON。初期OFF。両者の同意が無ければ通常対戦だけできる。現行Firebaseルームは**第三者も読める可能性がある**ため、同意していない人のログを収集しない。
+6. 帰宅後スマホで試合ログを回収するには、ZIPの `Shokoku_III_Research_Recovery.html` も別のGoogle Sitesページの「埋め込みコード」に全文貼り付けて、iPhone Safariからそのページを開く。**「ルーム内ログを検索して一括回収」**を押す。通常は「JSONを保存」か「ファイルを共有」。それらがiPhoneのiframe制限で使えない場合は「JSONをコピー・表示」を使う。**研究ログはルームの再利用で消える場合があるので当日回収が目安**。
+
+**確認範囲:** 実FirebaseのChromiumホスト＋WebKitゲストで対戦・通信復旧・連戦・研究ログ保存・スマホ風ブラウザ回収は自動QA合格。学校の実iPadと実iPhoneのGoogle Sites上での動作は未確認。GitHub Actions更新だけでは既存Google Sitesのコードは更新されない。
 
 ## 学校のHTMLでHP・攻撃力だけ調整（2026-10-21）
 
