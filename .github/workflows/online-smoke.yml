@@ -28,8 +28,12 @@ jobs:
           code=$(curl -sS --max-time 12 -o /tmp/rtdb-probe.txt -w '%{http_code}' 'https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1/__read_probe__.json') || code=NETWORK_ERROR
           echo "RTDB_PROBE_HTTP=$code"
           # Probe only access status; never print room keys or private data.
-          root_code=$(curl -sS --max-time 12 -o /dev/null -w '%{http_code}' 'https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1.json?shallow=true') || root_code=NETWORK_ERROR
+          root_code=$(curl -sS --max-time 12 -o /tmp/rtdb-room-list.json -w '%{http_code}' 'https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1.json?shallow=true') || root_code=NETWORK_ERROR
           echo "RTDB_ROOM_LIST_HTTP=$root_code"
+          # Log only the NUMBER of room keys, never any code, name or player state.
+          if test "$root_code" = "200"; then
+            node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync("/tmp/rtdb-room-list.json","utf8"));console.log("RTDB_VISIBLE_ROOM_COUNT="+Object.keys(r||{}).length);'
+          fi
           if test -f /tmp/rtdb-probe.txt; then head -c 180 /tmp/rtdb-probe.txt; echo; fi
       - name: Prepare Google Sites paste file
         run: |
