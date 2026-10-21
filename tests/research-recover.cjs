@@ -45,4 +45,22 @@ assert.equal(getElementById("download").disabled,false);
 loaded({shokokuRooms1v1:{"12345":{meta:{status:"playing"}}}});
 assert.equal(getElementById("download").disabled,true);
 assert.equal(getMatches({shokokuRooms1v1:{"12345":{researchRounds:{"1":{schema:1,match:{...exported,result:null}}}}}}).length,0);
+
+const tainted={...exported,
+ matchType:"contact@example.net",
+ guestControlHistory:[{t:0,guest:"contact@example.net"}],
+ actions:[{...exported.actions[0],card:"contact@example.net",ownHand:["contact@example.net"]}],
+ samples:[{...exported.samples[0],units:[[1,"scout",450,250,150,"contact@example.net"]]}]};
+const taintedBatch=getMatches({"12345":{researchRounds:{"1":{schema:1,match:tainted}}}});
+assert.equal(taintedBatch.length,1,"valid frame is kept while bad metadata is scrubbed");
+assert.equal(taintedBatch[0].matchType,"unknown");
+assert.equal(taintedBatch[0].guestControlHistory.length,0);
+assert.equal(taintedBatch[0].actions.length,0);
+assert.ok(!JSON.stringify(taintedBatch).includes("contact@example.net"),
+ "unexpected nested identifier must not leave the recovery page");
+const invalidFrame={...exported,samples:[{...exported.samples[0],
+ units:[[1,"scout",450,"contact@example.net",150]]}]};
+assert.equal(getMatches({"12345":{researchRounds:{"1":{schema:1,match:invalidFrame}}}}).length,0,
+ "a non-numeric coordinate invalidates the frame instead of exporting it");
+
 console.log("PASS: recovery page converts multiple room rounds into bot-analysis JSON without room IDs, device IDs or network calls");
