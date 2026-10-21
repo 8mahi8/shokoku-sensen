@@ -38,19 +38,26 @@ const deadline=async (f,label,timeout=18000)=>{
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
   await guest.locator("#netJoinCode").fill(code);await guest.locator("#netJoin").click();
   await deadline(async()=>(await guest.locator("#netRoom").innerText()).trim()===code,"guest join");
-  // Friend-only telemetry starts ON without a two-person setup ritual.
-  // Both participants can see the notice and opt out before or during play.
+  // Both local and anonymous room archival start ON for new rooms.
+  // Either friend can disable before or during a match.
   await deadline(async()=>(await host.locator("#researchConsent").isChecked())&&
-    (await guest.locator("#researchConsent").isChecked()),"recording defaults visible to both peers",20000);
+    (await guest.locator("#researchConsent").isChecked())&&
+    (await host.locator("#researchArchiveConsent").isChecked())&&
+    (await guest.locator("#researchArchiveConsent").isChecked()),
+   "both local and room research start enabled for both peers",20000);
   assert.equal(await host.evaluate(()=>window.ShokokuResearch.active),false,"no recording outside a match");
   await guest.locator("#researchConsent").uncheck();
-  await deadline(async()=>{const response=await fetch(urlDB+"/"+code+"/players/guest/researchConsent.json");
-    return response.ok&&(await response.json())===false;},"guest disables recording for both peers",20000);
+  await deadline(async()=>{const response=await fetch(urlDB+"/"+code+"/players/guest.json");
+    const player=response.ok?await response.json():null;
+    return player?.researchConsent===false&&player?.archiveConsent===false;
+  },"guest opt-out disables both local and cloud logs",20000);
   await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("記録 OFF"),
     "host sees opt-out",20000);
   await guest.locator("#researchConsent").check();
   await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("記録 ON"),
     "host sees recording restored",20000);
+  assert.equal(await guest.locator("#researchArchiveConsent").isChecked(),false,
+   "re-enabling local logging must not silently overwrite cloud opt-out");
   // Explicit opt-in on THIS disposable research QA room, never on real games.
   await host.locator("#researchArchiveConsent").check();
   await guest.locator("#researchArchiveConsent").check();
