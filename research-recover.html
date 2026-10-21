@@ -38,22 +38,29 @@ function sanitize(m){
    !Array.isArray(m.actions)||!Array.isArray(m.samples)||
    !m.result||![0,1,2].includes(m.result.winner))return null;
  const finite=n=>typeof n==="number"&&Number.isFinite(n);
+ // Firebase records are untrusted: export game IDs and numbers only.
+ const cardId=s=>typeof s==="string"&&/^[a-z][a-z0-9_-]{0,30}$/i.test(s);
  const actions=m.actions.slice(0,500).filter(a=>a&&[1,2].includes(a.team)&&
-  typeof a.card==="string"&&a.card.length<32&&finite(a.t)&&finite(a.x)&&finite(a.y)&&finite(a.energyBefore))
-  .map(a=>({t:a.t,phase:a.phase,team:a.team,card:a.card,x:a.x,y:a.y,
-   energyBefore:a.energyBefore,ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4).filter(k=>typeof k==="string"&&k.length<32):[]}));
+  cardId(a.card)&&finite(a.t)&&finite(a.x)&&finite(a.y)&&finite(a.energyBefore))
+  .map(a=>({t:a.t,phase:cardId(a.phase)?a.phase:"unknown",team:a.team,card:a.card,x:a.x,y:a.y,
+   energyBefore:a.energyBefore,ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4).filter(cardId):[]}));
  const samples=m.samples.slice(0,80).filter(x=>x&&finite(x.t)&&Array.isArray(x.energy)&&
-   x.energy.length===2&&Array.isArray(x.castles)&&x.castles.length===2&&Array.isArray(x.forts)&&Array.isArray(x.units))
+   x.energy.length===2&&x.energy.every(finite)&&
+   Array.isArray(x.castles)&&x.castles.length===2&&x.castles.every(finite)&&
+   Array.isArray(x.forts)&&x.forts.slice(0,3).every(f=>Array.isArray(f)&&
+    [0,1,2].includes(f[0])&&finite(f[1]))&&
+   Array.isArray(x.units)&&x.units.slice(0,180).every(u=>Array.isArray(u)&&
+    [1,2].includes(u[0])&&cardId(u[1])&&u.slice(2,5).length===3&&u.slice(2,5).every(finite)))
   .map(x=>({t:x.t,energy:x.energy.slice(0,2),castles:x.castles.slice(0,2),
-   forts:x.forts.slice(0,3).map(f=>Array.isArray(f)?f.slice(0,2):[]),
-   units:x.units.slice(0,180).map(u=>Array.isArray(u)?u.slice(0,5):[])}));
+   forts:x.forts.slice(0,3).map(f=>f.slice(0,2)),
+   units:x.units.slice(0,180).map(u=>u.slice(0,5))}));
  if(!samples.length||!Array.isArray(m.result.castleHp)||m.result.castleHp.length!==2||
    !finite(m.result.duration)||!m.result.castleHp.every(finite))return null;
- return {schema:1,mode:"online",teams:[1,2],matchType:typeof m.matchType==="string"?m.matchType:"unknown",
-  guestControlHistory:Array.isArray(m.guestControlHistory)?m.guestControlHistory.slice(0,32).map(h=>({t:h.t,guest:h.guest})):[],
+ return {schema:1,mode:"online",teams:[1,2],matchType:["human-vs-human","human-vs-bot","mixed","unknown"].includes(m.matchType)?m.matchType:"unknown",
+  guestControlHistory:Array.isArray(m.guestControlHistory)?m.guestControlHistory.slice(0,32).filter(h=>h&&finite(h.t)&&["human","bot","unknown"].includes(h.guest)).map(h=>({t:h.t,guest:h.guest})):[],
   controlOverflow:m.controlOverflow===true,overflow:m.overflow===true,
   actions,samples,result:{winner:m.result.winner,duration:m.result.duration,
-   castleHp:m.result.castleHp.slice(0,2),fortOwners:Array.isArray(m.result.fortOwners)?m.result.fortOwners.slice(0,3):[]}};
+   castleHp:m.result.castleHp.slice(0,2),fortOwners:Array.isArray(m.result.fortOwners)?m.result.fortOwners.slice(0,3).filter(x=>[0,1,2].includes(x)):[]}};
 }
 function getMatches(raw){
  const rooms=raw?.shokokuRooms1v1||raw;
