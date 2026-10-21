@@ -38,11 +38,16 @@ function sanitize(m){
    !Array.isArray(m.actions)||!Array.isArray(m.samples)||
    !m.result||![0,1,2].includes(m.result.winner))return null;
  const finite=n=>typeof n==="number"&&Number.isFinite(n);
- // Firebase records are untrusted: export game IDs and numbers only.
- const cardId=s=>typeof s==="string"&&/^[a-z][a-z0-9_-]{0,30}$/i.test(s);
+ // Only the current game's known card/unit IDs and gameplay phases can
+ // enter the exported research JSON. The Firebase records are untrusted.
+ const UNIT_IDS=new Set(["infantry","scout","engineer","archer","sentinel",
+  "suppress","guardian","drone","tank"]);
+ const CARD_IDS=new Set([...UNIT_IDS,"barrage","ward"]);
+ const cardId=s=>typeof s==="string"&&CARD_IDS.has(s);
+ const unitId=s=>typeof s==="string"&&UNIT_IDS.has(s);
  const actions=m.actions.slice(0,500).filter(a=>a&&[1,2].includes(a.team)&&
   cardId(a.card)&&finite(a.t)&&finite(a.x)&&finite(a.y)&&finite(a.energyBefore))
-  .map(a=>({t:a.t,phase:cardId(a.phase)?a.phase:"unknown",team:a.team,card:a.card,x:a.x,y:a.y,
+  .map(a=>({t:a.t,phase:["prep","battle"].includes(a.phase)?a.phase:"unknown",team:a.team,card:a.card,x:a.x,y:a.y,
    energyBefore:a.energyBefore,ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4).filter(cardId):[]}));
  const samples=m.samples.slice(0,80).filter(x=>x&&finite(x.t)&&Array.isArray(x.energy)&&
    x.energy.length===2&&x.energy.every(finite)&&
@@ -50,7 +55,7 @@ function sanitize(m){
    Array.isArray(x.forts)&&x.forts.slice(0,3).every(f=>Array.isArray(f)&&
     [0,1,2].includes(f[0])&&finite(f[1]))&&
    Array.isArray(x.units)&&x.units.slice(0,180).every(u=>Array.isArray(u)&&
-    [1,2].includes(u[0])&&cardId(u[1])&&u.slice(2,5).length===3&&u.slice(2,5).every(finite)))
+    [1,2].includes(u[0])&&unitId(u[1])&&u.slice(2,5).length===3&&u.slice(2,5).every(finite)))
   .map(x=>({t:x.t,energy:x.energy.slice(0,2),castles:x.castles.slice(0,2),
    forts:x.forts.slice(0,3).map(f=>f.slice(0,2)),
    units:x.units.slice(0,180).map(u=>u.slice(0,5))}));
