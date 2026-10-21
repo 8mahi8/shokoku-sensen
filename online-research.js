@@ -230,9 +230,20 @@ function init(){
   const value=!!e.target.checked;
   try{
    const accepted=await window.ShokokuNet?.setArchiveConsent?.(value);
-   if(!accepted)e.target.checked=!value;
-  }catch(_){e.target.checked=!value;status("ルーム保存の同意を更新できませんでした");}
-  syncOnline();
+   if(!accepted){
+    e.target.checked=!value;
+    syncOnline();
+   }else{
+    // Keep the player's click until the authoritative Firebase listener
+    // updates ownArchiveConsent. Resyncing immediately with the OLD cached
+    // value can undo a successful opt-in on school iPad / WebKit.
+    e.target.checked=value;
+   }
+  }catch(_){
+   e.target.checked=!value;
+   status("ルーム保存の同意を更新できませんでした");
+   syncOnline();
+  }
  });
  $("researchConsent").addEventListener("change",async e=>{
   const value=!!e.target.checked;
