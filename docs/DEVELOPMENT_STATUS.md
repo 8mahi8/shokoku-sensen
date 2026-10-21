@@ -164,6 +164,15 @@
 - 暫定結論：**学校公開候補はまだ確定させない**。ユーザーには完成済みの単体HTML全文を提示しているが、スマホ回収は未合格。初期OFFの研究ルーム保存を本番でONにしない。main／Google Sites／Firebaseルール／HP・攻撃力・BOT／対戦通信は変更しない。
 - 次の実装候補：回収ボタンの経過表示（読み取り対象件数と実行中段階）、タイムアウト時の詳細診断、ルーム内ログの取得時間短縮。新サービス・課金・認証基盤は不要。原因を特定してから最小変更で対応する。
 
+## 2026-10-22 一括回収の並行処理改善（開発PRのみ）
+
+- [回収診断 #39650678888](https://github.com/8mahi8/shokoku-sensen/actions/runs/39650678888) で、**研究ログ7件・戦況3サンプルの実Firebase保存PASS**、しかしスマホ回収は`研究ログを検索中: 24/45ルーム`で22秒を超過。ログの時点ではFirebaseルーム一覧は45件、150件の上限には達していない。
+- 回収ページは旧方式の「4件ずつの逐次処理」により、空の既存ルームもすべて調べる必要があった。 [commit 3c013c3](https://github.com/8mahi8/shokoku-sensen/commit/3c013c3983e01257cde0b7a0b4132179c1c018da) で**最大12件の並行ワーカー**に変更。以前と同様、`researchRounds` のみを読み、相手情報やゲーム状況の取得・新規送信はしない。
+- 一部の読み取りに失敗した場合、全ワーカー完了後にエラーを表示してダウンロード/共有ボタンを無効にする。誤って一部の対戦だけを「全件成功」として返さない。
+- [commit c4f89c0](https://github.com/8mahi8/shokoku-sensen/commit/c4f89c0b03bb9614355448dede10204a098905a5) に48ルーム遅延・同時12件制限・1件の拒否で全件成功にしないテスト追加。[smoke #39651799618](https://github.com/8mahi8/shokoku-sensen/actions/runs/39651799618) は**SUCCESS**で`PASS: 48-room bounded parallel recovery and complete failure handling`を確認。[研究ブラウザQA #39651854912](https://github.com/8mahi8/shokoku-sensen/actions/runs/39651854912) もSUCCESS。
+- 実Firebase＋WebKitの一時ルーム通しテスト [#39651854783](https://github.com/8mahi8/shokoku-sensen/actions/runs/39651854783) が最終判定。**成功を確認するまで公開候補の最終合格とはしない**。Google Sites/main/管理者Firebase設定は未変更。
+- 学校で遊ぶ身内1vs1を最優先にし、BOT/HP/攻撃力・リアルタイム通信方式に変更なし。研究ログは両者同意が必要な初期OFFのまま。
+
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
 
 **開発位置｜小国戦線III**
