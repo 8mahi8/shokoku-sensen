@@ -97,6 +97,51 @@ const server=http.createServer((req,res)=>{
    assert.deepEqual(errors,[],"no JavaScript browser errors");
    console.log("PASS",label,source,"default-on local match logging, opt-out, export, persist, erase");
    await page.close();
+   // Phone-sized recovery page: no actual Firebase reads or writes in this QA.
+   // Check the end user's fetch -> share / download route in both engines.
+   if(label==="Chromium-paste")continue;
+   const phone=await browser.newPage({viewport:{width:390,height:844},
+    hasTouch:true,acceptDownloads:true});
+   const phoneErrors=[];phone.on("pageerror",e=>phoneErrors.push(String(e.message)));
+   const headers={"access-control-allow-origin":"*"};
+   const phoneMatch={schema:1,mode:"online",matchType:"human-vs-human",
+    actions:[{t:2,phase:"battle",team:1,card:"scout",x:300,y:200,
+     energyBefore:8,ownHand:["scout","tank"]}],
+    samples:[{t:2,energy:[8,6],castles:[3000,3000],
+     forts:[[0,12],[1,12],[2,12]],units:[[1,"scout",300,200,195]]}],
+    result:{winner:1,duration:50,castleHp:[3000,2800],fortOwners:[0,1,2]},
+    guestControlHistory:[{t:0,guest:"human"}]};
+   await phone.route("**/shokokuRooms1v1.json?shallow=true",r=>r.fulfill({
+    status:200,contentType:"application/json",headers,body:JSON.stringify({"12345":true})}));
+   await phone.route("**/shokokuRooms1v1/12345/researchRounds.json",r=>r.fulfill({
+    status:200,contentType:"application/json",headers,body:JSON.stringify({
+     "1":{schema:1,createdAt:123,match:phoneMatch}})}));
+   await phone.addInitScript(()=>{
+    Object.defineProperty(navigator,"canShare",{configurable:true,value:()=>true});
+    Object.defineProperty(navigator,"share",{configurable:true,value:async data=>{
+     window.__sharedResearch={name:data.files[0].name,
+      text:await data.files[0].text()};
+    }});
+   });
+   await phone.goto("http://127.0.0.1:8798/research-recover.html");
+   assert.equal(await phone.locator("#share").isDisabled(),true,
+    "phone cannot share before it recovers a match");
+   await phone.locator("#fetchAll").click();
+   await phone.waitForFunction(()=>!document.querySelector("#share").disabled);
+   assert.match(await phone.locator("#status").textContent(),/1試合を回収/);
+   await phone.locator("#share").click();
+   await phone.waitForFunction(()=>!!window.__sharedResearch);
+   const shared=await phone.evaluate(()=>window.__sharedResearch);
+   assert.equal(shared.name,"shokoku-research-recovered.json");
+   assert.equal(JSON.parse(shared.text).matches[0].actions[0].card,"scout");
+   assert.ok(!shared.text.includes("12345"),"room codes must not enter shared JSON");
+   const dlEvent=phone.waitForEvent("download");
+   await phone.locator("#download").click();
+   const dl=await dlEvent;
+   assert.equal(dl.suggestedFilename(),"shokoku-research-recovered.json");
+   assert.deepEqual(phoneErrors,[],"phone recovery page has no JS errors");
+   console.log("PASS",label,"phone recovery fetch, native share and file download");
+   await phone.close();
   }
  }finally{
   for(const b of browsers)await b.close();
