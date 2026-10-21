@@ -256,9 +256,20 @@ const deadline=async (f,label,timeout=18000)=>{
   // entering any room number. Only anonymous researchRounds are fetched.
   const mobile=await hostCtx.newPage({viewport:{width:390,height:844}});
   pages.push(mobile);
+  mobile.on("requestfailed",request=>{
+   if(request.url().includes("mygame-df915-default-rtdb"))
+    console.log("PHONE FIREBASE REQUEST ERROR",request.failure()?.errorText,request.url().split("?")[0]);
+  });
+  mobile.on("response",response=>{
+   if(response.url().includes("mygame-df915-default-rtdb")&&!response.ok())
+    console.log("PHONE FIREBASE HTTP",response.status(),response.url().split("?")[0]);
+  });
   await mobile.goto("http://127.0.0.1:8765/research-recover.html");
   await mobile.locator("#fetchAll").click();
   const collected=await deadline(async()=>{
+   const status=await mobile.locator("#status").innerText();
+   if(status.startsWith("自動回収できません"))
+    throw Error("recovery page reports: "+status);
    const data=await mobile.evaluate(()=>typeof batch!=="undefined"?batch:null);
    return data?.matches?.length?data:null;
   },"phone recovery without room number",22000);
