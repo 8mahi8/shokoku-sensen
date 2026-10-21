@@ -156,6 +156,14 @@
 - [テスト修正 15f26a4](https://github.com/8mahi8/shokoku-sensen/commit/15f26a4b0bd14e7405b52691f5493e6026a490df): 進んだ場合は必ず `restSeq` が伴うことを証明し、SDKが止まってもRESTで進める場合は合格扱い。進まなかった場合は手動トリガーでREST復旧を引き続き検証。ゲームのREST実装は変更しない。最新の実Firebaseテスト [#39649403351](https://github.com/8mahi8/shokoku-sensen/actions/runs/39649403351) の結論を確認すること。
 - **公開は未実施**。main・Google Sites・Firebase設定はそのまま。匿名ログの公開閲覧可能性と学校iPad＋実iPhone Safari実機確認は引き続き公開判断の条件。
 
+## 2026-10-22 開発版の最終ブロッカー｜一括回収実Firebaseで未達
+
+- 実Firebase試験 [#39649403351](https://github.com/8mahi8/shokoku-sensen/actions/runs/39649403351) では同意ON、2ブラウザ対戦、WebKit REST自動復旧、ブラウザ接続断復旧、**研究ログの実Firebaseルーム保存はPASS**（カード行動7件・戦況サンプル3件）。最後のスマホ「一括回収」が22秒でタイムアウト。以前の開発QA [#39516983565](https://github.com/8mahi8/shokoku-sensen/actions/runs/39516983565) の成功だけで最新の本番候補が完全合格したとしない。
+- 回収の調査用[run #39650030475](https://github.com/8mahi8/shokoku-sensen/actions/runs/39650030475)でも対戦・自動REST復旧・ログ保存までPASS（8 actions, 3 samples）、スマホ一括回収で22秒タイムアウト。HTTP失敗や明示エラー表示はログに見えない。試験ルームの削除もこの回では`CLEANUP: not confirmed`で、削除確認済みと記載しない。
+- [smoke #39650105253](https://github.com/8mahi8/shokoku-sensen/actions/runs/39650105253) はPASS。Firebaseルーム一覧の公開HTTP 200、**ルーム件数43**。件数150上限による拒否ではない。読み取り頻度・遅延、正常ログの変換／ルーム跨ぎ回収を再調査する。
+- 暫定結論：**学校公開候補はまだ確定させない**。ユーザーには完成済みの単体HTML全文を提示しているが、スマホ回収は未合格。初期OFFの研究ルーム保存を本番でONにしない。main／Google Sites／Firebaseルール／HP・攻撃力・BOT／対戦通信は変更しない。
+- 次の実装候補：回収ボタンの経過表示（読み取り対象件数と実行中段階）、タイムアウト時の詳細診断、ルーム内ログの取得時間短縮。新サービス・課金・認証基盤は不要。原因を特定してから最小変更で対応する。
+
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
 
 **開発位置｜小国戦線III**
