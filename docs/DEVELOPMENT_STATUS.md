@@ -152,6 +152,8 @@
 - **実Firebaseブラウザテストで発見した不具合**: [run #39648413120](https://github.com/8mahi8/shokoku-sensen/actions/runs/39648413120) はホストが「研究用ログをルームに保存」をチェックした際、`locator.check: Clicking the checkbox did not change its state` で失敗。UIがFirebaseの非同期更新の直後に古いキャッシュで`syncOnline()`を呼び、チェックが戻る可能性がある。テスト実行で作った一時ルームの削除は `CLEANUP: confirmed`。
 - [修正コミット 4200af5](https://github.com/8mahi8/shokoku-sensen/commit/4200af5b8a593c209372e101a254a694bd5018d2): 同意更新のトランザクション成功時は古い値による即時UI再同期を避ける。拒否時やエラー時だけチェックを戻す。ゲーム通信・BOT・バランス変更なし。
 - [Online smoke #39649018500](https://github.com/8mahi8/shokoku-sensen/actions/runs/39649018500) **SUCCESS**、このSHAの成果物 `Shokoku-III-1v1-iPad` 生成。開発版のChromium/WebKit研究QAも別ワークフローで確認中。実Firebase再テストは [#39648967558](https://github.com/8mahi8/shokoku-sensen/actions/runs/39648967558)（途中の結果を成功扱いしない）。
+- **追加切り分け:** 同意チェック修正後の [実Firebase QA #39648967558](https://github.com/8mahi8/shokoku-sensen/actions/runs/39648967558) は、同意・実際の戦闘・ゲスト描画・通信診断を通過。その後、SDK受信を意図的にミュートした場面で `muted guest listener should keep a frozen visual world` に失敗。`online-net.js` にはSDKと独立した自動REST復旧があり、最新戦況へ進むのは望ましい動作。ログの `65 !== 51` は通信不具合の根拠ではない。
+- [テスト修正 15f26a4](https://github.com/8mahi8/shokoku-sensen/commit/15f26a4b0bd14e7405b52691f5493e6026a490df): 進んだ場合は必ず `restSeq` が伴うことを証明し、SDKが止まってもRESTで進める場合は合格扱い。進まなかった場合は手動トリガーでREST復旧を引き続き検証。ゲームのREST実装は変更しない。最新の実Firebaseテスト [#39649403351](https://github.com/8mahi8/shokoku-sensen/actions/runs/39649403351) の結論を確認すること。
 - **公開は未実施**。main・Google Sites・Firebase設定はそのまま。匿名ログの公開閲覧可能性と学校iPad＋実iPhone Safari実機確認は引き続き公開判断の条件。
 
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
