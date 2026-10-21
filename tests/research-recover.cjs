@@ -9,7 +9,8 @@ class TestFile {
  constructor(parts,name,opts){this.body=parts.join("");this.name=name;this.type=opts.type;}
 }
 const getElementById=id=>{
- if(!dom.has(id))dom.set(id,{disabled:false,files:[],textContent:"",handlers:{},
+ if(!dom.has(id))dom.set(id,{disabled:false,files:[],textContent:"",value:"",hidden:true,handlers:{},
+  focus(){this.focused=true},select(){this.selected=true},
   addEventListener(event,fn){this.handlers[event]=fn}});
  return dom.get(id);
 };
@@ -48,9 +49,11 @@ assert.equal(batch.format,"shokoku-anonymous-match-batch");
 assert.equal(batch.matches.length,3);
 assert.equal(getElementById("download").disabled,false);
 assert.equal(getElementById("share").disabled,false);
+assert.equal(getElementById("copy").disabled,false);
 loaded({shokokuRooms1v1:{"12345":{meta:{status:"playing"}}}});
 assert.equal(getElementById("download").disabled,true);
 assert.equal(getElementById("share").disabled,true);
+assert.equal(getElementById("copy").disabled,true);
 assert.equal(getMatches({shokokuRooms1v1:{"12345":{researchRounds:{"1":{schema:1,match:{...exported,result:null}}}}}}).length,0);
 
 const tainted={...exported,
@@ -97,6 +100,13 @@ getElementById("share").handlers.click().then(async()=>{
  assert.equal(shared.matches.length,3,"all opted-in matches shared together");
  assert.ok(!JSON.stringify(shared).includes("NEVER_INCLUDE"));
  console.log("PASS: phone recovery sanitizes data and passes one anonymous JSON file to native share");
+ await getElementById("copy").handlers.click();
+ assert.equal(getElementById("copyText").hidden,false,"manual copy text is revealed");
+ assert.equal(getElementById("copyText").selected,true,"manual copy text is auto-selected");
+ assert.equal(JSON.parse(getElementById("copyText").value).matches.length,3);
+ assert.ok(!getElementById("copyText").value.includes("NEVER_INCLUDE"));
+ assert.match(getElementById("status").textContent,/長押し|コピー/);
+ console.log("PASS: mobile Google Sites fallback displays sanitized selectable JSON");
 
  // If today's download fails after yesterday's succeeded, NEVER leave
  // yesterday's data available under a fresh-recovery status message.
@@ -104,6 +114,9 @@ getElementById("share").handlers.click().then(async()=>{
  assert.equal(vm.runInContext("batch",context),null,"failed collection clears old matches");
  assert.equal(getElementById("download").disabled,true);
  assert.equal(getElementById("share").disabled,true);
+ assert.equal(getElementById("copy").disabled,true);
+ assert.equal(getElementById("copyText").hidden,true);
+ assert.equal(getElementById("copyText").value,"","failed reload clears visible previous match");
  assert.match(getElementById("status").textContent,/自動回収できません/);
 
  loaded({shokokuRooms1v1:rooms});
@@ -113,6 +126,7 @@ getElementById("share").handlers.click().then(async()=>{
  assert.equal(vm.runInContext("batch",context),null,"invalid import clears old matches");
  assert.equal(getElementById("download").disabled,true);
  assert.equal(getElementById("share").disabled,true);
+ assert.equal(getElementById("copy").disabled,true);
  assert.match(getElementById("status").textContent,/変換できませんでした/);
  console.log("PASS: failed Firebase or imported recovery never leaves a stale export enabled");
 
