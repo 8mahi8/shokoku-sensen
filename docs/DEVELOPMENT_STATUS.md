@@ -170,13 +170,14 @@
 - 回収ページは旧方式の「4件ずつの逐次処理」により、空の既存ルームもすべて調べる必要があった。 [commit 3c013c3](https://github.com/8mahi8/shokoku-sensen/commit/3c013c3983e01257cde0b7a0b4132179c1c018da) で**最大12件の並行ワーカー**に変更。以前と同様、`researchRounds` のみを読み、相手情報やゲーム状況の取得・新規送信はしない。
 - 一部の読み取りに失敗した場合、全ワーカー完了後にエラーを表示してダウンロード/共有ボタンを無効にする。誤って一部の対戦だけを「全件成功」として返さない。
 - [commit c4f89c0](https://github.com/8mahi8/shokoku-sensen/commit/c4f89c0b03bb9614355448dede10204a098905a5) に48ルーム遅延・同時12件制限・1件の拒否で全件成功にしないテスト追加。[smoke #39651799618](https://github.com/8mahi8/shokoku-sensen/actions/runs/39651799618) は**SUCCESS**で`PASS: 48-room bounded parallel recovery and complete failure handling`を確認。[研究ブラウザQA #39651854912](https://github.com/8mahi8/shokoku-sensen/actions/runs/39651854912) もSUCCESS。
-- 実Firebase＋WebKitの一時ルーム通しテスト [#39651854783](https://github.com/8mahi8/shokoku-sensen/actions/runs/39651854783) が最終判定。**成功を確認するまで公開候補の最終合格とはしない**。Google Sites/main/管理者Firebase設定は未変更。
+- **最終合格:** 実Firebase＋WebKitの一時ルーム通しテスト [#39651854783](https://github.com/8mahi8/shokoku-sensen/actions/runs/39651854783) が **SUCCESS**。実際のPCホスト＋WebKitゲストで、研究ログのFirebaseルーム保存（7 actions、3 samples）→スマホ風ブラウザから番号入力なしで**1試合を全件回収**→同ルーム7ラウンドの連戦・再戦確認→一時ルーム**CLEANUP: confirmed**。CIのWebKitは学校の実iPadではない。
+- **現在の次段階:** 開発版の自動テスト受入れは合格。Google Sitesでの実機1vs1・帰宅後iPhone回収および公開読取の運用可否は未確認。**Google Sites/main/管理者Firebase設定は未変更**。
 - 学校で遊ぶ身内1vs1を最優先にし、BOT/HP/攻撃力・リアルタイム通信方式に変更なし。研究ログは両者同意が必要な初期OFFのまま。
 
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
 
 **開発位置｜小国戦線III**
-- **現在:** 新運用 Phase 2/4 — 匿名対戦ログの軽量ルーム保存・スマホ回収（開発版の実Firebase QA成功／学校実機での本番採用待ち）
+- **現在:** 新運用 Phase 3/4 — 匿名ログの実Firebase一括回収を含む自動QA合格。残りは学校実iPad/Google Sitesと実iPhoneの確認、公開可能性の採用判断。
 - **今回:** ［実際に調査・実装・検証した結果。成功/未検証を区別］
 - **次:** ［具体的な次のタスクを1つ］
 - **公開:** Google Sitesは変更なし / 次版の貼替え待ち
