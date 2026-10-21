@@ -271,7 +271,8 @@ const deadline=async (f,label,timeout=18000)=>{
    if(status.startsWith("自動回収できません"))
     throw Error("recovery page reports: "+status);
    const data=await mobile.evaluate(()=>typeof batch!=="undefined"?batch:null);
-   return data?.matches?.length?data:null;
+   if(!data?.matches?.length)throw Error("phone status: "+status);
+   return data;
   },"phone recovery without room number",22000);
   assert.ok(collected.matches.some(m=>m.actions?.length===archived.actions.length&&
    m.result?.duration===archived.result.duration),
