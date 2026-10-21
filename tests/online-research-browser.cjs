@@ -139,6 +139,12 @@ const server=http.createServer((req,res)=>{
    await phone.locator("#download").click();
    const dl=await dlEvent;
    assert.equal(dl.suggestedFilename(),"shokoku-research-recovered.json");
+   await phone.locator("#copy").click();
+   assert.equal(await phone.locator("#copyText").isVisible(),true,
+    "selectable JSON fallback must be available inside school-style frames");
+   const fallback=await phone.locator("#copyText").inputValue();
+   assert.equal(JSON.parse(fallback).matches[0].actions[0].card,"scout");
+   assert.ok(!fallback.includes("12345"),"copy fallback strips room identifiers");
    assert.deepEqual(phoneErrors,[],"phone recovery page has no JS errors");
    console.log("PASS",label,"phone recovery fetch, native share and file download");
    await phone.close();
