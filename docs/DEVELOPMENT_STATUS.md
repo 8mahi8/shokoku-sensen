@@ -146,6 +146,14 @@
 - **公開候補の位置**: 開発PR #22のみ。現在の main / Google Sites / Firebase管理者設定は未変更。実学校iPadの対戦と実スマホ回収、匿名ログの公開閲覧可能性の運用同意が未完了。本人の採用判断前に公開しない。
 - [学校で使う前の最終チェック](./RESEARCH_LITE.md) を更新済み。新しい機能や管理基盤は追加しない。
 
+## 2026-10-22 未公開仕上げ｜同意チェックの競合を修正
+
+- 開発版UIに古い説明が残っていた: 「自動送信しません」「回収は管理者エクスポート」は、現在の両者明示同意によるFirebase保存・スマホ一括回収と矛盾。ユーザーが誤解しないように修正し、`online-research.js`、学校用`online-ipad.html`、埋込用`online-embed.html`を同期。テスト `tests/online-smoke.cjs` に表示文言の回帰確認を追加。
+- **実Firebaseブラウザテストで発見した不具合**: [run #39648413120](https://github.com/8mahi8/shokoku-sensen/actions/runs/39648413120) はホストが「研究用ログをルームに保存」をチェックした際、`locator.check: Clicking the checkbox did not change its state` で失敗。UIがFirebaseの非同期更新の直後に古いキャッシュで`syncOnline()`を呼び、チェックが戻る可能性がある。テスト実行で作った一時ルームの削除は `CLEANUP: confirmed`。
+- [修正コミット 4200af5](https://github.com/8mahi8/shokoku-sensen/commit/4200af5b8a593c209372e101a254a694bd5018d2): 同意更新のトランザクション成功時は古い値による即時UI再同期を避ける。拒否時やエラー時だけチェックを戻す。ゲーム通信・BOT・バランス変更なし。
+- [Online smoke #39649018500](https://github.com/8mahi8/shokoku-sensen/actions/runs/39649018500) **SUCCESS**、このSHAの成果物 `Shokoku-III-1v1-iPad` 生成。開発版のChromium/WebKit研究QAも別ワークフローで確認中。実Firebase再テストは [#39648967558](https://github.com/8mahi8/shokoku-sensen/actions/runs/39648967558)（途中の結果を成功扱いしない）。
+- **公開は未実施**。main・Google Sites・Firebase設定はそのまま。匿名ログの公開閲覧可能性と学校iPad＋実iPhone Safari実機確認は引き続き公開判断の条件。
+
 ## 毎回のユーザー向け開発位置表示（短い固定フォーマット）
 
 **開発位置｜小国戦線III**
