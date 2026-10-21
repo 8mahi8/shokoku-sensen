@@ -74,6 +74,17 @@ assert.ok(page.includes('./online-net.js?v=9')&&page.includes('./online-research
 assert.ok(research.includes('researchConsent')&&research.includes('MAX_MATCHES=8'));
 assert.ok(net.includes("researchRounds/"),"room-scoped research data only");
 assert.ok(research.includes("researchArchiveConsent"),"both peers explicitly opt in");
+assert.ok(research.includes("Firebaseへの試合ログ保存は、別の項目でオンラインの両者がON"),
+ "local notice distinguishes recording from consented Firebase archive");
+assert.ok(!research.includes("自動送信もしません"),"no unconditional never-send claim");
+assert.ok(!research.includes("回収は管理者エクスポート"),"phone recovery should not imply admin-only export");
+for(const p of ["online-ipad.html","online-embed.html"]){
+ const html=read(p);
+ assert.ok(html.includes("Firebaseへの試合ログ保存は、別の項目でオンラインの両者がON"),
+  p+" missing clear consent notice");
+ assert.ok(html.includes("スマホの一括回収ページで取得できます"),
+  p+" missing no-room-number recovery guidance");
+}
 assert.ok(!net.includes('db.ref("shokokuResearchV1'),"no separate public research path");
 assert.ok(read("research-recover.html").includes("shokokuRooms1v1"),"phone recovery page exists");
 assert.ok(page.includes('id="newRoom"'));
