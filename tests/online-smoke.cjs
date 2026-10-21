@@ -82,7 +82,7 @@ assert.ok(research.includes("研究用ログをルームに保存（初期ON・�
  "UI explains current default clearly");
 assert.ok(net.includes("archiveConsent:value?old.archiveConsent===true:false"),
  "overall research opt-out must also disable cloud archive");
-assert.ok(research.includes("Firebaseへの試合ログ保存は、別の項目でオンラインの両者がON"),
+assert.ok(research.includes("Firebaseのルームへの匿名試合ログ保存も初期ONです"),
  "local notice distinguishes recording from consented Firebase archive");
 assert.ok(!research.includes("自動送信もしません"),"no unconditional never-send claim");
 assert.ok(!research.includes("回収は管理者エクスポート"),"phone recovery should not imply admin-only export");
@@ -92,9 +92,9 @@ assert.ok(!/if\(!accepted\)e\.target\.checked=!value;\s*\}catch[^]*?syncOnline\(
  "archive consent handler must not blindly sync stale state after Firebase acknowledgement");
 for(const p of ["online-ipad.html","online-embed.html"]){
  const html=read(p);
- assert.ok(html.includes("Firebaseへの試合ログ保存は、別の項目でオンラインの両者がON"),
+ assert.ok(html.includes("Firebaseのルームへの匿名試合ログ保存も初期ONです"),
   p+" missing clear consent notice");
- assert.ok(html.includes("スマホの一括回収ページで取得できます"),
+ assert.ok(html.includes("スマホから一括回収できます"),
   p+" missing no-room-number recovery guidance");
 }
 assert.ok(!net.includes('db.ref("shokokuResearchV1'),"no separate public research path");
