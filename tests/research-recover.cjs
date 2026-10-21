@@ -62,5 +62,24 @@ const invalidFrame={...exported,samples:[{...exported.samples[0],
  units:[[1,"scout",450,"contact@example.net",150]]}]};
 assert.equal(getMatches({"12345":{researchRounds:{"1":{schema:1,match:invalidFrame}}}}).length,0,
  "a non-numeric coordinate invalidates the frame instead of exporting it");
+const unknownCard={...exported,
+ actions:[{...exported.actions[0],card:"fakePersonalNote",
+  phase:"fakePersonalNote",ownHand:["scout","fakePersonalNote"]}]};
+const strictBatch=getMatches({"12345":{researchRounds:{"1":{schema:1,match:unknownCard}}}});
+assert.equal(strictBatch.length,1,"reject a bogus card without dropping the valid match");
+assert.equal(strictBatch[0].actions.length,0,"unknown action card must be dropped");
+assert.ok(!JSON.stringify(strictBatch).includes("fakePersonalNote"),"unknown text never exported");
+const unknownUnit={...exported,samples:[{...exported.samples[0],
+ units:[[1,"fakePersonalNote",450,250,150]]}]};
+assert.equal(getMatches({"12345":{researchRounds:{"1":{schema:1,match:unknownUnit}}}}).length,0,
+ "unknown unit key invalidates tampered match");
+const allKnown={...exported,
+ actions:["infantry","scout","engineer","archer","sentinel","suppress",
+  "guardian","drone","tank","barrage","ward"].map((card,i)=>({
+   ...exported.actions[0],t:i,card,phase:i%2?"battle":"prep"
+  }))};
+const completeBatch=getMatches({"12345":{researchRounds:{"1":{schema:1,match:allKnown}}}});
+assert.equal(completeBatch[0].actions.length,11,"all valid card types remain supported");
+assert.equal(completeBatch[0].actions[0].phase,"prep");
 
 console.log("PASS: recovery page converts multiple room rounds into bot-analysis JSON without room IDs, device IDs or network calls");
