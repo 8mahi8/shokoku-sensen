@@ -25,6 +25,7 @@ button:disabled{opacity:.55}input[type=file]{max-width:100%}#status{white-space:
 <section class="card">
 <div id="status" role="status" aria-live="polite">準備OK。方法AまたはBを選んでください。</div>
 <button id="download" disabled>回収したJSONを保存</button>
+<button id="share" disabled>スマホでファイルを共有</button>
 <small>本ページにFirebaseの管理者キーやパスワードを入力しないでください。回収先は現状、学校端末でルーム保存に両者が同意した試合だけです。古いルームは再利用時に消去される場合があります。</small>
 </section>
 </main>
@@ -89,6 +90,7 @@ function loaded(raw){
  const matches=getMatches(raw);
  batch={schema:1,format:"shokoku-anonymous-match-batch",matches};
  byId("download").disabled=!matches.length;
+ byId("share").disabled=!matches.length;
  byId("status").textContent=matches.length?
   matches.length+"試合を回収しました。『回収したJSONを保存』を押してください。":
   "まだルームに保存された研究ログがありません（またはルームが再利用済みです）。";
@@ -134,5 +136,20 @@ byId("fetchAll").addEventListener("click",async()=>{
  finally{btn.disabled=false;}
 });
 byId("download").addEventListener("click",download);
+byId("share").addEventListener("click",async()=>{
+ if(!batch?.matches.length)return;
+ try{
+  if(typeof File!=="function"||typeof navigator.share!=="function")
+   throw Error("このブラウザではファイル共有を利用できません");
+  const file=new File([JSON.stringify(batch)],"shokoku-research-recovered.json",
+   {type:"application/json"});
+  if(navigator.canShare&&!navigator.canShare({files:[file]}))
+   throw Error("この端末はJSONファイルの共有に対応していません");
+  await navigator.share({title:"小国戦線III 対戦ログ",files:[file]});
+ }catch(e){
+  if(e?.name==="AbortError")return;
+  byId("status").textContent="共有できません: "+e.message+"。JSON保存ボタンを使ってください。";
+ }
+});
 </script>
 </body></html>
