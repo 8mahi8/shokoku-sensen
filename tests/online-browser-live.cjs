@@ -208,11 +208,25 @@ const deadline=async (f,label,timeout=18000)=>{
    const duringOutage=await state();
    assert.ok(duringOutage.seq>hostBeforeOffline.seq,
     "host must advance its authoritative state while guest is offline");
-   assert.equal(frozen.seq,offlineBefore.seq,
-    "closed Firebase SDK guest must not apply new authoritative packets");
+   // A REST request that started BEFORE the browser went offline may still
+   // finish during the cutoff. Let it drain, then prove the guest stays
+   // frozen while the host keeps moving under the sustained outage.
+   await delay(1500);
+   const frozenLater=await guest.evaluate(()=>({
+    seq:window.__onlineSeq||0,
+    diag:window.ShokokuNet.syncDiagnostics()
+   }));
+   const hostLater=await state();
+   assert.ok(hostLater.seq>duringOutage.seq,
+    "host keeps advancing while guest connection stays cut");
+   assert.equal(frozenLater.seq,frozen.seq,
+    "once in-flight pre-cut reads settle, offline guest receives no NEW state");
+   assert.equal(frozenLater.diag.connected,false,
+    "Firebase SDK must report offline while browser transport is cut");
    console.log("REAL GUEST OFFLINE",JSON.stringify({
-    before:offlineBefore,offline:frozen,
-    hostSeqBefore:hostBeforeOffline.seq,hostSeqDuring:duringOutage.seq
+    before:offlineBefore,offline:frozen,later:frozenLater.seq,
+    hostSeqBefore:hostBeforeOffline.seq,hostSeqDuring:duringOutage.seq,
+    hostSeqLater:hostLater.seq
    }));
   }finally{
    // Always restore BOTH transport and page networking after the test.
