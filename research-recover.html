@@ -125,19 +125,27 @@ byId("fetchAll").addEventListener("click",async()=>{
   if(list?.error)throw Error("Firebaseルーム一覧の読み取りが拒否されました。方法Aを使ってください。");
   const keys=Object.keys(list||{}).filter(k=>/^\d{5}$/.test(k));
   if(keys.length>150)throw Error("ルームが150件を超えます。方法Aで管理者エクスポートしてください。");
-  const rooms={};let done=0;
-  // Four reads at once, researchRounds only; NEVER download player IDs,
-  // room snapshots, messages or BRAWL data via this optional public path.
-  for(let i=0;i<keys.length;i+=4){
-   await Promise.all(keys.slice(i,i+4).map(async code=>{
-    const response=await fetch(ROOT+"/"+code+"/researchRounds.json",{cache:"no-store"});
-    if(!response.ok)throw Error("一部ルームの読み取りが拒否されました。方法Aを使ってください。");
-    const val=await response.json();if(val?.error)throw Error("ルームへのアクセス権がありません");
-    if(val)rooms[code]={researchRounds:val};
+  const rooms={};let done=0,nextIndex=0;
+  const errors=[];
+  // At most 12 parallel reads, even with 150 room codes. A four-at-a-time
+  // series was taking over 22 seconds to inspect ~45 real Firebase rooms.
+  // Fetch ONLY researchRounds; never player identities or live state.
+  async function worker(){
+   while(nextIndex<keys.length){
+    const code=keys[nextIndex++];
+    try{
+     const response=await fetch(ROOT+"/"+code+"/researchRounds.json",{cache:"no-store"});
+     if(!response.ok)throw Error("HTTP "+response.status);
+     const val=await response.json();
+     if(val?.error)throw Error("Firebaseアクセス拒否");
+     if(val)rooms[code]={researchRounds:val};
+    }catch(e){errors.push(e?.message||"ネットワークエラー")}
     done++;
-   }));
-   byId("status").textContent="研究ログを検索中: "+done+"/"+keys.length+"ルーム";
+    byId("status").textContent="研究ログを検索中: "+done+"/"+keys.length+"ルーム";
+   }
   }
+  await Promise.all(Array.from({length:Math.min(keys.length,12)},()=>worker()));
+  if(errors.length)throw Error(errors.length+"ルームの読み取りに失敗しました。再試行するか方法Aを使ってください（"+errors[0]+"）。");
   loaded(rooms);
  }catch(e){byId("status").textContent="自動回収できません: "+e.message;}
  finally{btn.disabled=false;}
