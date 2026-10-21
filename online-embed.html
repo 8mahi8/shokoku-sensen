@@ -1149,7 +1149,7 @@ function init(){
   '<div style="border-top:1px solid #668c95;padding-top:7px;margin-top:7px">'+
   '<label><input id="researchArchiveConsent" type="checkbox"> 研究用ログをルームに保存（初期ON・変更可）</label>'+
   '<div id="researchArchiveHint">参加した2人がONのときだけFirebaseへ記録します。不要ならOFFにしてください</div>'+
-  '<small>ルーム番号から参照できる既存Firebase領域に保存します。第三者が読み取れる可能性があります。カード・戦況・勝敗だけを研究ログに保存し、個人名等は含めません。端末内記録は別に残ります。</small></div>');
+  '<small>ルーム番号から参照できる既存Firebase領域に保存します。第三者が読み取れる可能性があります。カード・戦況・勝敗だけを保存し、個人名等は含めません。OFFにしても送信済みのログは消えません。</small></div>');
  panel.insertBefore(controls,$("netStatus"));
  const endTools=document.createElement("div");
  endTools.style.cssText="margin-top:7px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap";
