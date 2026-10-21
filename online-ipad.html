@@ -647,7 +647,7 @@ async function create(){
    const now=Date.now()+serverOffset;
    const proposed={
     meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
-    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true,archiveConsent:false}}
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true,archiveConsent:true}}
    };
    const result=await ref.transaction(old=>{
     if(old===null)return proposed;
@@ -669,7 +669,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true,archiveConsent:false}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true,archiveConsent:true}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -728,7 +728,10 @@ async function setResearchConsent(value){
  const seat=host?"host":"guest";
  if(players[seat]?.id!==clientId||(value&&meta?.status!=="lobby"))return false;
  const changed=await room.child("players/"+seat).transaction(old=>
-  old?.id===clientId?{...old,researchConsent:!!value}:undefined,undefined,false);
+  old?.id===clientId?{...old,researchConsent:!!value,
+   // Opting out of local research also opts out of cloud archiving.
+   // Re-enabling local research never silently restores cloud opt-in.
+   archiveConsent:value?old.archiveConsent===true:false}:undefined,undefined,false);
  if(!changed.committed)throw Error("参加情報が変更されました");
  return true;
 }
