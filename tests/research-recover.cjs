@@ -90,12 +90,30 @@ assert.equal(completeBatch[0].actions.length,11,"all valid card types remain sup
 assert.equal(completeBatch[0].actions[0].phase,"prep");
 
 loaded({shokokuRooms1v1:rooms});
-getElementById("share").handlers.click().then(()=>{
+getElementById("share").handlers.click().then(async()=>{
  assert.ok(sharedPayload?.files?.length===1,"iPhone share sheet receives one JSON file");
  assert.equal(sharedPayload.files[0].name,"shokoku-research-recovered.json");
  const shared=JSON.parse(sharedPayload.files[0].body);
  assert.equal(shared.matches.length,3,"all opted-in matches shared together");
  assert.ok(!JSON.stringify(shared).includes("NEVER_INCLUDE"));
  console.log("PASS: phone recovery sanitizes data and passes one anonymous JSON file to native share");
+
+ // If today's download fails after yesterday's succeeded, NEVER leave
+ // yesterday's data available under a fresh-recovery status message.
+ await getElementById("fetchAll").handlers.click();
+ assert.equal(vm.runInContext("batch",context),null,"failed collection clears old matches");
+ assert.equal(getElementById("download").disabled,true);
+ assert.equal(getElementById("share").disabled,true);
+ assert.match(getElementById("status").textContent,/自動回収できません/);
+
+ loaded({shokokuRooms1v1:rooms});
+ assert.equal(getElementById("download").disabled,false);
+ getElementById("file").files=[{size:12,text:async()=>"{broken json"}];
+ await getElementById("convert").handlers.click();
+ assert.equal(vm.runInContext("batch",context),null,"invalid import clears old matches");
+ assert.equal(getElementById("download").disabled,true);
+ assert.equal(getElementById("share").disabled,true);
+ assert.match(getElementById("status").textContent,/変換できませんでした/);
+ console.log("PASS: failed Firebase or imported recovery never leaves a stale export enabled");
 }).catch(err=>{console.error(err);process.exitCode=1;});
 console.log("PASS: recovery page converts multiple room rounds into bot-analysis JSON without room IDs, device IDs or network calls");
