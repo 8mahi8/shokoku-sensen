@@ -1,5 +1,7 @@
 // Live Chromium host + WebKit iPad guest end-to-end test. Runs in GitHub Actions only.
-// Creates one disposable room in shokokuRooms1v1, then deletes it after both tabs close.\n// A separate WebKit guest must paint and receive real Firebase battle snapshots.\n// Does NOT access or transmit research data.
+// Creates one disposable room in shokokuRooms1v1, then deletes it after both tabs close.
+// A separate WebKit guest must paint and receive real Firebase battle snapshots.
+// Does NOT access or transmit research data.
 "use strict";
 const {chromium,webkit}=require("playwright"),fs=require("node:fs"),http=require("node:http"),path=require("node:path");
 const assert=require("node:assert/strict");
