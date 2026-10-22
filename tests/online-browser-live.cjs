@@ -563,8 +563,16 @@ const deadline=async (f,label,timeout=18000)=>{
   console.log("LIVE HOST BOT ROOM",JSON.stringify({recordVideo:qaRecordVideo,
    matchedWebkit:qaMatchedWebkit,code:botCode,guestReady:botJoined.ready,
    phase:"prep",hostBot:true}));
+  console.log("HOST BOT PRE-EXIT",JSON.stringify(await host.evaluate(()=>({
+   hostBot:window.ShokokuNet.hostBot,connected:window.ShokokuNet.syncDiagnostics().connected
+  }))));
   await host.evaluate(()=>document.getElementById("newRoom").click());
   await deadline(async()=>host.locator("#netCreate").isEnabled(),"leave BOT room",7000);
+  await delay(700);
+  console.log("HOST BOT POST-EXIT",JSON.stringify({
+   guest:await (await fetch(urlDB+"/"+botCode+"/players/guest.json")).json(),
+   players:await (await fetch(urlDB+"/"+botCode+"/players.json")).json()
+  }));
   await deadline(async()=>{
    const response=await fetch(urlDB+"/"+botCode+"/players/guest.json");
    return response.ok&&(await response.json())===null;
