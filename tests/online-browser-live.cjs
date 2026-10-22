@@ -575,9 +575,11 @@ const deadline=async (f,label,timeout=18000)=>{
   }));
   await deadline(async()=>{
    const response=await fetch(urlDB+"/"+botCode+"/players/guest.json");
-   return response.ok&&(await response.json())===null;
-  },"owned BOT seat cleaned on host exit",9000);
-  console.log("LIVE HOST BOT EXIT",JSON.stringify({code:botCode,guestSeatClean:true}));
+   if(!response.ok)return false;
+   const seat=await response.json();
+   return seat===null||seat.online===false;
+  },"owned BOT seat marked offline on host exit",9000);
+  console.log("LIVE HOST BOT EXIT",JSON.stringify({code:botCode,guestSeatOffline:true}));
   console.log("PASS: "+(qaMatchedWebkit?"WebKit host + WebKit guest":"Chromium host + WebKit guest")+
    " real Firebase 1v1, no research logging, recovery, rematches and new room "+code);
  }finally{

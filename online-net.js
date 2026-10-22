@@ -24,7 +24,7 @@ let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
 // snapshots together. Apply only the newest on the next visible frame.
 let pendingRemote=null,remoteScheduled=false,remoteEpoch=0,remoteApplyFallback=null;
-const hostBotSeat=()=>host&&players?.guest?.localBot===true&&players.guest.id==="bot:"+clientId;
+const hostBotSeat=()=>host&&players?.guest?.online===true&&players.guest.localBot===true&&players.guest.id==="bot:"+clientId;
 function cancelRemoteFallback(){if(remoteApplyFallback!==null){clearTimeout(remoteApplyFallback);remoteApplyFallback=null;}}
 function stopGuestHeartbeat(){
  if(guestSyncHeartbeat!==null){clearInterval(guestSyncHeartbeat);guestSyncHeartbeat=null;}
@@ -34,7 +34,7 @@ const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
 function updateUI(){
- const inRoom=!!room,guest=!!players?.guest,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ const inRoom=!!room,guest=!!players?.guest?.online,ready=!!players?.host?.ready&&!!players?.guest?.ready;
  const ownBot=hostBotSeat();
  const seat=host?"host":"guest",other=host?"guest":"host";
  const seatValid=!inRoom||players?.[seat]?.id===clientId,peerOnline=!!players?.[other]?.online;
@@ -352,7 +352,7 @@ async function toggleHostBot(){
  const current=room,botId="bot:"+clientId,remove=hostBotSeat();
  try{
   const tx=await current.child("players/guest").transaction(old=>{
-   if(remove)return old?.localBot===true&&old?.id===botId?null:undefined;
+   if(remove)return old?.localBot===true&&old?.id===botId?{...old,online:false,ready:false}:undefined;
    if(old?.online===true)return;
    return {id:botId,ready:true,online:true,botControl:true,localBot:true,joinedAt:Date.now()+serverOffset};
   },undefined,false);
@@ -362,7 +362,7 @@ async function toggleHostBot(){
    game?.setDifficulty?.(soloDifficulty);
    // If the host tab vanishes, do not leave a fake guest occupying the room.
    const onLeave=current.child("players/guest").onDisconnect();
-   await onLeave.remove();
+   await onLeave.update({online:false,ready:false});
    if(current!==room){await onLeave.cancel();return;}
    botDisconnectOp=onLeave;
   }else if(botDisconnectOp){
@@ -509,7 +509,7 @@ function resetLobby(){
  show("新しいルームを作成するか、5桁の番号で参加してください");
  if(leaving&&connected){
   if(seat==="host")leaving.child("players/guest").transaction(old=>
-   old?.localBot===true&&old?.id===leavingBotId?null:undefined,
+   old?.localBot===true&&old?.id===leavingBotId?{...old,online:false,ready:false}:undefined,
    undefined,false).then(()=>leavingBotOp?.cancel?.()).catch(e=>console.warn("Owned BOT cleanup:",e));
   // Only change our own seat; a new visitor could have claimed a stale seat.
   leaving.child("players/"+seat).transaction(old=>
