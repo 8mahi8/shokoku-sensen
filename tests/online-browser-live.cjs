@@ -35,6 +35,23 @@ const deadline=async (f,label,timeout=18000)=>{
   });
   const host=await hostCtx.newPage(),guest=await guestCtx.newPage();
   pages=[host,guest];const errors=[];
+  // Idle headless WebKit reference before loading any game HTML, RTDB or CSS.
+  // Without this, slow CI rAF scheduling can be misattributed to game Canvas.
+  const idleReference=await guest.evaluate(()=>new Promise(resolve=>{
+   const start=performance.now(),gaps=[];
+   let previous=0;
+   function frame(now){
+    if(previous)gaps.push(now-previous);
+    previous=now;
+    if(now-start<1800){requestAnimationFrame(frame);return;}
+    const sorted=gaps.slice().sort((a,b)=>a-b);
+    const p=ratio=>Math.round((sorted[Math.min(sorted.length-1,Math.floor(sorted.length*ratio))]||0)*10)/10;
+    resolve({samples:gaps.length,gapP50Ms:p(.5),gapP95Ms:p(.95),
+     elapsedMs:Math.round(now-start)});
+   }
+   requestAnimationFrame(frame);
+  }));
+  console.log("IDLE WEBKIT RAF BASELINE",JSON.stringify({recordVideo:qaRecordVideo,...idleReference}));
   for(const [name,p] of [["host",host],["guest",guest]])p.on("pageerror",err=>errors.push(name+": "+err.message));
   await Promise.all([host.goto("http://127.0.0.1:8765/online.html?qa=1&perf=1"),guest.goto("http://127.0.0.1:8765/online-ipad.html?qa=1&perf=1")]);
   for(const p of pages)await deadline(async()=>((await p.locator("#netStatus").innerText()).includes("接続OK")), "Firebase connection",30000);
