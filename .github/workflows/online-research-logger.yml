@@ -1,36 +1,36 @@
-name: Opt-in match research logger QA
+name: Online standalone game integrity
 on:
   push:
     paths:
-      - 'online-research.js'
+      - 'online-net.js'
+      - 'online-game.js'
       - 'online-embed.html'
       - 'online-ipad.html'
-      - 'online-net.js'
-      - 'tools/research/**'
-      - 'research-recover.html'
-      - 'tests/research-recover.cjs'
-      - 'tests/online-research-*'
-      - 'tests/online-browser-live.cjs'
+      - 'online.html'
+      - 'tests/online-smoke.cjs'
+      - 'tests/online-sim.cjs'
       - '.github/workflows/online-research-logger.yml'
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: online-research-${{ github.ref }}
+  group: online-standalone-integrity-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  log-invariants:
+  game-integrity:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/online-research-log.cjs
-      - run: node tests/online-research-batch-analyzer.cjs
-      - run: node tests/online-smoke.cjs
-      - run: node tests/research-recover.cjs
-      - run: npm install --no-save playwright@1.56.1
-      - run: npx playwright install --with-deps chromium webkit
-      - run: node tests/online-research-browser.cjs
+      - name: Validate standalone game and two-client online behavior
+        run: |
+          node tests/online-smoke.cjs
+          node tests/online-sim.cjs
+      - name: Guard against obsolete research logging in school game
+        run: |
+          ! grep -q 'ShokokuResearch' online-ipad.html
+          ! grep -q 'researchRounds' online-net.js
+          ! grep -q 'archiveConsent' online-embed.html
