@@ -370,6 +370,64 @@ async function startMatch(){
  }catch(e){setError(e)}
 }
 
+function sendCommand(c){
+ if(host||!room||phase!=="playing")return;
+ if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
+ const seq=++commandSeq;
+ room.child("commands").push({by:clientId,seq,round:meta?.round||1,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(setError);
+}
+function maybePublish(force=false){
+ if(!host||!room||phase!=="playing"||!game||!connected)return;
+ const now=performance.now();
+ if(publishing){
+  if(force)publishPending=true;
+  // A Firebase set() promise can remain unresolved during network stalls,
+  // while the guest keeps rendering a frozen snapshot. Retry at a bounded
+  // pace rather than permanently locking the one-snapshot publisher.
+  if(now-publishStartedAt<2800||(publishRetryAt&&
+    now-publishRetryAt<(publishRetryCount>=8?18000:4800)))return;
+  // At 8 retries switch to a slower watch, not a permanent deadlock.
+  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);publishRetries++;
+ }else if(!force&&now-lastSend<(game.world()?.units?.length>=50?180:125))return;
+ lastSend=now;publishing=true;publishStartedAt=now;
+ const current=room,epoch=networkEpoch,serial=++publishSerial;
+ let packed;
+ try{
+  const encodeStart=performance.now();
+  packed=packGuestWorld(game.world());
+  lastEncodeMs=performance.now()-encodeStart;
+  lastPayloadChars=packed.chars;
+ }catch(e){
+  // A serialization failure must never freeze the sole snapshot publisher.
+  publishing=false;setError(e);return;
+ }
+ lastHostPublishAt=performance.now();lastHostPublishSeq=seq+1;
+ const sentAt=performance.now();
+ current.child("state").set({seq:++seq,round:meta?.round||1,world:packed.world,at:Date.now()+serverOffset})
+  .then(()=>{if(epoch===networkEpoch&&current===room&&serial===publishSerial)
+   lastAckMs=performance.now()-sentAt;})
+  .catch(e=>{publishFailures++;setError(e)}).finally(()=>{
+   if(epoch!==networkEpoch||current!==room||serial!==publishSerial)return;
+   publishing=false;publishRetryCount=0;
+   if(publishPending){publishPending=false;maybePublish(true)}
+  });
+}
+function finish(data){
+ if(solo)return;
+ if(!host||!room||phase!=="playing")return;
+ phase="finished";
+ // Force publish the final world before closing, so the guest sees the last HP.
+ const world=packGuestWorld(game.world()).world;
+ const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
+ room.update({
+  state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
+  result:{winner,reason:data.reason,at},
+  "meta/status":"finished"
+ }).catch(setError);
+}
+function resultForMe(){return !result||result.winner===0?"draw":result.winner===team?"win":"lose"}
+function hasResult(){return !!result}
+function resultReason(){return result?.reason||"対戦終了"}
 async function rematch(){
  if(solo){game?.begin();return;}
  if(!host||!room||meta?.status!=="finished"||!connected)return;
