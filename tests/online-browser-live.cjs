@@ -29,7 +29,7 @@ const deadline=async (f,label,timeout=18000)=>{
  throw Error("Timed out "+label+" "+(error?.message||""));
 };
 (async()=>{
- let browser,guestBrowser,hostCtx,guestCtx,code="",pages=[];
+ let browser,guestBrowser,hostCtx,guestCtx,code="",botCode="",pages=[];
  try{
   await new Promise(r=>server.listen(8765,"127.0.0.1",r));
   browser=qaMatchedWebkit?await webkit.launch({headless:true}):
@@ -534,6 +534,42 @@ const deadline=async (f,label,timeout=18000)=>{
   assert.equal(guest.url(),originalUrl,"new game must not reload the iframe");
   assert.equal(await guest.evaluate(()=>window.__onlineSeq),0,"old round cursor resets");
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
+  // One-device online room path: a host can add a real Firebase BOT guest
+  // without a second phone/tablet. Prove the seat is ready and the match starts.
+  await host.evaluate(()=>document.getElementById("newRoom").click());
+  await deadline(async()=>await host.locator("#netCreate").isEnabled()&&
+   (await host.locator("#netRoom").innerText()).trim()==="-----","host returns to room picker",7000);
+  await host.locator("#netCreate").click();
+  botCode=await deadline(async()=>{
+   const number=(await host.locator("#netRoom").innerText()).trim();
+   return /^[0-9]{5}$/.test(number)?number:null;
+  },"host creates own BOT room");
+  await deadline(async()=>host.locator("#netHostBot").isVisible(),"host BOT join button available");
+  await host.locator("#netHostBot").click();
+  const botJoined=await deadline(async()=>{
+   const response=await fetch(urlDB+"/"+botCode+"/players/guest.json");
+   return response.ok?(await response.json()):null;
+  },"BOT guest is written to Firebase");
+  assert.equal(botJoined?.localBot,true,"BOT must occupy an explicit guest seat");
+  assert.equal(botJoined?.online,true,"BOT guest must be online");
+  assert.equal(botJoined?.ready,true,"BOT guest must auto-ready");
+  assert.equal(await host.evaluate(()=>window.ShokokuNet.hostBot),true,
+   "host must control its own BOT seat");
+  await host.locator("#netReady").click();
+  await deadline(async()=>host.locator("#netStart").isEnabled(),"ready host with BOT",9000);
+  await host.locator("#netStart").click();
+  await deadline(async()=>host.evaluate(()=>window.__shokokuQa.snapshot().phase==="prep"),
+   "BOT room starts real game",9000);
+  console.log("LIVE HOST BOT ROOM",JSON.stringify({recordVideo:qaRecordVideo,
+   matchedWebkit:qaMatchedWebkit,code:botCode,guestReady:botJoined.ready,
+   phase:"prep",hostBot:true}));
+  await host.evaluate(()=>document.getElementById("newRoom").click());
+  await deadline(async()=>host.locator("#netCreate").isEnabled(),"leave BOT room",7000);
+  await deadline(async()=>{
+   const response=await fetch(urlDB+"/"+botCode+"/players/guest.json");
+   return response.ok&&(await response.json())===null;
+  },"owned BOT seat cleaned on host exit",9000);
+  console.log("LIVE HOST BOT EXIT",JSON.stringify({code:botCode,guestSeatClean:true}));
   console.log("PASS: "+(qaMatchedWebkit?"WebKit host + WebKit guest":"Chromium host + WebKit guest")+
    " real Firebase 1v1, no research logging, recovery, rematches and new room "+code);
  }finally{
@@ -542,12 +578,12 @@ const deadline=async (f,label,timeout=18000)=>{
   if(guestCtx)try{await guestCtx.close()}catch{}
   if(browser)try{await browser.close()}catch{}
   if(guestBrowser)try{await guestBrowser.close()}catch{}
-  if(code){
+  for(const tempCode of [code,botCode].filter(Boolean)){
    // Let onDisconnect presence operations finish before removing our own room.
    await delay(750);
-   const u=urlDB+"/"+code+".json";
+   const u=urlDB+"/"+tempCode+".json";
    const del=await fetch(u,{method:"DELETE"});
-   if(!del.ok)console.error("WARNING: Cleanup failed, HTTP "+del.status+" for test room "+code);
+   if(!del.ok)console.error("WARNING: Cleanup failed, HTTP "+del.status+" for test room "+tempCode);
    else {
     const check=await fetch(u);
     const payload=await check.text();
