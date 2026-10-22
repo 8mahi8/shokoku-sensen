@@ -183,6 +183,32 @@ assert.equal(visualRemaining(.5,1150),.5,"host remains authoritative");
 assert.ok(game.includes("S.remoteVisualReceivedAt=now"),"receiving a packet must reset visual time");
 assert.ok(game.includes("const remaining=guestVisualTimeRemaining(shot.t,now)"),"projectile paint must interpolate");
 assert.ok(game.includes("const remaining=guestVisualTimeRemaining(e.t,now)"),"effect paint must interpolate");
+// Received barrage warnings, ward countdown and death echoes are visual timers,
+// not 125-180ms stepped snapshots. Check both the source paths and a real
+// 60FPS clock advance. No guest-time calculation may mutate the received state.
+const warning={time:.5,total:.6},ward={time:1.5},dead={t:.4,maxTime:.5};
+visualNet.isHost=false;
+visualState.remoteVisualReceivedAt=1000;
+const atFrame=1016;
+assert.ok(Math.abs(visualRemaining(warning.time,atFrame)-.484)<1e-9,
+ "warning ring must advance smoothly on a 16ms frame");
+assert.ok(Math.abs(visualRemaining(dead.t,atFrame)-.384)<1e-9,
+ "death pose must advance smoothly on a 16ms frame");
+assert.ok(Math.abs(visualRemaining(ward.time,atFrame)-1.484)<1e-9,
+ "ward countdown must advance on guest frames");
+assert.deepEqual(warning,{time:.5,total:.6},"host-owned barrage time unchanged");
+assert.deepEqual(dead,{t:.4,maxTime:.5},"host-owned death time unchanged");
+assert.ok(game.includes("function drawSpellFields(now){"),"spell visuals must read frame timestamp");
+assert.ok(game.includes("const remainingTime=guestVisualTimeRemaining(shot.time,now)"),
+ "barrage warning ring must use display time");
+assert.ok(game.includes("const remainingTime=guestVisualTimeRemaining(zone.time,now)"),
+ "ward countdown must use display time");
+assert.ok(game.includes("const remaining=guestVisualTimeRemaining(gone.t,now)"),
+ "death animation must use display time");
+assert.ok(game.includes("deathProgress:1-ratio"),"death art must use locally advanced ratio");
+assert.ok(game.includes("terrain();drawSpellFields(now);"),"spell painter receives frame time");
+assert.ok(!game.includes("deathProgress:1-gone.t/gone.maxTime"),
+ "death art must not use stepped snapshot time");
 assert.ok(net.includes("syncDiagnostics"),"network performance sampling must exist");
 assert.ok(net.includes("remoteApplyFallback=setTimeout("),"stalled Safari rAF fallback missing");
 assert.ok(net.includes("cancelRemoteFallback();"),"old rAF fallback must be cancellable");

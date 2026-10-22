@@ -2143,19 +2143,25 @@ function drawUnit(u){
  }
  if(isAir){ctx.strokeStyle="#d6eae560";ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(u.x,u.y-bob+5);ctx.lineTo(u.x,u.y);ctx.stroke();ctx.setLineDash([]);}
 }
-function drawSpellFields(){
+function drawSpellFields(now){
  for(const zone of S.spells.zones){
+  // Ward is visually counted down between 125-180ms Firebase packets.
+  const remainingTime=guestVisualTimeRemaining(zone.time,now);
+  if(remainingTime<=0)continue;
   ctx.save();
   ctx.fillStyle=zone.team===1?"#73ddff1b":"#ff91b81c";
   ctx.strokeStyle=zone.team===1?"#92e9ffaf":"#f8b2c0af";
   ctx.lineWidth=3;ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r,0,Math.PI*2);ctx.fill();ctx.stroke();
   ctx.strokeStyle="#e9fdff5a";ctx.setLineDash([8,11]);ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r*.82,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.fillStyle="#f0fdff";
-  ctx.fillText("防護結界 "+Math.ceil(zone.time)+"秒",zone.x,zone.y-zone.r-13);
+  ctx.fillText("防護結界 "+Math.ceil(remainingTime)+"秒",zone.x,zone.y-zone.r-13);
   ctx.restore();
  }
  for(const shot of S.spells.incoming){
-  const remaining=Math.max(0,shot.time/shot.total);
+  // Smooth only the displayed barrage warning; actual impact remains host-only.
+  const remainingTime=guestVisualTimeRemaining(shot.time,now);
+  if(remainingTime<=0)continue;
+  const remaining=Math.max(0,Math.min(1,remainingTime/shot.total));
   ctx.save();
   ctx.strokeStyle=shot.team===1?"#ffd184":"#ff8197";ctx.fillStyle=shot.team===1?"#ffbc6426":"#ff71882b";
   ctx.lineWidth=4;ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r,0,Math.PI*2);ctx.fill();ctx.stroke();
@@ -2299,21 +2305,25 @@ function draw(){
  ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,v.w,v.h);
  ctx.fillStyle="#0d2426";ctx.fillRect(0,0,v.w,v.h);
  ctx.save();ctx.translate(v.ox,v.oy);ctx.scale(v.s,v.s);
- terrain();drawSpellFields();
+ terrain();drawSpellFields(now);
  // Walls occupy the full vertical edge; render behind units regardless of center Y.
  for(const c of S.capitals)if(visible(WALL_FACE[c.team],H/2,115,H/2,H/2))drawCapital(c);
  const objects=[];
  for(const p of S.forts)if(visible(p.x,p.y,60,100,55))objects.push({y:p.y+20,draw:()=>drawFort(p)});
  for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>renderCrowdedUnit(u)});
  for(const gone of S.deaths){
-  if(!visible(gone.x,gone.y))continue;
+  // The guest receives death echoes only in occasional state snapshots.
+  // Advance the *artwork* clock locally, never mutating combat/death data.
+  const remaining=guestVisualTimeRemaining(gone.t,now);
+  if(remaining<=0||!visible(gone.x,gone.y))continue;
+  const ratio=Math.max(0,Math.min(1,remaining/gone.maxTime));
   objects.push({y:gone.y,draw:()=>{
    if(window.KokokuArt){
-    window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-gone.t/gone.maxTime},S.clock);
+    window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-ratio},S.clock);
    }else{
-    ctx.save();ctx.globalAlpha=.35*(gone.t/gone.maxTime);
+    ctx.save();ctx.globalAlpha=.35*ratio;
     ctx.strokeStyle=TEAM[gone.team];ctx.lineWidth=3;ctx.beginPath();
-    ctx.arc(gone.x,gone.y-15,17*(1.2-gone.t/gone.maxTime),0,Math.PI*2);ctx.stroke();ctx.restore();
+    ctx.arc(gone.x,gone.y-15,17*(1.2-ratio),0,Math.PI*2);ctx.stroke();ctx.restore();
    }
   }});
  }
