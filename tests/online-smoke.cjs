@@ -128,7 +128,7 @@ assert.ok(ai.includes('botUse(team,')&&ai.includes('canPay(team,'),"AI must use 
 const presentStart=game.indexOf("function presentRemoteUnit(u){"),presentEnd=game.indexOf("\nfunction drawUnit(u){",presentStart);
 const presentSource=presentStart>=0&&presentEnd>presentStart?game.slice(presentStart,presentEnd):null;
 assert.ok(presentSource,"guest sprite interpolation function missing");
-let now=1100;
+let now=1016;
 const netStub={isHost:false},unit={uid:1,x:30,y:20,walkPhase:2,walking:true,attackAnim:.4,flash:.3};
 const view={remoteSprites:new Map([[1,{
  x:10,y:20,targetX:30,targetY:20,vx:23,vy:0,updatedAt:1000,lastFrame:1000
@@ -137,13 +137,30 @@ const present=new Function("NET","S","performance","Math",presentSource+";return
 const animate=present(netStub,view,{now:()=>now},Math);
 const output=animate(unit);
 assert.ok(output.x>10&&output.x<35,"guest visual position should interpolate");
-assert.ok(output.walkPhase>2&&output.walkPhase<4,"walk cycle advances smoothly between snapshots");
+assert.ok(output.walkPhase>2,"walk cycle advances with displayed motion");
 assert.ok(output.attackAnim<.4&&output.attackAnim>0,"attack animation progresses between snapshots");
 assert.ok(output.flash<.3&&output.flash>0,"hit effect decays between snapshots");
 assert.equal(unit.walkPhase,2,"authoritative snapshot must remain unchanged");
-now=1400;
-const aged=animate(unit);
-assert.ok(aged.walkPhase<=2+23*.31*.251,"extrapolation must be bounded after stalled packets");
+// Repeated frames should progress the same visual gait, not restart each
+// time from the snapshot's walking phase.
+now+=16;
+const next=animate(unit);
+assert.ok(next.walkPhase>output.walkPhase,"gait must advance between packets");
+const sprite=view.remoteSprites.get(1);
+sprite.updatedAt=now;sprite.targetX=35;
+now+=16;
+const nextSnapshot={...unit,walkPhase:0.3,x:35};
+const afterPacket=animate(nextSnapshot);
+assert.ok(afterPacket.walkPhase>=next.walkPhase,"new snapshot must not reset feet phase");
+assert.equal(nextSnapshot.walkPhase,0.3,"guest walk visuals never mutate received snapshot");
+// A short hitch must not advance a full unbounded number of gait cycles.
+now+=500;
+const aged=animate(nextSnapshot);
+assert.ok(Number.isFinite(aged.walkPhase),"stalled visual gait stays finite");
+assert.ok(aged.walkPhase-afterPacket.walkPhase<=16*.31+1e-9,
+ "gait progress per painted frame stays bounded after a long hitch");
+const stopped=animate({...nextSnapshot,walking:false});
+assert.equal(stopped.walkPhase,aged.walkPhase,"stopped unit keeps last visual stance");
 netStub.isHost=true;
 assert.equal(animate(unit),unit,"host visuals must remain authoritative");
 // Projectile and effect phases on guests must advance smoothly *without*

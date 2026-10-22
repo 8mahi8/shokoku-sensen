@@ -2076,13 +2076,22 @@ function presentRemoteUnit(u){
    const since=Math.max(0,Math.min(.25,(now-v.updatedAt)/1000));
    const age=Math.min(.17,since);
    const alpha=1-Math.exp(-dt*13);
+   const oldX=v.x,oldY=v.y;
    v.x+=(v.targetX+v.vx*age-v.x)*alpha;
    v.y+=(v.targetY+v.vy*age-v.y)*alpha;
-   // Network snapshots update at ~5.6Hz. Advance transient artwork
-   // phases locally between snapshots, without changing hitboxes or AI.
-   const walking=!!u.walking,walkingSpeed=Math.hypot(v.vx,v.vy);
+   // Keep the gait phase on the visual sprite rather than recomputing it
+   // from each ~125ms network packet. That recalculation caused a visible
+   // footstep reset even when interpolated positions were smooth.
+   if(!Number.isFinite(v.visualWalkPhase))
+    v.visualWalkPhase=Number.isFinite(u.walkPhase)?u.walkPhase:0;
+   if(u.walking){
+    const visualDistance=Math.hypot(v.x-oldX,v.y-oldY);
+    v.visualWalkPhase+=Math.min(16,visualDistance)*.31;
+   }
+   // Only presentation changes: server position, attacks, collision and
+   // serialized snapshots remain authoritative and untouched.
    u={...u,x:v.x,y:v.y,
-    walkPhase:walking?(u.walkPhase||0)+since*walkingSpeed*.31:u.walkPhase,
+    walkPhase:v.visualWalkPhase,
     attackAnim:Math.max(0,(u.attackAnim||0)-since),
     flash:Math.max(0,(u.flash||0)-since)};
   }
