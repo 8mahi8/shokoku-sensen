@@ -1860,7 +1860,8 @@ function end(result,reason){
  "<br>敵軍首都："+Math.ceil(capital(3-ME()).hp)+" / "+START_HP+
  "<br>残り時間："+numTime(S.seconds)+
  "<br>"+(NET.isSolo?"オフライン BOT対戦":"1vs1 オンライン対戦");
- $("start").textContent=NET.isSolo?"BOTと再戦":"同じルームで再戦";
+ $("start").textContent=NET.isSolo?"BOTと再戦":NET.isHost?"同じルームで再戦":"再戦する（ホスト待ち）";
+ $("newRoom").textContent=NET.isSolo?"メニューへ戻る":"ルームを退出する";
  $("start").disabled=false;
  $("overlay").classList.remove("hidden");
  $("prepBanner").classList.remove("visible");

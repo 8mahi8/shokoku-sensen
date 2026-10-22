@@ -484,7 +484,7 @@ async function rematch(){
   if(meta?.status==="finished"){
    $("start").disabled=true;
    $("start").textContent="ホストの再戦を待っています…";
-   $("dialogText").textContent="ホストが再戦を押すと、同じルームの準備画面に戻ります。退出する場合は「新しいルームで遊ぶ」を押してください。";
+   $("dialogText").textContent="ホストが再戦を押すと、同じルームの準備画面に戻ります。退出する場合は「ルームを退出する」を押してください。";
   }
   return;
  }

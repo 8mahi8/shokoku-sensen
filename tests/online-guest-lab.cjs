@@ -88,8 +88,12 @@ const timeout=async (fn,label,ms=30000)=>{
   }));
   await timeout(async()=>page.evaluate(()=>{
     const guest=document.getElementById("guestFrame").contentWindow;
+    const host=document.getElementById("hostFrame").contentWindow;
     return guest.ShokokuNet.syncDiagnostics().phase==="finished" &&
-      guest.document.getElementById("start").textContent.includes("同じルームで再戦") &&
+      guest.document.getElementById("start").textContent==="再戦する（ホスト待ち）" &&
+      host.document.getElementById("start").textContent==="同じルームで再戦" &&
+      guest.document.getElementById("newRoom").textContent==="ルームを退出する" &&
+      host.document.getElementById("newRoom").textContent==="ルームを退出する" &&
       !guest.document.getElementById("overlay").classList.contains("hidden");
   }),"guest receives battle result with same-room rematch",22000);
   await page.evaluate(()=>document.getElementById("guestFrame").contentDocument.getElementById("start").click());
