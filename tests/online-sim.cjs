@@ -62,7 +62,7 @@ class Ref{
   await this.set(value);return {committed:true}
  }
  push(value){const ref=this.child("cmd"+(++pushId));return ref.set(value)}
- onDisconnect(){return {update:async()=>{},cancel:async()=>{}}}
+ onDisconnect(){return {update:async()=>{},remove:async()=>{},cancel:async()=>{}}}
 }
 const database=()=>({ref:path=>new Ref(path)});
 database.ServerValue={TIMESTAMP:Date.now()};
@@ -88,7 +88,7 @@ function client(){
    const path=new URL(url).pathname.replace(/^\//,"").replace(/\.json$/,"");
    return {ok:true,status:200,json:async()=>read(path)};
   },
-  requestAnimationFrame:fn=>pauseRaf?delayedRaf.push(fn):queueMicrotask(()=>fn(performance.now()))};
+  requestAnimationFrame:fn=>pauseRaf?delayedRaf.push(fn):queueMicrotask(()=>fn(performance.now())),setInterval,clearInterval};
  vm.runInNewContext(source,context,{filename:"online-net.js"});
  callbacks.DOMContentLoaded();
  const api=context.window.ShokokuNet;

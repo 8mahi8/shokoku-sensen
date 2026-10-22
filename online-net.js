@@ -10,7 +10,7 @@ const $=id=>document.getElementById(id);
 const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)crypto.getRandomValues(a);else throw Error("安全な乱数が使えません");return Array.from(a,x=>x.toString(36)).join("-");};
 const clientId=token(), ROOM_VERSION=2;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
-let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
+let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null,botDisconnectOp=null,guestSyncHeartbeat=null;
 let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false,hostBotSwitchPending=false;
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
@@ -26,6 +26,9 @@ let appliedGaps=[],appliedPackets=0;
 let pendingRemote=null,remoteScheduled=false,remoteEpoch=0,remoteApplyFallback=null;
 const hostBotSeat=()=>host&&players?.guest?.localBot===true&&players.guest.id==="bot:"+clientId;
 function cancelRemoteFallback(){if(remoteApplyFallback!==null){clearTimeout(remoteApplyFallback);remoteApplyFallback=null;}}
+function stopGuestHeartbeat(){
+ if(guestSyncHeartbeat!==null){clearInterval(guestSyncHeartbeat);guestSyncHeartbeat=null;}
+}
 let publishing=false,publishPending=false,networkEpoch=0,publishStartedAt=0,publishRetryAt=0,publishRetryCount=0,publishSerial=0;
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
@@ -216,6 +219,7 @@ function syncDiagnostics(){
   coalesced:coalescedPackets,retries:publishRetries,writeFailures:publishFailures};
 }
 function setupRoom(code,isHost){
+ stopGuestHeartbeat();
  solo=false;guestBot=false;
  lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  appliedGaps=[];appliedPackets=0;
@@ -285,6 +289,10 @@ function setupRoom(code,isHost){
    try{await snap.ref.remove()}catch(e){setError(e)}
   });
  }else{
+  // Check liveness outside the painting loop, which Safari can throttle.
+  // Normal frames still perform the faster existing 120ms check.
+  guestSyncHeartbeat=setInterval(()=>{if(!document.hidden)checkGuestSync();},1500);
+  guestSyncHeartbeat?.unref?.(); // Node-only: don't hold simulated CI process open.
   attach(room.child("state"),"value",snap=>{
    if(room!==openedRoom)return;
    if(!qaMuteSdkSnapshots)receiveGuestWorld(snap.val());
@@ -350,7 +358,17 @@ async function toggleHostBot(){
   },undefined,false);
   if(!tx.committed||room!==current||meta?.status!=="lobby")
    throw Error("BOTの参加状態が変わりました。ルームを確認してください");
-  if(!remove)game?.setDifficulty?.(soloDifficulty);
+  if(!remove){
+   game?.setDifficulty?.(soloDifficulty);
+   // If the host tab vanishes, do not leave a fake guest occupying the room.
+   const onLeave=current.child("players/guest").onDisconnect();
+   await onLeave.remove();
+   if(current!==room){await onLeave.cancel();return;}
+   botDisconnectOp=onLeave;
+  }else if(botDisconnectOp){
+   const onLeave=botDisconnectOp;botDisconnectOp=null;
+   await onLeave.cancel().catch(e=>console.warn("BOT disconnect cleanup:",e));
+  }
   show(remove?"BOTが退出しました。友達が参加できます":"BOTが赤軍として参加しました。準備完了を押して開始できます");
  }catch(e){setError(e)}finally{hostBotSwitchPending=false;updateUI();}
 }
@@ -472,10 +490,11 @@ async function rematch(){
 function resetLobby(){
  const leaving=room,seat=host?"host":"guest",leavingDisconnect=disconnectOp;
  const leavingBot=hostBotSeat(),leavingBotId="bot:"+clientId;
+ const leavingBotOp=botDisconnectOp;botDisconnectOp=null;
  // Return to the room picker immediately. Never block Safari/Sites navigation
  // on a Firebase read/write; onDisconnect remains a fallback for stale presence.
  room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;hostBotSwitchPending=false;
- cancelRemoteFallback();
+ cancelRemoteFallback();stopGuestHeartbeat();
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;
  restReadPending=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
@@ -491,7 +510,7 @@ function resetLobby(){
  if(leaving&&connected){
   if(leavingBot)leaving.child("players/guest").transaction(old=>
    old?.localBot===true&&old?.id===leavingBotId?null:undefined,
-   undefined,false).catch(e=>console.warn("Owned BOT cleanup:",e));
+   undefined,false).then(()=>leavingBotOp?.cancel?.()).catch(e=>console.warn("Owned BOT cleanup:",e));
   // Only change our own seat; a new visitor could have claimed a stale seat.
   leaving.child("players/"+seat).transaction(old=>
    old?.id===clientId?{...old,online:false,ready:false}:undefined,
