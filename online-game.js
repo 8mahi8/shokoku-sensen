@@ -1860,7 +1860,8 @@ function end(result,reason){
  "<br>敵軍首都："+Math.ceil(capital(3-ME()).hp)+" / "+START_HP+
  "<br>残り時間："+numTime(S.seconds)+
  "<br>"+(NET.isSolo?"オフライン BOT対戦":"1vs1 オンライン対戦");
- $("start").textContent=NET.isSolo?"BOTと再戦":NET.isHost?"同じルームで再戦":"新しいルームで遊ぶ";
+ $("start").textContent=NET.isSolo?"BOTと再戦":"同じルームで再戦";
+ $("start").disabled=false;
  $("overlay").classList.remove("hidden");
  $("prepBanner").classList.remove("visible");
 }
@@ -2661,6 +2662,7 @@ function start(){
     buildCards();updateHUD();
    },resetForLobby:()=>{
    resetWorld();S.phase="menu";S.remoteSprites=null;
+   $("start").disabled=false;
    $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
    buildCards();updateHUD();
   },showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
@@ -2763,7 +2765,7 @@ function start(){
   S.difficulty=b.dataset.level;
   document.querySelectorAll("[data-level]").forEach(x=>x.classList.toggle("active",x===b));
  }));
- $("start").addEventListener("click",()=>NET.isHost?NET.rematch():NET.resetLobby());
+ $("start").addEventListener("click",()=>NET.rematch());
  $("newRoom").addEventListener("click",()=>NET.resetLobby());
  document.addEventListener("visibilitychange",()=>{
   if(document.hidden&&S.phase==="battle")NET.reportVisibility(true);

@@ -80,6 +80,66 @@ const timeout=async (fn,label,ms=30000)=>{
    engine,code:roomCode,hostSeq:active.diag.h.seq,guestSeq:active.diag.g.seq,blueUnits:active.blueUnits,elapsed:active.elapsed
   }));
   if(errors.length)throw Error("Browser exceptions "+errors.slice(0,5).join(" | "));
+
+  // Regression: both players may press "同じルームで再戦".
+  // The RED button must never throw away the original guest seat.
+  await page.evaluate(()=>document.getElementById("hostFrame").contentWindow.ShokokuNet.finish({
+    result:"win",reason:"Rematch button end-to-end QA"
+  }));
+  await timeout(async()=>page.evaluate(()=>{
+    const guest=document.getElementById("guestFrame").contentWindow;
+    return guest.ShokokuNet.syncDiagnostics().phase==="finished" &&
+      guest.document.getElementById("start").textContent.includes("同じルームで再戦") &&
+      !guest.document.getElementById("overlay").classList.contains("hidden");
+  }),"guest receives battle result with same-room rematch",22000);
+  await page.evaluate(()=>document.getElementById("guestFrame").contentDocument.getElementById("start").click());
+  const waiting=await page.evaluate(()=>{
+    const guest=document.getElementById("guestFrame").contentWindow;
+    return {role:guest.ShokokuNet.syncDiagnostics().role,
+      code:guest.document.getElementById("netRoom").textContent.trim(),
+      text:guest.document.getElementById("start").textContent.trim(),
+      stillVisible:!guest.document.getElementById("overlay").classList.contains("hidden")};
+  });
+  assert.equal(waiting.role,"guest");
+  assert.equal(waiting.code,roomCode,"RED rematch must retain same Firebase room");
+  assert.ok(waiting.text.includes("待っています"),"RED shows host-rematch waiting status");
+  assert.equal(waiting.stillVisible,true,"RED shows result until host starts rematch");
+  const seatsWhileWaiting=await (await fetch(urlDB+"/"+roomCode+"/players.json")).json();
+  assert.equal(seatsWhileWaiting.guest.online,true,"RED remains in room after tapping rematch");
+  await page.evaluate(()=>document.getElementById("hostFrame").contentWindow.ShokokuNet.rematch());
+  await timeout(async()=>page.evaluate(()=>{
+    const h=document.getElementById("hostFrame").contentWindow,
+      g=document.getElementById("guestFrame").contentWindow;
+    return h.ShokokuNet.syncDiagnostics().phase==="lobby" &&
+      g.ShokokuNet.syncDiagnostics().phase==="lobby" &&
+      g.document.getElementById("overlay").classList.contains("hidden") &&
+      !h.document.getElementById("netReady").disabled &&
+      !g.document.getElementById("netReady").disabled;
+  }),"round 2 lobby returns to both peers without losing seat",24000);
+  const second=await (await fetch(urlDB+"/"+roomCode+"/meta.json")).json();
+  assert.equal(second.round,2,"host increments Firebase round once");
+  assert.equal(second.status,"lobby");
+  const players2=await (await fetch(urlDB+"/"+roomCode+"/players.json")).json();
+  assert.equal(players2.guest.online,true,"same guest still connected for round 2");
+  await page.evaluate(()=>{
+    document.getElementById("guestFrame").contentDocument.getElementById("netReady").click();
+    document.getElementById("hostFrame").contentDocument.getElementById("netReady").click();
+  });
+  await timeout(async()=>page.evaluate(()=>{
+    const h=document.getElementById("hostFrame").contentDocument;
+    return !h.getElementById("netStart").disabled;
+  }),"both ready for round 2",24000);
+  await page.evaluate(()=>document.getElementById("hostFrame").contentDocument.getElementById("netStart").click());
+  await timeout(async()=>page.evaluate(()=>{
+    const h=document.getElementById("hostFrame").contentWindow,
+      g=document.getElementById("guestFrame").contentWindow;
+    return h.ShokokuNet.syncDiagnostics().phase==="playing" &&
+      g.ShokokuNet.syncDiagnostics().phase==="playing" &&
+      (g.__onlineSeq||0)>0;
+  }),"round 2 starts with synchronized guest battle frames",26000);
+  console.log("PASS: RED rematch stays seated, host starts round 2, both ready and RED sync resumes",JSON.stringify({engine}));
+  if(errors.length)throw Error("Browser exceptions after rematch "+errors.slice(0,5).join(" | "));
+
   await page.locator("#restart").click();
   await timeout(async()=>page.locator("#start").isEnabled(),"lab returns to ready after reset",22000);
   console.log("PASS: restart creates fresh unoccupied test interface");

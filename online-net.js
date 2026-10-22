@@ -477,7 +477,18 @@ function hasResult(){return !!result}
 function resultReason(){return result?.reason||"対戦終了"}
 async function rematch(){
  if(solo){game?.begin();return;}
- if(!host||!room||meta?.status!=="finished"||!connected)return;
+ if(!room||!connected)return;
+ // A RED guest choosing "rematch" must stay in the existing Firebase seat.
+ // Only the BLUE host advances the round. No new room or extra RTDB write.
+ if(!host){
+  if(meta?.status==="finished"){
+   $("start").disabled=true;
+   $("start").textContent="ホストの再戦を待っています…";
+   $("dialogText").textContent="ホストが再戦を押すと、同じルームの準備画面に戻ります。退出する場合は「新しいルームで遊ぶ」を押してください。";
+  }
+  return;
+ }
+ if(meta?.status!=="finished")return;
  try{
   $("start").disabled=true;
   await room.update({
