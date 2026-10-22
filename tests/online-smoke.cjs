@@ -146,6 +146,26 @@ const aged=animate(unit);
 assert.ok(aged.walkPhase<=2+23*.31*.251,"extrapolation must be bounded after stalled packets");
 netStub.isHost=true;
 assert.equal(animate(unit),unit,"host visuals must remain authoritative");
+// Projectile and effect phases on guests must advance smoothly *without*
+// changing Firebase snapshots or their host-authoritative timing/damage.
+const visualStart=game.indexOf("function guestVisualTimeRemaining(");
+const visualEnd=game.indexOf("\n// Both full-art and cached sprites",visualStart);
+assert.ok(visualStart>0&&visualEnd>visualStart,"guest effect/projectile interpolation missing");
+const visualSource=game.slice(visualStart,visualEnd);
+const visualNet={isHost:false},visualState={remoteVisualReceivedAt:1000,speed:1};
+const visualRemaining=new Function("NET","S",visualSource+";return guestVisualTimeRemaining")(visualNet,visualState);
+const projectile={t:.5,max:.7,x:10,y:10,tx:30,ty:10},effect={t:.4,max:.5};
+assert.equal(visualRemaining(projectile.t,1100),.4,"guest projectile must advance by 100ms");
+assert.equal(visualRemaining(effect.t,1200),.2,"guest effect must advance by 200ms");
+assert.equal(projectile.t,.5,"projectile snapshot must not be mutated");
+assert.equal(effect.t,.4,"effect snapshot must not be mutated");
+assert.equal(visualRemaining(.5,2000),.25,"extrapolation after lost packets is bounded");
+assert.equal(visualRemaining(.2,1300),0,"expired visual should stop showing");
+visualNet.isHost=true;
+assert.equal(visualRemaining(.5,1150),.5,"host remains authoritative");
+assert.ok(game.includes("S.remoteVisualReceivedAt=now"),"receiving a packet must reset visual time");
+assert.ok(game.includes("const remaining=guestVisualTimeRemaining(shot.t,now)"),"projectile paint must interpolate");
+assert.ok(game.includes("const remaining=guestVisualTimeRemaining(e.t,now)"),"effect paint must interpolate");
 assert.ok(net.includes("syncDiagnostics"),"network performance sampling must exist");
 assert.ok(game.includes("setupPerfPanel()"),"opt-in performance overlay must exist");
 

@@ -1500,6 +1500,7 @@ function resetWorld(){
   S.queue[team]=deck.slice(HAND_SIZE);
  }
  S.remoteSprites=null;
+ S.remoteVisualReceivedAt=0;
  S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP},
              {team:2,x:1206,y:328,hp:START_HP,max:START_HP}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
@@ -3428,6 +3429,15 @@ function drawFort(f){
  ctx.fillText(f.owner===0?"中立基地":f.owner===1?"自軍基地":"敵軍基地",0,48);
  ctx.restore();
 }
+// Guest receives projectile/effect lifetimes only at network snapshot intervals.
+// Advance their *visual* time between packets, exactly as the host's 30 Hz
+// simulation would; never mutate the authoritative S.effects/projectiles.
+// This affects presentation only, not collisions, damage, timing or Firebase.
+function guestVisualTimeRemaining(snapshotTime,now){
+ if(NET.isHost||!S.remoteVisualReceivedAt)return snapshotTime;
+ const elapsed=Math.max(0,Math.min(.25,(now-S.remoteVisualReceivedAt)/1000));
+ return Math.max(0,snapshotTime-elapsed*S.speed);
+}
 // Both full-art and cached sprites must share the same guest interpolation.
 // Previously the crowded sprite cache painted raw 180ms network positions,
 // making guest troops jump even when the canvas frame rate was high.
@@ -3675,8 +3685,9 @@ function draw(){
  objects.sort((a,b)=>a.y-b.y);
  for(const obj of objects)obj.draw();
  for(const e of S.effects){
-  if(!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
-  const f=e.t/e.max;
+  const remaining=guestVisualTimeRemaining(e.t,now);
+  if(remaining<=0||!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
+  const f=remaining/e.max;
   ctx.save();ctx.globalAlpha=Math.min(1,f*1.4);
   const boom=e.type==="barrage"||e.type==="tank"||e.type==="suppress",spell=e.type==="barrage";
   const color=spell?"#ffe2a3":e.type==="archer"?"#d3abff":e.type==="drone"?"#98fff1":TEAM[e.team];
@@ -3692,11 +3703,13 @@ function draw(){
   ctx.restore();
  }
  for(const shot of S.projectiles){
-  const f=1-shot.t/shot.max;
+  const remaining=guestVisualTimeRemaining(shot.t,now);
+  if(remaining<=0)continue;
+  const f=1-remaining/shot.max;
   const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f;
   if(!visible(x,y,35,45,45))continue;
   const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
-  ctx.save();ctx.globalAlpha=Math.min(1,shot.t/.09);
+  ctx.save();ctx.globalAlpha=Math.min(1,remaining/.09);
   ctx.strokeStyle=shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
   ctx.lineWidth=shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
   ctx.shadowColor=ctx.strokeStyle;
@@ -4045,7 +4058,9 @@ function start(){
    S.selected=oldSelected;S.cam=oldCam;
    // Never rewind character animations when a delayed packet arrives.
    S.clock=Math.max(localClock,S.clock);
-   const now=performance.now(),sprites=S.remoteSprites||(S.remoteSprites=new Map());
+   const now=performance.now();
+   S.remoteVisualReceivedAt=now;
+   const sprites=S.remoteSprites||(S.remoteSprites=new Map());
    const seen=new Set();
    for(const u of S.units){
     seen.add(u.uid);
