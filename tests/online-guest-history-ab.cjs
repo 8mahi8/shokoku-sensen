@@ -18,7 +18,7 @@ const versions=[
   ["V21-guest-tune","7db1c98cb51d9841f5f43941767c9972cbef932d"],
   ["PR22-candidate","HEAD"]
 ];
-const helper=String.raw\`
+const helper=String.raw`
 const _qaOriginalRegisterGame=NET.registerGame.bind(NET);
 NET.registerGame=(game)=>{window.__qaGuestGame=game;return _qaOriginalRegisterGame(game);};
 window.__qaBecomeGuest=count=>{
@@ -40,7 +40,7 @@ window.__qaSyncGuest=seq=>{
  const copy=JSON.parse(JSON.stringify(raw,(k,v)=>v===Infinity?1000000000:v));
  window.__qaGuestGame.apply(copy,seq);
 };
-\`;
+`;
 function loadHtml(ref){
  const original=execFileSync("git",["show",ref+":online-ipad.html"],{encoding:"utf8",maxBuffer:5e6});
  assert.equal(original.split("function start(){").length,2,"single start anchor in "+ref);
