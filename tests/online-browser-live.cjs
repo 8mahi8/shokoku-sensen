@@ -340,22 +340,29 @@ const deadline=async (f,label,timeout=18000)=>{
    assert.equal(synced.diag.error,"","guest application errors in "+scenario);
    await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-initial.png"),
     fullPage:false});
-   // Isolate active REAL Firebase WebKit guest frames from initial resource
-   // loading and room transitions. Measurements are CI only, not school iPad.
-   await guest.evaluate(()=>window.__shokokuQa.resetFrameBench());
+   // Measure the SAME real Firebase battle at both ends of the connection.
+   // A host-only Chromium FPS from an earlier unrelated test is not a valid
+   // answer to host-vs-guest performance, especially with WebKit as guest.
+   await Promise.all([host,guest].map(page=>page.evaluate(()=>{
+    window.__shokokuQa.resetFrameBench();
+    window.__qaPairStartedAt=performance.now();
+   })));
    await delay(1500);
    // Collect the rAF timing BEFORE screenshot capture; screenshot itself can
    // stall the render loop and contaminate frame-gap percentiles.
-   const later=await guest.evaluate(()=>{
+   const benchReadback=()=>{
     const frames=window.__shokokuQa.frameBench().filter(r=>r.phase==="battle");
     const gaps=frames.map(r=>r.gapMs).filter(Number.isFinite).sort((a,b)=>a-b);
     const percentile=(numbers,fraction)=>numbers[Math.min(numbers.length-1,Math.floor(numbers.length*fraction))]||0;
     const round=n=>Math.round(n*10)/10;
     const ordered=key=>frames.map(r=>r[key]).filter(Number.isFinite).sort((a,b)=>a-b);
+    const elapsedMs=performance.now()-window.__qaPairStartedAt;
     return {phase:window.__shokokuQa.snapshot().phase,
      count:window.__shokokuQa.snapshot().units.length,
      perf:window.ShokokuNet.syncDiagnostics(),
      frameSamples:frames.length,
+     elapsedMs:round(elapsedMs),
+     observedFps:round(frames.length*1000/Math.max(1,elapsedMs)),
      gapP50Ms:round(percentile(gaps,.50)),
      gapP95Ms:round(percentile(gaps,.95)),
      gapMaxMs:round(gaps.at(-1)||0),
@@ -366,7 +373,25 @@ const deadline=async (f,label,timeout=18000)=>{
      networkP95Ms:round(percentile(ordered("networkMs"),.95)),
      gapAfterPrevP95Ms:round(percentile(ordered("gapAfterPrevMs"),.95)),
      frameError:window.__onlineFrameError||null};
-   });
+   };
+   const [hostLater,later]=await Promise.all([
+    host.evaluate(benchReadback),guest.evaluate(benchReadback)
+   ]);
+   assert.equal(hostLater.frameError,null,"Chromium host should not throw during "+scenario);
+   assert.ok(hostLater.frameSamples>=5,"Chromium host must paint multiple frames after "+scenario);
+   assert.equal(hostLater.phase,"battle","Chromium host must remain in battle during "+scenario);
+   console.log("REAL FIREBASE HOST GUEST PAIR",JSON.stringify({
+    scenario,recordVideo:qaRecordVideo,
+    host:{browser:"Chromium",role:"host",units:hostLater.count,frames:hostLater.frameSamples,
+     durationMs:hostLater.elapsedMs,fps:hostLater.observedFps,
+     gapP50Ms:hostLater.gapP50Ms,gapP95Ms:hostLater.gapP95Ms,
+     drawP95Ms:hostLater.drawP95Ms,totalP95Ms:hostLater.totalP95Ms},
+    guest:{browser:"WebKit",role:"guest",units:later.count,frames:later.frameSamples,
+     durationMs:later.elapsedMs,fps:later.observedFps,
+     gapP50Ms:later.gapP50Ms,gapP95Ms:later.gapP95Ms,
+     drawP95Ms:later.drawP95Ms,totalP95Ms:later.totalP95Ms},
+    caveat:"browser engine and network role differ; not physical iPad Safari"
+   }));
    await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-after-1100ms.png"),
     fullPage:false});
    assert.equal(later.frameError,null,"WebKit guest should not throw during "+scenario);
