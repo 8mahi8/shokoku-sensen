@@ -114,7 +114,7 @@ for(const id of ["netSolo","netGuestBot","guestBotLive"]){
 }
 assert.ok(net.includes('if(solo){game?.begin();return;}'),"offline rematch must work");
 assert.ok(net.includes('get isHost(){return host||solo}'),"offline local simulation must tick");
-assert.ok(net.includes('get botActive(){return solo||guestBot}'),"both BOT modes active");
+assert.ok(net.includes('get botActive(){return solo||guestBot||hostBotSeat()}'),"offline, guest-operated and host-supplied BOT modes active");
 assert.ok(game.includes('botPreparation()'),"BOT must enter preparation phase");
 assert.ok(game.includes('if(NET.isSolo&&S.phase==="battle")botStep(dt)'),"solo BOT must think in simulation");
 assert.ok(game.includes('if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle"))'),"guest BOT must think from client frame");
