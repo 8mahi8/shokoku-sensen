@@ -1,0 +1,36 @@
+name: One-device guest lab browser QA
+on:
+  push:
+    paths:
+      - 'guest-lab.html'
+      - 'guest-lab-game.html'
+      - 'tests/online-guest-lab.cjs'
+      - '.github/workflows/online-guest-lab.yml'
+  workflow_dispatch:
+jobs:
+  guest-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        browser: [chromium, webkit]
+    env:
+      GUEST_LAB_BROWSER: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium webkit
+      - run: node tests/online-guest-lab.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guest-lab-${{ matrix.browser }}-screenshot
+          path: qa-guest-lab/
+          retention-days: 7

@@ -3,6 +3,30 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#101c26"><title>小国戦線 III | 1vs1 オンライン対戦</title>
+<!-- =====================================================
+  ★ 学校でキャラ調整する場所 ★
+  左がHP、右が基本攻撃力。好きな数字に書き換えてOK。
+  例：infantry: { hp: 130, damage: 20 },   // 基本歩兵
+  数字だけ変える。キャラ名・括弧・カンマは消さない。
+  保存してGoogle SitesへHTML全文を貼り直し、再公開すると反映。
+  みんなが同じ更新済みページを開いて対戦すること。
+  HPは1〜99999、基本攻撃力は0〜99999の整数。
+  ※ スペル/城/砦のHPや、射程/コスト/速度はここでは変わりません。
+===================================================== -->
+<script id="shokoku-school-unit-stats">
+window.SHOKOKU_UNIT_STATS = {
+  infantry : { hp:  105, damage:  15 }, // 基本歩兵
+  scout    : { hp:  195, damage:  28 }, // 偵察ライダー
+  engineer : { hp:  420, damage:  34 }, // 重装工兵
+  archer   : { hp:   95, damage:  20 }, // 魔導射手
+  sentinel : { hp:  540, damage:  62 }, // 迎撃衛士
+  suppress : { hp:  380, damage:  50 }, // 制圧機兵
+  guardian : { hp: 1400, damage: 115 }, // 守護ゴーレム
+  drone    : { hp:  120, damage:  18 }, // 浮遊ドローン
+  tank     : { hp: 1100, damage: 110 }, // 魔導重戦車
+};
+</script>
+<!-- ================== ★ 調整はここまで ★ ================== -->
 <style>
 :root{color-scheme:dark;--bg:#0b1820;--panel:#122735;--ink:#ecf5ee;--sub:#9fb7b9;--blue:#73d6f5;--red:#ff8794;--gold:#f3d78b}
 *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
@@ -236,6 +260,7 @@ body.soloMode #difficulties{display:flex!important}
 #netSoloLevels button.selected{background:#476e45;color:#fcffe5;border-color:#c5e78b;box-shadow:inset 0 0 0 1px #a5cf84}
 .netPractice #netSolo{min-height:45px;border-radius:9px;padding:11px;font-weight:900;color:white;border:1px solid #92c4a5}
 @media(max-height:500px){.netPractice{margin:5px 0;padding:6px;gap:5px}#netSoloLevels button{min-height:32px;padding:5px}#onlineDialog{padding:10px}}
+#netHostBot{background:#356247;border-color:#8ed1a3;color:#eaffed;font-weight:900}
 #netGuestBot[aria-pressed="true"],#guestBotLive[aria-pressed="true"]{background:#1c6b52;border-color:#9cf5a8;color:white}
 #guestBotLive{position:fixed;right:9px;top:69px;z-index:26;border-radius:9px;padding:7px 11px;font-size:11px;
  font-weight:800;background:#1c3543;border:1px solid #82b3c8;color:#e9f9ff;touch-action:manipulation}
@@ -333,23 +358,32 @@ const $=id=>document.getElementById(id);
 const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)crypto.getRandomValues(a);else throw Error("安全な乱数が使えません");return Array.from(a,x=>x.toString(36)).join("-");};
 const clientId=token(), ROOM_VERSION=2;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
-let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
-let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false;
+let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null,botDisconnectOp=null,guestSyncHeartbeat=null;
+let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false,hostBotSwitchPending=false;
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
 let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
+// Local diagnostics only; never add them to Firebase or anonymous match logs.
+let lastPayloadChars=0,lastEncodeMs=0,lastAckMs=0,lastApplyMs=0;
+let coalescedPackets=0,publishRetries=0,publishFailures=0;
 let qaMuteSdkSnapshots=false;
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
 // snapshots together. Apply only the newest on the next visible frame.
-let pendingRemote=null,remoteScheduled=false,remoteEpoch=0;
+let pendingRemote=null,remoteScheduled=false,remoteEpoch=0,remoteApplyFallback=null;
+const hostBotSeat=()=>host&&players?.guest?.online===true&&players.guest.localBot===true&&players.guest.id==="bot:"+clientId;
+function cancelRemoteFallback(){if(remoteApplyFallback!==null){clearTimeout(remoteApplyFallback);remoteApplyFallback=null;}}
+function stopGuestHeartbeat(){
+ if(guestSyncHeartbeat!==null){clearInterval(guestSyncHeartbeat);guestSyncHeartbeat=null;}
+}
 let publishing=false,publishPending=false,networkEpoch=0,publishStartedAt=0,publishRetryAt=0,publishRetryCount=0,publishSerial=0;
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
 function updateUI(){
- const inRoom=!!room,guest=!!players?.guest,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ const inRoom=!!room,guest=!!players?.guest?.online,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ const ownBot=hostBotSeat();
  const seat=host?"host":"guest",other=host?"guest":"host";
  const seatValid=!inRoom||players?.[seat]?.id===clientId,peerOnline=!!players?.[other]?.online;
  $("netRoom").textContent=inRoom?roomCode:"-----";
@@ -362,6 +396,9 @@ function updateUI(){
  $("netStart").hidden=!host;
  $("netStart").disabled=!host||!ready||!peerOnline||!seatValid||meta?.status!=="lobby"||!connected;
  $("netShare").disabled=!inRoom;
+ $("netHostBot").hidden=!(inRoom&&host&&meta?.status==="lobby"&&(!players?.guest?.online||ownBot));
+ $("netHostBot").disabled=!connected||hostBotSwitchPending;
+ $("netHostBot").textContent=ownBot?"🤖 BOTを退出させる":"🤖 BOTを参加させる";
   const guestControl=inRoom&&!host&&seatValid;
   $("netGuestBot").hidden=!guestControl;
   $("netGuestBot").disabled=!guestControl||!connected||guestBotSwitchPending;
@@ -379,10 +416,6 @@ function updateUI(){
   $("networkBar").classList.remove("hidden");
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
  }
- window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
-  ownConsent:!!players?.[host?"host":"guest"]?.researchConsent,
-  bothConsent:!!room&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent,
-  playing:meta?.status==="playing"});
 }
 function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
 function detach(){
@@ -417,23 +450,45 @@ async function registerPresence(){
   if(room&&room!==current&&connected)registerPresence().catch(setError);
  }
 }
+// Quantize only the transport copy. Host physics and card legality retain all
+// original floating-point precision; 0.001 world unit is visually subpixel.
+function packGuestWorld(source){
+ const json=JSON.stringify(source,(_key,value)=>{
+  if(value===Infinity)return 1000000000; // unlimited infantry capacity
+  if(typeof value!=="number"||!Number.isFinite(value)||Number.isInteger(value))return value;
+  return Math.round(value*1000)/1000;
+ });
+ return {world:JSON.parse(json),chars:json.length};
+}
+function worldSizePreview(){
+ const original=game?.world?.();
+ if(!original)return null;
+ const raw=JSON.stringify(original,(_key,value)=>value===Infinity?1000000000:value);
+ const packed=packGuestWorld(original);
+ return {unitCount:original.units?.length||0,rawChars:raw.length,
+  packedChars:packed.chars,reductionPct:Math.round(1000*(1-packed.chars/raw.length))/10};
+}
 function receiveGuestWorld(packet){
  if(packet?.round===meta?.round&&Number.isInteger(packet.seq)){
   lastStateEventAt=performance.now();lastStateEventSeq=Math.max(lastStateEventSeq,packet.seq);
  }
  if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||
   !packet.world||packet.seq<=Math.max(lastRemoteSeq,pendingRemote?.seq||0))return;
+ if(pendingRemote)coalescedPackets++;
  pendingRemote=packet;
  if(remoteScheduled)return;
  remoteScheduled=true;const epoch=remoteEpoch;
- requestAnimationFrame(()=>{
-  remoteScheduled=false;
+ // iPad iframe can delay rAF after Firebase snapshots have already arrived.
+ const flush=()=>{
+  cancelRemoteFallback();remoteScheduled=false;
   if(epoch!==remoteEpoch||host||!room)return;
   const latest=pendingRemote;pendingRemote=null;
   if(!latest||latest.round!==meta?.round)return;
   try{
+   const applyStart=performance.now();
    game?.apply(latest.world,latest.seq);
    const appliedAt=performance.now();
+   lastApplyMs=appliedAt-applyStart;
    if(lastRemoteAppliedAt>0){
     appliedGaps.push(Math.max(0,appliedAt-lastRemoteAppliedAt));
     if(appliedGaps.length>32)appliedGaps.shift();
@@ -442,7 +497,11 @@ function receiveGuestWorld(packet){
    lastApplyError="";
    if(syncWarning){syncWarning=false;updateUI();}
   }catch(e){lastApplyError=String(e?.message||e);setError(e)}
- });
+ };
+ remoteApplyFallback=setTimeout(()=>{
+  if(epoch===remoteEpoch&&remoteScheduled&&!document.hidden)flush();
+ },650);
+ requestAnimationFrame(flush);
 }
 // rAF can keep painting an old world even when Firebase snapshots stop arriving.
 // An occasional one-shot read gives the guest a second way to receive the latest
@@ -501,12 +560,19 @@ function syncDiagnostics(){
   eventAgeMs:Math.round(lastStateEventAt?now-lastStateEventAt:0),
   restAgeMs:Math.round(lastRestReadAt?now-lastRestReadAt:0),
   publishAgeMs:Math.round(lastHostPublishAt?now-lastHostPublishAt:0),
-  syncing:restReadPending,error:lastApplyError};
+  syncing:restReadPending,error:lastApplyError,
+  // Character count is not billed bytes: TLS and RTDB framing are excluded.
+  snapshotChars:lastPayloadChars,encodeMs:Math.round(lastEncodeMs*10)/10,
+  ackMs:Math.round(lastAckMs),applyMs:Math.round(lastApplyMs*10)/10,
+  coalesced:coalescedPackets,retries:publishRetries,writeFailures:publishFailures};
 }
 function setupRoom(code,isHost){
+ stopGuestHeartbeat();
  solo=false;guestBot=false;
+ lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  appliedGaps=[];appliedPackets=0;
  lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;restReadPending=false;lastHostPublishAt=0;lastHostPublishSeq=0;lastApplyError="";
+ cancelRemoteFallback();
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
@@ -527,12 +593,13 @@ function setupRoom(code,isHost){
   const newRound=Number(priorRound)>0&&Number(meta?.round)>Number(priorRound);
   if(newRound||(meta?.status==="lobby"&&before==="finished")){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
+   cancelRemoteFallback();
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
-   if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
    game?.resetForLobby?.();
    onlinePanel(meta?.status!=="playing");$("networkBar").classList.add("hidden");
    if(meta?.status!=="playing")show("再戦の準備をしてください。2人とも準備完了で開始できます");
@@ -570,6 +637,10 @@ function setupRoom(code,isHost){
    try{await snap.ref.remove()}catch(e){setError(e)}
   });
  }else{
+  // Check liveness outside the painting loop, which Safari can throttle.
+  // Normal frames still perform the faster existing 120ms check.
+  guestSyncHeartbeat=setInterval(()=>{if(!document.hidden)checkGuestSync();},1500);
+  guestSyncHeartbeat?.unref?.(); // Node-only: don't hold simulated CI process open.
   attach(room.child("state"),"value",snap=>{
    if(room!==openedRoom)return;
    if(!qaMuteSdkSnapshots)receiveGuestWorld(snap.val());
@@ -591,7 +662,7 @@ async function create(){
    const now=Date.now()+serverOffset;
    const proposed={
     meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
-    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true}}
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now}}
    };
    const result=await ref.transaction(old=>{
     if(old===null)return proposed;
@@ -613,7 +684,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -622,6 +693,32 @@ async function join(){
   }
   setupRoom(code,false);
  }catch(e){setError(e)}
+}
+async function toggleHostBot(){
+ if(!host||!room||meta?.status!=="lobby"||!connected||hostBotSwitchPending)return;
+ hostBotSwitchPending=true;
+ const current=room,botId="bot:"+clientId,remove=hostBotSeat();
+ try{
+  const tx=await current.child("players/guest").transaction(old=>{
+   if(remove)return old?.localBot===true&&old?.id===botId?{...old,online:false,ready:false}:undefined;
+   if(old?.online===true)return;
+   return {id:botId,ready:true,online:true,botControl:true,localBot:true,joinedAt:Date.now()+serverOffset};
+  },undefined,false);
+  if(!tx.committed||room!==current||meta?.status!=="lobby")
+   throw Error("BOTの参加状態が変わりました。ルームを確認してください");
+  if(!remove){
+   game?.setDifficulty?.(soloDifficulty);
+   // If the host tab vanishes, do not leave a fake guest occupying the room.
+   const onLeave=current.child("players/guest").onDisconnect();
+   await onLeave.update({online:false,ready:false});
+   if(current!==room){await onLeave.cancel();return;}
+   botDisconnectOp=onLeave;
+  }else if(botDisconnectOp){
+   const onLeave=botDisconnectOp;botDisconnectOp=null;
+   await onLeave.cancel().catch(e=>console.warn("BOT disconnect cleanup:",e));
+  }
+  show(remove?"BOTが退出しました。友達が参加できます":"BOTが赤軍として参加しました。準備完了を押して開始できます");
+ }catch(e){setError(e)}finally{hostBotSwitchPending=false;updateUI();}
 }
 async function toggleGuestBot(){
  if(solo||!room||host||players?.guest?.id!==clientId||!connected||guestBotSwitchPending)return;
@@ -667,15 +764,7 @@ async function startMatch(){
   if(!result.committed)throw Error("開始状態が変わりました");
  }catch(e){setError(e)}
 }
-async function setResearchConsent(value){
- if(solo||!room||!players)return false;
- const seat=host?"host":"guest";
- if(players[seat]?.id!==clientId||(value&&meta?.status!=="lobby"))return false;
- const changed=await room.child("players/"+seat).transaction(old=>
-  old?.id===clientId?{...old,researchConsent:!!value}:undefined,undefined,false);
- if(!changed.committed)throw Error("参加情報が変更されました");
- return true;
-}
+
 function sendCommand(c){
  if(host||!room||phase!=="playing")return;
  if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
@@ -693,14 +782,26 @@ function maybePublish(force=false){
   if(now-publishStartedAt<2800||(publishRetryAt&&
     now-publishRetryAt<(publishRetryCount>=8?18000:4800)))return;
   // At 8 retries switch to a slower watch, not a permanent deadlock.
-  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);
+  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);publishRetries++;
  }else if(!force&&now-lastSend<(game.world()?.units?.length>=50?180:125))return;
  lastSend=now;publishing=true;publishStartedAt=now;
  const current=room,epoch=networkEpoch,serial=++publishSerial;
- const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ let packed;
+ try{
+  const encodeStart=performance.now();
+  packed=packGuestWorld(game.world());
+  lastEncodeMs=performance.now()-encodeStart;
+  lastPayloadChars=packed.chars;
+ }catch(e){
+  // A serialization failure must never freeze the sole snapshot publisher.
+  publishing=false;setError(e);return;
+ }
  lastHostPublishAt=performance.now();lastHostPublishSeq=seq+1;
- current.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset})
-  .catch(setError).finally(()=>{
+ const sentAt=performance.now();
+ current.child("state").set({seq:++seq,round:meta?.round||1,world:packed.world,at:Date.now()+serverOffset})
+  .then(()=>{if(epoch===networkEpoch&&current===room&&serial===publishSerial)
+   lastAckMs=performance.now()-sentAt;})
+  .catch(e=>{publishFailures++;setError(e)}).finally(()=>{
    if(epoch!==networkEpoch||current!==room||serial!==publishSerial)return;
    publishing=false;publishRetryCount=0;
    if(publishPending){publishPending=false;maybePublish(true)}
@@ -711,7 +812,7 @@ function finish(data){
  if(!host||!room||phase!=="playing")return;
  phase="finished";
  // Force publish the final world before closing, so the guest sees the last HP.
- const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ const world=packGuestWorld(game.world()).world;
  const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
  room.update({
   state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
@@ -729,46 +830,56 @@ async function rematch(){
   $("start").disabled=true;
   await room.update({
    "meta/status":"lobby","meta/startedAt":null,"meta/round":(meta.round||1)+1,
-   "players/host/ready":false,"players/guest/ready":false,
+   "players/host/ready":false,"players/guest/ready":hostBotSeat(),
    state:null,result:null,commands:null,feedback:null
   });
  }catch(e){setError(e)}finally{$("start").disabled=false;}
 }
 function resetLobby(){
  const leaving=room,seat=host?"host":"guest",leavingDisconnect=disconnectOp;
+ const leavingBot=hostBotSeat(),leavingBotId="bot:"+clientId;
+ const leavingPlayers=players;
+ const leavingBotOp=botDisconnectOp;botDisconnectOp=null;
  // Return to the room picker immediately. Never block Safari/Sites navigation
  // on a Firebase read/write; onDisconnect remains a fallback for stale presence.
- room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;
+ room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;hostBotSwitchPending=false;
+ cancelRemoteFallback();stopGuestHeartbeat();
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;
  restReadPending=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  detach();roomCode="";team=0;host=false;players=null;meta=null;result=null;
  seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+ lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  window.__onlineSeq=0;window.__onlineHandSig="";
  document.body.classList.remove("soloMode");
  $("networkBar").classList.add("hidden");
- if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
  game?.resetForLobby?.();
  onlinePanel(true);updateUI();
  show("新しいルームを作成するか、5桁の番号で参加してください");
- if(leaving&&connected){
-  // Only change our own seat; a new visitor could have claimed a stale seat.
-  leaving.child("players/"+seat).transaction(old=>
-   old?.id===clientId?{...old,online:false,ready:false}:undefined,
-   undefined,false).then(()=>{
-    // Remove the OLD disconnect hook only after the explicit leave is settled.
-    // Otherwise it could mark a replacement guest offline later.
-    leavingDisconnect?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
-   }).catch(e=>console.warn("Room exit cleanup:",e));
+ if(leaving&&connected&&leavingPlayers?.[seat]?.id===clientId){
+  // Leave the registered seats with one atomic RTDB write, not transaction()
+  // against a room whose Firebase listeners were just removed. A transaction
+  // can abort locally when the old room's SDK cache is no longer hydrated.
+  // Never await here: the room picker must remain usable during network stalls.
+  const patch={
+   ["players/"+seat+"/online"]:false,
+   ["players/"+seat+"/ready"]:false
+  };
+  if(seat==="host"&&leavingBot&&
+     leavingPlayers?.guest?.id===leavingBotId&&leavingPlayers.guest.localBot===true){
+   patch["players/guest/online"]=false;
+   patch["players/guest/ready"]=false;
+  }
+  leaving.update(patch).then(()=>{
+   leavingDisconnect?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
+   if(leavingBot)leavingBotOp?.cancel?.().catch(e=>console.warn("Old BOT disconnect hook:",e));
+  }).catch(e=>console.warn("Room exit cleanup:",e));
  }
 }
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
-  get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
-  get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
-  get researchGuestControl(){return players?.guest?.botControl===true?"bot":players?.guest?.botControl===false?"human":"unknown"},
-  setResearchConsent,
+  get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},get soloDifficulty(){return soloDifficulty},
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
@@ -777,11 +888,12 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  window.__shokokuNetQa={
   muteSdkSnapshots:flag=>{qaMuteSdkSnapshots=!!flag;},
   triggerRecovery:()=>{lastRemoteAppliedAt=performance.now()-6500;lastSyncReadAt=0;checkGuestSync();},
-  stats:syncDiagnostics
+  stats:syncDiagnostics,packGuestWorld,worldSizePreview
  };
 }
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
+ $("netHostBot").addEventListener("click",toggleHostBot);
   $("netSolo").addEventListener("click",startSolo);
   document.querySelectorAll("[data-solo-level]").forEach(button=>button.addEventListener("click",()=>{
     if(room||solo)return;
@@ -821,242 +933,9 @@ document.addEventListener("DOMContentLoaded",()=>{
  updateUI();
 });
 })();
+
 </script>
-<script>
-/* Opt-in, local-only, anonymous match observations for future batch research.
- * No auto-training, analytics service, identifying data, or cloud match archive.
- * Host is authoritative for accepted actions. Consent flags only use room presence.
- */
-(()=>{
-"use strict";
-const VERSION=1,KEY="shokoku-research-batch-v1",MAX_MATCHES=8,MAX_ACTIONS=500,MAX_SAMPLES=80;
-const $=id=>document.getElementById(id);
-let soloConsent=true,onlineConsent=false,onlineBoth=false,inRoom=false,playing=false;
-let active=null,archived=[],notice="",lastSampleAt=-Infinity;
-function safeLoad(){
- try{
-  const v=JSON.parse(localStorage.getItem(KEY)||"[]");
-  if(Array.isArray(v))return v.filter(x=>x?.schema===VERSION&&Array.isArray(x.actions)&&Array.isArray(x.samples)).slice(-MAX_MATCHES);
- }catch(_){}
- return [];
-}
-function safeSave(){
- try{
-  localStorage.setItem(KEY,JSON.stringify(archived.slice(-MAX_MATCHES)));
-  return true;
- }catch(_){return false;}
-}
-archived=safeLoad();
-function status(s){notice=s;const el=$("researchStatus");if(el)el.textContent=s;}
-const compact=n=>Math.round(Number(n)||0),energy=n=>Math.round((Number(n)||0)*100)/100;
-const classifyControl=c=>c==="bot"?"bot":c==="human"?"human":"unknown";
-function researchMatchType(history){
- const states=new Set(history.map(x=>x.guest));
- if(states.has("unknown")||!states.size)return "unknown";
- if(states.size>1)return "mixed";
- return states.has("bot")?"human-vs-bot":"human-vs-human";
-}
-function snapshot(world){
- return {t:energy(world.elapsed),
-  energy:[energy(world.energy[1]),energy(world.energy[2])],
-  castles:world.capitals.map(c=>compact(c.hp)),
-  forts:world.forts.map(f=>[f.owner,compact(f.hp)]),
-  units:world.units.filter(u=>u.hp>0).slice(0,180).map(u=>[u.team,u.key,compact(u.x),compact(u.y),compact(u.hp)])
- };
-}
-function begin(mode,world){
- if(active)return;
- if(mode==="online"&&window.ShokokuNet&&!window.ShokokuNet.isHost)return;
- if(mode==="solo"?!soloConsent:!onlineBoth)return;
- active={schema:VERSION,mode,teams:[1,2],difficulty:mode==="solo"?world.difficulty:null,
-  matchType:mode==="solo"?"human-vs-bot":"unknown",
-  guestControlHistory:mode==="solo"?[]:[{t:energy(world.elapsed),guest:classifyControl(world.guestControl)}],
-  result:null,actions:[],samples:[],stopped:false,overflow:false};
- lastSampleAt=-Infinity;
- sample(world,true);
- status("記録中（端末内のみ）。勝敗確定後にJSONを書き出してね");
- sync();
-}
-function observeGuestControl(guest,t){
- if(!active||active.mode!=="online")return;
- const state=classifyControl(guest),last=active.guestControlHistory.at(-1);
- if(last?.guest===state)return;
- // If transitions grow beyond our bounded event budget, never pretend this
- // was a stable human-human match; the classification stays mixed/unknown.
- if(active.guestControlHistory.length>=32){active.controlOverflow=true;return;}
- active.guestControlHistory.push({t:energy(t),guest:state});
-}
-function action(a){
- if(!active)return;
- if(active.actions.length>=MAX_ACTIONS){active.overflow=true;return;}
- if(![1,2].includes(a.team)||!Number.isFinite(a.t)||!Number.isFinite(a.x)||!Number.isFinite(a.y))return;
- active.actions.push({t:energy(a.t),phase:a.phase,team:a.team,card:a.card,
-  x:compact(a.x),y:compact(a.y),energyBefore:energy(a.energyBefore),
-  ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4):[]});
-}
-function sample(world,force=false){
- if(!active||!world||!Number.isFinite(world.elapsed))return;
- if(!force&&world.elapsed-lastSampleAt<8)return;
- if(active.samples.length>=MAX_SAMPLES){active.overflow=true;return;}
- active.samples.push(snapshot(world));lastSampleAt=world.elapsed;
-}
-function finish(world){
- if(!active)return;
- sample(world,true);
- if(active.mode==="online")active.matchType=active.controlOverflow?"unknown":researchMatchType(active.guestControlHistory);
- const hp=world.capitals.map(c=>compact(c.hp));
- active.result={winner:hp[0]===hp[1]?0:hp[0]>hp[1]?1:2,
-  duration:energy(world.elapsed),castleHp:hp,
-  fortOwners:world.forts.map(f=>f.owner)};
- archived.push(active);
- archived=archived.slice(-MAX_MATCHES);
- active=null;
- const saved=safeSave();
- status((saved?"端末内に一時保存":"端末保存不可。画面を閉じる前に")+
-  "｜"+archived.length+"試合分。JSON書き出しを忘れずに");
- sync();
-}
-function withdraw(){
- if(active){active=null;lastSampleAt=-Infinity;}
- status("記録を破棄しました。対戦データは追加しません");
- sync();
-}
-function payload(){return {schema:VERSION,format:"shokoku-anonymous-match-batch",matches:archived.slice()};}
-function reveal(json){
- const fields=[$("researchText"),$("researchEndText")];
- for(const field of fields)if(field){field.value=json;field.hidden=false;}
- const target=$("overlay")&&!$("overlay").classList.contains("hidden")?
-  $("researchEndText"):$("researchText");
- if(target)target.select();
-}
-function exportJson(){
- if(!archived.length){status("保存する試合がまだないよ");return;}
- const json=JSON.stringify(payload());
- reveal(json);
- try{
-  const blob=new Blob([json],{type:"application/json"});
-  const u=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=u;a.download="shokoku-match-batch.json";a.style.display="none";
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(u),1000);
-  status("JSON書き出しを実行。保存されなければ下のテキストをコピーしてね");
- }catch(_){status("ダウンロード不可。下のテキストをコピーしてね");}
- }
-async function copyJson(){
- if(!archived.length){status("保存する試合がまだないよ");return;}
- const json=JSON.stringify(payload());reveal(json);
- try{
-  if(!navigator.clipboard?.writeText)throw Error("copy not supported");
-  await navigator.clipboard.writeText(json);
-  status("匿名の試合ログをコピーしました。別ファイルに保存してね");
- }catch(_){status("自動コピー不可。表示したテキストを選択してコピーしてね");}
-}
-async function shareJson(){
- if(!archived.length){status("保存する試合がまだないよ");return;}
- const json=JSON.stringify(payload());
- reveal(json);
- try{
-  // iPad Safari's Files/Share sheet can work even when a Sites iframe blocks downloads.
-  if(typeof File!=="function"||!navigator.share)throw Error("share unsupported");
-  const file=new File([json],"shokoku-match-batch.json",{type:"application/json"});
-  if(navigator.canShare&&!navigator.canShare({files:[file]}))throw Error("files unsupported");
-  await navigator.share({title:"小国戦線III 対戦ログ",files:[file]});
-  status("共有メニューを開きました。ファイルへ保存されたか確認してね");
- }catch(_){status("共有できませんでした。下のJSONをコピーして保存してね");}
-}
-function clear(){
- if(active){status("記録中は削除できません。先に記録を停止してね");return;}
- archived=[];try{localStorage.removeItem(KEY)}catch(_){}
- for(const field of [$("researchText"),$("researchEndText")])
-  if(field){field.value="";field.hidden=true;}
- status("保存済みの試合記録をこの端末から消去しました");
- sync();
-}
-function syncOnline(o){
- if(o){
-  onlineConsent=!!o.ownConsent;onlineBoth=!!o.bothConsent;inRoom=!!o.inRoom;playing=!!o.playing;
-  // Withdrawal in either seat invalidates all unexported active observations.
-  if(active&&active.mode!=="solo"&&!onlineBoth)withdraw();
- }
- const checkbox=$("researchConsent");
- if(checkbox){
-  checkbox.checked=inRoom?onlineConsent:soloConsent;
-  checkbox.disabled=playing;
- }
- const hint=$("researchHint");
- if(hint)hint.textContent=inRoom?
-  onlineBoth?"匿名対戦記録 ON（ホスト端末のみ）。どちらも停止できます":
-  "匿名対戦記録 OFF（どちらかが無効にしています）":
-  "匿名記録は初期ON。必要ならここでOFFにできます";
- sync();
-}
-function sync(){
- const counter=$("researchCount");if(counter)counter.textContent=archived.length+"試合保存";
- const live=$("researchLive");
- if(live){live.hidden=!(active||(playing&&inRoom&&onlineBoth));
-  live.textContent=active?"● 記録中（停止）":"● 研究記録に同意中（停止）";}
- const exportButtons=document.querySelectorAll("[data-research-export],[data-research-copy],[data-research-share]");
- exportButtons.forEach(b=>{b.disabled=!archived.length;});
-}
-function init(){
- const panel=$("onlineDialog"),dialog=$("dialog");
- if(!panel||!dialog)return;
- const controls=document.createElement("div");
- controls.id="researchTools";
- controls.style.cssText="margin:8px 0;padding:8px;border:1px solid #668c95;border-radius:9px;font-size:12px;line-height:1.5";
- controls.innerHTML='<label><input id="researchConsent" type="checkbox"> 匿名対戦記録（初期ON・いつでも停止可）</label>'+
-  '<div id="researchHint">対戦ログはホスト端末だけに保存します。どちらかがOFFにすると記録しません。</div>'+
-  '<div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:5px">'+
-  '<span id="researchCount">0試合保存</span><button type="button" data-research-export>JSON書き出し</button><button type="button" data-research-copy>コピー</button><button type="button" data-research-share>共有</button>'+
-  '<button type="button" id="researchClear">記録削除</button></div>'+
-  '<div id="researchStatus" role="status"></div>'+
-  '<textarea id="researchText" hidden readonly aria-label="JSONコピー用テキスト" style="width:100%;height:55px"></textarea>'+
-  '<small>身内対戦の改善用に匿名のカード使用・戦況・勝敗を初期ONで記録します。嫌ならOFF・対戦中は右上の停止ボタンから無効化できます。名前・ルーム番号・端末ID・チャットは保存せず、自動送信もしません。終了後は必要に応じてJSONを書き出してください。</small>';
- panel.insertBefore(controls,$("netStatus"));
- const endTools=document.createElement("div");
- endTools.style.cssText="margin-top:7px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap";
- endTools.innerHTML='<button type="button" data-research-export>対戦データJSONを保存</button><button type="button" data-research-copy>JSONコピー</button><button type="button" data-research-share>共有</button><span id="researchEndHint" style="font-size:11px">記録ONの試合のみ</span>'+'<textarea id="researchEndText" hidden readonly aria-label="コピー用JSON" style="width:100%;height:70px"></textarea>';
- dialog.appendChild(endTools);
- const live=document.createElement("button");
- live.id="researchLive";live.hidden=true;live.type="button";
- live.style.cssText="position:fixed;top:4px;right:4px;z-index:40;font-size:10px;padding:5px;background:#452d37;color:#fff;border:1px solid #a99;border-radius:5px";
- live.addEventListener("click",async()=>{
-  // Both seats may withdraw. Host recording is erased as soon as consent changes.
-  if(inRoom){
-   try{await window.ShokokuNet?.setResearchConsent?.(false);}catch(e){status("記録停止エラー: "+String(e?.message||e))}
-  }else{soloConsent=false;withdraw();}
- });
- document.body.appendChild(live);
- $("researchConsent").addEventListener("change",async e=>{
-  const value=!!e.target.checked;
-  if(inRoom){
-   try{await window.ShokokuNet?.setResearchConsent?.(value)}
-   catch(err){status("同意設定の変更に失敗: "+String(err?.message||err));e.target.checked=!value;}
-  }else soloConsent=value;
-  syncOnline();
- });
- document.querySelectorAll("[data-research-export]").forEach(b=>b.addEventListener("click",exportJson));
- document.querySelectorAll("[data-research-copy]").forEach(b=>b.addEventListener("click",copyJson));
- document.querySelectorAll("[data-research-share]").forEach(b=>b.addEventListener("click",shareJson));
- $("researchClear").addEventListener("click",clear);
- syncOnline();
-}
-window.ShokokuResearch={
- get active(){return !!active},
- get soloConsent(){return soloConsent},
- begin,action,sample,finish,observeGuestControl,syncOnline,withdraw,
- // For tests only, this returns anonymized logs without triggering downloads.
-};
-if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
- window.__shokokuResearchQa={get:payload,current:()=>active?{
- mode:active.mode,actions:active.actions.length,samples:active.samples.length,
- guestControlHistory:active.guestControlHistory.map(x=>x.guest)}:null,
- enableSolo:()=>{soloConsent=true;syncOnline();},clear};
-}
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);
-else init();
-})();
-</script>
+
 <script>
 window.__inlineGaldSource="\u003c!doctype html>\n\u003chtml lang=\"ja\">\u003chead>\u003cmeta charset=\"utf-8\">\u003cmeta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">\u003ctitle>GOLEM // PROFILE STUDY — 小国戦線\u003c/title>\n\u003cstyle>\n:root{color-scheme:dark;--ink:#101f29;--sand:#e7ddbd;--mint:#6cefe6;--line:#334953}*{box-sizing:border-box}body{margin:0;background:#0b141c;color:#e8e9e1;font-family:system-ui,-apple-system,\"Noto Sans JP\",sans-serif}body::before{content:\"\";position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 35% 0%,#25445847,transparent 70%)}header{position:relative;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:21px clamp(15px,3vw,43px) 12px;border-bottom:1px solid #45616b50}header strong{letter-spacing:.19em;font-weight:800;font-size:15px}header small{color:#92a8ae;font-size:11px;letter-spacing:.12em}.tag{border:1px solid #4b767c;color:#aeeae0;font-size:11px;padding:7px 11px;border-radius:99px;letter-spacing:.07em}.wrap{max-width:1280px;margin:auto;padding:22px clamp(14px,2.8vw,38px) 40px}.heading{display:flex;gap:15px;align-items:baseline;flex-wrap:wrap;padding-bottom:15px}.heading h1{margin:0;font-size:clamp(23px,3vw,42px);font-weight:900;letter-spacing:.04em}.heading p{margin:0;color:#9eb0b3;font-size:13px} .layout{display:grid;grid-template-columns:minmax(0,1fr) 302px;gap:18px}.stage{position:relative;background:#112630;border:1px solid #50606a;border-radius:14px;overflow:hidden;box-shadow:0 26px 70px #0004;min-width:0}.stage:after{content:\"\";position:absolute;inset:0;box-shadow:inset 0 0 90px #04101666;pointer-events:none}.stage svg{display:block;width:100%;height:auto;aspect-ratio:920/620}.stage-name{position:absolute;top:16px;left:17px;display:flex;flex-direction:column;gap:4px;z-index:1;pointer-events:none}.stage-name span{font-size:11px;letter-spacing:.22em;color:#a9c4c8}.stage-name strong{font-size:17px;letter-spacing:.09em;text-shadow:0 2px 7px #061019}.stage-foot{position:absolute;bottom:15px;left:18px;right:18px;display:flex;justify-content:space-between;gap:12px;font-size:11px;color:#b5c6c4;z-index:1;pointer-events:none}.sidebar{background:#14232c;border:1px solid #3d5861;border-radius:14px;padding:19px;display:flex;flex-direction:column;gap:17px}.group{display:flex;flex-direction:column;gap:8px}.section-title{font-size:11px;letter-spacing:.14em;font-weight:800;color:#a9c2ca;text-transform:uppercase}.buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.btn{font:inherit;color:#d8e5e3;background:#1e3340;border:1px solid #45616d;padding:11px 9px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:750;touch-action:manipulation}.btn:hover{background:#294554}.btn.active{background:#3c756d;border-color:#9ae9d8;color:#fff;box-shadow:inset 0 0 0 1px #6db6aa44}.options{display:flex;gap:7px;flex-wrap:wrap}.options .btn{flex:1;min-width:72px;font-size:11px;padding:10px 6px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.row output{font-size:12px;color:#b2d8d6;font-variant-numeric:tabular-nums}input[type=range]{width:100%;accent-color:#7fe7d3;cursor:pointer}p{line-height:1.75}.note{padding:12px 14px;background:#20353b;border-left:3px solid #83d2c7;border-radius:6px;font-size:12px;color:#bdd1d3}.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:15px}.fact{padding:15px;background:#13232d;border:1px solid #354852;border-radius:11px}.fact strong{display:block;font-size:13px;margin-bottom:6px}.fact span{font-size:12px;color:#a8bac1;line-height:1.65}.mobile-note{display:none}footer{font-size:11px;color:#70878e;text-align:right;margin-top:18px}@media(max-width:800px){header{padding:15px}.layout{grid-template-columns:1fr}.sidebar{padding:14px}.stage-name{top:9px;left:9px}.stage-name strong{font-size:11px}.stage-name span{font-size:9px}.stage-foot{font-size:9px;bottom:9px}.mobile-note{display:block}.facts{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}\n\u003c/style>\u003c/head>\n\u003cbody>\u003cheader>\u003cdiv>\u003cstrong>SHOKOKU SENSEN // ART DIVISION\u003c/strong>\u003cbr>\u003csmall>CHARACTER ENGINEERING — REFINEMENT 04\u003c/small>\u003c/div>\u003cspan class=\"tag\">独立試作 / 本編未変更\u003c/span>\u003c/header>\n\u003cmain class=\"wrap\">\u003cdiv class=\"heading\">\u003ch1>守護ゴーレム / REFINED PROFILE\u003c/h1>\u003cp>進行方向は右。接地、体重移動、打撃の一瞬を磨いた横向き2Dリグ。\u003c/p>\u003c/div>\n\u003cdiv class=\"layout\">\u003cdiv class=\"stage\">\u003cdiv class=\"stage-name\">\u003cspan>DESIGN B-04 / HEAVY BRUISER\u003c/span>\u003cstrong>城塞巨兵 — ガルド\u003c/strong>\u003c/div>\n\u003csvg id=\"arena\" viewBox=\"0 0 920 620\" role=\"img\" aria-label=\"右向きの巨大な石のゴーレムが待機、歩行、パンチするアニメーション\">\n\u003cdefs>\n \u003clinearGradient id=\"sky\" x1=\"0\" x2=\"0\" y1=\"0\" y2=\"1\">\u003cstop stop-color=\"#122632\"/>\u003cstop offset=\".66\" stop-color=\"#35525b\"/>\u003cstop offset=\"1\" stop-color=\"#527075\"/>\u003c/linearGradient>\n \u003clinearGradient id=\"stone\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\">\u003cstop stop-color=\"#f5dfb7\"/>\u003cstop offset=\".32\" stop-color=\"#d3c29f\"/>\u003cstop offset=\".68\" stop-color=\"#889b99\"/>\u003cstop offset=\"1\" stop-color=\"#526a71\"/>\u003c/linearGradient>\n \u003clinearGradient id=\"stoneDark\" x1=\"0\" x2=\"1\" y1=\"0\" y2=\"1\">\u003cstop stop-color=\"#8ba1a3\"/>\u003cstop offset=\".55\" stop-color=\"#516875\"/>\u003cstop offset=\"1\" stop-color=\"#314451\"/>\u003c/linearGradient>\n \u003clinearGradient id=\"metal\" x1=\"0\" x2=\"1\" y1=\"0\" y2=\"1\">\u003cstop stop-color=\"#e5cb8f\"/>\u003cstop offset=\".47\" stop-color=\"#a48153\"/>\u003cstop offset=\"1\" stop-color=\"#5e5b52\"/>\u003c/linearGradient>\n \u003clinearGradient id=\"core\" x1=\"0\" x2=\"1\" y1=\"0\" y2=\"1\">\u003cstop stop-color=\"#e8ffff\"/>\u003cstop offset=\".35\" stop-color=\"#63fbf3\"/>\u003cstop offset=\".76\" stop-color=\"#1a9ebb\"/>\u003cstop offset=\"1\" stop-color=\"#17405e\"/>\u003c/linearGradient>\n \u003cfilter id=\"shadow\" x=\"-50%\" y=\"-50%\" width=\"220%\" height=\"220%\">\u003cfeDropShadow dx=\"3\" dy=\"7\" stdDeviation=\"7\" flood-color=\"#03111d\" flood-opacity=\".43\"/>\u003c/filter>\n \u003cfilter id=\"aura\" x=\"-150%\" y=\"-150%\" width=\"400%\" height=\"400%\">\u003cfeGaussianBlur stdDeviation=\"8\"/>\u003c/filter>\n \u003cg id=\"rune\">\u003cpath d=\"M0 -14 L11 0 L0 14 L-11 0Z\" fill=\"url(#core)\" stroke=\"#126c81\" stroke-width=\"2\"/>\u003cpath d=\"M0 -8 V8 M-6 0 H6\" stroke=\"#e6ffff\" stroke-width=\"2\" opacity=\".86\"/>\u003c/g>\n \u003cpattern id=\"floor\" width=\"110\" height=\"40\" patternUnits=\"userSpaceOnUse\">\u003cpath d=\"M0 10 L45 4 L110 12 M13 30 L68 23 L106 30\" stroke=\"#759193\" stroke-opacity=\".21\" fill=\"none\" stroke-width=\"2\"/>\u003c/pattern>\n\u003c/defs>\n\u003crect width=\"920\" height=\"620\" fill=\"url(#sky)\"/>\n\u003cg opacity=\".22\" fill=\"#102b36\" stroke=\"#7daba8\" stroke-width=\"2\">\u003cpath d=\"M0 350 L42 330 L50 279 L86 258 L125 279 L135 346 L182 355 L192 305 L232 291 L248 345 L290 350 L305 280 L344 238 L379 280 L383 356 L433 352 L460 308 L488 352 L550 350 L574 302 L601 349 L652 351 L667 273 L718 258 L759 286 L762 360 L820 355 L834 304 L875 283 L907 319 L920 362 V450 H0Z\"/>\u003c/g>\n\u003cpath d=\"M0 478 Q220 460 454 482 T920 482 V620 H0Z\" fill=\"#233a42\"/>\u003crect x=\"0\" y=\"478\" width=\"920\" height=\"142\" fill=\"url(#floor)\"/>\n\u003cpath d=\"M0 488 Q100 482 220 489 T480 489 T920 487\" stroke=\"#91c2b9\" stroke-opacity=\".34\" stroke-width=\"3\" fill=\"none\"/>\n\u003cpath d=\"M0 566 L920 562\" stroke=\"#061a22\" stroke-opacity=\".4\" stroke-width=\"7\"/>\n\u003cg id=\"dustLayer\">\u003c/g>\n\u003cellipse id=\"floorShadow\" cx=\"415\" cy=\"493\" rx=\"137\" ry=\"22\" fill=\"#04171d\" opacity=\".52\"/>\n\u003cg id=\"character\" filter=\"url(#shadow)\" transform=\"translate(415 488)\">\n \u003c!-- BACK leg, far depth -->\n \u003cg id=\"backLegUpper\">\u003c/g>\u003cg id=\"backLegLower\">\u003c/g>\u003cg id=\"backFoot\">\u003c/g>\n \u003c!-- Rear arm and backplate -->\n \u003cg id=\"backArmUpper\">\u003c/g>\u003cg id=\"backArmLower\">\u003c/g>\u003cg id=\"backHand\">\u003c/g>\n \u003cg id=\"backpack\">\u003c/g>\n \u003c!-- Chest/torso -->\n \u003cg id=\"torso\">\u003c/g>\u003cg id=\"head\">\u003c/g>\n \u003c!-- Near leg in front of torso base -->\n \u003cg id=\"frontLegUpper\">\u003c/g>\u003cg id=\"frontLegLower\">\u003c/g>\u003cg id=\"frontFoot\">\u003c/g>\n \u003c!-- Primary attacking arm -->\n \u003cg id=\"frontArmUpper\">\u003c/g>\u003cg id=\"frontArmLower\">\u003c/g>\u003cg id=\"frontHand\">\u003c/g>\n \u003c/g>\n\u003cg id=\"hitFx\" pointer-events=\"none\">\u003c/g>\n\u003cg id=\"foreground\" opacity=\".66\">\u003cpath d=\"M0 545 L80 538 L112 547 L149 543 L210 553 M668 551 L755 545 L831 549 L920 543\" stroke=\"#9ca49c\" stroke-opacity=\".23\" stroke-width=\"4\" fill=\"none\"/>\u003c/g>\n\u003c/svg>\u003cdiv class=\"stage-foot\">\u003cspan id=\"stateLabel\">STATE / IDLE\u003c/span>\u003cspan>PROFILE VIEW \u003cb>→\u003c/b>　実寸プレビュー対応\u003c/span>\u003c/div>\u003c/div>\n\u003caside class=\"sidebar\">\n \u003csection class=\"group\">\u003cspan class=\"section-title\">01 / 動きのテスト\u003c/span>\u003cdiv class=\"buttons\" id=\"modes\">\u003cbutton class=\"btn active\" data-mode=\"idle\">待機\u003c/button>\u003cbutton class=\"btn\" data-mode=\"walk\">歩行\u003c/button>\u003cbutton class=\"btn\" data-mode=\"punch\">パンチ\u003c/button>\u003cbutton class=\"btn\" data-mode=\"hit\">被弾\u003c/button>\u003cbutton class=\"btn\" data-mode=\"death\">撃破\u003c/button>\u003cbutton class=\"btn\" data-mode=\"windup\">振りかぶり\u003c/button>\u003c/div>\u003c/section>\n \u003csection class=\"group\">\u003cspan class=\"section-title\">02 / 造形の比較\u003c/span>\u003cdiv class=\"options\" id=\"designs\">\u003cbutton class=\"btn active\" data-design=\"bastion\">城塞拳型\u003c/button>\u003cbutton class=\"btn\" data-design=\"stone\">岩塊型\u003c/button>\u003cbutton class=\"btn\" data-design=\"mechanical\">機甲型\u003c/button>\u003c/div>\u003c/section>\n \u003csection class=\"group\">\u003cdiv class=\"row\">\u003cspan class=\"section-title\">03 / 再生速度\u003c/span>\u003coutput id=\"speedText\">1.00×\u003c/output>\u003c/div>\u003cinput id=\"speed\" type=\"range\" min=\"35\" max=\"160\" value=\"100\" step=\"5\" aria-label=\"再生速度\">\u003c/section>\n \u003csection class=\"group\">\u003cdiv class=\"row\">\u003cspan class=\"section-title\">04 / 動きのコマ確認\u003c/span>\u003coutput id=\"frameText\">自動\u003c/output>\u003c/div>\u003cinput id=\"frame\" type=\"range\" min=\"0\" max=\"1000\" value=\"0\" step=\"1\" aria-label=\"ポーズ位置\"/>\u003cbutton class=\"btn\" id=\"togglePlay\">一時停止してコマ送り\u003c/button>\u003c/section>\n \u003csection class=\"group\">\u003cspan class=\"section-title\">05 / 画面サイズ\u003c/span>\u003cdiv class=\"options\" id=\"sizes\">\u003cbutton class=\"btn active\" data-zoom=\"1\">アップ\u003c/button>\u003cbutton class=\"btn\" data-zoom=\"0.73\">中距離\u003c/button>\u003cbutton class=\"btn\" data-zoom=\"0.46\">ゲーム内\u003c/button>\u003c/div>\u003c/section>\n \u003cdiv class=\"note\" id=\"designNote\">装飾を増やさず、横顔・肩・大きな拳の3要素を主役にした造形。\u003c/div>\n \u003cdiv class=\"mobile-note\" style=\"font-size:11px;color:#9cb5b7\">ボタンは学校のiPad / Safariでもタップ操作できます。\u003c/div>\n\u003c/aside>\u003c/div>\n\u003cdiv class=\"facts\">\u003cdiv class=\"fact\">\u003cstrong>01 / 横向き専用\u003c/strong>\u003cspan>頭部・拳・脚先を進行方向へ。正面ポーズを横移動させる方式は廃止。\u003c/span>\u003c/div>\u003cdiv class=\"fact\">\u003cstrong>02 / 足を地面に置く\u003c/strong>\u003cspan>接地中の足首を固定した歩行。身体移動から逆算して膝を曲げる。\u003c/span>\u003c/div>\u003cdiv class=\"fact\">\u003cstrong>03 / ポーズ先行\u003c/strong>\u003cspan>構え → 予備動作 → 命中 → 反動。滑らかさより攻撃の意味を優先。\u003c/span>\u003c/div>\u003c/div>\n\u003cfooter>PROTOTYPE B-03 // NO IMAGE-GENERATION ASSETS // GAMEPLAY UNCHANGED\u003c/footer>\u003c/main>\n\u003cscript>\n(()=>{'use strict';\nconst svgNS='http://www.w3.org/2000/svg', q=(s)=>document.querySelector(s),el=id=>document.getElementById(id);\nconst ink='#1b3240',rim='#e9e4ca',seam='#304857',glow='#86fff1';\nfunction shape(body,attrs={}){const e=document.createElementNS(svgNS,'g');if(attrs.transform)e.setAttribute('transform',attrs.transform);e.innerHTML=body;return e;}\nconst parts={};for(const id of ['torso','head','backpack','backLegUpper','backLegLower','backFoot','frontLegUpper','frontLegLower','frontFoot','backArmUpper','backArmLower','backHand','frontArmUpper','frontArmLower','frontHand'])parts[id]=el(id);\nconst edge=`stroke=\"${ink}\" stroke-width=\"6\" stroke-linejoin=\"round\" stroke-linecap=\"round\"`,thin=`stroke=\"${seam}\" stroke-width=\"3\" stroke-linejoin=\"round\"`;\n// Reusable single-plane silhouettes: unlike a generated sequence, every pose redraws the same armor.\nconst upperLeg=(near)=>`\n \u003cpath d=\"M-29 -12 L27 -12 L39 26 L28 73 L-30 82 L-44 42Z\" fill=\"url(#stoneDark)\" ${edge}/>\n \u003cpath d=\"M-24 -9 L26 -10 L22 33 L-14 49 L-37 37Z\" fill=\"url(#stone)\" ${edge}/>\n \u003cpath d=\"M-13 3 L17 0 L10 28 L-18 34Z\" fill=\"#eddfbb\" opacity=\".67\"/>\n \u003cpath d=\"M-34 51 L-19 69 L23 62 L27 76 L-18 82Z\" fill=\"url(#metal)\" ${thin}/>\n \u003cpath d=\"M-24 43 L-6 48 L-15 63 M14 14 L8 30\" ${thin} fill=\"none\"/>\n ${near?`\u003cuse href=\"#rune\" x=\"17\" y=\"30\" transform=\"scale(.57) translate(12 24)\" opacity=\".8\"/>`:''}`;\nconst lowerLeg=(near)=>`\n \u003ccircle cy=\"1\" r=\"29\" fill=\"#243d48\" ${edge}/>\u003ccircle cy=\"1\" r=\"17\" fill=\"url(#metal)\" stroke=\"#788b83\" stroke-width=\"4\"/>\n \u003cpath d=\"M-26 6 L28 6 L35 49 L28 73 L-26 74 L-36 36Z\" fill=\"url(#stoneDark)\" ${edge}/>\n \u003cpath d=\"M-21 16 L26 11 L20 49 L-21 56 L-31 36Z\" fill=\"url(#stone)\" ${edge}/>\n \u003cpath d=\"M-23 27 L-2 23 M14 19 L9 39\" ${thin} fill=\"none\"/>\n \u003cpath d=\"M-27 58 L24 51 L32 72 L-25 78Z\" fill=\"url(#metal)\" ${thin}/>\n ${near?`\u003cpath d=\"M0 24 L8 35 L-1 46 L-9 36Z\" fill=\"url(#core)\" stroke=\"#2b6876\" stroke-width=\"2\"/>`:''}`;\nconst foot=(near)=>`\n \u003cpath d=\"M-30 -21 L26 -26 L40 -12 L76 -13 L90 5 L80 15 L-28 15 L-41 6Z\" fill=\"url(#stoneDark)\" ${edge}/>\n \u003cpath d=\"M-29 -20 L22 -27 L37 -9 L62 -12 L75 1 L13 4 L-29 0Z\" fill=\"url(#stone)\" ${edge}/>\n \u003cpath d=\"M19 1 L72 0 L81 9 L14 12Z\" fill=\"url(#metal)\" ${thin}/>\n \u003cpath d=\"M45 -4 L45 5 M58 -6 L58 5\" ${thin} fill=\"none\"/>\n \u003cpath d=\"M-40 12 L87 13\" stroke=\"#0b232d\" stroke-width=\"5\" opacity=\".6\"/>`;\nconst upperArm=(near)=>`\n \u003cpath d=\"M-24 -10 L27 -9 L40 25 L29 77 L-22 77 L-39 28Z\" fill=\"url(#stoneDark)\" ${edge}/>\n \u003cpath d=\"M-26 -17 L34 -13 L47 16 L30 50 L-33 45 L-47 19Z\" fill=\"url(#stone)\" ${edge}/>\n \u003cpath d=\"M-23 -12 L24 -11 L19 14 L-37 20Z\" fill=\"#faf0c9\" opacity=\".67\"/>\n \u003cpath d=\"M-18 48 L26 53 L29 69 L-22 73Z\" fill=\"url(#metal)\" ${thin}/>\n \u003cpath d=\"M-33 29 L-19 35 L-23 46 M22 12 L15 29\" ${thin} fill=\"none\"/>`;\nconst lowerArm=(near)=>`\n \u003ccircle cx=\"0\" cy=\"0\" r=\"26\" fill=\"#254251\" ${edge}/>\n \u003ccircle cx=\"0\" cy=\"0\" r=\"13\" fill=\"url(#core)\" stroke=\"#b5dfcf\" stroke-width=\"3\"/>\n \u003cpath d=\"M-34 14 L34 6 L48 54 L35 91 L-33 88 L-47 49Z\" fill=\"url(#stoneDark)\" ${edge}/>\n \u003cpath d=\"M-36 22 L32 13 L34 46 L15 62 L-40 54Z\" fill=\"url(#stone)\" ${edge}/>\n \u003cpath d=\"M-30 18 L25 16 L10 29 L-30 36Z\" fill=\"#fff0c9\" opacity=\".6\"/>\n \u003cpath d=\"M-32 65 L33 59 L36 87 L-30 91Z\" fill=\"url(#metal)\" ${thin}/>\n \u003cpath d=\"M-16 30 L2 38 L-9 53 M20 44 L12 59\" ${thin} fill=\"none\"/>`;\nconst fist=(near)=>`\n \u003cg class=\"fistOuter\">\u003cpath d=\"M-37 -52 L19 -58 L71 -35 L90 -6 L89 24 L65 48 L13 55 L-36 28 L-49 -9Z\" fill=\"url(#stoneDark)\" ${edge}/>\n \u003cpath d=\"M-38 -48 L19 -57 L65 -34 L78 -12 L67 12 L8 21 L-44 3Z\" fill=\"url(#stone)\" ${edge}/>\n \u003cpath d=\"M-27 -43 L11 -50 L15 -28 L-37 -19Z\" fill=\"#fff1cc\" opacity=\".68\"/>\n \u003cpath d=\"M3 -21 L38 -30 L67 -8 L54 15 L13 21Z\" fill=\"#92a69d\" ${thin}/>\n \u003cpath d=\"M-36 15 L10 28 L30 48 L-15 47 L-44 28Z\" fill=\"url(#metal)\" ${thin}/>\n \u003cpath d=\"M39 -31 L55 -21 L65 -3 M27 31 L51 41 M-13 -12 L-2 4\" ${thin} fill=\"none\"/>\n \u003cpath d=\"M54 3 L68 12 L63 27 L48 32 L37 18Z\" fill=\"url(#core)\" stroke=\"#176c75\" stroke-width=\"4\"/>\n \u003cpath d=\"M21 -45 L32 -38 L36 -28\" stroke=\"#f3edd8\" stroke-width=\"3\" fill=\"none\"/>\n \u003c/g>`;\nfor(const id of ['backLegUpper','frontLegUpper'])parts[id].innerHTML=upperLeg(id.startsWith('front'));\nfor(const id of ['backLegLower','frontLegLower'])parts[id].innerHTML=lowerLeg(id.startsWith('front'));\nfor(const id of ['backFoot','frontFoot'])parts[id].innerHTML=foot(id.startsWith('front'));\nfor(const id of ['backArmUpper','frontArmUpper'])parts[id].innerHTML=upperArm(id.startsWith('front'));\nfor(const id of ['backArmLower','frontArmLower'])parts[id].innerHTML=lowerArm(id.startsWith('front'));\nfor(const id of ['backHand','frontHand'])parts[id].innerHTML=fist(id.startsWith('front'));\nparts.backArmUpper.setAttribute('opacity','.87');parts.backArmLower.setAttribute('opacity','.87');parts.backHand.setAttribute('opacity','.82');\nparts.backpack.innerHTML=`\u003cpath d=\"M-108 -67 L-70 -89 L-56 -29 L-70 49 L-112 26Z\" fill=\"url(#stoneDark)\" ${edge}/>\u003cpath d=\"M-109 -65 L-80 -81 L-65 -18 L-99 5Z\" fill=\"url(#stone)\" ${edge}/>\u003cpath d=\"M-99 -64 L-84 -71 L-74 -37 L-93 -29Z\" fill=\"url(#metal)\" ${thin}/>\u003cpath d=\"M-109 15 L-83 31 L-80 47\" ${thin} fill=\"none\"/>`;\nparts.torso.innerHTML=`\n\u003c!-- chunky rear silhouette, leaning forward in profile -->\n\u003cpath d=\"M-89 -72 L-39 -99 L44 -99 L91 -65 L107 -10 L80 74 L13 99 L-66 67 L-97 -1Z\" fill=\"#253f4b\" ${edge}/>\n\u003cpath d=\"M-86 -74 L-38 -97 L45 -96 L90 -70 L91 -33 L43 -12 L-18 -17 L-97 -25Z\" fill=\"url(#stone)\" ${edge}/>\n\u003cpath d=\"M-77 -69 L-28 -89 L28 -89 L14 -65 L-79 -45Z\" fill=\"#f7e9c2\" opacity=\".62\"/>\n\u003cpath d=\"M15 -92 L77 -75 L100 -34 L86 31 L40 67 L-19 41 L-5 -39Z\" fill=\"url(#stoneDark)\" ${edge}/>\n\u003cpath d=\"M28 -80 L78 -66 L86 -32 L64 8 L14 0 L5 -36Z\" fill=\"url(#stone)\" ${edge}/>\n\u003cpath d=\"M24 -75 L61 -63 L53 -42 L13 -41Z\" fill=\"#f2e3bf\" opacity=\".68\"/>\n\u003cpath d=\"M-82 27 L-48 58 L18 87 L52 73 L62 88 L13 105 L-63 75Z\" fill=\"url(#metal)\" ${edge}/>\n\u003cpath d=\"M-74 -13 L-44 -7 L-31 27 M65 14 L50 33 L38 28 M-9 -68 L-21 -49\" ${thin} fill=\"none\"/>\n\u003c!-- crystal heart -->\u003cellipse cx=\"55\" cy=\"-23\" rx=\"30\" ry=\"33\" fill=\"#113748\" stroke=\"#ddc28b\" stroke-width=\"8\"/>\n\u003cellipse cx=\"55\" cy=\"-23\" rx=\"22\" ry=\"25\" fill=\"url(#core)\" stroke=\"#86f9e8\" stroke-width=\"3\"/>\n\u003cpath d=\"M55 -44 L68 -24 L55 -1 L43 -23Z\" fill=\"#edffff\" opacity=\".87\"/>\n\u003cpath d=\"M55 -57 V-45 M55 0 V12 M25 -23 H35 M76 -23 H87\" stroke=\"#a4eae0\" stroke-width=\"4\"/>\n\u003c!-- shoulder cliff -->\n\u003cpath d=\"M-37 -95 L23 -120 L77 -91 L87 -59 L22 -50 L-42 -63Z\" fill=\"url(#stone)\" ${edge}/>\n\u003cpath d=\"M-36 -93 L20 -116 L61 -96 L38 -87 L-27 -77Z\" fill=\"#f9edc7\" opacity=\".7\"/>\n\u003cpath d=\"M-20 -88 L17 -95 M43 -96 L54 -79\" ${thin} fill=\"none\"/>`;\nparts.head.innerHTML=`\n\u003c!-- One-eyed protruding profile helmet faces RIGHT -->\n\u003cpath d=\"M-45 -40 L-16 -54 L21 -48 L44 -35 L59 -15 L66 6 L42 24 L-21 18 L-47 -4Z\" fill=\"url(#stoneDark)\" ${edge}/>\n\u003cpath d=\"M-41 -40 L-13 -53 L28 -45 L43 -29 L51 -13 L21 -7 L-26 -14Z\" fill=\"url(#stone)\" ${edge}/>\n\u003cpath d=\"M-41 -35 L-13 -48 L23 -40 L19 -28 L-35 -21Z\" fill=\"#fff2ca\" opacity=\".63\"/>\n\u003cpath d=\"M19 -22 L61 -19 L73 -5 L70 12 L47 26 L12 12Z\" fill=\"#203c49\" ${edge}/>\n\u003cpath d=\"M31 -16 L58 -12 L66 -5 L51 5 L29 5Z\" fill=\"url(#core)\" stroke=\"#286d7c\" stroke-width=\"4\"/>\n\u003cpath d=\"M47 -10 L59 -7 L50 -2\" stroke=\"#eaffff\" stroke-width=\"4\" fill=\"none\"/>\n\u003cpath d=\"M36 16 L65 13 L53 25 L18 29Z\" fill=\"url(#metal)\" ${thin}/>\n\u003cpath d=\"M-29 -48 L-4 -79 L18 -85 L21 -52Z\" fill=\"url(#stoneDark)\" ${edge}/>\n\u003cpath d=\"M-27 -49 L0 -74 L11 -74 L9 -54Z\" fill=\"url(#stone)\" stroke=\"#f4e4bd\" stroke-width=\"2\"/>\n\u003cpath d=\"M-42 -11 L-24 -6 L-18 17\" ${thin} fill=\"none\"/>`;\nfunction setPosition(id,x,y,rotation=0,scale=1){parts[id].setAttribute('transform',`translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${rotation.toFixed(2)}) scale(${scale})`)}\nfunction atanSegment(a,b){return Math.atan2(-(b.y-a.y),b.x-a.x)*180/Math.PI-90;} // angle: SVG downward-axis = 0\nfunction angleDown(a,b){return -Math.atan2(b.x-a.x,b.y-a.y)*180/Math.PI;}\nfunction ik(a,b,L1,L2,bend){const dx=b.x-a.x,dy=b.y-a.y,dist=Math.max(1,Math.hypot(dx,dy)),d=Math.min(L1+L2-1,Math.max(Math.abs(L1-L2)+1,dist));const ux=dx/dist,uy=dy/dist;const proj=(L1*L1-L2*L2+d*d)/(2*d),height=Math.sqrt(Math.max(0,L1*L1-proj*proj));return {x:a.x+ux*proj +(-uy)*height*bend,y:a.y+uy*proj+ux*height*bend};}\nconst smooth=t=>t*t*(3-2*t),lerp=(a,b,t)=>a+(b-a)*t,clamp=(a,l,h)=>Math.max(l,Math.min(h,a));\nconst state={mode:'idle',design:'bastion',zoom:1,speed:1,playing:true,phase:0,last:0,travel:0,period:2.4};\nconst durations={idle:3.8,walk:2.25,punch:1.62,windup:1.5,hit:.95,death:1.65};\nfunction selectGroup(id,attr,value){document.querySelectorAll(`#${id} [${attr}]`).forEach(b=>b.classList.toggle('active',b.getAttribute(attr)===value));}\nconst noteMap={bastion:'装飾よりシルエット。大きな拳、肩、横顔を主役に。',stone:'岩塊型：肩と拳の形をさらに大きく。視覚的な重量感を検証するシルエット。',mechanical:'機甲型：細めの装甲と光るコアを強調。シルエットの見やすさを比較する。'};\nfunction setMode(mode){state.mode=mode;state.phase=0;state.travel=0;state.period=durations[mode];state.playing=true;el('togglePlay').textContent='一時停止してコマ送り';selectGroup('modes','data-mode',mode);el('stateLabel').textContent='STATE / '+mode.toUpperCase();}\nfunction setDesign(value){state.design=value;selectGroup('designs','data-design',value);el('designNote').textContent=noteMap[value];}\nq('#modes').addEventListener('click',e=>{const b=e.target.closest('[data-mode]');if(b)setMode(b.dataset.mode)});\nq('#designs').addEventListener('click',e=>{const b=e.target.closest('[data-design]');if(b)setDesign(b.dataset.design)});\nq('#sizes').addEventListener('click',e=>{const b=e.target.closest('[data-zoom]');if(b){state.zoom=Number(b.dataset.zoom);selectGroup('sizes','data-zoom',b.dataset.zoom);}});\nq('#speed').addEventListener('input',e=>{state.speed=Number(e.target.value)/100;el('speedText').textContent=state.speed.toFixed(2)+'×'});\nq('#togglePlay').addEventListener('click',()=>{state.playing=!state.playing;el('togglePlay').textContent=state.playing?'一時停止してコマ送り':'再生する'});\nq('#frame').addEventListener('input',e=>{state.playing=false;state.phase=Number(e.target.value)/1000;el('togglePlay').textContent='再生する';render()});\nconst samples={idle:[{t:0,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0},{t:.5,hipX:0,hipY:-3,lean:-3,armX:117,armY:-159,headTilt:1},{t:1,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0}],\n punch:[{t:0,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0},\n // The pelvis sinks and retreats before the blow; the feet themselves never teleport.\n {t:.16,hipX:-9,hipY:5,lean:-9,armX:83,armY:-190,headTilt:-3},\n {t:.32,hipX:-21,hipY:11,lean:-18,armX:41,armY:-226,headTilt:-5},\n {t:.43,hipX:-23,hipY:13,lean:-20,armX:29,armY:-241,headTilt:-7},\n // One fast committed strike. The head follows the chest instead of leading it.\n {t:.515,hipX:25,hipY:-2,lean:15,armX:228,armY:-263,headTilt:2},\n {t:.57,hipX:26,hipY:0,lean:17,armX:230,armY:-263,headTilt:4},\n {t:.68,hipX:17,hipY:2,lean:8,armX:178,armY:-202,headTilt:3},\n {t:.82,hipX:4,hipY:3,lean:0,armX:134,armY:-166,headTilt:1},\n {t:1,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0}],\n hit:[{t:0,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0},{t:.19,hipX:-25,hipY:6,lean:-19,armX:87,armY:-173,headTilt:-17},{t:.5,hipX:-11,hipY:3,lean:-10,armX:106,armY:-166,headTilt:-5},{t:1,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0}],\n death:[{t:0,hipX:0,hipY:0,lean:-4,armX:115,armY:-157,headTilt:0},{t:.32,hipX:16,hipY:30,lean:30,armX:160,armY:-100,headTilt:14},{t:.72,hipX:64,hipY:130,lean:75,armX:160,armY:-39,headTilt:29},{t:1,hipX:86,hipY:154,lean:90,armX:178,armY:-34,headTilt:33}]\n};\nfunction keyframe(list,t){t=clamp(t,0,1);let i=0;while(i\u003clist.length-2&&t>list[i+1].t)i++;const a=list[i],b=list[i+1],e=smooth((t-a.t)/(b.t-a.t));const o={};for(const k of Object.keys(a)){o[k]=lerp(a[k],b[k],e);}return o;}\n// A profile golem's planted foot stays in the same world location during stance.\n// The preview scrolls a floor reference beneath the character to simulate forward travel.\nfunction ankle(phase,offset){\n const t=((phase+offset)%1+1)%1;\n if(t\u003c.64) return {x:lerp(54,-58,t/.64),y:-18,stance:true};\n const swing=(t-.64)/.36;\n const s=swing*swing*(3-2*swing);\n // Smooth acceleration at both swing boundaries, low arc for the heavy short stride.\n return {x:lerp(-58,54,s),y:-18-31*Math.sin(Math.PI*s),stance:false};\n}\nfunction armRig(which,shoulder,wrist,upper,lower,bend,scale=1){const elbow=ik(shoulder,wrist,upper,lower,bend);setPosition(which+'ArmUpper',shoulder.x,shoulder.y,angleDown(shoulder,elbow),scale);setPosition(which+'ArmLower',elbow.x,elbow.y,angleDown(elbow,wrist),scale);setPosition(which+'Hand',wrist.x,wrist.y,which==='front'? 0: -14,which==='front'?scale:scale*.8);}\nfunction legRig(which,hip,ank,bend){const knee=ik(hip,ank,96,103,bend);setPosition(which+'LegUpper',hip.x,hip.y,angleDown(hip,knee));setPosition(which+'LegLower',knee.x,knee.y,angleDown(knee,ank));setPosition(which+'Foot',ank.x,ank.y,0,which==='front'?1:.83);}\nfunction drawFx(phase,pose,zoom){\n const g=el('hitFx');\n if(state.mode!=='punch'||phase\u003c.498||phase>.71){g.innerHTML='';return;}\n const t=(phase-.498)/.212,alpha=Math.pow(1-t,1.4);\n // The impact stays attached to the animated fist at the current camera zoom.\n const worldX=415+pose.hipX+(pose.armX+91)*zoom;\n const worldY=488+18*(zoom-1)+pose.hipY+(pose.armY-6)*zoom;\n const r=(13+77*t)*zoom;\n g.innerHTML=`\u003cg transform=\"translate(${worldX.toFixed(1)} ${worldY.toFixed(1)})\" opacity=\"${(.75*alpha).toFixed(3)}\">\n \u003cellipse rx=\"${r.toFixed(1)}\" ry=\"${(r*.5).toFixed(1)}\" fill=\"none\" stroke=\"#a3fcf2\" stroke-width=\"${(4*zoom).toFixed(1)}\"/>\n \u003cpath d=\"M-12 -15 L-24 -27 M-7 19 L-15 33 M17 -9 L31 -17\" stroke=\"#f6e2b8\" stroke-width=\"${(4*zoom).toFixed(1)}\" fill=\"none\" stroke-linecap=\"round\"/>\u003c/g>`;\n}\nfunction drawGroundContact(p,pose){\n const dust=el('dustLayer');\n if(state.mode!=='walk'){\n  if(state.mode==='punch'&&p>.495&&p\u003c.7){\n   const a=Math.max(0,1-(p-.495)/.205);\n   dust.innerHTML=`\u003cg opacity=\"${(a*.28).toFixed(2)}\" fill=\"none\" stroke=\"#d7d2b6\" stroke-width=\"3\">\u003cellipse cx=\"${415+pose.hipX}\" cy=\"489\" rx=\"${84+(1-a)*38}\" ry=\"${11+(1-a)*4}\"/>\u003c/g>`;\n  }else dust.innerHTML='';\n  return;\n }\n // Brief dust on heavy footfalls; do not add a permanent aura.\n const contacts=[0,.5].map(at=>{const phase=((p-at+1)%1);if(phase>.14)return '';\n  const fade=1-phase/.14,cx=415+54-175*phase;\n  return `\u003cg opacity=\"${(.23*fade).toFixed(2)}\" stroke=\"#c4c5b7\" fill=\"none\" stroke-width=\"2.5\">\u003cellipse cx=\"${cx.toFixed(1)}\" cy=\"491\" rx=\"${(19+18*(1-fade)).toFixed(1)}\" ry=\"${(4+3*(1-fade)).toFixed(1)}\"/>\u003c/g>`;\n }).join('');dust.innerHTML=contacts;\n}\nfunction render(){\n const p=state.phase;let pose,walk=state.mode==='walk';\n if(walk){\n  const c=p*Math.PI*2;\n  const leftLoad=Math.sin(c),doubleSupport=Math.cos(c*2);\n  pose={hipX:leftLoad*3.5,hipY:4.5-4.0*doubleSupport,lean:-5+leftLoad*2.3,\n    armX:112-leftLoad*14,armY:-159+Math.sin(c+.36)*8,headTilt:-leftLoad*.85};\n }\n else if(state.mode==='windup'){pose=keyframe(samples.punch,.42*p);}\n else pose=keyframe(samples[state.mode]||samples.idle,p);\n const s=state.design==='stone'?1.22:state.design==='mechanical'?.86:1;\n const body=el('character');body.setAttribute('transform',`translate(${415+pose.hipX} ${488+pose.hipY}) scale(${state.zoom})`);\n // Feet and pelvis are positioned in one shared coordinate system; no front-facing shortcuts.\n const hipFront={x:22,y:-182},hipBack={x:-30,y:-178};\n const af=walk?ankle(p,-0.01):{x:54,y:-18,stance:true};\n const ab=walk?ankle(p,.5):{x:-49,y:-18,stance:true};\n // The stance foot is always world-locked while the pelvis moves above it.\n // This avoids the 30px foot snap in the earlier punch prototype.\n if(state.mode==='death'){\n  af.x+=p*14;ab.x+=p*7;\n }\n af.x-=pose.hipX/state.zoom;ab.x-=pose.hipX/state.zoom;\n af.y-=pose.hipY/state.zoom;ab.y-=pose.hipY/state.zoom;\n\n legRig('back',hipBack,ab,-1);legRig('front',hipFront,af,1);\n const tx=pose.hipX*.11, ty=-279 + (state.mode==='walk'?1.7*Math.cos(p*2*Math.PI):0);\n setPosition('backpack',tx-2,ty+2,pose.lean*.47+(walk?Math.sin(p*Math.PI*2+.6)*1.8:0));\n const variant={bastion:{body:1,head:1,fist:1},stone:{body:1.075,head:.92,fist:1.22},mechanical:{body:.96,head:1.025,fist:.86}}[state.design];\n setPosition('torso',tx,ty,pose.lean,variant.body);\n const rad=pose.lean*Math.PI/180;\n const joint=(x,y)=>({x:tx+(x*Math.cos(rad)-y*Math.sin(rad))*variant.body,\n  y:ty+(x*Math.sin(rad)+y*Math.cos(rad))*variant.body});\n const shoulderNear=joint(64,-47),shoulderFar=joint(-55,-35);\n const head=joint(48,-111);setPosition('head',head.x,head.y,pose.headTilt-pose.lean*.34,variant.head);\n const rearWrist={x:-86+(walk?-Math.sin(p*Math.PI*2)*17:0),y:-165+(walk?Math.sin(p*Math.PI*2-.25)*6:0)};\n armRig('back',shoulderFar,rearWrist,85,86,-1,.88);\n const nearWrist={x:pose.armX,y:pose.armY};armRig('front',shoulderNear,nearWrist,89,99,1,s);\n drawFx(state.mode==='punch'?p:0,pose,state.zoom);\n drawGroundContact(p,pose);\n if(walk){ // Moving environmental reference: planted feet travel at the same speed as the scrolling ground.\n  el('floor').setAttribute('patternTransform',`translate(${(-state.travel)%110} 0)`);\n }else el('floor').setAttribute('patternTransform','translate(0 0)');\n const core=parts.torso.querySelector('ellipse[cx=\"55\"]');if(core)core.style.opacity=String(.94+.06*Math.sin(performance.now()/880));\n el('floorShadow').setAttribute('rx',String(140+(state.mode==='punch'&&p>.45&&p\u003c.7?12:0)));\n \n el('frameText').textContent=state.playing?'自動':(p*100).toFixed(0)+'%';\n el('frame').value=String(Math.floor(p*1000));\n // Compare at actual in-game scale: preserve visible floor and don't change the rig.\n }\nfunction loop(now){if(!state.last)state.last=now;const dt=Math.min(.05,(now-state.last)/1000);state.last=now;\n if(state.playing){const increment=dt*state.speed/state.period;state.phase=(state.phase+increment)%1;if(state.mode==='walk')state.travel+=increment*(112/.64);}render();requestAnimationFrame(loop)}\nwindow.GOLEM_TEST={state,render,setMode,ankle,ik,keyframe,versions:{profile:'B-04',groundedPunch:true,style:'subtractive'}};\nsetMode('idle');requestAnimationFrame(loop);\n})();\n\u003c/script>\u003c/body>\u003c/html>";
 /* Gald B-04 runtime bridge for Shokoku Sensen III.
@@ -1606,6 +1485,21 @@ const CLASSES={
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
  tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,note:"大型・長射程・対空対応の範囲重砲・対城200%"},
 };
+// School-friendly Google Sites HTML: optional, single visible HP / base damage
+// table at the VERY TOP of the pasted document. Only host applies combat
+// values; the same page should be opened by both players for consistent labels.
+// Without this table (regular online.html), all original values remain.
+const schoolStats=window.SHOKOKU_UNIT_STATS;
+if(schoolStats&&typeof schoolStats==="object"){
+ for(const id of Object.keys(CLASSES)){
+  const edit=Object.prototype.hasOwnProperty.call(schoolStats,id)?schoolStats[id]:null;
+  if(!edit||typeof edit!=="object")continue;
+  // Reject malformed numbers rather than corrupting combat state.
+  if(Number.isSafeInteger(edit.hp)&&edit.hp>=1&&edit.hp<=99999)CLASSES[id].hp=edit.hp;
+  if(Number.isSafeInteger(edit.damage)&&edit.damage>=0&&edit.damage<=99999)
+   CLASSES[id].damage=edit.damage;
+ }
+}
 const IDS=Object.keys(CLASSES);
 const SPELLS={
  barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
@@ -1668,6 +1562,7 @@ function resetWorld(){
   S.queue[team]=deck.slice(HAND_SIZE);
  }
  S.remoteSprites=null;
+ S.remoteVisualReceivedAt=0;
  S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP},
              {team:2,x:1206,y:328,hp:START_HP,max:START_HP}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
@@ -1737,8 +1632,7 @@ function begin(){
  $("fieldHint").textContent="開戦準備：資源8で初期配置を決めよう。キャラは動かない。";
  // No opening BOT spawns: both players decide their own preparation.
  buildCards();updateHUD();
- if(NET.isHost)window.ShokokuResearch?.begin?.(NET.isSolo?"solo":"online",{...S,difficulty:S.difficulty,
-  guestControl:NET.researchGuestControl});
+
 }
 function castSpell(team,id,x,y){
  if(!isSpell(id)||!canPay(team,id)||!validTarget(team,id,x,y))return false;
@@ -1757,10 +1651,7 @@ function playCard(team,id,x,y){
   NET.sendCommand({id,x,y});
   return true;
  }
- const researchBefore=window.ShokokuResearch?.active?{energy:S.energy[team],hand:S.hand[team].slice()}:null;
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
- if(ok&&researchBefore)window.ShokokuResearch?.action?.({t:S.elapsed,phase:S.phase,team,card:id,x,y,
-  energyBefore:researchBefore.energy,ownHand:researchBefore.hand});
  // Track only observable, legal card spending, never the hidden opponent hand.
  if(ok)S.observedEnergy[team]=Math.max(0,S.observedEnergy[team]-CATALOG[id].cost);
  if(ok&&duelStats){
@@ -3396,7 +3287,7 @@ function botStep(dt){
 }
 function end(result,reason){
  if(S.phase==="result")return;
- if(NET.isHost){window.ShokokuResearch?.finish?.(S);NET.finish({result,reason});}
+ if(NET.isHost)NET.finish({result,reason});
  S.phase="result";
  const titles={win:"勝利！",lose:"敗北",draw:"引き分け"};
  $("dialogTitle").textContent=titles[result]||"対戦終了";
@@ -3422,10 +3313,7 @@ function tick(dt){
   S.observedEnergy[team]=Math.min(ENERGY_CAP,S.observedEnergy[team]+gain);
  }
  unitStep(dt);spellStep(dt);
- if(window.ShokokuResearch?.active){
-  if(!NET.isSolo)window.ShokokuResearch?.observeGuestControl?.(NET.researchGuestControl,S.elapsed);
-  window.ShokokuResearch?.sample?.(S);
- }
+
  for(const fallen of S.deaths)fallen.t-=dt;
  S.deaths=S.deaths.filter(fallen=>fallen.t>0);
  for(const fx of S.effects)fx.t-=dt;
@@ -3434,7 +3322,7 @@ function tick(dt){
  S.projectiles=S.projectiles.filter(f=>f.t>0);
  if(S.effects.length>140)S.effects.splice(0,S.effects.length-140);
  if(S.projectiles.length>110)S.projectiles.splice(0,S.projectiles.length-110);
- if(NET.isSolo&&S.phase==="battle")botStep(dt);
+ if((NET.isSolo||NET.hostBot)&&S.phase==="battle")botStep(dt);
  if(S.phase==="battle"&&S.seconds<=0)finishTime();
 }
 // The tactical world remains 1280 x 660, so unit travel time and attack ranges
@@ -3603,6 +3491,15 @@ function drawFort(f){
  ctx.fillText(f.owner===0?"中立基地":f.owner===1?"自軍基地":"敵軍基地",0,48);
  ctx.restore();
 }
+// Guest receives projectile/effect lifetimes only at network snapshot intervals.
+// Advance their *visual* time between packets, exactly as the host's 30 Hz
+// simulation would; never mutate the authoritative S.effects/projectiles.
+// This affects presentation only, not collisions, damage, timing or Firebase.
+function guestVisualTimeRemaining(snapshotTime,now){
+ if(NET.isHost||!S.remoteVisualReceivedAt)return snapshotTime;
+ const elapsed=Math.max(0,Math.min(.25,(now-S.remoteVisualReceivedAt)/1000));
+ return Math.max(0,snapshotTime-elapsed*S.speed);
+}
 // Both full-art and cached sprites must share the same guest interpolation.
 // Previously the crowded sprite cache painted raw 180ms network positions,
 // making guest troops jump even when the canvas frame rate was high.
@@ -3615,13 +3512,22 @@ function presentRemoteUnit(u){
    const since=Math.max(0,Math.min(.25,(now-v.updatedAt)/1000));
    const age=Math.min(.17,since);
    const alpha=1-Math.exp(-dt*13);
+   const oldX=v.x,oldY=v.y;
    v.x+=(v.targetX+v.vx*age-v.x)*alpha;
    v.y+=(v.targetY+v.vy*age-v.y)*alpha;
-   // Network snapshots update at ~5.6Hz. Advance transient artwork
-   // phases locally between snapshots, without changing hitboxes or AI.
-   const walking=!!u.walking,walkingSpeed=Math.hypot(v.vx,v.vy);
+   // Keep the gait phase on the visual sprite rather than recomputing it
+   // from each ~125ms network packet. That recalculation caused a visible
+   // footstep reset even when interpolated positions were smooth.
+   if(!Number.isFinite(v.visualWalkPhase))
+    v.visualWalkPhase=Number.isFinite(u.walkPhase)?u.walkPhase:0;
+   if(u.walking){
+    const visualDistance=Math.hypot(v.x-oldX,v.y-oldY);
+    v.visualWalkPhase+=Math.min(16,visualDistance)*.31;
+   }
+   // Only presentation changes: server position, attacks, collision and
+   // serialized snapshots remain authoritative and untouched.
    u={...u,x:v.x,y:v.y,
-    walkPhase:walking?(u.walkPhase||0)+since*walkingSpeed*.31:u.walkPhase,
+    walkPhase:v.visualWalkPhase,
     attackAnim:Math.max(0,(u.attackAnim||0)-since),
     flash:Math.max(0,(u.flash||0)-since)};
   }
@@ -3673,19 +3579,25 @@ function drawUnit(u){
  }
  if(isAir){ctx.strokeStyle="#d6eae560";ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(u.x,u.y-bob+5);ctx.lineTo(u.x,u.y);ctx.stroke();ctx.setLineDash([]);}
 }
-function drawSpellFields(){
+function drawSpellFields(now){
  for(const zone of S.spells.zones){
+  // Ward is visually counted down between 125-180ms Firebase packets.
+  const remainingTime=guestVisualTimeRemaining(zone.time,now);
+  if(remainingTime<=0)continue;
   ctx.save();
   ctx.fillStyle=zone.team===1?"#73ddff1b":"#ff91b81c";
   ctx.strokeStyle=zone.team===1?"#92e9ffaf":"#f8b2c0af";
   ctx.lineWidth=3;ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r,0,Math.PI*2);ctx.fill();ctx.stroke();
   ctx.strokeStyle="#e9fdff5a";ctx.setLineDash([8,11]);ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r*.82,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.fillStyle="#f0fdff";
-  ctx.fillText("防護結界 "+Math.ceil(zone.time)+"秒",zone.x,zone.y-zone.r-13);
+  ctx.fillText("防護結界 "+Math.ceil(remainingTime)+"秒",zone.x,zone.y-zone.r-13);
   ctx.restore();
  }
  for(const shot of S.spells.incoming){
-  const remaining=Math.max(0,shot.time/shot.total);
+  // Smooth only the displayed barrage warning; actual impact remains host-only.
+  const remainingTime=guestVisualTimeRemaining(shot.time,now);
+  if(remainingTime<=0)continue;
+  const remaining=Math.max(0,Math.min(1,remainingTime/shot.total));
   ctx.save();
   ctx.strokeStyle=shot.team===1?"#ffd184":"#ff8197";ctx.fillStyle=shot.team===1?"#ffbc6426":"#ff71882b";
   ctx.lineWidth=4;ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r,0,Math.PI*2);ctx.fill();ctx.stroke();
@@ -3829,29 +3741,34 @@ function draw(){
  ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,v.w,v.h);
  ctx.fillStyle="#0d2426";ctx.fillRect(0,0,v.w,v.h);
  ctx.save();ctx.translate(v.ox,v.oy);ctx.scale(v.s,v.s);
- terrain();drawSpellFields();
+ terrain();drawSpellFields(now);
  // Walls occupy the full vertical edge; render behind units regardless of center Y.
  for(const c of S.capitals)if(visible(WALL_FACE[c.team],H/2,115,H/2,H/2))drawCapital(c);
  const objects=[];
  for(const p of S.forts)if(visible(p.x,p.y,60,100,55))objects.push({y:p.y+20,draw:()=>drawFort(p)});
  for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>renderCrowdedUnit(u)});
  for(const gone of S.deaths){
-  if(!visible(gone.x,gone.y))continue;
+  // The guest receives death echoes only in occasional state snapshots.
+  // Advance the *artwork* clock locally, never mutating combat/death data.
+  const remaining=guestVisualTimeRemaining(gone.t,now);
+  if(remaining<=0||!visible(gone.x,gone.y))continue;
+  const ratio=Math.max(0,Math.min(1,remaining/gone.maxTime));
   objects.push({y:gone.y,draw:()=>{
    if(window.KokokuArt){
-    window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-gone.t/gone.maxTime},S.clock);
+    window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-ratio},S.clock);
    }else{
-    ctx.save();ctx.globalAlpha=.35*(gone.t/gone.maxTime);
+    ctx.save();ctx.globalAlpha=.35*ratio;
     ctx.strokeStyle=TEAM[gone.team];ctx.lineWidth=3;ctx.beginPath();
-    ctx.arc(gone.x,gone.y-15,17*(1.2-gone.t/gone.maxTime),0,Math.PI*2);ctx.stroke();ctx.restore();
+    ctx.arc(gone.x,gone.y-15,17*(1.2-ratio),0,Math.PI*2);ctx.stroke();ctx.restore();
    }
   }});
  }
  objects.sort((a,b)=>a.y-b.y);
  for(const obj of objects)obj.draw();
  for(const e of S.effects){
-  if(!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
-  const f=e.t/e.max;
+  const remaining=guestVisualTimeRemaining(e.t,now);
+  if(remaining<=0||!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
+  const f=remaining/e.max;
   ctx.save();ctx.globalAlpha=Math.min(1,f*1.4);
   const boom=e.type==="barrage"||e.type==="tank"||e.type==="suppress",spell=e.type==="barrage";
   const color=spell?"#ffe2a3":e.type==="archer"?"#d3abff":e.type==="drone"?"#98fff1":TEAM[e.team];
@@ -3867,11 +3784,13 @@ function draw(){
   ctx.restore();
  }
  for(const shot of S.projectiles){
-  const f=1-shot.t/shot.max;
+  const remaining=guestVisualTimeRemaining(shot.t,now);
+  if(remaining<=0)continue;
+  const f=1-remaining/shot.max;
   const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f;
   if(!visible(x,y,35,45,45))continue;
   const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
-  ctx.save();ctx.globalAlpha=Math.min(1,shot.t/.09);
+  ctx.save();ctx.globalAlpha=Math.min(1,remaining/.09);
   ctx.strokeStyle=shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
   ctx.lineWidth=shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
   ctx.shadowColor=ctx.strokeStyle;
@@ -4012,37 +3931,52 @@ function updateFortNavigation(){
  const summary="基地 青"+blue+"・赤"+red;
  if($("fortSummary").textContent!==summary)$("fortSummary").textContent=summary;
 }
+// Avoid invalidating the entire card footer on every HUD refresh when
+// the displayed value has not changed. WebKit can defer this work beyond the
+// JS timer, creating frame gaps in normal 8-20 unit battles. No game rules change.
+function putHudText(id,value){
+ const el=$(id);if(el.textContent!==value)el.textContent=value;
+}
+function putHudHtml(id,value){
+ const el=$(id);if(el.innerHTML!==value)el.innerHTML=value;
+}
+function putHudWidth(el,value){
+ if(el.style.width!==value)el.style.width=value;
+}
+function putHudFlag(el,name,value){
+ if(el.classList.contains(name)!==value)el.classList.toggle(name,value);
+}
 function updateHUD(){
  if(!S.capitals.length)return;
  updateFortNavigation();
- $("clock").textContent=S.phase==="prep"?numTime(S.prep):numTime(S.seconds);
- $("phaseLabel").textContent=S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊";
- $("blueText").textContent=Math.ceil(capital(1).hp)+" / "+START_HP;
- $("redText").textContent=Math.ceil(capital(2).hp)+" / "+START_HP;
- $("blueBar").style.width=100*capital(1).hp/START_HP+"%";
- $("redBar").style.width=100*capital(2).hp/START_HP+"%";
+ putHudText("clock",S.phase==="prep"?numTime(S.prep):numTime(S.seconds));
+ putHudText("phaseLabel",S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊");
+ putHudText("blueText",Math.ceil(capital(1).hp)+" / "+START_HP);
+ putHudText("redText",Math.ceil(capital(2).hp)+" / "+START_HP);
+ putHudWidth($("blueBar"),100*capital(1).hp/START_HP+"%");
+ putHudWidth($("redBar"),100*capital(2).hp/START_HP+"%");
  const energy=limit(S.energy[ME()],0,ENERGY_CAP);
- $("resourceNumber").innerHTML=Math.floor(energy)+' <small>/ '+ENERGY_CAP+'</small>';
- const segments=$("resourceRail").children;
- for(let i=0;i<segments.length;i++)segments[i].children[0].style.width=100*limit(energy-i,0,1)+"%";
- $("resourceRail").setAttribute("aria-valuenow",energy.toFixed(2));
+ putHudHtml("resourceNumber",Math.floor(energy)+' <small>/ '+ENERGY_CAP+'</small>');
+ const rail=$("resourceRail"),segments=rail.children;
+ for(let i=0;i<segments.length;i++)putHudWidth(segments[i].children[0],100*limit(energy-i,0,1)+"%");
+ const ariaValue=energy.toFixed(2);
+ if(rail.getAttribute("aria-valuenow")!==ariaValue)rail.setAttribute("aria-valuenow",ariaValue);
  const playing=S.phase==="battle",paused=["paused","gallery","inspect"].includes(S.phase);
  const next=energy>=ENERGY_CAP-1e-6?"MAX":playing?
    "あと "+((Math.floor(energy)+1-energy)/(rate()*S.speed)).toFixed(1)+"秒":paused?"停止中":"開戦後回復";
- $("resourceNext").textContent=next;
- $("rate").textContent=S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒";
- $("prepTime").textContent=numTime(S.prep);
+ putHudText("resourceNext",next);
+ putHudText("rate",S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒");
+ putHudText("prepTime",numTime(S.prep));
  const owners=S.forts.filter(f=>f.owner===ME()).length;
- $("remaining").textContent="前哨基地 "+owners+" / 3";
- $("homeCam").classList.toggle("danger",S.underAttackUntil>S.clock);
+ putHudText("remaining","前哨基地 "+owners+" / 3");
+ putHudFlag($("homeCam"),"danger",S.underAttackUntil>S.clock);
  for(const b of cards.children){
   const id=b.dataset.id;if(!id)continue;
-  const d=CATALOG[id];
   const ready=canPay(ME(),id);
-  b.classList.toggle("unavailable",!ready);
-  b.classList.toggle("ready",ready);
-  b.classList.toggle("depleted",S.left[ME()][id]<=0);
-  b.classList.toggle("selected",S.selected===id);
+  putHudFlag(b,"unavailable",!ready);
+  putHudFlag(b,"ready",ready);
+  putHudFlag(b,"depleted",S.left[ME()][id]<=0);
+  putHudFlag(b,"selected",S.selected===id);
  }
  if(performance.now()>S.noticeUntil)$("announcement").classList.remove("visible");
 }
@@ -4133,12 +4067,23 @@ function samplePerf(now,drawMs){
   isHost?"相手との接続 "+(n.connected?"有効":"切断"):
    "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
   isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  isHost?"送信内容 "+(n.snapshotChars||0)+"文字 / 準備 "+(n.encodeMs||0)+"ms / 応答 "+(n.ackMs||0)+"ms":
+   "反映 "+(n.applyMs||0)+"ms / 最新優先 "+(n.coalesced||0)+"件",
+  isHost?"滞留再送 "+(n.retries||0)+"回 / 送信失敗 "+(n.writeFailures||0)+"回":
+   "診断値はこの端末のみ（Firebaseへ送信しません）",
   window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
   n.error?"同期エラー "+String(n.error).slice(0,48):
    "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
  perfPanel.textContent=lines.join("\n");
  perfStart=now;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;
 }
+// Localhost-only diagnostics are visible to the separate __shokokuQa object.
+// Browser-only frame split for localhost ?qa; public play stays uninstrumented.
+ // Frame-gap remainder includes browser scheduling/compositing/other tasks;
+ // it is NOT a direct GPU or Canvas execution-time measurement.
+ const qaFrameBench=(["localhost","127.0.0.1"].includes(location.hostname)&&
+   new URLSearchParams(location.search).has("qa"))
+  ?{samples:[],prevTotalMs:0,skipDrawing:false}:null;
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  NET.registerGame({
@@ -4194,7 +4139,9 @@ function start(){
    S.selected=oldSelected;S.cam=oldCam;
    // Never rewind character animations when a delayed packet arrives.
    S.clock=Math.max(localClock,S.clock);
-   const now=performance.now(),sprites=S.remoteSprites||(S.remoteSprites=new Map());
+   const now=performance.now();
+   S.remoteVisualReceivedAt=now;
+   const sprites=S.remoteSprites||(S.remoteSprites=new Map());
    const seen=new Set();
    for(const u of S.units){
     seen.add(u.uid);
@@ -4268,6 +4215,11 @@ function start(){
  });
  let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
  function frame(now){
+  const qa=qaFrameBench,started=qa?performance.now():0;
+  const datum=qa?{gapMs:Math.max(0,now-previous),phase:S.phase,
+   units:S.units.length,heavy:S.units.filter(u=>u.key==="tank"||u.key==="guardian").length,
+   logicMs:0,hudMs:0,networkMs:0,drawMs:0,totalMs:0,
+   gapAfterPrevMs:Math.max(0,now-previous-qa.prevTotalMs)}:null;
   try{
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
@@ -4276,7 +4228,7 @@ function start(){
   inspectHold(now);
   if(NET.isHost&&S.phase==="prep"){
    S.prep=Math.max(0,S.prep-delta);
-   if(NET.isSolo)botPreparation();
+   if(NET.isSolo||NET.hostBot)botPreparation();
    if(S.prep<=0){
     S.phase="battle";S.botThink=4;
     $("prepBanner").classList.remove("visible");
@@ -4291,17 +4243,27 @@ function start(){
    }
    if(iter===5)acc=0;
   }else acc=0;
+  if(qa)datum.logicMs=performance.now()-started;
   if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle")){
    if(S.phase==="prep")botPreparation();
    else botStep(delta*S.speed);
   }
+  const hudStart=qa?performance.now():0;
   S.hudTick+=delta;
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
+  if(qa)datum.hudMs=performance.now()-hudStart;
+  const networkStart=qa?performance.now():0;
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
+  if(qa)datum.networkMs=performance.now()-networkStart;
   if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
+  // Exclusive localhost QA control: when true, simulation, controls and
+  // matchmaking continue while Canvas drawing is skipped. Never exposed
+  // on Google Sites origins or regular game URLs.
+  if(qa?.skipDrawing)return;
   guestLastPaint=now;
-  const paintStart=perfPanel?performance.now():0;
+  const paintStart=(perfPanel||qa)?performance.now():0;
   draw();
+  if(qa)datum.drawMs=performance.now()-paintStart;
   if(perfPanel)samplePerf(now,performance.now()-paintStart);
   }catch(error){
    // The interaction layer may remain alive after a Canvas exception.
@@ -4311,7 +4273,15 @@ function start(){
     lastFrameErrorAt=now;
     console.warn("Online frame recovered after exception:",error);
    }
-  }finally{requestAnimationFrame(frame)}
+  }finally{
+   if(qa){
+    datum.totalMs=performance.now()-started;
+    qa.prevTotalMs=datum.totalMs;
+    if(qa.samples.length>=1000)qa.samples.shift();
+    qa.samples.push(datum);
+   }
+   requestAnimationFrame(frame);
+  }
  }
  requestAnimationFrame(frame);
 }
@@ -4319,6 +4289,9 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ resetFrameBench:()=>{if(qaFrameBench){qaFrameBench.samples=[];qaFrameBench.prevTotalMs=0;}},
+ setDrawDisabledForQa:disabled=>{if(qaFrameBench)qaFrameBench.skipDrawing=!!disabled;},
+ frameBench:()=>qaFrameBench?qaFrameBench.samples.map(x=>({...x})):[],
  // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
  fireStress:(team=1,x=640,y=330)=>{
   if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team))return false;
@@ -5153,6 +5126,82 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   }
   updateFortNavigation();return true;
  },
+ // Realistic mid-match QA: units are placed using the *real* playable card
+ // deployment/spell functions, with each side starting from 12 energy or less.
+ // No fabricated units, damaged HP, edited combat behavior, or extra assets.
+ // Enabled only on loopback ?qa=1; a live CI host may send the result to its
+ // temporary Firebase room so a WebKit guest can be visually inspected too.
+ seedRealisticBattle:(scenario="heavy")=>{
+  if(!NET.isHost||!["standard","light","heavy","spell","crowded","dense"].includes(scenario))return null;
+  const setups={
+   standard:[
+    [[1,"infantry",641,405],[1,"scout",658,448],[1,"archer",629,475],[1,"infantry",651,455]],
+    [[2,"infantry",837,415],[2,"engineer",851,452],[2,"archer",863,479],[2,"infantry",850,435]]
+   ],
+   // Exactly ten ordinary units at the SAME summon positions as the two-heavy
+   // scene. Compare like-for-like counts when isolating expensive tank/golem art.
+   light:[
+    [[1,"infantry",668,428],[1,"scout",655,465],[1,"archer",635,388]],
+    [[2,"infantry",831,430],[2,"engineer",846,463],[2,"archer",860,386]]
+   ],
+   heavy:[
+    [[1,"tank",668,428],[1,"infantry",655,465],[1,"archer",635,388]],
+    [[2,"guardian",831,430],[2,"infantry",846,463],[2,"archer",860,386]]
+   ],
+   // Eighteen legal units (9 per team): 3 infantry cards, 1 archer
+   // card and 1 scout card cost 11 energy on each side. No artificial
+   // 130-unit crowd and no bypass of regular card or deployment rules.
+   crowded:[
+    [[1,"infantry",650,396],[1,"infantry",667,451],[1,"scout",648,491],
+     [1,"infantry",677,380],[1,"archer",634,470]],
+    [[2,"infantry",844,397],[2,"infantry",828,449],[2,"scout",858,486],
+     [2,"infantry",829,381],[2,"archer",865,466]]
+   ],
+   // Twenty legal units (10 per team): four infantry cards and one
+   // archer card consume 10 energy, staying within the 12-cost limit.
+   dense:[
+    [[1,"infantry",644,398],[1,"infantry",671,440],[1,"infantry",649,477],
+     [1,"infantry",679,385],[1,"archer",633,470]],
+    [[2,"infantry",845,400],[2,"infantry",821,445],[2,"infantry",850,482],
+     [2,"infantry",827,383],[2,"archer",864,470]]
+   ],
+   spell:[
+    [[1,"suppress",668,429],[1,"archer",647,475],[1,"barrage",830,435]],
+    [[2,"drone",831,405],[2,"infantry",844,440],[2,"sentinel",849,468]]
+   ]
+  };
+  const plans=setups[scenario],summary={scenario,actions:[],byTeam:[0,0,0]};
+  resetWorld();S.phase="battle";S.prep=0;S.elapsed=100;S.seconds=MATCH-100;
+  S.clock=100;S.speed=1;S.botThink=99999;S.botPrepDone=true;
+  // A credible mid-match frontline after left/middle and right forts were held.
+  S.forts.forEach((f,i)=>{f.owner=[1,1,2][i];f.hp=POST_HP;});
+  S.energy=[0,12,12];S.observedEnergy=[0,12,12];
+  for(const team of [1,2]){
+   const actions=plans[team-1],cards=[...new Set(actions.map(a=>a[1]).filter(id=>id!=="infantry"))];
+   S.hand[team]=cards;S.queue[team]=DECK_IDS.filter(id=>!cards.includes(id));
+   for(const [side,id,x,y] of actions){
+    const before=S.energy[side],ok=playCard(side,id,x,y);
+    summary.actions.push({team:side,id,ok,energyBefore:before,energyAfter:S.energy[side]});
+    if(!ok)throw Error("Realistic QA scene cannot legally play "+side+":"+id+" at "+x+","+y+" energy="+before+" border="+border(side));
+   }
+  }
+  summary.units=S.units.length;summary.byTeam[1]=S.units.filter(u=>u.team===1).length;
+  summary.byTeam[2]=S.units.filter(u=>u.team===2).length;
+  summary.heavy=S.units.filter(u=>u.key==="tank"||u.key==="guardian").map(u=>u.key);
+  summary.spells=S.spells.incoming.length+S.spells.zones.length;
+  summary.totalSpent=summary.actions.reduce((s,a)=>s+a.energyBefore-a.energyAfter,0);
+  // Keep both teams and contested fort in view on 1194px tablet and Sites embed.
+  S.cam={x:744,y:423,tx:744,ty:423,moving:false};clampCamera();
+  $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
+  buildCards();updateHUD();
+  if(!NET.isSolo)NET.maybePublish(true);
+  return summary;
+ },
+ realisticBattleStatus:()=>({phase:S.phase,elapsed:S.elapsed,
+  units:S.units.length,heavies:S.units.filter(u=>u.key==="tank"||u.key==="guardian").map(u=>u.key),
+  projectiles:S.projectiles.length,effects:S.effects.length,
+  spells:S.spells.incoming.length+S.spells.zones.length,
+  cachedTiles:denseSpriteCache.size,frameError:window.__onlineFrameError||null}),
  seedMassBattle:()=>{
   if(!NET.isSolo)return false;
   resetWorld();S.phase="battle";S.prep=0;S.elapsed=120;S.seconds=180;S.botThink=999;
@@ -5193,6 +5242,7 @@ start();
   <div class="netControls"><button id="netCreate">ルームを作成</button><button id="netShare" disabled>番号をコピー</button></div>
   <div class="netControls"><input id="netJoinCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="5桁のルーム番号"><button id="netJoin">ルームに参加</button></div>
   <div class="netControls"><button id="netReady" disabled>準備完了</button><button id="netStart" hidden disabled>対戦スタート</button></div>
+  <div class="netControls"><button id="netHostBot" type="button" hidden>🤖 BOTを参加させる</button></div>
    <div class="netControls"><button id="netGuestBot" type="button" hidden aria-pressed="false">この参加端末をBOT操作</button></div>
    <div class="netPractice">
     <div class="netPracticeHeading">1人プレイ・BOTの強さ</div>

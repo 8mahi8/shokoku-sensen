@@ -66,6 +66,15 @@ const server=http.createServer((req,res)=>{
    const rect=await page.locator("#field").boundingBox();
    await page.mouse.click(rect.x+rect.width*.12,rect.y+rect.height*.45);
    await page.waitForFunction(()=>window.__offlineRender.blue>0,null,{timeout:9000});
+   // Regression: optimized HUD must keep the visible energy and accessibility
+   // progressbar in sync with the authoritative local simulation.
+   await page.waitForFunction(()=>{
+    const s=window.__shokokuQa?.snapshot();if(!s)return false;
+    const energy=s.energy[1],rail=document.getElementById("resourceRail");
+    const shown=parseInt(document.getElementById("resourceNumber").textContent,10);
+    const aria=Number(rail.getAttribute("aria-valuenow"));
+    return shown===Math.floor(energy)&&Math.abs(aria-energy)<.15;
+   },null,{timeout:5000});
    // Local rematch must restart without a room (no Firebase).
    await page.evaluate(()=>window.ShokokuNet.rematch());
    assert.equal(await page.locator("#prepTime").innerText(),"00:10");

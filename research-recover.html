@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>小国戦線III｜試合データ一括回収</title>
+<style>
+:root{color-scheme:dark}body{font:16px/1.65 system-ui,sans-serif;background:#101b25;color:#edf5f5;margin:0}
+main{max-width:710px;margin:auto;padding:25px 18px 70px}
+h1{font-size:24px}h2{font-size:18px;margin-top:28px}p{color:#c7d6d6}
+.card{padding:16px;border:1px solid #456070;border-radius:13px;margin-top:15px}
+button,label.file{display:inline-block;background:#1b7484;color:white;border:0;border-radius:9px;padding:11px 14px;cursor:pointer;font:inherit;margin:4px 4px 4px 0}
+button:disabled{opacity:.55}input[type=file]{max-width:100%}#status{white-space:pre-wrap}small{color:#a3b5ba}
+</style></head><body><main>
+<h1>小国戦線III｜試合データ一括回収</h1>
+<p>学校iPadで送信に同意した試合を、家のスマホでまとめてBOT研究用JSONにするためのページ。<strong>部屋番号を覚える必要はありません。</strong></p>
+<section class="card">
+<h2>方法A｜Firebase管理画面から回収</h2>
+<p>Firebase Consoleで管理者として <code>shokokuRooms1v1</code> をJSONでエクスポートして、このページで選択します。<strong>回収した元データはこのページ内だけで処理し、外部へ転送しません。</strong></p>
+<input type="file" id="file" accept=".json,application/json">
+<button id="convert" disabled>匿名の試合データを取り出す</button>
+</section>
+<section class="card">
+<h2>方法B｜公開読み取りが可能なら直接取得</h2>
+<p>既存Firebaseでルーム一覧を公開読み取りできる場合に限り、試合ログを自動で探します。読み取り拒否なら使用できません。<strong>この方法で成功する設定では、他の人も同じログを読める可能性があります。</strong> 方法Aでも既にFirebaseへ保存されたログの公開範囲は変わりません。非公開にするにはFirebase側の権限設定が別途必要です。</p>
+<button id="fetchAll">ルーム内ログを検索して一括回収</button>
+</section>
+<section class="card">
+<div id="status" role="status" aria-live="polite">準備OK。方法AまたはBを選んでください。</div>
+<button id="download" disabled>回収したJSONを保存</button>
+<button id="share" disabled>スマホでファイルを共有</button>
+<button id="copy" disabled>JSONをコピー・表示</button>
+<textarea id="copyText" readonly hidden aria-label="研究ログのJSONコピー用" style="width:100%;box-sizing:border-box;min-height:110px;font:12px/1.5 monospace" spellcheck="false"></textarea>
+<small>本ページにFirebaseの管理者キーやパスワードを入力しないでください。回収先は現状、学校端末でルーム保存に両者が同意した試合だけです。古いルームは再利用時に消去される場合があります。</small>
+</section>
+</main>
+<script>
+"use strict";
+const ROOT="https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1";
+const byId=id=>document.getElementById(id);
+let batch=null;
+function sanitize(m){
+ if(!m||m.schema!==1||m.mode!=="online"||
+   !Array.isArray(m.actions)||!Array.isArray(m.samples)||
+   !m.result||![0,1,2].includes(m.result.winner))return null;
+ const finite=n=>typeof n==="number"&&Number.isFinite(n);
+ // Only the current game's known card/unit IDs and gameplay phases can
+ // enter the exported research JSON. The Firebase records are untrusted.
+ const UNIT_IDS=new Set(["infantry","scout","engineer","archer","sentinel",
+  "suppress","guardian","drone","tank"]);
+ const CARD_IDS=new Set([...UNIT_IDS,"barrage","ward"]);
+ const cardId=s=>typeof s==="string"&&CARD_IDS.has(s);
+ const unitId=s=>typeof s==="string"&&UNIT_IDS.has(s);
+ const actions=m.actions.slice(0,500).filter(a=>a&&[1,2].includes(a.team)&&
+  cardId(a.card)&&finite(a.t)&&finite(a.x)&&finite(a.y)&&finite(a.energyBefore))
+  .map(a=>({t:a.t,phase:["prep","battle"].includes(a.phase)?a.phase:"unknown",team:a.team,card:a.card,x:a.x,y:a.y,
+   energyBefore:a.energyBefore,ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4).filter(cardId):[]}));
+ const samples=m.samples.slice(0,80).filter(x=>x&&finite(x.t)&&Array.isArray(x.energy)&&
+   x.energy.length===2&&x.energy.every(finite)&&
+   Array.isArray(x.castles)&&x.castles.length===2&&x.castles.every(finite)&&
+   Array.isArray(x.forts)&&x.forts.slice(0,3).every(f=>Array.isArray(f)&&
+    [0,1,2].includes(f[0])&&finite(f[1]))&&
+   Array.isArray(x.units)&&x.units.slice(0,180).every(u=>Array.isArray(u)&&
+    [1,2].includes(u[0])&&unitId(u[1])&&u.slice(2,5).length===3&&u.slice(2,5).every(finite)))
+  .map(x=>({t:x.t,energy:x.energy.slice(0,2),castles:x.castles.slice(0,2),
+   forts:x.forts.slice(0,3).map(f=>f.slice(0,2)),
+   units:x.units.slice(0,180).map(u=>u.slice(0,5))}));
+ if(!samples.length||!Array.isArray(m.result.castleHp)||m.result.castleHp.length!==2||
+   !finite(m.result.duration)||!m.result.castleHp.every(finite))return null;
+ return {schema:1,mode:"online",teams:[1,2],matchType:["human-vs-human","human-vs-bot","mixed","unknown"].includes(m.matchType)?m.matchType:"unknown",
+  guestControlHistory:Array.isArray(m.guestControlHistory)?m.guestControlHistory.slice(0,32).filter(h=>h&&finite(h.t)&&["human","bot","unknown"].includes(h.guest)).map(h=>({t:h.t,guest:h.guest})):[],
+  controlOverflow:m.controlOverflow===true,overflow:m.overflow===true,
+  actions,samples,result:{winner:m.result.winner,duration:m.result.duration,
+   castleHp:m.result.castleHp.slice(0,2),fortOwners:Array.isArray(m.result.fortOwners)?m.result.fortOwners.slice(0,3).filter(x=>[0,1,2].includes(x)):[]}};
+}
+function getMatches(raw){
+ const rooms=raw?.shokokuRooms1v1||raw;
+ if(!rooms||typeof rooms!=="object"||Array.isArray(rooms))throw Error("ルームデータが見つかりません");
+ const out=[],seen=new Set();
+ for(const [code,room] of Object.entries(rooms)){
+  if(!/^\d{5}$/.test(code)||!room?.researchRounds)continue;
+  for(const [round,rec] of Object.entries(room.researchRounds)){
+   if(!/^\d{1,3}$/.test(round)||!rec||rec.schema!==1)continue;
+   const cleaned=sanitize(rec.match);
+   if(!cleaned)continue;
+   const id=code+"/"+round;
+   if(seen.has(id))continue;
+   seen.add(id);out.push({at:Number(rec.createdAt)||0,match:cleaned});
+  }
+ }
+ out.sort((a,b)=>a.at-b.at);
+ return out.map(x=>x.match);
+}
+function clearRecovered(){
+ batch=null;
+ byId("download").disabled=true;
+ byId("share").disabled=true;
+ byId("copy").disabled=true;
+ byId("copyText").value="";
+ byId("copyText").hidden=true;
+}
+function loaded(raw){
+ const matches=getMatches(raw);
+ batch={schema:1,format:"shokoku-anonymous-match-batch",matches};
+ byId("download").disabled=!matches.length;
+ byId("share").disabled=!matches.length;
+ byId("copy").disabled=!matches.length;
+ byId("status").textContent=matches.length?
+  matches.length+"試合を回収しました。『回収したJSONを保存』を押してください。":
+  "まだルームに保存された研究ログがありません（またはルームが再利用済みです）。";
+}
+function download(){
+ if(!batch?.matches.length)return;
+ const blob=new Blob([JSON.stringify(batch)],{type:"application/json"});
+ const a=document.createElement("a"),url=URL.createObjectURL(blob);
+ a.href=url;a.download="shokoku-research-recovered.json";document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),2500);
+}
+byId("file").addEventListener("change",()=>{byId("convert").disabled=!byId("file").files.length;});
+byId("convert").addEventListener("click",async()=>{
+ clearRecovered();
+ try{
+  const f=byId("file").files[0];if(!f||f.size>40*1024*1024)throw Error("40MB以下のJSONを選んでください");
+  loaded(JSON.parse(await f.text()));
+ }catch(e){byId("status").textContent="変換できませんでした: "+e.message;}
+});
+byId("fetchAll").addEventListener("click",async()=>{
+ const btn=byId("fetchAll");btn.disabled=true;clearRecovered();
+ byId("status").textContent="ルーム一覧の読み取り権限を確認中…";
+ try{
+  const res=await fetch(ROOT+".json?shallow=true",{cache:"no-store"});
+  if(!res.ok)throw Error("Firebaseのルーム一覧を読めません。方法Aを使ってください（HTTP "+res.status+"）。");
+  const list=await res.json();
+  if(list?.error)throw Error("Firebaseルーム一覧の読み取りが拒否されました。方法Aを使ってください。");
+  const keys=Object.keys(list||{}).filter(k=>/^\d{5}$/.test(k));
+  if(keys.length>150)throw Error("ルームが150件を超えます。方法Aで管理者エクスポートしてください。");
+  const rooms={};let done=0,nextIndex=0;
+  const errors=[];
+  // At most 12 parallel reads, even with 150 room codes. A four-at-a-time
+  // series was taking over 22 seconds to inspect ~45 real Firebase rooms.
+  // Fetch ONLY researchRounds; never player identities or live state.
+  async function worker(){
+   while(nextIndex<keys.length){
+    const code=keys[nextIndex++];
+    try{
+     const response=await fetch(ROOT+"/"+code+"/researchRounds.json",{cache:"no-store"});
+     if(!response.ok)throw Error("HTTP "+response.status);
+     const val=await response.json();
+     if(val?.error)throw Error("Firebaseアクセス拒否");
+     if(val)rooms[code]={researchRounds:val};
+    }catch(e){errors.push(e?.message||"ネットワークエラー")}
+    done++;
+    byId("status").textContent="研究ログを検索中: "+done+"/"+keys.length+"ルーム";
+   }
+  }
+  await Promise.all(Array.from({length:Math.min(keys.length,12)},()=>worker()));
+  if(errors.length)throw Error(errors.length+"ルームの読み取りに失敗しました。再試行するか方法Aを使ってください（"+errors[0]+"）。");
+  loaded(rooms);
+ }catch(e){byId("status").textContent="自動回収できません: "+e.message;}
+ finally{btn.disabled=false;}
+});
+byId("download").addEventListener("click",download);
+byId("copy").addEventListener("click",async()=>{
+ if(!batch?.matches.length)return;
+ const content=JSON.stringify(batch);
+ const area=byId("copyText");
+ area.value=content;
+ area.hidden=false;
+ area.focus();
+ area.select();
+ try{
+  if(!navigator.clipboard?.writeText)throw Error("clipboard unavailable");
+  await navigator.clipboard.writeText(content);
+  byId("status").textContent="JSONをコピーしました。必要な場所に貼り付けてください。";
+ }catch(_){
+  byId("status").textContent="自動コピーできない場合は、下のJSONを長押しして「すべて選択」→コピーしてください。";
+ }
+});
+byId("share").addEventListener("click",async()=>{
+ if(!batch?.matches.length)return;
+ try{
+  if(typeof File!=="function"||typeof navigator.share!=="function")
+   throw Error("このブラウザではファイル共有を利用できません");
+  const file=new File([JSON.stringify(batch)],"shokoku-research-recovered.json",
+   {type:"application/json"});
+  if(navigator.canShare&&!navigator.canShare({files:[file]}))
+   throw Error("この端末はJSONファイルの共有に対応していません");
+  await navigator.share({title:"小国戦線III 対戦ログ",files:[file]});
+ }catch(e){
+  if(e?.name==="AbortError")return;
+  byId("status").textContent="共有できません: "+e.message+"。JSON保存またはJSONコピーを使ってください。";
+ }
+});
+</script>
+</body></html>

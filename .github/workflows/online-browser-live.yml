@@ -12,6 +12,22 @@ on:
 jobs:
   browser-live:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - video: 'yes'
+            matched: 'no'
+          - video: 'no'
+            matched: 'no'
+          # Roles are compared with identical WebKit engines, viewport,
+          # touch input and the exact same pasteable iPad HTML.
+          - video: 'no'
+            matched: 'yes'
+    env:
+      SHOKOKU_QA_RECORD_VIDEO: ${{ matrix.video }}
+      SHOKOKU_QA_MATCHED_WEBKIT: ${{ matrix.matched }}
     timeout-minutes: 12
     permissions:
       contents: read
@@ -23,3 +39,9 @@ jobs:
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium webkit
       - run: node tests/online-browser-live.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: online-real-firebase-guest-video-${{ matrix.video }}-webkit-host-${{ matrix.matched }}
+          path: qa-online-guest-visual/
+          retention-days: 14

@@ -9,15 +9,35 @@
 - BOT版から分離したゲーム: [online-game.js](../online-game.js)
 - キャラ原画・描画: [gald-source.html](../gald-source.html), [gald-render.js](../gald-render.js), [v3-art.js](../v3-art.js)
 
-## 学校iPadでの公開方法（BRAWLと同じ方式）
-1. **PC**で [online-embed.html（Raw表示）](https://raw.githubusercontent.com/8mahi8/shokoku-sensen/main/online-embed.html) を開く。
-2. HTMLの全文をコピー。
-3. Google Sites のオンライン対戦用ページで「挿入 → 埋め込む → 埋め込みコード」に貼り付ける。
-4. 埋め込みの縦幅を十分に広くし、公開する。なるべく横向きのiPadで遊ぶ。
-5. 片方が「ルームを作成」、他方が5桁番号で「ルームに参加」。2人とも「準備完了」を押して、ホストが「対戦スタート」。
-6. 準備フェーズ10秒、制限時間5分。両者同じカード、資源と部隊制限。ホスト青軍／ゲスト赤軍。Google Sites上ではPCから埋め込むだけでよく、Driveへの転送は不要。
+## 学校iPadでのテスト導入（BRAWLと同じ直接コード埋め込み方式）
 
-**注意**: GitHub Pagesのドメインが学校の端末でブロックされる場合は Google Sites 埋め込み版を使う。Google Sitesのiframeのネットワーク制限やFirebase SDKの読み込み制限がある場合、個々の学校の環境で動作確認が必要です。
+**公開版の判断はまだ。PR #22 はDraft、mainと今のGoogle Sitesは未変更。下の作業は本人が試用を決めた後だけ。**
+
+1. 開発ブランチの [最新Google Sites用HTML ZIP成果物](https://github.com/8mahi8/shokoku-sensen/actions/workflows/online-smoke.yml) から `Shokoku-III-1v1-iPad` を取得する。中の `Shokoku_III_1v1_school_iPad.txt` は**HTML全文を貼り付けるためのテキスト**。**main側のRaw HTMLは旧公開版なので流用しない**。
+2. コードの全文をコピーして Google Sites のオンライン対戦ページで **「挿入 → 埋め込む → 埋め込みコード」** に貼り付ける。**GitHub PagesなどのURLを埋め込む方式ではない**。長くて分割表示されても、コード全体を1回で貼る。
+3. Google Sitesの埋め込みサイズを横長・縦幅十分に調節して公開。友達2人が同じ最新版のページをiPad Safariで開き直し、横向きで遊ぶ。
+4. ホストがルーム作成、もう1人が5桁番号で参加。双方「準備完了」→ホスト「対戦スタート」。準備10秒、試合5分。ホスト青軍・ゲスト赤軍。
+5. 研究ログは**初期ON**（端末内の匿名記録もON）。開始前に友達に説明し、不要なら各自が「研究用ログをルームに保存」をOFFにできる。**片方でもOFFならルームには保存しない**。試合中も停止可能。現行Firebaseルームは**第三者も読める可能性があり**、OFFにしても過去の送信済みログは消えない。
+6. 帰宅後スマホで試合ログを回収するには、ZIPの `Shokoku_III_Research_Recovery.html` も別のGoogle Sitesページの「埋め込みコード」に全文貼り付けて、iPhone Safariからそのページを開く。**「ルーム内ログを検索して一括回収」**を押す。通常は「JSONを保存」か「ファイルを共有」。それらがiPhoneのiframe制限で使えない場合は「JSONをコピー・表示」を使う。**研究ログはルームの再利用で消える場合があるので当日回収が目安**。
+
+**確認範囲:** 実FirebaseのChromiumホスト＋WebKitゲストで対戦・通信復旧・連戦・研究ログ保存・スマホ風ブラウザ回収は自動QA合格。学校の実iPadと実iPhoneのGoogle Sites上での動作は未確認。GitHub Actions更新だけでは既存Google Sitesのコードは更新されない。
+
+## 学校のHTMLでHP・攻撃力だけ調整（2026-10-21）
+
+- 開発PR #22のGoogle Sites用 `online-ipad.html`（または `online-embed.html`）の**最初の約30行**に、`★ 学校でキャラ調整する場所 ★` と表示された `window.SHOKOKU_UNIT_STATS` 一覧を追加。
+- 全9ユニットの `hp`（HP）と `damage`（基礎攻撃力）の数字のみ変更可。例：`infantry: { hp: 105, damage: 15 }` → `infantry: { hp: 150, damage: 25 }`。キャラ名、コロン、カンマ、括弧を消さない。
+- HPは1〜99999、攻撃力は0〜99999の**整数**のみ採用。不正値は元の設定のまま。魔法（ファイヤー）、城、砦、コスト、射程、速度、戦闘判定は対象外。
+- 値はゲームの `CLASSES` に起動時1回反映され、召喚時のHP・実際の攻撃処理が参照する。データ一覧を画面だけに表示する機能ではない。普通の `online.html` では既存の値を維持する。
+- 変更後のHTML全文をGoogle Sitesへ貼り直して再公開し、**対戦する両端末で同じ最新版ページを開き直す**。古い埋め込みHTMLは自動では更新されない。オンライン対戦ではホストが戦闘計算を担当するため、別バージョン同士の混在は避ける。
+- 実装・初期値・インラインJS/シミュレーションの検証： [Online 1v1 smoke #39499222485](https://github.com/8mahi8/shokoku-sensen/actions/runs/39499222485)。18〜20体での画面テスト、オンライン実Firebase回帰は先行CIで合格。学校iPadでの今回の**手動数値変更後**の対戦は未検証。
+
+## 友達向けの対戦データ（2026-10-21｜開発PRのみ）
+
+- **端末内記録**: 初期ON。ホスト端末内に匿名のカード・局面・勝敗を最大8試合分保存し、手動JSON書き出しも可能。どちらかが拒否すると停止。
+- **今回追加した軽いルーム保存**: 新規ルーム作成・参加時は**初期ON**。両者ともONの試合のみ終了後、既存Firebaseルームの `researchRounds/<round>` に匿名ログを1回保存。双方に画面説明があり、どちらかがOFFにすれば送信されない。追加クラウドサーバー・ログイン・課金契約はない。
+- **帰宅後にスマホで回収**: [research-recover.html](../research-recover.html) でルーム番号なしの一括検索、またはFirebase管理者JSONの端末内変換。回収ページはまだ未公開。
+- **注意**: 現在のRTDBはルーム一覧の公開読み取りにHTTP 200を返すため、**保存ログを管理者だけに非公開にはできない**。名前・端末ID・チャット等を含めない設計だが、第三者にもログが見える可能性がある。ルーム再利用後は消える場合があるので、当日の回収が目安。
+- 詳しくは[軽量研究ログの運用・テスト](./RESEARCH_LITE.md)。過去に試作したCloud Functions方式は[参考資料](./RESEARCH_CLOUD.md)として凍結中。本番Firebase設定、main、学校Google Sites公開版は**変更していない**。
 
 ## 通信方式
 - Firebase Realtime Database: 既存BRAWLの動作実績がある同じプロジェクト（DB URLは online-net.js 内に設定済み）。

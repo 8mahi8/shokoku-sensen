@@ -1,0 +1,30 @@
+name: Online matched HUD WebKit diagnostic
+on:
+  push:
+    paths:
+      - 'tests/online-hud-matched-control.cjs'
+      - 'online-game.js'
+      - 'online-ipad.html'
+      - 'online-embed.html'
+      - '.github/workflows/online-hud-matched-control.yml'
+  workflow_dispatch:
+jobs:
+  matched-hud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps webkit
+      - run: node tests/online-hud-matched-control.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shokoku-matched-hud-webkit
+          path: qa-matched-hud/
+          retention-days: 14

@@ -7,6 +7,7 @@
 const VERSION=1,KEY="shokoku-research-batch-v1",MAX_MATCHES=8,MAX_ACTIONS=500,MAX_SAMPLES=80;
 const $=id=>document.getElementById(id);
 let soloConsent=true,onlineConsent=false,onlineBoth=false,inRoom=false,playing=false;
+let ownArchiveConsent=false,bothArchiveConsent=false;
 let active=null,archived=[],notice="",lastSampleAt=-Infinity;
 function safeLoad(){
  try{
@@ -83,13 +84,21 @@ function finish(world){
  active.result={winner:hp[0]===hp[1]?0:hp[0]>hp[1]?1:2,
   duration:energy(world.elapsed),castleHp:hp,
   fortOwners:world.forts.map(f=>f.owner)};
- archived.push(active);
+ const completed=active;
+ archived.push(completed);
  archived=archived.slice(-MAX_MATCHES);
  active=null;
  const saved=safeSave();
  status((saved?"端末内に一時保存":"端末保存不可。画面を閉じる前に")+
   "｜"+archived.length+"試合分。JSON書き出しを忘れずに");
  sync();
+ if(completed.mode==="online"&&bothArchiveConsent&&onlineBoth){
+  Promise.resolve().then(()=>window.ShokokuNet?.archiveRound?.(completed))
+   .then(r=>status(r?.saved?
+    "試合データをFirebaseのルームにも保存しました。端末にも保存済み":
+    "端末内に保存済み。ルームへの保存はできませんでした"))
+   .catch(()=>status("端末内に保存済み。ルームのFirebase権限で保存できませんでした"));
+ }
 }
 function withdraw(){
  if(active){active=null;lastSampleAt=-Infinity;}
@@ -150,6 +159,7 @@ function clear(){
 function syncOnline(o){
  if(o){
   onlineConsent=!!o.ownConsent;onlineBoth=!!o.bothConsent;inRoom=!!o.inRoom;playing=!!o.playing;
+  ownArchiveConsent=!!o.ownArchiveConsent;bothArchiveConsent=!!o.bothArchiveConsent;
   // Withdrawal in either seat invalidates all unexported active observations.
   if(active&&active.mode!=="solo"&&!onlineBoth)withdraw();
  }
@@ -158,6 +168,15 @@ function syncOnline(o){
   checkbox.checked=inRoom?onlineConsent:soloConsent;
   checkbox.disabled=playing;
  }
+ const archive=$("researchArchiveConsent");
+ if(archive){
+  archive.checked=inRoom&&ownArchiveConsent;
+  archive.disabled=!inRoom||(playing&&!ownArchiveConsent);
+ }
+ const archiveHint=$("researchArchiveHint");
+ if(archiveHint)archiveHint.textContent=!inRoom?"オンライン参加後に選べます":
+  bothArchiveConsent?"研究ログ保存 ON：試合後にFirebaseへ保存。スマホから一括回収できます":
+  "研究ログ保存 OFF：どちらかがOFF。端末内の記録のみ";
  const hint=$("researchHint");
  if(hint)hint.textContent=inRoom?
   onlineBoth?"匿名対戦記録 ON（ホスト端末のみ）。どちらも停止できます":
@@ -186,7 +205,12 @@ function init(){
   '<button type="button" id="researchClear">記録削除</button></div>'+
   '<div id="researchStatus" role="status"></div>'+
   '<textarea id="researchText" hidden readonly aria-label="JSONコピー用テキスト" style="width:100%;height:55px"></textarea>'+
-  '<small>身内対戦の改善用に匿名のカード使用・戦況・勝敗を初期ONで記録します。嫌ならOFF・対戦中は右上の停止ボタンから無効化できます。名前・ルーム番号・端末ID・チャットは保存せず、自動送信もしません。終了後は必要に応じてJSONを書き出してください。</small>';
+  '<small>身内対戦の改善用にカード使用・戦況・勝敗を端末内へ匿名記録します（初期ON・停止可）。名前・ルーム番号・端末ID・チャットは研究ログに含めません。Firebaseのルームへの匿名試合ログ保存も初期ONです。本人・友達どちらでもOFFにでき、どちらかがOFFなら送信されません。JSONは任意で書き出せます。</small>';
+ controls.insertAdjacentHTML("beforeend",
+  '<div style="border-top:1px solid #668c95;padding-top:7px;margin-top:7px">'+
+  '<label><input id="researchArchiveConsent" type="checkbox"> 研究用ログをルームに保存（初期ON・変更可）</label>'+
+  '<div id="researchArchiveHint">参加した2人がONのときだけFirebaseへ記録します。不要ならOFFにしてください</div>'+
+  '<small>ルーム番号から参照できる既存Firebase領域に保存します。第三者が読み取れる可能性があります。カード・戦況・勝敗だけを保存し、個人名等は含めません。OFFにしても送信済みのログは消えません。</small></div>');
  panel.insertBefore(controls,$("netStatus"));
  const endTools=document.createElement("div");
  endTools.style.cssText="margin-top:7px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap";
@@ -202,6 +226,25 @@ function init(){
   }else{soloConsent=false;withdraw();}
  });
  document.body.appendChild(live);
+ $("researchArchiveConsent").addEventListener("change",async e=>{
+  const value=!!e.target.checked;
+  try{
+   const accepted=await window.ShokokuNet?.setArchiveConsent?.(value);
+   if(!accepted){
+    e.target.checked=!value;
+    syncOnline();
+   }else{
+    // Keep the player's click until the authoritative Firebase listener
+    // updates ownArchiveConsent. Resyncing immediately with the OLD cached
+    // value can undo a successful opt-in on school iPad / WebKit.
+    e.target.checked=value;
+   }
+  }catch(_){
+   e.target.checked=!value;
+   status("ルーム保存の同意を更新できませんでした");
+   syncOnline();
+  }
+ });
  $("researchConsent").addEventListener("change",async e=>{
   const value=!!e.target.checked;
   if(inRoom){

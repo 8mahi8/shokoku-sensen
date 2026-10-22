@@ -62,13 +62,14 @@ class Ref{
   await this.set(value);return {committed:true}
  }
  push(value){const ref=this.child("cmd"+(++pushId));return ref.set(value)}
- onDisconnect(){return {update:async()=>{},cancel:async()=>{}}}
+ onDisconnect(){return {update:async()=>{},remove:async()=>{},cancel:async()=>{}}}
 }
 const database=()=>({ref:path=>new Ref(path)});
 database.ServerValue={TIMESTAMP:Date.now()};
 const firebase={apps:[],initializeApp(o){this.apps.push(o)},database};
 function client(){
  const dom=new Map(),callbacks={};
+ let pauseRaf=false;const delayedRaf=[];
  const get=id=>{
   if(!dom.has(id)){
    const el={textContent:"",value:"",disabled:false,hidden:false,
@@ -87,7 +88,7 @@ function client(){
    const path=new URL(url).pathname.replace(/^\//,"").replace(/\.json$/,"");
    return {ok:true,status:200,json:async()=>read(path)};
   },
-  requestAnimationFrame:fn=>queueMicrotask(()=>fn(performance.now()))};
+  requestAnimationFrame:fn=>pauseRaf?delayedRaf.push(fn):queueMicrotask(()=>fn(performance.now())),setInterval,clearInterval};
  vm.runInNewContext(source,context,{filename:"online-net.js"});
  callbacks.DOMContentLoaded();
  const api=context.window.ShokokuNet;
@@ -101,7 +102,9 @@ function client(){
   resetForLobby(){this.resets++}
  };
  api.registerGame(game);
- return {api,game,get,click:async id=>{const el=get(id);assert.ok(el.onclick,"no click listener "+id);return el.onclick()}};
+ return {api,game,get,pauseFrames:value=>{pauseRaf=value;
+  if(!value)for(const fn of delayedRaf.splice(0))queueMicrotask(()=>fn(performance.now()));
+ },click:async id=>{const el=get(id);assert.ok(el.onclick,"no click listener "+id);return el.onclick()}};
 }
 const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
 (async()=>{
@@ -125,6 +128,21 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  guest.api.sendCommand({id:"infantry",x:1060,y:320});await settle();
  assert.equal(host.game.accepted.length,1);
  assert.ok(guest.game.received.at(-1).data.units.length===1,"guest should see summons");
+ // A failed JSON snapshot must not leave the host publisher permanently busy.
+ // The next valid frame can always be transmitted after an invalid transient field.
+ const beforeSerializationFailure=guest.game.received.at(-1).seq;
+ host.game.data.temporaryUnsupported=BigInt(123);
+ host.api.maybePublish(true);await settle();
+ assert.equal(guest.game.received.at(-1).seq,beforeSerializationFailure,
+  "invalid snapshot must never partially upload");
+ delete host.game.data.temporaryUnsupported;
+ host.game.data.elapsed=4.1234567;
+ host.api.maybePublish(true);await settle();
+ assert.ok(guest.game.received.at(-1).seq>beforeSerializationFailure,
+  "host publisher must recover after JSON encoding failure");
+ assert.equal(guest.game.received.at(-1).data.elapsed,4.123,
+  "guest receives quantized timing without changing host's exact time");
+ assert.equal(host.game.data.elapsed,4.1234567,"host physics remains unquantized");
  host.api.finish({result:"win",reason:"test winner"});await settle();
  assert.equal(guest.api.resultForMe(),"lose");
  assert.equal(guest.game.results,1);
@@ -150,6 +168,16 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  assert.equal(guest.game.received.at(-1).data.elapsed,17);
  // A stalled Firebase listener with fresh server state must recover via a
  // bounded one-shot read while the Canvas/game loop continues independently.
+ // A delayed iframe rAF must not strand already received snapshots forever.
+ const beforeRafStall=guest.game.received.at(-1).seq;
+ guest.pauseFrames(true);
+ host.game.data.elapsed=19;
+ host.api.maybePublish(true);await settle();
+ assert.equal(guest.game.received.at(-1).seq,beforeRafStall,"pending until callback or timeout");
+ await new Promise(resolve=>setTimeout(resolve,720));await settle();
+ assert.ok(guest.game.received.at(-1).seq>beforeRafStall,"fallback applies latest world");
+ assert.equal(guest.game.received.at(-1).data.elapsed,19,"fallback reads newest state");
+ guest.pauseFrames(false);await settle();
  const beforeListenerPause=guest.game.received.at(-1).seq;
  holdStateListener=true;
  virtualNow+=5000;
@@ -196,6 +224,43 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  assert.equal(guest.get("netRoom").textContent,"-----","a stalled cleanup must not freeze new game");
  assert.equal(guest.get("netCreate").disabled,false,"room picker remains interactive during stalled cleanup");
  assert.equal(refreshCount,0,"no iframe navigation even on stalled Firebase");
+ // Host alone can add an AI-controlled red guest into the real room.
+ heldExitWrite=false;
+ const botHost=client();await settle();
+ await botHost.click("netCreate");await settle();
+ const botCode=botHost.get("netRoom").textContent;
+ assert.equal(botHost.get("netHostBot").hidden,false,"host sees add BOT button");
+ await botHost.click("netHostBot");await settle();
+ const botSeat=read("shokokuRooms1v1/"+botCode+"/players/guest");
+ assert.equal(botSeat.localBot,true);assert.equal(botSeat.ready,true);
+ assert.equal(botHost.api.hostBot,true);assert.equal(botHost.api.botActive,true);
+ await botHost.click("netReady");await settle();
+ assert.equal(botHost.get("netStart").disabled,false);
+ await botHost.click("netStart");await settle();
+ assert.equal(botHost.game.starts,1,"single-device online BOT match starts");
+ botHost.api.finish({result:"win",reason:"BOT test"});await settle();
+ await botHost.api.rematch();await settle();
+ assert.equal(read("shokokuRooms1v1/"+botCode+"/players/guest/ready"),true,"BOT auto-ready on rematch");
+ await botHost.click("netHostBot");await settle();
+ assert.equal(read("shokokuRooms1v1/"+botCode+"/players/guest").online,false,"BOT can be removed");
+ assert.equal(botHost.api.hostBot,false);
+ // The released BOT seat must be claimable by a genuine friend.
+ const laterFriend=client();await settle();
+ laterFriend.get("netJoinCode").value=botCode;
+ await laterFriend.click("netJoin");await settle();
+ assert.equal(laterFriend.api.team,2,"human guest can reclaim released BOT seat");
+ assert.equal(botHost.get("netHostBot").hidden,true,"BOT add cannot evict real guest");
+ await laterFriend.api.resetLobby();await settle();
+ await botHost.click("netHostBot");await settle();
+ botHost.api.resetLobby();await settle();
+ assert.equal(read("shokokuRooms1v1/"+botCode+"/players/guest").online,false,"BOT cleaned on host leave");
+ assert.equal(read("shokokuRooms1v1/"+botCode+"/players/host").online,false,"host seat cleaned on exit");
+ assert.equal(read("shokokuRooms1v1/"+botCode+"/players/guest").ready,false,"BOT no longer ready after exit");
+ // No match archiving, research consent or extra Firebase writes in simple 1v1.
+ assert.equal(host.api.archiveRound,undefined,"host cannot upload match research");
+ assert.equal(guest.api.archiveRound,undefined,"guest cannot upload match research");
+ assert.equal(host.api.setResearchConsent,undefined);
+ assert.equal(guest.api.setArchiveConsent,undefined);
  assert.ok(writes.every(p=>p.startsWith("shokokuRooms1v1/")),"must never write BRAWL rooms");
  console.log("PASS: 1v1, new-round sequence rollover, non-blocking new game, no iframe reload, stuck publisher and listener recovery");
 })().catch(e=>{console.error(e);process.exitCode=1});

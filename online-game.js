@@ -49,6 +49,21 @@ const CLASSES={
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
  tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,note:"大型・長射程・対空対応の範囲重砲・対城200%"},
 };
+// School-friendly Google Sites HTML: optional, single visible HP / base damage
+// table at the VERY TOP of the pasted document. Only host applies combat
+// values; the same page should be opened by both players for consistent labels.
+// Without this table (regular online.html), all original values remain.
+const schoolStats=window.SHOKOKU_UNIT_STATS;
+if(schoolStats&&typeof schoolStats==="object"){
+ for(const id of Object.keys(CLASSES)){
+  const edit=Object.prototype.hasOwnProperty.call(schoolStats,id)?schoolStats[id]:null;
+  if(!edit||typeof edit!=="object")continue;
+  // Reject malformed numbers rather than corrupting combat state.
+  if(Number.isSafeInteger(edit.hp)&&edit.hp>=1&&edit.hp<=99999)CLASSES[id].hp=edit.hp;
+  if(Number.isSafeInteger(edit.damage)&&edit.damage>=0&&edit.damage<=99999)
+   CLASSES[id].damage=edit.damage;
+ }
+}
 const IDS=Object.keys(CLASSES);
 const SPELLS={
  barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
@@ -111,6 +126,7 @@ function resetWorld(){
   S.queue[team]=deck.slice(HAND_SIZE);
  }
  S.remoteSprites=null;
+ S.remoteVisualReceivedAt=0;
  S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP},
              {team:2,x:1206,y:328,hp:START_HP,max:START_HP}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
@@ -180,8 +196,7 @@ function begin(){
  $("fieldHint").textContent="開戦準備：資源8で初期配置を決めよう。キャラは動かない。";
  // No opening BOT spawns: both players decide their own preparation.
  buildCards();updateHUD();
- if(NET.isHost)window.ShokokuResearch?.begin?.(NET.isSolo?"solo":"online",{...S,difficulty:S.difficulty,
-  guestControl:NET.researchGuestControl});
+
 }
 function castSpell(team,id,x,y){
  if(!isSpell(id)||!canPay(team,id)||!validTarget(team,id,x,y))return false;
@@ -200,10 +215,7 @@ function playCard(team,id,x,y){
   NET.sendCommand({id,x,y});
   return true;
  }
- const researchBefore=window.ShokokuResearch?.active?{energy:S.energy[team],hand:S.hand[team].slice()}:null;
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
- if(ok&&researchBefore)window.ShokokuResearch?.action?.({t:S.elapsed,phase:S.phase,team,card:id,x,y,
-  energyBefore:researchBefore.energy,ownHand:researchBefore.hand});
  // Track only observable, legal card spending, never the hidden opponent hand.
  if(ok)S.observedEnergy[team]=Math.max(0,S.observedEnergy[team]-CATALOG[id].cost);
  if(ok&&duelStats){
@@ -1839,7 +1851,7 @@ function botStep(dt){
 }
 function end(result,reason){
  if(S.phase==="result")return;
- if(NET.isHost){window.ShokokuResearch?.finish?.(S);NET.finish({result,reason});}
+ if(NET.isHost)NET.finish({result,reason});
  S.phase="result";
  const titles={win:"勝利！",lose:"敗北",draw:"引き分け"};
  $("dialogTitle").textContent=titles[result]||"対戦終了";
@@ -1865,10 +1877,7 @@ function tick(dt){
   S.observedEnergy[team]=Math.min(ENERGY_CAP,S.observedEnergy[team]+gain);
  }
  unitStep(dt);spellStep(dt);
- if(window.ShokokuResearch?.active){
-  if(!NET.isSolo)window.ShokokuResearch?.observeGuestControl?.(NET.researchGuestControl,S.elapsed);
-  window.ShokokuResearch?.sample?.(S);
- }
+
  for(const fallen of S.deaths)fallen.t-=dt;
  S.deaths=S.deaths.filter(fallen=>fallen.t>0);
  for(const fx of S.effects)fx.t-=dt;
@@ -1877,7 +1886,7 @@ function tick(dt){
  S.projectiles=S.projectiles.filter(f=>f.t>0);
  if(S.effects.length>140)S.effects.splice(0,S.effects.length-140);
  if(S.projectiles.length>110)S.projectiles.splice(0,S.projectiles.length-110);
- if(NET.isSolo&&S.phase==="battle")botStep(dt);
+ if((NET.isSolo||NET.hostBot)&&S.phase==="battle")botStep(dt);
  if(S.phase==="battle"&&S.seconds<=0)finishTime();
 }
 // The tactical world remains 1280 x 660, so unit travel time and attack ranges
@@ -2046,6 +2055,15 @@ function drawFort(f){
  ctx.fillText(f.owner===0?"中立基地":f.owner===1?"自軍基地":"敵軍基地",0,48);
  ctx.restore();
 }
+// Guest receives projectile/effect lifetimes only at network snapshot intervals.
+// Advance their *visual* time between packets, exactly as the host's 30 Hz
+// simulation would; never mutate the authoritative S.effects/projectiles.
+// This affects presentation only, not collisions, damage, timing or Firebase.
+function guestVisualTimeRemaining(snapshotTime,now){
+ if(NET.isHost||!S.remoteVisualReceivedAt)return snapshotTime;
+ const elapsed=Math.max(0,Math.min(.25,(now-S.remoteVisualReceivedAt)/1000));
+ return Math.max(0,snapshotTime-elapsed*S.speed);
+}
 // Both full-art and cached sprites must share the same guest interpolation.
 // Previously the crowded sprite cache painted raw 180ms network positions,
 // making guest troops jump even when the canvas frame rate was high.
@@ -2058,13 +2076,22 @@ function presentRemoteUnit(u){
    const since=Math.max(0,Math.min(.25,(now-v.updatedAt)/1000));
    const age=Math.min(.17,since);
    const alpha=1-Math.exp(-dt*13);
+   const oldX=v.x,oldY=v.y;
    v.x+=(v.targetX+v.vx*age-v.x)*alpha;
    v.y+=(v.targetY+v.vy*age-v.y)*alpha;
-   // Network snapshots update at ~5.6Hz. Advance transient artwork
-   // phases locally between snapshots, without changing hitboxes or AI.
-   const walking=!!u.walking,walkingSpeed=Math.hypot(v.vx,v.vy);
+   // Keep the gait phase on the visual sprite rather than recomputing it
+   // from each ~125ms network packet. That recalculation caused a visible
+   // footstep reset even when interpolated positions were smooth.
+   if(!Number.isFinite(v.visualWalkPhase))
+    v.visualWalkPhase=Number.isFinite(u.walkPhase)?u.walkPhase:0;
+   if(u.walking){
+    const visualDistance=Math.hypot(v.x-oldX,v.y-oldY);
+    v.visualWalkPhase+=Math.min(16,visualDistance)*.31;
+   }
+   // Only presentation changes: server position, attacks, collision and
+   // serialized snapshots remain authoritative and untouched.
    u={...u,x:v.x,y:v.y,
-    walkPhase:walking?(u.walkPhase||0)+since*walkingSpeed*.31:u.walkPhase,
+    walkPhase:v.visualWalkPhase,
     attackAnim:Math.max(0,(u.attackAnim||0)-since),
     flash:Math.max(0,(u.flash||0)-since)};
   }
@@ -2116,19 +2143,25 @@ function drawUnit(u){
  }
  if(isAir){ctx.strokeStyle="#d6eae560";ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(u.x,u.y-bob+5);ctx.lineTo(u.x,u.y);ctx.stroke();ctx.setLineDash([]);}
 }
-function drawSpellFields(){
+function drawSpellFields(now){
  for(const zone of S.spells.zones){
+  // Ward is visually counted down between 125-180ms Firebase packets.
+  const remainingTime=guestVisualTimeRemaining(zone.time,now);
+  if(remainingTime<=0)continue;
   ctx.save();
   ctx.fillStyle=zone.team===1?"#73ddff1b":"#ff91b81c";
   ctx.strokeStyle=zone.team===1?"#92e9ffaf":"#f8b2c0af";
   ctx.lineWidth=3;ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r,0,Math.PI*2);ctx.fill();ctx.stroke();
   ctx.strokeStyle="#e9fdff5a";ctx.setLineDash([8,11]);ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r*.82,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.fillStyle="#f0fdff";
-  ctx.fillText("防護結界 "+Math.ceil(zone.time)+"秒",zone.x,zone.y-zone.r-13);
+  ctx.fillText("防護結界 "+Math.ceil(remainingTime)+"秒",zone.x,zone.y-zone.r-13);
   ctx.restore();
  }
  for(const shot of S.spells.incoming){
-  const remaining=Math.max(0,shot.time/shot.total);
+  // Smooth only the displayed barrage warning; actual impact remains host-only.
+  const remainingTime=guestVisualTimeRemaining(shot.time,now);
+  if(remainingTime<=0)continue;
+  const remaining=Math.max(0,Math.min(1,remainingTime/shot.total));
   ctx.save();
   ctx.strokeStyle=shot.team===1?"#ffd184":"#ff8197";ctx.fillStyle=shot.team===1?"#ffbc6426":"#ff71882b";
   ctx.lineWidth=4;ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r,0,Math.PI*2);ctx.fill();ctx.stroke();
@@ -2272,29 +2305,34 @@ function draw(){
  ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,v.w,v.h);
  ctx.fillStyle="#0d2426";ctx.fillRect(0,0,v.w,v.h);
  ctx.save();ctx.translate(v.ox,v.oy);ctx.scale(v.s,v.s);
- terrain();drawSpellFields();
+ terrain();drawSpellFields(now);
  // Walls occupy the full vertical edge; render behind units regardless of center Y.
  for(const c of S.capitals)if(visible(WALL_FACE[c.team],H/2,115,H/2,H/2))drawCapital(c);
  const objects=[];
  for(const p of S.forts)if(visible(p.x,p.y,60,100,55))objects.push({y:p.y+20,draw:()=>drawFort(p)});
  for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>renderCrowdedUnit(u)});
  for(const gone of S.deaths){
-  if(!visible(gone.x,gone.y))continue;
+  // The guest receives death echoes only in occasional state snapshots.
+  // Advance the *artwork* clock locally, never mutating combat/death data.
+  const remaining=guestVisualTimeRemaining(gone.t,now);
+  if(remaining<=0||!visible(gone.x,gone.y))continue;
+  const ratio=Math.max(0,Math.min(1,remaining/gone.maxTime));
   objects.push({y:gone.y,draw:()=>{
    if(window.KokokuArt){
-    window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-gone.t/gone.maxTime},S.clock);
+    window.KokokuArt.drawUnit(ctx,{...gone,deathProgress:1-ratio},S.clock);
    }else{
-    ctx.save();ctx.globalAlpha=.35*(gone.t/gone.maxTime);
+    ctx.save();ctx.globalAlpha=.35*ratio;
     ctx.strokeStyle=TEAM[gone.team];ctx.lineWidth=3;ctx.beginPath();
-    ctx.arc(gone.x,gone.y-15,17*(1.2-gone.t/gone.maxTime),0,Math.PI*2);ctx.stroke();ctx.restore();
+    ctx.arc(gone.x,gone.y-15,17*(1.2-ratio),0,Math.PI*2);ctx.stroke();ctx.restore();
    }
   }});
  }
  objects.sort((a,b)=>a.y-b.y);
  for(const obj of objects)obj.draw();
  for(const e of S.effects){
-  if(!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
-  const f=e.t/e.max;
+  const remaining=guestVisualTimeRemaining(e.t,now);
+  if(remaining<=0||!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
+  const f=remaining/e.max;
   ctx.save();ctx.globalAlpha=Math.min(1,f*1.4);
   const boom=e.type==="barrage"||e.type==="tank"||e.type==="suppress",spell=e.type==="barrage";
   const color=spell?"#ffe2a3":e.type==="archer"?"#d3abff":e.type==="drone"?"#98fff1":TEAM[e.team];
@@ -2310,11 +2348,13 @@ function draw(){
   ctx.restore();
  }
  for(const shot of S.projectiles){
-  const f=1-shot.t/shot.max;
+  const remaining=guestVisualTimeRemaining(shot.t,now);
+  if(remaining<=0)continue;
+  const f=1-remaining/shot.max;
   const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f;
   if(!visible(x,y,35,45,45))continue;
   const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
-  ctx.save();ctx.globalAlpha=Math.min(1,shot.t/.09);
+  ctx.save();ctx.globalAlpha=Math.min(1,remaining/.09);
   ctx.strokeStyle=shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
   ctx.lineWidth=shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
   ctx.shadowColor=ctx.strokeStyle;
@@ -2455,37 +2495,52 @@ function updateFortNavigation(){
  const summary="基地 青"+blue+"・赤"+red;
  if($("fortSummary").textContent!==summary)$("fortSummary").textContent=summary;
 }
+// Avoid invalidating the entire card footer on every HUD refresh when
+// the displayed value has not changed. WebKit can defer this work beyond the
+// JS timer, creating frame gaps in normal 8-20 unit battles. No game rules change.
+function putHudText(id,value){
+ const el=$(id);if(el.textContent!==value)el.textContent=value;
+}
+function putHudHtml(id,value){
+ const el=$(id);if(el.innerHTML!==value)el.innerHTML=value;
+}
+function putHudWidth(el,value){
+ if(el.style.width!==value)el.style.width=value;
+}
+function putHudFlag(el,name,value){
+ if(el.classList.contains(name)!==value)el.classList.toggle(name,value);
+}
 function updateHUD(){
  if(!S.capitals.length)return;
  updateFortNavigation();
- $("clock").textContent=S.phase==="prep"?numTime(S.prep):numTime(S.seconds);
- $("phaseLabel").textContent=S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊";
- $("blueText").textContent=Math.ceil(capital(1).hp)+" / "+START_HP;
- $("redText").textContent=Math.ceil(capital(2).hp)+" / "+START_HP;
- $("blueBar").style.width=100*capital(1).hp/START_HP+"%";
- $("redBar").style.width=100*capital(2).hp/START_HP+"%";
+ putHudText("clock",S.phase==="prep"?numTime(S.prep):numTime(S.seconds));
+ putHudText("phaseLabel",S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊");
+ putHudText("blueText",Math.ceil(capital(1).hp)+" / "+START_HP);
+ putHudText("redText",Math.ceil(capital(2).hp)+" / "+START_HP);
+ putHudWidth($("blueBar"),100*capital(1).hp/START_HP+"%");
+ putHudWidth($("redBar"),100*capital(2).hp/START_HP+"%");
  const energy=limit(S.energy[ME()],0,ENERGY_CAP);
- $("resourceNumber").innerHTML=Math.floor(energy)+' <small>/ '+ENERGY_CAP+'</small>';
- const segments=$("resourceRail").children;
- for(let i=0;i<segments.length;i++)segments[i].children[0].style.width=100*limit(energy-i,0,1)+"%";
- $("resourceRail").setAttribute("aria-valuenow",energy.toFixed(2));
+ putHudHtml("resourceNumber",Math.floor(energy)+' <small>/ '+ENERGY_CAP+'</small>');
+ const rail=$("resourceRail"),segments=rail.children;
+ for(let i=0;i<segments.length;i++)putHudWidth(segments[i].children[0],100*limit(energy-i,0,1)+"%");
+ const ariaValue=energy.toFixed(2);
+ if(rail.getAttribute("aria-valuenow")!==ariaValue)rail.setAttribute("aria-valuenow",ariaValue);
  const playing=S.phase==="battle",paused=["paused","gallery","inspect"].includes(S.phase);
  const next=energy>=ENERGY_CAP-1e-6?"MAX":playing?
    "あと "+((Math.floor(energy)+1-energy)/(rate()*S.speed)).toFixed(1)+"秒":paused?"停止中":"開戦後回復";
- $("resourceNext").textContent=next;
- $("rate").textContent=S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒";
- $("prepTime").textContent=numTime(S.prep);
+ putHudText("resourceNext",next);
+ putHudText("rate",S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒");
+ putHudText("prepTime",numTime(S.prep));
  const owners=S.forts.filter(f=>f.owner===ME()).length;
- $("remaining").textContent="前哨基地 "+owners+" / 3";
- $("homeCam").classList.toggle("danger",S.underAttackUntil>S.clock);
+ putHudText("remaining","前哨基地 "+owners+" / 3");
+ putHudFlag($("homeCam"),"danger",S.underAttackUntil>S.clock);
  for(const b of cards.children){
   const id=b.dataset.id;if(!id)continue;
-  const d=CATALOG[id];
   const ready=canPay(ME(),id);
-  b.classList.toggle("unavailable",!ready);
-  b.classList.toggle("ready",ready);
-  b.classList.toggle("depleted",S.left[ME()][id]<=0);
-  b.classList.toggle("selected",S.selected===id);
+  putHudFlag(b,"unavailable",!ready);
+  putHudFlag(b,"ready",ready);
+  putHudFlag(b,"depleted",S.left[ME()][id]<=0);
+  putHudFlag(b,"selected",S.selected===id);
  }
  if(performance.now()>S.noticeUntil)$("announcement").classList.remove("visible");
 }
@@ -2576,12 +2631,23 @@ function samplePerf(now,drawMs){
   isHost?"相手との接続 "+(n.connected?"有効":"切断"):
    "SDK受信 seq "+(n.eventSeq||0)+" / "+(n.eventAgeMs||0)+"ms前",
   isHost?"受信頻度はゲスト側で計測":"REST取得 seq "+(n.restSeq||0)+" / "+(n.restAgeMs||0)+"ms前",
+  isHost?"送信内容 "+(n.snapshotChars||0)+"文字 / 準備 "+(n.encodeMs||0)+"ms / 応答 "+(n.ackMs||0)+"ms":
+   "反映 "+(n.applyMs||0)+"ms / 最新優先 "+(n.coalesced||0)+"件",
+  isHost?"滞留再送 "+(n.retries||0)+"回 / 送信失敗 "+(n.writeFailures||0)+"回":
+   "診断値はこの端末のみ（Firebaseへ送信しません）",
   window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
   n.error?"同期エラー "+String(n.error).slice(0,48):
    "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
  perfPanel.textContent=lines.join("\n");
  perfStart=now;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;
 }
+// Localhost-only diagnostics are visible to the separate __shokokuQa object.
+// Browser-only frame split for localhost ?qa; public play stays uninstrumented.
+ // Frame-gap remainder includes browser scheduling/compositing/other tasks;
+ // it is NOT a direct GPU or Canvas execution-time measurement.
+ const qaFrameBench=(["localhost","127.0.0.1"].includes(location.hostname)&&
+   new URLSearchParams(location.search).has("qa"))
+  ?{samples:[],prevTotalMs:0,skipDrawing:false}:null;
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  NET.registerGame({
@@ -2637,7 +2703,9 @@ function start(){
    S.selected=oldSelected;S.cam=oldCam;
    // Never rewind character animations when a delayed packet arrives.
    S.clock=Math.max(localClock,S.clock);
-   const now=performance.now(),sprites=S.remoteSprites||(S.remoteSprites=new Map());
+   const now=performance.now();
+   S.remoteVisualReceivedAt=now;
+   const sprites=S.remoteSprites||(S.remoteSprites=new Map());
    const seen=new Set();
    for(const u of S.units){
     seen.add(u.uid);
@@ -2711,6 +2779,11 @@ function start(){
  });
  let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
  function frame(now){
+  const qa=qaFrameBench,started=qa?performance.now():0;
+  const datum=qa?{gapMs:Math.max(0,now-previous),phase:S.phase,
+   units:S.units.length,heavy:S.units.filter(u=>u.key==="tank"||u.key==="guardian").length,
+   logicMs:0,hudMs:0,networkMs:0,drawMs:0,totalMs:0,
+   gapAfterPrevMs:Math.max(0,now-previous-qa.prevTotalMs)}:null;
   try{
   const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
@@ -2719,7 +2792,7 @@ function start(){
   inspectHold(now);
   if(NET.isHost&&S.phase==="prep"){
    S.prep=Math.max(0,S.prep-delta);
-   if(NET.isSolo)botPreparation();
+   if(NET.isSolo||NET.hostBot)botPreparation();
    if(S.prep<=0){
     S.phase="battle";S.botThink=4;
     $("prepBanner").classList.remove("visible");
@@ -2734,17 +2807,27 @@ function start(){
    }
    if(iter===5)acc=0;
   }else acc=0;
+  if(qa)datum.logicMs=performance.now()-started;
   if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle")){
    if(S.phase==="prep")botPreparation();
    else botStep(delta*S.speed);
   }
+  const hudStart=qa?performance.now():0;
   S.hudTick+=delta;
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
+  if(qa)datum.hudMs=performance.now()-hudStart;
+  const networkStart=qa?performance.now():0;
   if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
+  if(qa)datum.networkMs=performance.now()-networkStart;
   if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
+  // Exclusive localhost QA control: when true, simulation, controls and
+  // matchmaking continue while Canvas drawing is skipped. Never exposed
+  // on Google Sites origins or regular game URLs.
+  if(qa?.skipDrawing)return;
   guestLastPaint=now;
-  const paintStart=perfPanel?performance.now():0;
+  const paintStart=(perfPanel||qa)?performance.now():0;
   draw();
+  if(qa)datum.drawMs=performance.now()-paintStart;
   if(perfPanel)samplePerf(now,performance.now()-paintStart);
   }catch(error){
    // The interaction layer may remain alive after a Canvas exception.
@@ -2754,7 +2837,15 @@ function start(){
     lastFrameErrorAt=now;
     console.warn("Online frame recovered after exception:",error);
    }
-  }finally{requestAnimationFrame(frame)}
+  }finally{
+   if(qa){
+    datum.totalMs=performance.now()-started;
+    qa.prevTotalMs=datum.totalMs;
+    if(qa.samples.length>=1000)qa.samples.shift();
+    qa.samples.push(datum);
+   }
+   requestAnimationFrame(frame);
+  }
  }
  requestAnimationFrame(frame);
 }
@@ -2762,6 +2853,9 @@ function start(){
 // Test-only readback. Enabled only on loopback via ?qa=1.
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuQa={
+ resetFrameBench:()=>{if(qaFrameBench){qaFrameBench.samples=[];qaFrameBench.prevTotalMs=0;}},
+ setDrawDisabledForQa:disabled=>{if(qaFrameBench)qaFrameBench.skipDrawing=!!disabled;},
+ frameBench:()=>qaFrameBench?qaFrameBench.samples.map(x=>({...x})):[],
  // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
  fireStress:(team=1,x=640,y=330)=>{
   if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team))return false;
@@ -3596,6 +3690,82 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   }
   updateFortNavigation();return true;
  },
+ // Realistic mid-match QA: units are placed using the *real* playable card
+ // deployment/spell functions, with each side starting from 12 energy or less.
+ // No fabricated units, damaged HP, edited combat behavior, or extra assets.
+ // Enabled only on loopback ?qa=1; a live CI host may send the result to its
+ // temporary Firebase room so a WebKit guest can be visually inspected too.
+ seedRealisticBattle:(scenario="heavy")=>{
+  if(!NET.isHost||!["standard","light","heavy","spell","crowded","dense"].includes(scenario))return null;
+  const setups={
+   standard:[
+    [[1,"infantry",641,405],[1,"scout",658,448],[1,"archer",629,475],[1,"infantry",651,455]],
+    [[2,"infantry",837,415],[2,"engineer",851,452],[2,"archer",863,479],[2,"infantry",850,435]]
+   ],
+   // Exactly ten ordinary units at the SAME summon positions as the two-heavy
+   // scene. Compare like-for-like counts when isolating expensive tank/golem art.
+   light:[
+    [[1,"infantry",668,428],[1,"scout",655,465],[1,"archer",635,388]],
+    [[2,"infantry",831,430],[2,"engineer",846,463],[2,"archer",860,386]]
+   ],
+   heavy:[
+    [[1,"tank",668,428],[1,"infantry",655,465],[1,"archer",635,388]],
+    [[2,"guardian",831,430],[2,"infantry",846,463],[2,"archer",860,386]]
+   ],
+   // Eighteen legal units (9 per team): 3 infantry cards, 1 archer
+   // card and 1 scout card cost 11 energy on each side. No artificial
+   // 130-unit crowd and no bypass of regular card or deployment rules.
+   crowded:[
+    [[1,"infantry",650,396],[1,"infantry",667,451],[1,"scout",648,491],
+     [1,"infantry",677,380],[1,"archer",634,470]],
+    [[2,"infantry",844,397],[2,"infantry",828,449],[2,"scout",858,486],
+     [2,"infantry",829,381],[2,"archer",865,466]]
+   ],
+   // Twenty legal units (10 per team): four infantry cards and one
+   // archer card consume 10 energy, staying within the 12-cost limit.
+   dense:[
+    [[1,"infantry",644,398],[1,"infantry",671,440],[1,"infantry",649,477],
+     [1,"infantry",679,385],[1,"archer",633,470]],
+    [[2,"infantry",845,400],[2,"infantry",821,445],[2,"infantry",850,482],
+     [2,"infantry",827,383],[2,"archer",864,470]]
+   ],
+   spell:[
+    [[1,"suppress",668,429],[1,"archer",647,475],[1,"barrage",830,435]],
+    [[2,"drone",831,405],[2,"infantry",844,440],[2,"sentinel",849,468]]
+   ]
+  };
+  const plans=setups[scenario],summary={scenario,actions:[],byTeam:[0,0,0]};
+  resetWorld();S.phase="battle";S.prep=0;S.elapsed=100;S.seconds=MATCH-100;
+  S.clock=100;S.speed=1;S.botThink=99999;S.botPrepDone=true;
+  // A credible mid-match frontline after left/middle and right forts were held.
+  S.forts.forEach((f,i)=>{f.owner=[1,1,2][i];f.hp=POST_HP;});
+  S.energy=[0,12,12];S.observedEnergy=[0,12,12];
+  for(const team of [1,2]){
+   const actions=plans[team-1],cards=[...new Set(actions.map(a=>a[1]).filter(id=>id!=="infantry"))];
+   S.hand[team]=cards;S.queue[team]=DECK_IDS.filter(id=>!cards.includes(id));
+   for(const [side,id,x,y] of actions){
+    const before=S.energy[side],ok=playCard(side,id,x,y);
+    summary.actions.push({team:side,id,ok,energyBefore:before,energyAfter:S.energy[side]});
+    if(!ok)throw Error("Realistic QA scene cannot legally play "+side+":"+id+" at "+x+","+y+" energy="+before+" border="+border(side));
+   }
+  }
+  summary.units=S.units.length;summary.byTeam[1]=S.units.filter(u=>u.team===1).length;
+  summary.byTeam[2]=S.units.filter(u=>u.team===2).length;
+  summary.heavy=S.units.filter(u=>u.key==="tank"||u.key==="guardian").map(u=>u.key);
+  summary.spells=S.spells.incoming.length+S.spells.zones.length;
+  summary.totalSpent=summary.actions.reduce((s,a)=>s+a.energyBefore-a.energyAfter,0);
+  // Keep both teams and contested fort in view on 1194px tablet and Sites embed.
+  S.cam={x:744,y:423,tx:744,ty:423,moving:false};clampCamera();
+  $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
+  buildCards();updateHUD();
+  if(!NET.isSolo)NET.maybePublish(true);
+  return summary;
+ },
+ realisticBattleStatus:()=>({phase:S.phase,elapsed:S.elapsed,
+  units:S.units.length,heavies:S.units.filter(u=>u.key==="tank"||u.key==="guardian").map(u=>u.key),
+  projectiles:S.projectiles.length,effects:S.effects.length,
+  spells:S.spells.incoming.length+S.spells.zones.length,
+  cachedTiles:denseSpriteCache.size,frameError:window.__onlineFrameError||null}),
  seedMassBattle:()=>{
   if(!NET.isSolo)return false;
   resetWorld();S.phase="battle";S.prep=0;S.elapsed=120;S.seconds=180;S.botThink=999;

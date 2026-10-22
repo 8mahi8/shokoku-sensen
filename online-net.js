@@ -10,23 +10,32 @@ const $=id=>document.getElementById(id);
 const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)crypto.getRandomValues(a);else throw Error("安全な乱数が使えません");return Array.from(a,x=>x.toString(36)).join("-");};
 const clientId=token(), ROOM_VERSION=2;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
-let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
-let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false;
+let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null,botDisconnectOp=null,guestSyncHeartbeat=null;
+let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false,hostBotSwitchPending=false;
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
 let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
+// Local diagnostics only; never add them to Firebase or anonymous match logs.
+let lastPayloadChars=0,lastEncodeMs=0,lastAckMs=0,lastApplyMs=0;
+let coalescedPackets=0,publishRetries=0,publishFailures=0;
 let qaMuteSdkSnapshots=false;
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
 // snapshots together. Apply only the newest on the next visible frame.
-let pendingRemote=null,remoteScheduled=false,remoteEpoch=0;
+let pendingRemote=null,remoteScheduled=false,remoteEpoch=0,remoteApplyFallback=null;
+const hostBotSeat=()=>host&&players?.guest?.online===true&&players.guest.localBot===true&&players.guest.id==="bot:"+clientId;
+function cancelRemoteFallback(){if(remoteApplyFallback!==null){clearTimeout(remoteApplyFallback);remoteApplyFallback=null;}}
+function stopGuestHeartbeat(){
+ if(guestSyncHeartbeat!==null){clearInterval(guestSyncHeartbeat);guestSyncHeartbeat=null;}
+}
 let publishing=false,publishPending=false,networkEpoch=0,publishStartedAt=0,publishRetryAt=0,publishRetryCount=0,publishSerial=0;
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
 function updateUI(){
- const inRoom=!!room,guest=!!players?.guest,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ const inRoom=!!room,guest=!!players?.guest?.online,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ const ownBot=hostBotSeat();
  const seat=host?"host":"guest",other=host?"guest":"host";
  const seatValid=!inRoom||players?.[seat]?.id===clientId,peerOnline=!!players?.[other]?.online;
  $("netRoom").textContent=inRoom?roomCode:"-----";
@@ -39,6 +48,9 @@ function updateUI(){
  $("netStart").hidden=!host;
  $("netStart").disabled=!host||!ready||!peerOnline||!seatValid||meta?.status!=="lobby"||!connected;
  $("netShare").disabled=!inRoom;
+ $("netHostBot").hidden=!(inRoom&&host&&meta?.status==="lobby"&&(!players?.guest?.online||ownBot));
+ $("netHostBot").disabled=!connected||hostBotSwitchPending;
+ $("netHostBot").textContent=ownBot?"🤖 BOTを退出させる":"🤖 BOTを参加させる";
   const guestControl=inRoom&&!host&&seatValid;
   $("netGuestBot").hidden=!guestControl;
   $("netGuestBot").disabled=!guestControl||!connected||guestBotSwitchPending;
@@ -56,10 +68,6 @@ function updateUI(){
   $("networkBar").classList.remove("hidden");
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
  }
- window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
-  ownConsent:!!players?.[host?"host":"guest"]?.researchConsent,
-  bothConsent:!!room&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent,
-  playing:meta?.status==="playing"});
 }
 function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
 function detach(){
@@ -94,23 +102,45 @@ async function registerPresence(){
   if(room&&room!==current&&connected)registerPresence().catch(setError);
  }
 }
+// Quantize only the transport copy. Host physics and card legality retain all
+// original floating-point precision; 0.001 world unit is visually subpixel.
+function packGuestWorld(source){
+ const json=JSON.stringify(source,(_key,value)=>{
+  if(value===Infinity)return 1000000000; // unlimited infantry capacity
+  if(typeof value!=="number"||!Number.isFinite(value)||Number.isInteger(value))return value;
+  return Math.round(value*1000)/1000;
+ });
+ return {world:JSON.parse(json),chars:json.length};
+}
+function worldSizePreview(){
+ const original=game?.world?.();
+ if(!original)return null;
+ const raw=JSON.stringify(original,(_key,value)=>value===Infinity?1000000000:value);
+ const packed=packGuestWorld(original);
+ return {unitCount:original.units?.length||0,rawChars:raw.length,
+  packedChars:packed.chars,reductionPct:Math.round(1000*(1-packed.chars/raw.length))/10};
+}
 function receiveGuestWorld(packet){
  if(packet?.round===meta?.round&&Number.isInteger(packet.seq)){
   lastStateEventAt=performance.now();lastStateEventSeq=Math.max(lastStateEventSeq,packet.seq);
  }
  if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||
   !packet.world||packet.seq<=Math.max(lastRemoteSeq,pendingRemote?.seq||0))return;
+ if(pendingRemote)coalescedPackets++;
  pendingRemote=packet;
  if(remoteScheduled)return;
  remoteScheduled=true;const epoch=remoteEpoch;
- requestAnimationFrame(()=>{
-  remoteScheduled=false;
+ // iPad iframe can delay rAF after Firebase snapshots have already arrived.
+ const flush=()=>{
+  cancelRemoteFallback();remoteScheduled=false;
   if(epoch!==remoteEpoch||host||!room)return;
   const latest=pendingRemote;pendingRemote=null;
   if(!latest||latest.round!==meta?.round)return;
   try{
+   const applyStart=performance.now();
    game?.apply(latest.world,latest.seq);
    const appliedAt=performance.now();
+   lastApplyMs=appliedAt-applyStart;
    if(lastRemoteAppliedAt>0){
     appliedGaps.push(Math.max(0,appliedAt-lastRemoteAppliedAt));
     if(appliedGaps.length>32)appliedGaps.shift();
@@ -119,7 +149,11 @@ function receiveGuestWorld(packet){
    lastApplyError="";
    if(syncWarning){syncWarning=false;updateUI();}
   }catch(e){lastApplyError=String(e?.message||e);setError(e)}
- });
+ };
+ remoteApplyFallback=setTimeout(()=>{
+  if(epoch===remoteEpoch&&remoteScheduled&&!document.hidden)flush();
+ },650);
+ requestAnimationFrame(flush);
 }
 // rAF can keep painting an old world even when Firebase snapshots stop arriving.
 // An occasional one-shot read gives the guest a second way to receive the latest
@@ -178,12 +212,19 @@ function syncDiagnostics(){
   eventAgeMs:Math.round(lastStateEventAt?now-lastStateEventAt:0),
   restAgeMs:Math.round(lastRestReadAt?now-lastRestReadAt:0),
   publishAgeMs:Math.round(lastHostPublishAt?now-lastHostPublishAt:0),
-  syncing:restReadPending,error:lastApplyError};
+  syncing:restReadPending,error:lastApplyError,
+  // Character count is not billed bytes: TLS and RTDB framing are excluded.
+  snapshotChars:lastPayloadChars,encodeMs:Math.round(lastEncodeMs*10)/10,
+  ackMs:Math.round(lastAckMs),applyMs:Math.round(lastApplyMs*10)/10,
+  coalesced:coalescedPackets,retries:publishRetries,writeFailures:publishFailures};
 }
 function setupRoom(code,isHost){
+ stopGuestHeartbeat();
  solo=false;guestBot=false;
+ lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  appliedGaps=[];appliedPackets=0;
  lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;restReadPending=false;lastHostPublishAt=0;lastHostPublishSeq=0;lastApplyError="";
+ cancelRemoteFallback();
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
@@ -204,12 +245,13 @@ function setupRoom(code,isHost){
   const newRound=Number(priorRound)>0&&Number(meta?.round)>Number(priorRound);
   if(newRound||(meta?.status==="lobby"&&before==="finished")){
    phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
+   cancelRemoteFallback();
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
-   if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
    game?.resetForLobby?.();
    onlinePanel(meta?.status!=="playing");$("networkBar").classList.add("hidden");
    if(meta?.status!=="playing")show("再戦の準備をしてください。2人とも準備完了で開始できます");
@@ -247,6 +289,10 @@ function setupRoom(code,isHost){
    try{await snap.ref.remove()}catch(e){setError(e)}
   });
  }else{
+  // Check liveness outside the painting loop, which Safari can throttle.
+  // Normal frames still perform the faster existing 120ms check.
+  guestSyncHeartbeat=setInterval(()=>{if(!document.hidden)checkGuestSync();},1500);
+  guestSyncHeartbeat?.unref?.(); // Node-only: don't hold simulated CI process open.
   attach(room.child("state"),"value",snap=>{
    if(room!==openedRoom)return;
    if(!qaMuteSdkSnapshots)receiveGuestWorld(snap.val());
@@ -268,7 +314,7 @@ async function create(){
    const now=Date.now()+serverOffset;
    const proposed={
     meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
-    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true}}
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now}}
    };
    const result=await ref.transaction(old=>{
     if(old===null)return proposed;
@@ -290,7 +336,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -299,6 +345,32 @@ async function join(){
   }
   setupRoom(code,false);
  }catch(e){setError(e)}
+}
+async function toggleHostBot(){
+ if(!host||!room||meta?.status!=="lobby"||!connected||hostBotSwitchPending)return;
+ hostBotSwitchPending=true;
+ const current=room,botId="bot:"+clientId,remove=hostBotSeat();
+ try{
+  const tx=await current.child("players/guest").transaction(old=>{
+   if(remove)return old?.localBot===true&&old?.id===botId?{...old,online:false,ready:false}:undefined;
+   if(old?.online===true)return;
+   return {id:botId,ready:true,online:true,botControl:true,localBot:true,joinedAt:Date.now()+serverOffset};
+  },undefined,false);
+  if(!tx.committed||room!==current||meta?.status!=="lobby")
+   throw Error("BOTの参加状態が変わりました。ルームを確認してください");
+  if(!remove){
+   game?.setDifficulty?.(soloDifficulty);
+   // If the host tab vanishes, do not leave a fake guest occupying the room.
+   const onLeave=current.child("players/guest").onDisconnect();
+   await onLeave.update({online:false,ready:false});
+   if(current!==room){await onLeave.cancel();return;}
+   botDisconnectOp=onLeave;
+  }else if(botDisconnectOp){
+   const onLeave=botDisconnectOp;botDisconnectOp=null;
+   await onLeave.cancel().catch(e=>console.warn("BOT disconnect cleanup:",e));
+  }
+  show(remove?"BOTが退出しました。友達が参加できます":"BOTが赤軍として参加しました。準備完了を押して開始できます");
+ }catch(e){setError(e)}finally{hostBotSwitchPending=false;updateUI();}
 }
 async function toggleGuestBot(){
  if(solo||!room||host||players?.guest?.id!==clientId||!connected||guestBotSwitchPending)return;
@@ -344,15 +416,7 @@ async function startMatch(){
   if(!result.committed)throw Error("開始状態が変わりました");
  }catch(e){setError(e)}
 }
-async function setResearchConsent(value){
- if(solo||!room||!players)return false;
- const seat=host?"host":"guest";
- if(players[seat]?.id!==clientId||(value&&meta?.status!=="lobby"))return false;
- const changed=await room.child("players/"+seat).transaction(old=>
-  old?.id===clientId?{...old,researchConsent:!!value}:undefined,undefined,false);
- if(!changed.committed)throw Error("参加情報が変更されました");
- return true;
-}
+
 function sendCommand(c){
  if(host||!room||phase!=="playing")return;
  if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
@@ -370,14 +434,26 @@ function maybePublish(force=false){
   if(now-publishStartedAt<2800||(publishRetryAt&&
     now-publishRetryAt<(publishRetryCount>=8?18000:4800)))return;
   // At 8 retries switch to a slower watch, not a permanent deadlock.
-  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);
+  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);publishRetries++;
  }else if(!force&&now-lastSend<(game.world()?.units?.length>=50?180:125))return;
  lastSend=now;publishing=true;publishStartedAt=now;
  const current=room,epoch=networkEpoch,serial=++publishSerial;
- const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ let packed;
+ try{
+  const encodeStart=performance.now();
+  packed=packGuestWorld(game.world());
+  lastEncodeMs=performance.now()-encodeStart;
+  lastPayloadChars=packed.chars;
+ }catch(e){
+  // A serialization failure must never freeze the sole snapshot publisher.
+  publishing=false;setError(e);return;
+ }
  lastHostPublishAt=performance.now();lastHostPublishSeq=seq+1;
- current.child("state").set({seq:++seq,round:meta?.round||1,world,at:Date.now()+serverOffset})
-  .catch(setError).finally(()=>{
+ const sentAt=performance.now();
+ current.child("state").set({seq:++seq,round:meta?.round||1,world:packed.world,at:Date.now()+serverOffset})
+  .then(()=>{if(epoch===networkEpoch&&current===room&&serial===publishSerial)
+   lastAckMs=performance.now()-sentAt;})
+  .catch(e=>{publishFailures++;setError(e)}).finally(()=>{
    if(epoch!==networkEpoch||current!==room||serial!==publishSerial)return;
    publishing=false;publishRetryCount=0;
    if(publishPending){publishPending=false;maybePublish(true)}
@@ -388,7 +464,7 @@ function finish(data){
  if(!host||!room||phase!=="playing")return;
  phase="finished";
  // Force publish the final world before closing, so the guest sees the last HP.
- const world=JSON.parse(JSON.stringify(game.world(),(k,v)=>v===Infinity?1000000000:v));
+ const world=packGuestWorld(game.world()).world;
  const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
  room.update({
   state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
@@ -406,46 +482,56 @@ async function rematch(){
   $("start").disabled=true;
   await room.update({
    "meta/status":"lobby","meta/startedAt":null,"meta/round":(meta.round||1)+1,
-   "players/host/ready":false,"players/guest/ready":false,
+   "players/host/ready":false,"players/guest/ready":hostBotSeat(),
    state:null,result:null,commands:null,feedback:null
   });
  }catch(e){setError(e)}finally{$("start").disabled=false;}
 }
 function resetLobby(){
  const leaving=room,seat=host?"host":"guest",leavingDisconnect=disconnectOp;
+ const leavingBot=hostBotSeat(),leavingBotId="bot:"+clientId;
+ const leavingPlayers=players;
+ const leavingBotOp=botDisconnectOp;botDisconnectOp=null;
  // Return to the room picker immediately. Never block Safari/Sites navigation
  // on a Firebase read/write; onDisconnect remains a fallback for stale presence.
- room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;
+ room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;hostBotSwitchPending=false;
+ cancelRemoteFallback();stopGuestHeartbeat();
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;
  restReadPending=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  detach();roomCode="";team=0;host=false;players=null;meta=null;result=null;
  seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+ lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  window.__onlineSeq=0;window.__onlineHandSig="";
  document.body.classList.remove("soloMode");
  $("networkBar").classList.add("hidden");
- if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
  game?.resetForLobby?.();
  onlinePanel(true);updateUI();
  show("新しいルームを作成するか、5桁の番号で参加してください");
- if(leaving&&connected){
-  // Only change our own seat; a new visitor could have claimed a stale seat.
-  leaving.child("players/"+seat).transaction(old=>
-   old?.id===clientId?{...old,online:false,ready:false}:undefined,
-   undefined,false).then(()=>{
-    // Remove the OLD disconnect hook only after the explicit leave is settled.
-    // Otherwise it could mark a replacement guest offline later.
-    leavingDisconnect?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
-   }).catch(e=>console.warn("Room exit cleanup:",e));
+ if(leaving&&connected&&leavingPlayers?.[seat]?.id===clientId){
+  // Leave the registered seats with one atomic RTDB write, not transaction()
+  // against a room whose Firebase listeners were just removed. A transaction
+  // can abort locally when the old room's SDK cache is no longer hydrated.
+  // Never await here: the room picker must remain usable during network stalls.
+  const patch={
+   ["players/"+seat+"/online"]:false,
+   ["players/"+seat+"/ready"]:false
+  };
+  if(seat==="host"&&leavingBot&&
+     leavingPlayers?.guest?.id===leavingBotId&&leavingPlayers.guest.localBot===true){
+   patch["players/guest/online"]=false;
+   patch["players/guest/ready"]=false;
+  }
+  leaving.update(patch).then(()=>{
+   leavingDisconnect?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
+   if(leavingBot)leavingBotOp?.cancel?.().catch(e=>console.warn("Old BOT disconnect hook:",e));
+  }).catch(e=>console.warn("Room exit cleanup:",e));
  }
 }
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
-  get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
-  get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
-  get researchGuestControl(){return players?.guest?.botControl===true?"bot":players?.guest?.botControl===false?"human":"unknown"},
-  setResearchConsent,
+  get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},get soloDifficulty(){return soloDifficulty},
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
@@ -454,11 +540,12 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  window.__shokokuNetQa={
   muteSdkSnapshots:flag=>{qaMuteSdkSnapshots=!!flag;},
   triggerRecovery:()=>{lastRemoteAppliedAt=performance.now()-6500;lastSyncReadAt=0;checkGuestSync();},
-  stats:syncDiagnostics
+  stats:syncDiagnostics,packGuestWorld,worldSizePreview
  };
 }
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
+ $("netHostBot").addEventListener("click",toggleHostBot);
   $("netSolo").addEventListener("click",startSolo);
   document.querySelectorAll("[data-solo-level]").forEach(button=>button.addEventListener("click",()=>{
     if(room||solo)return;

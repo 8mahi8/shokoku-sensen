@@ -1,0 +1,14 @@
+{
+  "_instructions": "EXAMPLE FRAGMENT ONLY. DO NOT deploy as the complete project's RTDB rules. Merge carefully after backing up existing rules. Parent .read/.write grants override these child restrictions.",
+  "rules": {
+    "shokokuResearchV1": {
+      ".read": false,
+      ".write": false,
+      ".indexOn": ["expiresAt"]
+    },
+    "shokokuResearchRateV1": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
