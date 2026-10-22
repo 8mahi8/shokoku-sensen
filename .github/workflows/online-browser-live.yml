@@ -16,9 +16,18 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        video: ['yes', 'no']
+        include:
+          - video: 'yes'
+            matched: 'no'
+          - video: 'no'
+            matched: 'no'
+          # Roles are compared with identical WebKit engines, viewport,
+          # touch input and the exact same pasteable iPad HTML.
+          - video: 'no'
+            matched: 'yes'
     env:
       SHOKOKU_QA_RECORD_VIDEO: ${{ matrix.video }}
+      SHOKOKU_QA_MATCHED_WEBKIT: ${{ matrix.matched }}
     timeout-minutes: 12
     permissions:
       contents: read
@@ -33,6 +42,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: online-real-firebase-guest-video-${{ matrix.video }}
+          name: online-real-firebase-guest-video-${{ matrix.video }}-webkit-host-${{ matrix.matched }}
           path: qa-online-guest-visual/
           retention-days: 14

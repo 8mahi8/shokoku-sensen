@@ -1,4 +1,5 @@
-// Live Chromium host + WebKit iPad guest end-to-end test. Runs in GitHub Actions only.
+// Live Firebase two-browser test. Cross-engine (Chromium host / WebKit guest) or
+// matched WebKit host / WebKit guest. Runs in GitHub Actions only.
 // Creates one disposable room in shokokuRooms1v1, then deletes it after both tabs close.
 // A separate WebKit guest must paint and receive real Firebase battle snapshots.
 // Does NOT access or transmit research data.
@@ -7,8 +8,13 @@ const {chromium,webkit}=require("playwright"),fs=require("node:fs"),http=require
 const assert=require("node:assert/strict");
 const root=process.cwd(),urlDB="https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1";
 const qaRecordVideo=process.env.SHOKOKU_QA_RECORD_VIDEO!=="no";
+const qaMatchedWebkit=process.env.SHOKOKU_QA_MATCHED_WEBKIT==="yes";
 const qaVideoDir=path.join(root,"qa-online-guest-visual");fs.mkdirSync(qaVideoDir,{recursive:true});
-console.log("LIVE GUEST VIDEO MODE",qaRecordVideo?"recorded":"not-recorded");
+console.log("LIVE GUEST TEST MODE",JSON.stringify({
+ host:qaMatchedWebkit?"WebKit":"Chromium",guest:"WebKit",
+ hostPage:qaMatchedWebkit?"online-ipad.html":"online.html",
+ recordVideo:qaRecordVideo
+}));
 const mime={".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8"};
 const server=http.createServer((req,res)=>{
  const file=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
@@ -26,9 +32,13 @@ const deadline=async (f,label,timeout=18000)=>{
  let browser,guestBrowser,hostCtx,guestCtx,code="",pages=[];
  try{
   await new Promise(r=>server.listen(8765,"127.0.0.1",r));
-  browser=await chromium.launch({headless:true,args:["--no-sandbox"]});
+  browser=qaMatchedWebkit?await webkit.launch({headless:true}):
+   await chromium.launch({headless:true,args:["--no-sandbox"]});
   guestBrowser=await webkit.launch({headless:true});
-  hostCtx=await browser.newContext({viewport:{width:1194,height:834}});
+  hostCtx=await browser.newContext({
+   viewport:{width:1194,height:834},
+   ...(qaMatchedWebkit?{deviceScaleFactor:2,hasTouch:true}:{})
+  });
   guestCtx=await guestBrowser.newContext({
    viewport:{width:1194,height:834},deviceScaleFactor:2,hasTouch:true,
    ...(qaRecordVideo?{recordVideo:{dir:qaVideoDir,size:{width:1194,height:834}}}:{})
@@ -53,7 +63,10 @@ const deadline=async (f,label,timeout=18000)=>{
   }));
   console.log("IDLE WEBKIT RAF BASELINE",JSON.stringify({recordVideo:qaRecordVideo,...idleReference}));
   for(const [name,p] of [["host",host],["guest",guest]])p.on("pageerror",err=>errors.push(name+": "+err.message));
-  await Promise.all([host.goto("http://127.0.0.1:8765/online.html?qa=1&perf=1"),guest.goto("http://127.0.0.1:8765/online-ipad.html?qa=1&perf=1")]);
+  await Promise.all([
+   host.goto("http://127.0.0.1:8765/"+(qaMatchedWebkit?"online-ipad.html":"online.html")+"?qa=1&perf=1"),
+   guest.goto("http://127.0.0.1:8765/online-ipad.html?qa=1&perf=1")
+  ]);
   for(const p of pages)await deadline(async()=>((await p.locator("#netStatus").innerText()).includes("接続OK")), "Firebase connection",30000);
   await host.locator("#netCreate").click();
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
@@ -382,7 +395,7 @@ const deadline=async (f,label,timeout=18000)=>{
    assert.equal(hostLater.phase,"battle","Chromium host must remain in battle during "+scenario);
    console.log("REAL FIREBASE HOST GUEST PAIR",JSON.stringify({
     scenario,recordVideo:qaRecordVideo,
-    host:{browser:"Chromium",role:"host",units:hostLater.count,frames:hostLater.frameSamples,
+    host:{browser:qaMatchedWebkit?"WebKit":"Chromium",role:"host",units:hostLater.count,frames:hostLater.frameSamples,
      durationMs:hostLater.elapsedMs,fps:hostLater.observedFps,
      gapP50Ms:hostLater.gapP50Ms,gapP95Ms:hostLater.gapP95Ms,
      drawP95Ms:hostLater.drawP95Ms,totalP95Ms:hostLater.totalP95Ms},
@@ -390,7 +403,8 @@ const deadline=async (f,label,timeout=18000)=>{
      durationMs:later.elapsedMs,fps:later.observedFps,
      gapP50Ms:later.gapP50Ms,gapP95Ms:later.gapP95Ms,
      drawP95Ms:later.drawP95Ms,totalP95Ms:later.totalP95Ms},
-    caveat:"browser engine and network role differ; not physical iPad Safari"
+    caveat:qaMatchedWebkit?"same engine, same viewport, same HTML; not physical iPad Safari":
+     "browser engine and network role differ; not physical iPad Safari"
    }));
    await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-after-1100ms.png"),
     fullPage:false});
@@ -520,7 +534,8 @@ const deadline=async (f,label,timeout=18000)=>{
   assert.equal(guest.url(),originalUrl,"new game must not reload the iframe");
   assert.equal(await guest.evaluate(()=>window.__onlineSeq),0,"old round cursor resets");
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
-  console.log("PASS: Chromium host + WebKit iPad inline guest, no research logging, live guest recovery, realistic battle scenes and non-blocking new game in room "+code);
+  console.log("PASS: "+(qaMatchedWebkit?"WebKit host + WebKit guest":"Chromium host + WebKit guest")+
+   " real Firebase 1v1, no research logging, recovery, rematches and new room "+code);
  }finally{
   for(const p of pages){try{await p.close()}catch{}}
   if(hostCtx)try{await hostCtx.close()}catch{}
