@@ -2,14 +2,13 @@
 "use strict";
 const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict");
 const read=p=>fs.readFileSync(p,"utf8");
-const net=read("online-net.js"),game=read("online-game.js"),research=read("online-research.js");
-for(const p of ["v3.js","online-net.js","online-research.js","online-game.js","gald-render.js","v3-art.js"]){
+const net=read("online-net.js"),game=read("online-game.js");
+for(const p of ["v3.js","online-net.js","online-game.js","gald-render.js","v3-art.js"]){
  new vm.Script(read(p),{filename:p});
 }
 for(const p of ["online-embed.html","online-ipad.html"]){
  const html=read(p);
  assert.ok(html.includes(net.trim()),"Missing current online-net.js in "+p);
- assert.ok(html.includes(research.trim()),"Missing opt-in research module in "+p);
  assert.ok(html.includes(game.trim()),"Missing current online-game.js in "+p);
  const inline=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]);
  assert.ok(inline.length>=4,p+" inline scripts unexpectedly missing");
@@ -70,35 +69,20 @@ assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
  "Published modular online.html keeps its original balanced defaults");
 
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=9')&&page.includes('./online-research.js?v=2')&&page.includes('./online-game.js?v=13'));
-assert.ok(research.includes('researchConsent')&&research.includes('MAX_MATCHES=8'));
-assert.ok(net.includes("researchRounds/"),"room-scoped research data only");
-assert.ok(research.includes("researchArchiveConsent"),"both peers see archive controls");
-assert.equal((net.match(/researchConsent:true,archiveConsent:true/g)||[]).length,2,
- "host and guest both initialize archive ON in new rooms");
-assert.ok(!net.includes("researchConsent:true,archiveConsent:false"),
- "cloud archive must not silently start OFF for either seat");
-assert.ok(research.includes("研究用ログをルームに保存（初期ON・変更可）"),
- "UI explains current default clearly");
-assert.ok(net.includes("archiveConsent:value?old.archiveConsent===true:false"),
- "overall research opt-out must also disable cloud archive");
-assert.ok(research.includes("Firebaseのルームへの匿名試合ログ保存も初期ONです"),
- "local notice distinguishes recording from consented Firebase archive");
-assert.ok(!research.includes("自動送信もしません"),"no unconditional never-send claim");
-assert.ok(!research.includes("回収は管理者エクスポート"),"phone recovery should not imply admin-only export");
-assert.ok(research.includes("Resyncing immediately with the OLD cached"),
- "archive consent UI must not restore a stale value after successful transaction");
-assert.ok(!/if\(!accepted\)e\.target\.checked=!value;\s*\}catch[^]*?syncOnline\(\);\s*\}\);/.test(research),
- "archive consent handler must not blindly sync stale state after Firebase acknowledgement");
+assert.ok(page.includes('./online-net.js?v=10')&&page.includes('./online-game.js?v=14'),
+ "online.html must load the current core game and network modules");
+assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
  const html=read(p);
- assert.ok(html.includes("Firebaseのルームへの匿名試合ログ保存も初期ONです"),
-  p+" missing clear consent notice");
- assert.ok(html.includes("スマホから一括回収できます"),
-  p+" missing no-room-number recovery guidance");
+ assert.ok(!html.includes("ShokokuResearch")&&!html.includes("archiveConsent"),
+  p+" must exclude unused battle-data collection");
 }
-assert.ok(!net.includes('db.ref("shokokuResearchV1'),"no separate public research path");
-assert.ok(read("research-recover.html").includes("shokokuRooms1v1"),"phone recovery page exists");
+assert.ok(!net.includes("ShokokuResearch")&&!net.includes("archiveRound"),
+ "network transport must not include research archive hooks");
+assert.ok(!game.includes("ShokokuResearch"),"game loop must not sample research data");
+for(const functionName of ["sendCommand","maybePublish","finish","resultForMe","hasResult","resultReason"])
+ assert.ok(net.includes("function "+functionName+"("),
+  "network code must keep essential game function "+functionName);
 assert.ok(page.includes('id="newRoom"'));
 assert.ok(net.includes('data.round===meta.round'));
 assert.ok(net.includes('packet.round!==meta?.round'));
