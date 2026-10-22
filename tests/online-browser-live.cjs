@@ -435,31 +435,52 @@ const deadline=async (f,label,timeout=18000)=>{
       delete field.dataset.qaBeforeVisibility;
      }
     },hidden);
-    let disabled,canvasHidden,hiddenUi,restored;
+    const setPartHidden=async(id,hidden)=>guest.evaluate(({id,hidden})=>{
+     const element=document.getElementById(id);
+     if(!element)throw Error("QA missing #"+id);
+     if(hidden){
+      element.dataset.qaSavedVisibility=element.style.visibility;
+      element.style.visibility="hidden";
+     }else{
+      element.style.visibility=element.dataset.qaSavedVisibility||"";
+      delete element.dataset.qaSavedVisibility;
+     }
+    },{id,hidden});
+    let disabled,canvasHidden,cardsHidden,bottomHidden,hiddenUi,restored;
     try{
      disabled=await capture(true);
      await setCanvasHidden(true);
      canvasHidden=await capture(true);
+     await setPartHidden("cards",true);
+     cardsHidden=await capture(true);
+     await setPartHidden("cards",false);
+     await setPartHidden("bottom",true);
+     bottomHidden=await capture(true);
+     await setPartHidden("bottom",false);
      await setCanvasHidden(false);
      await setUiHidden(true);
      hiddenUi=await capture(true);
      await setUiHidden(false);
      restored=await capture(false);
     }finally{
+     for(const id of ["cards","bottom"])await setPartHidden(id,false);
      await setCanvasHidden(false);
      await setUiHidden(false);
      await guest.evaluate(()=>window.__shokokuQa.setDrawDisabledForQa(false));
     }
-    assert.ok(disabled.frames>=4&&canvasHidden.frames>=4&&hiddenUi.frames>=4&&restored.frames>=4,
-     "Canvas/compositor/UI isolation controls must sample actual frames");
     for(const [label,stats] of [["Canvas off",disabled],["Canvas hidden",canvasHidden],
-      ["CSS hidden",hiddenUi],["paint restored",restored]])
+      ["cards hidden",cardsHidden],["bottom hidden",bottomHidden],
+      ["all CSS hidden",hiddenUi],["paint restored",restored]]){
+     assert.ok(stats.frames>=4,label+" control must sample actual frames");
      assert.equal(stats.error,null,label+" guest must keep game processing");
-    assert.ok(disabled.seq>0&&canvasHidden.seq>=disabled.seq&&hiddenUi.seq>=canvasHidden.seq
+    }
+    assert.ok(disabled.seq>0&&canvasHidden.seq>=disabled.seq&&cardsHidden.seq>=canvasHidden.seq
+      &&bottomHidden.seq>=cardsHidden.seq&&hiddenUi.seq>=bottomHidden.seq
       &&restored.seq>=hiddenUi.seq,"Firebase guest must continue through all display controls");
     console.log("LIVE GUEST CANVAS AB/A",JSON.stringify({recordVideo:qaRecordVideo,
      paintOnBefore:{frames:later.frameSamples,gapP95Ms:later.gapP95Ms,totalP95Ms:later.totalP95Ms},
      paintOff:disabled,canvasOffElementHidden:canvasHidden,
+     canvasOffCardsHidden:cardsHidden,canvasOffBottomHidden:bottomHidden,
      canvasOffUiHidden:hiddenUi,paintRestored:restored}));
    }
   }
