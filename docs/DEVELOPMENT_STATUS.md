@@ -14,7 +14,9 @@
 - **今回の開発変更**: [fdfab0e](https://github.com/8mahi8/shokoku-sensen/commit/fdfab0ed2e84d78f29401fa8d058000daa6dc575)でスクリーンショットの計測混入を避け、フレーム時間を描画/JS/通信/HUDに分解。[4db4f22](https://github.com/8mahi8/shokoku-sensen/commit/4db4f2219193d23a79969d3904914525ea11a21f)で録画あり/なしのCI対照を追加。**結果待ちを成功扱いしない**。
 - **研究CI整理**: 開発ブランチで期限切れ研究データ削除のスケジュールCIと重複した研究名義の整合性CIを削除（コミット cddbd07 / c458836）。既存Firebaseデータ、過去の研究ソース・回収用ファイルは保持。main上の旧CIも変更していない。
 - **実測追加**: [run #39761588111](https://github.com/8mahi8/shokoku-sensen/actions/runs/39761588111) にて録画あり/なしの両方がSUCCESS。一時ルーム削除は各回確認済み。録画なしのWebKit実Firebaseゲストでもフレーム間隔P95は14体249ms / 18体219ms / 20体185ms（各1.5秒の短期サンプル）。録画ありでは同じ順に461ms / 265ms / 200ms。描画＋ゲーム処理のP95は録画なし各16ms / 22ms / 21ms程度で、rAFフレーム間隔との差が大きい。録画だけで全体を説明できず、ヘッドレスWebKitの描画/コンポジット/スケジューリングか、試験環境の影響を引き続き切り分ける。いずれも物理iPadのFPS値ではない。
-- **次**: [commit 56372d2](https://github.com/8mahi8/shokoku-sensen/commit/56372d2805e8d2300d682a45ea9d8141365957ce) の実Firebase WebKit Canvas描画ON→OFF→ON対照（dense戦）を評価する。記録なしで改善しなかったからといって画質を落とさない。学校iPadで再検証するまでラグ修正完了・公開採用・mainマージとは言わない。
+- **Canvas単独の負荷切り分け**: [run #39762351318](https://github.com/8mahi8/shokoku-sensen/actions/runs/39762351318) SUCCESS（録画あり/なし両方、Firebase一時ルームの削除も確認）。同じ20体の実Firebaseゲスト戦で描画ON→OFF→ONのフレーム間隔P95は、録画あり284→206→183ms、録画なし286→212→180ms。Canvas OFFでJavaScriptフレーム実行が約0～3msに減ってもrAF自体には大きな停止が残る。前後の戦況と温まり方に差があるため、差分をCanvas負荷の純粋な効果とは断定しない。
+- **最新のテスト追加**: [commit a4d561d](https://github.com/8mahi8/shokoku-sensen/commit/a4d561d5aefbae93e6265241b340ec227299f9ec) はWebKitでゲームHTML/Firebaseを開く前に1800msの空白ページrAFベースラインを記録する。これがヘッドレスCI環境自体の制約かゲーム表示固有かを判断するための対照。対応CI [run #39763207726](https://github.com/8mahi8/shokoku-sensen/actions/runs/39763207726) の**結果が確定するまで断定しない**。
+- **次**: 空白WebKitの測定と実戦Canvas ON/OFFを比較して、実験環境とゲーム固有のスケジューリング/DOM合成要因を切り分ける。学校iPadで再検証するまでラグ修正完了・公開採用・mainマージとは言わない。
 
 ## 2026-10-22 方針転換｜軽量1vs1＋強い練習BOT（現行優先ロードマップ）
 
