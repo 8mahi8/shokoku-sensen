@@ -5,8 +5,6 @@ on:
       - 'online*'
       - 'tests/online-smoke.cjs'
       - 'tests/online-sim.cjs'
-      - 'research-recover.html'
-      - 'tests/research-recover.cjs'
       - '.github/workflows/online-smoke.yml'
   workflow_dispatch:
 jobs:
@@ -21,7 +19,12 @@ jobs:
           node-version: '22'
       - run: node tests/online-smoke.cjs
       - run: node tests/online-sim.cjs
-      - run: node tests/research-recover.cjs
+      - name: Verify no automatic match collection in school build
+        run: |
+          ! grep -q 'ShokokuResearch' online-ipad.html
+          ! grep -q 'archiveConsent' online-ipad.html
+          grep -q 'function maybePublish' online-net.js
+          grep -q 'function sendCommand' online-net.js
       - name: Firebase public read probe (does not modify data)
         shell: bash
         run: |
@@ -38,11 +41,9 @@ jobs:
       - name: Prepare Google Sites paste file
         run: |
           cp online-ipad.html Shokoku_III_1v1_school_iPad.txt
-          cp research-recover.html Shokoku_III_Research_Recovery.html
       - uses: actions/upload-artifact@v4
         with:
           name: Shokoku-III-1v1-iPad
           path: |
             Shokoku_III_1v1_school_iPad.txt
-            Shokoku_III_Research_Recovery.html
           retention-days: 30
