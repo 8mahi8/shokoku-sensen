@@ -254,6 +254,8 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await botHost.click("netHostBot");await settle();
  botHost.api.resetLobby();await settle();
  assert.equal(read("shokokuRooms1v1/"+botCode+"/players/guest").online,false,"BOT cleaned on host leave");
+ assert.equal(read("shokokuRooms1v1/"+botCode+"/players/host").online,false,"host seat cleaned on exit");
+ assert.equal(read("shokokuRooms1v1/"+botCode+"/players/guest").ready,false,"BOT no longer ready after exit");
  // No match archiving, research consent or extra Firebase writes in simple 1v1.
  assert.equal(host.api.archiveRound,undefined,"host cannot upload match research");
  assert.equal(guest.api.archiveRound,undefined,"guest cannot upload match research");

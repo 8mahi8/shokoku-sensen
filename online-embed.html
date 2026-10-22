@@ -838,6 +838,7 @@ async function rematch(){
 function resetLobby(){
  const leaving=room,seat=host?"host":"guest",leavingDisconnect=disconnectOp;
  const leavingBot=hostBotSeat(),leavingBotId="bot:"+clientId;
+ const leavingPlayers=players;
  const leavingBotOp=botDisconnectOp;botDisconnectOp=null;
  // Return to the room picker immediately. Never block Safari/Sites navigation
  // on a Firebase read/write; onDisconnect remains a fallback for stale presence.
@@ -855,24 +856,24 @@ function resetLobby(){
  game?.resetForLobby?.();
  onlinePanel(true);updateUI();
  show("新しいルームを作成するか、5桁の番号で参加してください");
- if(leaving&&connected){
-  // A transaction begun only AFTER removing all room listeners can see an
-  // empty local RTDB cache and abort without writing. Read the seat from the
-  // old room first, then conditionally mark it offline. No await here: iPad
-  // Sites returns to the room picker immediately even if the network hangs.
-  const releaseSeat=(name,expectedId,botOnly,onLeave)=>{
-   const ref=leaving.child("players/"+name);
-   ref.once("value").then(snapshot=>{
-    const seen=snapshot.val();
-    if(seen?.id!==expectedId||(botOnly&&seen.localBot!==true))return null;
-    return ref.transaction(old=>old?.id===expectedId&&(!botOnly||old.localBot===true)
-     ?{...old,online:false,ready:false}:undefined,undefined,false);
-   }).then(tx=>{
-    if(tx?.committed)onLeave?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
-   }).catch(e=>console.warn("Room exit cleanup:",e));
+ if(leaving&&connected&&leavingPlayers?.[seat]?.id===clientId){
+  // Leave the registered seats with one atomic RTDB write, not transaction()
+  // against a room whose Firebase listeners were just removed. A transaction
+  // can abort locally when the old room's SDK cache is no longer hydrated.
+  // Never await here: the room picker must remain usable during network stalls.
+  const patch={
+   ["players/"+seat+"/online"]:false,
+   ["players/"+seat+"/ready"]:false
   };
-  if(seat==="host")releaseSeat("guest",leavingBotId,true,leavingBotOp);
-  releaseSeat(seat,clientId,false,leavingDisconnect);
+  if(seat==="host"&&leavingBot&&
+     leavingPlayers?.guest?.id===leavingBotId&&leavingPlayers.guest.localBot===true){
+   patch["players/guest/online"]=false;
+   patch["players/guest/ready"]=false;
+  }
+  leaving.update(patch).then(()=>{
+   leavingDisconnect?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
+   if(leavingBot)leavingBotOp?.cancel?.().catch(e=>console.warn("Old BOT disconnect hook:",e));
+  }).catch(e=>console.warn("Room exit cleanup:",e));
  }
 }
 const api={
