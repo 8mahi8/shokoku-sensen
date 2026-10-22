@@ -59,12 +59,6 @@ function updateUI(){
   $("networkBar").classList.remove("hidden");
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 試合終了";
  }
- window.ShokokuResearch?.syncOnline?.({inRoom:!!room,
-  ownArchiveConsent:players?.[host?"host":"guest"]?.archiveConsent===true,
-  bothArchiveConsent:!!room&&players?.host?.archiveConsent===true&&players?.guest?.archiveConsent===true,
-  ownConsent:!!players?.[host?"host":"guest"]?.researchConsent,
-  bothConsent:!!room&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent,
-  playing:meta?.status==="playing"});
 }
 function attach(ref,event,fn){ref.on(event,fn,setError);watchers.push([ref,event,fn]);}
 function detach(){
@@ -241,7 +235,6 @@ function setupRoom(code,isHost){
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
-   if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
    game?.resetForLobby?.();
    onlinePanel(meta?.status!=="playing");$("networkBar").classList.add("hidden");
    if(meta?.status!=="playing")show("再戦の準備をしてください。2人とも準備完了で開始できます");
@@ -300,7 +293,7 @@ async function create(){
    const now=Date.now()+serverOffset;
    const proposed={
     meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
-    players:{host:{id:clientId,ready:false,online:true,joinedAt:now,researchConsent:true,archiveConsent:true}}
+    players:{host:{id:clientId,ready:false,online:true,joinedAt:now}}
    };
    const result=await ref.transaction(old=>{
     if(old===null)return proposed;
@@ -322,7 +315,7 @@ async function join(){
   if(!status||status.status!=="lobby"||status.version!==ROOM_VERSION||!(status.round>=1)||!owner?.online||Date.now()+serverOffset-(status.createdAt||0)>24*60*60*1000)
    throw Error("参加できるルームが見つかりません（ホストが接続中か確認してください）");
   const now=Date.now()+serverOffset;
-  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false,researchConsent:true,archiveConsent:true}:undefined,undefined,false);
+  const p=await ref.child("players/guest").transaction(old=>(old===null||old.online===false)?{id:clientId,ready:false,online:true,joinedAt:now,botControl:false}:undefined,undefined,false);
   if(!p.committed)throw Error("そのルームにはすでに2人います");
   const latest=(await ref.child("meta").once("value")).val();
   if(latest?.status!=="lobby"){
@@ -376,118 +369,7 @@ async function startMatch(){
   if(!result.committed)throw Error("開始状態が変わりました");
  }catch(e){setError(e)}
 }
-async function setResearchConsent(value){
- if(solo||!room||!players)return false;
- const seat=host?"host":"guest";
- if(players[seat]?.id!==clientId||(value&&meta?.status!=="lobby"))return false;
- const changed=await room.child("players/"+seat).transaction(old=>
-  old?.id===clientId?{...old,researchConsent:!!value,
-   // Opting out of local research also opts out of cloud archiving.
-   // Re-enabling local research never silently restores cloud opt-in.
-   archiveConsent:value?old.archiveConsent===true:false}:undefined,undefined,false);
- if(!changed.committed)throw Error("参加情報が変更されました");
- return true;
-}
-// Lightweight optional archive: one sanitized observation per completed round
-// inside the EXISTING RTDB room. No new service, collection or auth provider.
-async function setArchiveConsent(value){
- if(solo||!room||!players||!connected)return false;
- const seat=host?"host":"guest";
- if(players[seat]?.id!==clientId||
-    (value&&(meta?.status!=="lobby"||players[seat]?.researchConsent!==true)))return false;
- const result=await room.child("players/"+seat).transaction(old=>
-  old?.id===clientId?{...old,archiveConsent:!!value}:undefined,undefined,false);
- return !!result.committed;
-}
-async function archiveRound(match){
- if(solo||!host||!connected||!room||phase!=="finished"||
-    !match||match.schema!==1||match.mode!=="online")return {saved:false,reason:"not-eligible"};
- const current=room,round=meta?.round;
- if(!Number.isSafeInteger(round)||round<1||round>24)return {saved:false,reason:"round-cap"};
- // Only these fields are copied. No room number, client ID or participant name.
- const cleaned={schema:1,mode:"online",matchType:match.matchType,
-  guestControlHistory:Array.isArray(match.guestControlHistory)?
-   match.guestControlHistory.slice(0,32).map(v=>({t:v.t,guest:v.guest})):[],
-  controlOverflow:!!match.controlOverflow,overflow:!!match.overflow,
-  actions:Array.isArray(match.actions)?match.actions.slice(0,500).map(a=>({
-   t:a.t,phase:a.phase,team:a.team,card:a.card,x:a.x,y:a.y,
-   energyBefore:a.energyBefore,ownHand:Array.isArray(a.ownHand)?a.ownHand.slice(0,4):[]})):[],
-  samples:Array.isArray(match.samples)?match.samples.slice(0,80).map(v=>({
-   t:v.t,energy:v.energy,castles:v.castles,forts:v.forts,units:v.units})):[],
-  result:match.result?{winner:match.result.winner,duration:match.result.duration,
-   castleHp:match.result.castleHp,fortOwners:match.result.fortOwners}:null};
- if(!cleaned.result||JSON.stringify(cleaned).length>60000)
-  return {saved:false,reason:"too-large"};
- const people=(await current.child("players").once("value")).val();
- if(room!==current||!connected||meta?.round!==round||
-  !people?.host?.archiveConsent||!people?.guest?.archiveConsent||
-  !people?.host?.researchConsent||!people?.guest?.researchConsent||
-  people.host.id!==clientId)return {saved:false,reason:"no-consent"};
- // Existing room access rules apply: if permissions disallow this child,
- // local match saving continues and the error is shown without affecting play.
- const result=await current.child("researchRounds/"+round).transaction(old=>
-  old===null?{schema:1,createdAt:Date.now()+serverOffset,match:cleaned}:undefined,
-  undefined,false);
- return {saved:!!result.committed,reason:result.committed?null:"already-saved"};
-}
-function sendCommand(c){
- if(host||!room||phase!=="playing")return;
- if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
- const seq=++commandSeq;
- room.child("commands").push({by:clientId,seq,round:meta?.round||1,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(setError);
-}
-function maybePublish(force=false){
- if(!host||!room||phase!=="playing"||!game||!connected)return;
- const now=performance.now();
- if(publishing){
-  if(force)publishPending=true;
-  // A Firebase set() promise can remain unresolved during network stalls,
-  // while the guest keeps rendering a frozen snapshot. Retry at a bounded
-  // pace rather than permanently locking the one-snapshot publisher.
-  if(now-publishStartedAt<2800||(publishRetryAt&&
-    now-publishRetryAt<(publishRetryCount>=8?18000:4800)))return;
-  // At 8 retries switch to a slower watch, not a permanent deadlock.
-  publishRetryAt=now;publishRetryCount=Math.min(8,publishRetryCount+1);publishRetries++;
- }else if(!force&&now-lastSend<(game.world()?.units?.length>=50?180:125))return;
- lastSend=now;publishing=true;publishStartedAt=now;
- const current=room,epoch=networkEpoch,serial=++publishSerial;
- let packed;
- try{
-  const encodeStart=performance.now();
-  packed=packGuestWorld(game.world());
-  lastEncodeMs=performance.now()-encodeStart;
-  lastPayloadChars=packed.chars;
- }catch(e){
-  // A serialization failure must never freeze the sole snapshot publisher.
-  publishing=false;setError(e);return;
- }
- lastHostPublishAt=performance.now();lastHostPublishSeq=seq+1;
- const sentAt=performance.now();
- current.child("state").set({seq:++seq,round:meta?.round||1,world:packed.world,at:Date.now()+serverOffset})
-  .then(()=>{if(epoch===networkEpoch&&current===room&&serial===publishSerial)
-   lastAckMs=performance.now()-sentAt;})
-  .catch(e=>{publishFailures++;setError(e)}).finally(()=>{
-   if(epoch!==networkEpoch||current!==room||serial!==publishSerial)return;
-   publishing=false;publishRetryCount=0;
-   if(publishPending){publishPending=false;maybePublish(true)}
-  });
-}
-function finish(data){
- if(solo)return;
- if(!host||!room||phase!=="playing")return;
- phase="finished";
- // Force publish the final world before closing, so the guest sees the last HP.
- const world=packGuestWorld(game.world()).world;
- const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
- room.update({
-  state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
-  result:{winner,reason:data.reason,at},
-  "meta/status":"finished"
- }).catch(setError);
-}
-function resultForMe(){return !result||result.winner===0?"draw":result.winner===team?"win":"lose"}
-function hasResult(){return !!result}
-function resultReason(){return result?.reason||"対戦終了"}
+
 async function rematch(){
  if(solo){game?.begin();return;}
  if(!host||!room||meta?.status!=="finished"||!connected)return;
@@ -514,7 +396,6 @@ function resetLobby(){
  window.__onlineSeq=0;window.__onlineHandSig="";
  document.body.classList.remove("soloMode");
  $("networkBar").classList.add("hidden");
- if(window.ShokokuResearch?.active)window.ShokokuResearch.withdraw();
  game?.resetForLobby?.();
  onlinePanel(true);updateUI();
  show("新しいルームを作成するか、5桁の番号で参加してください");
@@ -533,9 +414,6 @@ const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
   get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
-  get researchAllowed(){return !solo&&host&&!!players?.host?.researchConsent&&!!players?.guest?.researchConsent},
-  get researchGuestControl(){return players?.guest?.botControl===true?"bot":players?.guest?.botControl===false?"human":"unknown"},
-  setResearchConsent,setArchiveConsent,archiveRound,
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
