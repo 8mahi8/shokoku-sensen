@@ -64,10 +64,17 @@ const median=xs=>xs.slice().sort((a,b)=>a-b)[Math.floor(xs.length/2)]||0;
   // browser-startup and cached-font timing biases.
   const combinations=[];
   for(const count of [10,20,50])for(const [name] of versions)combinations.push({name,count});
-  const plan=[...combinations,...combinations.slice().reverse()];
+  // A second matched control isolates packet-apply frequency. Legacy V17 and
+  // newer revisions all receive the SAME 125ms synthetic stream, so the
+  // change in version and the change in frequency are independent factors.
+  const frequencyCases=[];
+  for(const count of [10,20])for(const name of ["V17-known-good","V21-guest-tune","PR22-candidate"])
+    frequencyCases.push({name,count,interval:125});
+  const allCases=[...combinations.map(o=>({...o,interval:180})),...frequencyCases];
+  const plan=[...allCases,...allCases.slice().reverse()];
   const out=[];
   for(let i=0;i<plan.length;i++){
-   const {name,count}=plan[i];
+   const {name,count,interval}=plan[i];
    const page=await ctx.newPage(),errors=[];
    page.on("pageerror",err=>errors.push(err.message));
    await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
@@ -85,9 +92,9 @@ const median=xs=>xs.slice().sort((a,b)=>a-b)[Math.floor(xs.length/2)]||0;
       return window.__qaBecomeGuest(count);
     },count);
     assert.equal(setup.units,count);
-    const result=await page.evaluate(async()=>{
+    const result=await page.evaluate(async interval=>{
       let seq=1,observed=0,failed=null;
-      const pump=setInterval(()=>{try{window.__qaSyncGuest(++seq);observed++}catch(e){failed=String(e.message)}},180);
+      const pump=setInterval(()=>{try{window.__qaSyncGuest(++seq);observed++}catch(e){failed=String(e.message)}},interval);
       await new Promise(ok=>setTimeout(ok,400));
       const begin=performance.now(),gaps=[];
       await new Promise(ok=>{
@@ -104,21 +111,30 @@ const median=xs=>xs.slice().sort((a,b)=>a-b)[Math.floor(xs.length/2)]||0;
         p95FrameMs:Number((s[Math.floor(s.length*.95)]||0).toFixed(1)),
         frames:gaps.length,applied:observed,seq,
         lastError:failed,frameError:window.__onlineFrameError||null};
-    });
+    },interval);
     assert.ok(result.fps>0&&result.applied>=8&&!result.lastError&&!result.frameError,
      "guest replay execution failed: "+JSON.stringify({name,count,result}));
     assert.equal(errors.length,0,name+" JS errors: "+errors.join("|"));
-    const item={name,count,pass:i>=combinations.length?2:1,...setup,...result};
+    const item={name,count,interval,pass:i>=allCases.length?2:1,...setup,...result};
     out.push(item);
     console.log("GUEST-HISTORY-AB",JSON.stringify(item));
    }finally{await page.close();}
   }
   console.log("GUEST-HISTORY-SUMMARY",JSON.stringify(
    versions.map(([name])=>({name,byScene:[10,20,50].map(count=>{
-    const rows=out.filter(o=>o.name===name&&o.count===count);
+    const rows=out.filter(o=>o.name===name&&o.count===count&&o.interval===180);
     return {count,medianFps:median(rows.map(o=>o.fps)),
       runs:rows.map(o=>o.fps),frameP95s:rows.map(o=>o.p95FrameMs)};
    })}))
+  ));
+  console.log("GUEST-FREQUENCY-SUMMARY",JSON.stringify(
+   ["V17-known-good","V21-guest-tune","PR22-candidate"].map(name=>({name,
+     byCount:[10,20].map(count=>({count,
+       rates:[125,180].map(interval=>{
+         const rows=out.filter(o=>o.name===name&&o.count===count&&o.interval===interval);
+         return {interval,meanFps:Number((rows.reduce((a,b)=>a+b.fps,0)/rows.length).toFixed(2)),
+           frameP95s:rows.map(o=>o.p95FrameMs),runs:rows.map(o=>o.fps),applied:rows.map(o=>o.applied)};
+       })}))}))
   ));
   await ctx.close();
  }finally{
