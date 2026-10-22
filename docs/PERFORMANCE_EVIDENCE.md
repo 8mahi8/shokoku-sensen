@@ -92,6 +92,16 @@
 - **検証**: [Online 1v1 smoke #39781367035](https://github.com/8mahi8/shokoku-sensen/actions/runs/39781367035) SUCCESS。単体貼付けHTMLと分割JSの一致、BOT参加→ready→試合→再戦→BOT退出→ルーム退出、rAFを止めた後の650ms代替適用、前回の通信断/再送/ルーム遷移の模擬回帰を確認。新コードのブラウザ/実Firebase QAは別途確認が必要。
 \n- **追加実Firebase QA結果（暫定）**: ホストがBOT席をFirebaseへ登録し、対戦を開始できるところまで実機代替Webブラウザで確認。[Run #39781858113](https://github.com/8mahi8/shokoku-sensen/actions/runs/39781858113) ではBOT退出後のFirebase座席清掃が不成功で、これを受け上記の通常ゲストと同じオフライン方式と座席事前読み直しを実装した。**再実測合格前に退出問題を修正完了と断定しない**。最新検証 [run #39783856319](https://github.com/8mahi8/shokoku-sensen/actions/runs/39783856319)。\n- **実機受入**: 端末1台の「オンラインルーム+BOT」はメニュー・召喚・戦闘・再戦の検証。**ゲストの固まりを再現/解消した証拠にはならない**。最後にスマホとiPadの2台でホスト/ゲストの役割を交替し、約1試合の途中でゲストが止まらないか確認。安定前にmainや公開Google Sitesへ入れない。
 
+## 2026-10-22 過去コミットとの突合：同系統の退出/ゲスト停止修正は既存
+
+1. [b26668f — 10/13](https://github.com/8mahi8/shokoku-sensen/commit/b26668fa97aee220aace6ab4c3118d470edd9014): **Firebase座席をonline:falseにしてから退出し、onDisconnectは保持**。当時の実装は `await ref.once` + `await ref.update` 後 `location.reload()` だったため、通信待ちが詰まると退出画面も固まる問題が残った。
+2. [0a15669 — 10/18 V17](https://github.com/8mahi8/shokoku-sensen/commit/0a1566921d48c0a7981101b540f360e9fba1671b): ゲスト画面停止の別要因として、RTDBが空配列を省略するために描画スナップショット適用が失敗するケースを修正。配列正規化、rAFループの `try/finally` 継続、REST状態再取得・ホストスナップショット再送回復を導入。**現行の `online-game.js` には配列正規化とfinally再描画が残っている**ため、今回のゲスト停止を即座に同じ原因だと断定しない。
+3. [7db1c98 — 10/20 PR #21](https://github.com/8mahi8/shokoku-sensen/commit/7db1c98cb51d9841f5f43941767c9972cbef932d): 学校の「新しいゲームで固まる」報告に対し、`resetLobby` の退出待ちとiframe再読込をやめ、先にロビーへ戻してから旧席 `transaction` を非同期実行する構成へ移行。ラウンド更新欠落・旧ルームのイベント混入も防止。**当時の検証は主に人間ゲストの退出・再参加とリスナー残存対策で、ホストが新規追加したBOT席を自動解放する実Firebase試験は存在しない**。
+4. **今回の再発パターン**: BOT用の退出処理を、10/20型の旧リスナー解除後 `transaction` で実装してしまった。実Firebaseではホスト本人とBOT双方の `online:true` が残る再現ログがあり、何度か小変更しても改善しなかった。[run #39783152328](https://github.com/8mahi8/shokoku-sensen/actions/runs/39783152328)。前の10/13の「座席オフライン更新」、10/20の「画面遷移を待たせない」を同時に満たす設計へ戻すべきだった。
+5. [81d2998 — 10/22](https://github.com/8mahi8/shokoku-sensen/commit/81d299836e50a6657c999f53749e48dba5938743): **保持した席ID/プレイヤー情報を確認し、旧ルームへ `update` 1回で host+BOT を同時に online:false / ready:false にする**。ロビー復帰は通信完了を待たない。この設計を変更するときは上記履歴を必読。
+6. [実Firebase run #39785173571](https://github.com/8mahi8/shokoku-sensen/actions/runs/39785173571): **録画あり Chromiumホスト+WebKitゲストのjob 119846334570で実Firebase BOT参加→開始→退出がSUCCESS**。退室後 `players/host.online=false` と `players/guest.online=false`（双方ready:false）をHTTP読戻しで確認、一時2ルームの `CLEANUP: confirmed`。他条件のジョブが完了したとは限らず、実iPadでの確認は未実施。成功したのは `81d2998` のゲームコード（後続ドキュメント変更あり）。
+7. 今後は**人間ゲスト退出/再参加とBOT席退出を別々の実Firebase受入ケース**として維持。さらにBOT退出→本物の友人参加、通信不能でもルーム画面遷移即時、ラウンド更新、ゲストRTDB空配列とrAF停止を回帰必須にする。
+
 ## 再発防止の固定ゲート：終了・再戦・ゲスト停止
 
 - 本人が「前も同じことが起きた」と再指摘。**模擬テスト成功だけを根拠に「修正済み」「公開してよい」と書かない**。Firebase接続の実ブラウザ操作が成功し、テスト用ルームと一時データの清掃まで成功した実行IDを明記する。
