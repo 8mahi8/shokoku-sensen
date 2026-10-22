@@ -244,6 +244,13 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  await botHost.click("netHostBot");await settle();
  assert.equal(read("shokokuRooms1v1/"+botCode+"/players/guest").online,false,"BOT can be removed");
  assert.equal(botHost.api.hostBot,false);
+ // The released BOT seat must be claimable by a genuine friend.
+ const laterFriend=client();await settle();
+ laterFriend.get("netJoinCode").value=botCode;
+ await laterFriend.click("netJoin");await settle();
+ assert.equal(laterFriend.api.team,2,"human guest can reclaim released BOT seat");
+ assert.equal(botHost.get("netHostBot").hidden,true,"BOT add cannot evict real guest");
+ await laterFriend.api.resetLobby();await settle();
  await botHost.click("netHostBot");await settle();
  botHost.api.resetLobby();await settle();
  assert.equal(read("shokokuRooms1v1/"+botCode+"/players/guest").online,false,"BOT cleaned on host leave");
