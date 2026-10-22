@@ -1,0 +1,42 @@
+# 小国戦線III｜性能検証の証拠台帳・重複防止表
+
+更新: 2026-10-22 / 対象: Draft PR #22 / 優先: 学校iPadの友達1vs1
+
+> **このファイルを新しい性能実験の前に確認すること。** 同じ論点を「テストPASS」「違うCI番号」という理由だけで再実験しない。旧記録は現在も有効な仮説と実績を持つ。数字は断りがなければCIのheadless WebKitであり、学校の実iPadではない。
+
+## 実験済み・再調査不要（条件が変わらない限り）
+
+| 問題 | 実際の過去結果・参照 | 既に導入したもの / 決定 |
+| --- | --- | --- |
+| JavaScriptによるCanvas描画が主犯か | JS描画は約5〜7ms、フレーム間隔は100ms超もある [#39475276349](https://github.com/8mahi8/shokoku-sensen/actions/runs/39475276349)。描画無効化も試験済み [#39476259487](https://github.com/8mahi8/shokoku-sensen/actions/runs/39476259487) | 描画呼出し時間だけで原因を決めない。 |
+| 戦車・ゴーレムの絵だけが重いのか | 矩形への一時置換も大差なし [#39483775642](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483775642) | 正規アートは保持。絵の簡略化案を繰り返さない。 |
+| Canvasが見える/見えないとHUD | Canvas描画停止、Canvas要素非表示、カードHUD非表示まで2026-10-21に試験済み [#39483192427](https://github.com/8mahi8/shokoku-sensen/actions/runs/39483192427) [#39485586259](https://github.com/8mahi8/shokoku-sensen/actions/runs/39485586259) | 2026-10-22の[#39762351318](https://github.com/8mahi8/shokoku-sensen/actions/runs/39762351318)以降は**実Firebaseゲスト**の再現確認として位置づける。探索がゼロから始まったわけではない。 |
+| CSS filterを外せば改善するか | むしろ一部悪化 [#39486294923](https://github.com/8mahi8/shokoku-sensen/actions/runs/39486294923) | 不採用。 |
+| カード肖像Canvasを隠す/PNG変換するか | FPS改善なし [#39486965057](https://github.com/8mahi8/shokoku-sensen/actions/runs/39486965057) | 不採用。 |
+| 使用不能カードのopacityをやめるか | 改善小 [#39487709725](https://github.com/8mahi8/shokoku-sensen/actions/runs/39487709725) | 不採用。 |
+| HUDを定期更新すると何が起きるか | 更新停止とHUD完全一致のABBA検証で差を分離 [#39489286303](https://github.com/8mahi8/shokoku-sensen/actions/runs/39489286303) [#39489661965](https://github.com/8mahi8/shokoku-sensen/actions/runs/39489661965) | **HUDの差分更新は既に実装・テスト済み** [#39490281824](https://github.com/8mahi8/shokoku-sensen/actions/runs/39490281824)。HUDを無効化したり「差分更新を新しく提案」しない。 |
+| 125ms更新が180msより大幅に悪いか | V17・PR21・PR22で模擬反映間隔比較済み [#39749845828](https://github.com/8mahi8/shokoku-sensen/actions/runs/39749845828)。劇的なFPS差は再現できず | 根拠なく180msへ戻さない。実Firebaseと学校iPadの通信条件では未判定。 |
+| 動画録画でWebKitが極端に重くなるのか | 録画なしでも大きなフレーム間隔が残る [#39761588111](https://github.com/8mahi8/shokoku-sensen/actions/runs/39761588111) | 録画ありのFPSを実機FPSと呼ばない。録画なし対照を記録。 |
+| 空白のWebKit自体が低FPSか | 空白タブは録画あり/なしともrAF p95約17ms [#39763207726](https://github.com/8mahi8/shokoku-sensen/actions/runs/39763207726) | ゲーム表示・同時ホスト処理・合成/RTDBの影響は別途識別。 |
+| 研究ログ撤去後の対戦機能 | 2クライアントシミュレーション [#39757328102](https://github.com/8mahi8/shokoku-sensen/actions/runs/39757328102)、実Firebaseで手動召喚・再接続・6回再戦 [#39757874377](https://github.com/8mahi8/shokoku-sensen/actions/runs/39757874377) | この機能を壊さない。実機の滑らかさは未保証。 |
+
+## 進行中の検証：過去実験との差分を明記する
+
+- [#39764042378](https://github.com/8mahi8/shokoku-sensen/actions/runs/39764042378): 実Firebaseの別WebKitゲストでCanvas「描画処理停止」と「Canvas要素非表示」の区別。2026-10-21のローカル固定戦場とは通信/戦闘進行条件が異なる。新しい論点は**実Firebase通信中でも同じ傾向か**。録画なし/ありの両方が完了したか確認する。
+- [#39764606866](https://github.com/8mahi8/shokoku-sensen/actions/runs/39764606866): 同じ実FirebaseゲストでCanvas要素を隠したまま `#cards` と `#bottom` を別々に切り分ける。これも過去の `#cards` 非表示実験の延長であって、独立した初発見ではない。結果を確認してから同種のテスト追加を判断。
+
+## 未解決だが、先に検証条件を揃える必要がある論点
+
+1. **最大の実地不明点:** 2026-10-22に学校で重かったゲスト用HTMLと、その前に軽かった旧学校用HTMLの**正確なソース対応が未確定**。参考の3283129/b6c7880は近接ソース対照だが、旧実機の現物とは確認できていない。これを確定する前にログ有無や新UIのみを原因と決めない。
+2. **現場固有:** 学校iPad Safari、Google Sites直接HTML埋込、同一端末/同一部隊数/ホスト・ゲスト交代での実測はまだ必要。ヘッドレスWebKitの175msは学校実機175msを意味しない。
+3. **通信:** 125ms vs 180msは模擬反映で比較済み。次に必要なのは条件を揃えた**実Firebase/実機**での比較であり、同じ模擬テストを再実行することではない。
+4. **UI負荷:** 差分HUD最適化は既に入っている。さらに変更するなら、**残る特定の繰り返しDOM更新またはCanvas/カード合成の現行コード行**を示し、維持する機能・視覚品質・検証指標を先に定める。
+5. **オンライン以外**: BOTの研究は研究ログを使わず、オフラインの既存シミュレーション/テストに足す。オンライン通信・描画には負荷を加えない。
+
+## 新しい検証の採用ルール
+
+- この表と `docs/DEVELOPMENT_STATUS.md`、既存 `tests/online-hud-matched-control.cjs`、`tests/online-browser-live.cjs`、`tests/online-guest-history-ab.cjs` を最初に読む。
+- 新テストを作る前に「**これまでの何と違うか / なぜ未解決か / 比較の判断基準**」を1行で説明できること。既に検証した内容なら既存CI成果物を読み、重複CIは回さない。
+- 性能対策は数字のない単純なCSS削除・画質劣化・カード肖像の置換ではなく、**根拠を示した最小の変更**で行う。FPSだけでなく受信Hz/操作反映/フレーム間隔・再戦/退出/カード状態の回帰を同時に見る。
+- ゲームを修正した場合、最低でも従来の `tests/online-smoke.cjs`、`tests/online-sim.cjs`、必要なブラウザQAを用いる。テストPASSを実機受入と混同しない。
+- **main / 学校Google Sites / Firebase管理者設定 / 保存済みデータは許可なく変更しない。** 研究ログの自動記録・回収は復活させない。公開候補採用は学校実機の対戦合格後。
