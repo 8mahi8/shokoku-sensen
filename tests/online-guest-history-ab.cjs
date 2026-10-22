@@ -72,7 +72,7 @@ const median=xs=>xs.slice().sort((a,b)=>a-b)[Math.floor(xs.length/2)]||0;
    page.on("pageerror",err=>errors.push(err.message));
    await page.route("**/www.gstatic.com/firebasejs/**",r=>r.abort());
    try{
-    await page.goto("http://127.0.0.1:8787/"+name+".html",{waitUntil:"domcontentloaded",timeout:30000});
+    await page.goto("http://127.0.0.1:8787/"+name+".html?qa=1",{waitUntil:"domcontentloaded",timeout:30000});
     await page.locator("#netSolo").waitFor({state:"visible",timeout:18000});
     await page.locator("#netSolo").click();
     await page.waitForFunction(()=>window.__shokokuQa?.snapshot()?.phase==="prep",{timeout:20000}).catch(()=>{});
