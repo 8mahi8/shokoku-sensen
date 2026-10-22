@@ -403,20 +403,45 @@ const deadline=async (f,label,timeout=18000)=>{
        error:window.__onlineFrameError||null};
      });
     };
-    let disabled,restored;
+    // Separate Canvas execution from the DOM/CSS compositing cost. Hide the
+    // entire game surface WITHOUT pausing Firebase or rAF; retain a tiny visible
+    // marker so WebKit does not classify the tab as visually empty/backgrounded.
+    const setUiHidden=async hidden=>guest.evaluate(hidden=>{
+     const app=document.getElementById("app");
+     if(!app)throw Error("QA missing #app");
+     if(hidden){
+      app.dataset.qaBeforeVisibility=app.style.visibility;
+      app.style.visibility="hidden";
+      const marker=document.createElement("div");
+      marker.id="qa-visible-marker";
+      marker.style.cssText="position:fixed;top:0;right:0;width:16px;height:16px;background:#fff;z-index:2147483647;pointer-events:none";
+      document.body.appendChild(marker);
+     }else{
+      app.style.visibility=app.dataset.qaBeforeVisibility||"";
+      delete app.dataset.qaBeforeVisibility;
+      document.getElementById("qa-visible-marker")?.remove();
+     }
+    },hidden);
+    let disabled,hiddenUi,restored;
     try{
      disabled=await capture(true);
+     await setUiHidden(true);
+     hiddenUi=await capture(true);
+     await setUiHidden(false);
      restored=await capture(false);
     }finally{
+     await setUiHidden(false);
      await guest.evaluate(()=>window.__shokokuQa.setDrawDisabledForQa(false));
     }
-    assert.ok(disabled.frames>=4&&restored.frames>=4,"A/B/A Canvas control must sample actual frames");
-    assert.equal(disabled.error,null,"Canvas-off guest must keep game processing");
-    assert.equal(restored.error,null,"Canvas-on guest must restore rendering");
-    assert.ok(disabled.seq>0&&restored.seq>=disabled.seq,"Firebase guest must continue while Canvas is disabled");
+    assert.ok(disabled.frames>=4&&hiddenUi.frames>=4&&restored.frames>=4,
+     "Canvas/UI isolation controls must sample actual frames");
+    for(const [label,stats] of [["Canvas off",disabled],["CSS hidden",hiddenUi],["paint restored",restored]])
+     assert.equal(stats.error,null,label+" guest must keep game processing");
+    assert.ok(disabled.seq>0&&hiddenUi.seq>=disabled.seq&&restored.seq>=hiddenUi.seq,
+     "Firebase guest must continue while Canvas and UI are hidden");
     console.log("LIVE GUEST CANVAS AB/A",JSON.stringify({recordVideo:qaRecordVideo,
      paintOnBefore:{frames:later.frameSamples,gapP95Ms:later.gapP95Ms,totalP95Ms:later.totalP95Ms},
-     paintOff:disabled,paintRestored:restored}));
+     paintOff:disabled,canvasOffUiHidden:hiddenUi,paintRestored:restored}));
    }
   }
   console.log("CONSECUTIVE ROUNDS: 7 starts incl. 6 rematches, 8-20 unit scenes in one temporary Firebase room, no research archive");
