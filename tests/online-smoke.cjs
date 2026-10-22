@@ -167,6 +167,13 @@ assert.ok(game.includes("S.remoteVisualReceivedAt=now"),"receiving a packet must
 assert.ok(game.includes("const remaining=guestVisualTimeRemaining(shot.t,now)"),"projectile paint must interpolate");
 assert.ok(game.includes("const remaining=guestVisualTimeRemaining(e.t,now)"),"effect paint must interpolate");
 assert.ok(net.includes("syncDiagnostics"),"network performance sampling must exist");
+assert.ok(net.includes("remoteApplyFallback=setTimeout("),"stalled Safari rAF fallback missing");
+assert.ok(net.includes("cancelRemoteFallback();"),"old rAF fallback must be cancellable");
+assert.ok(net.includes("get hostBot(){return hostBotSeat()}"),"host BOT participation missing");
+assert.ok(game.includes('(NET.isSolo||NET.hostBot)&&S.phase==="battle"'),"host BOT simulation missing");
+assert.ok(game.includes("NET.isSolo||NET.hostBot"),"host BOT preparation missing");
+for(const p of ["online.html","online-ipad.html","online-embed.html"])
+ assert.ok(read(p).includes('id="netHostBot"'),p+" missing BOT join button");
 assert.ok(game.includes("setupPerfPanel()"),"opt-in performance overlay must exist");
 
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
