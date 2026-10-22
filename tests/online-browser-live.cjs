@@ -398,7 +398,7 @@ const deadline=async (f,label,timeout=18000)=>{
       const totals=samples.map(x=>x.totalMs).filter(Number.isFinite).sort((a,b)=>a-b);
       const p95=x=>Math.round((x[Math.min(x.length-1,Math.floor(x.length*.95))]||0)*10)/10;
       const net=window.ShokokuNet.syncDiagnostics();
-      return {frames:samples.length,gapP95Ms:p95(gaps),totalP95Ms:p95(totals),
+      return {frames:samples.length,gapP50Ms:Math.round((gaps[Math.min(gaps.length-1,Math.floor(gaps.length*.5))]||0)*10)/10,gapP95Ms:p95(gaps),totalP95Ms:p95(totals),
        updatesHz:net.updatesHz,seq:net.seq,worldUnits:window.__shokokuQa.snapshot().units.length,
        error:window.__onlineFrameError||null};
      });
@@ -422,26 +422,45 @@ const deadline=async (f,label,timeout=18000)=>{
       document.getElementById("qa-visible-marker")?.remove();
      }
     },hidden);
-    let disabled,hiddenUi,restored;
+    // Canvas drawing and Canvas element COMPOSITING are different: the last
+    // painted bitmap can still cost WebKit even when no new draw() executes.
+    const setCanvasHidden=async hidden=>guest.evaluate(hidden=>{
+     const field=document.getElementById("field");
+     if(!field)throw Error("QA missing #field");
+     if(hidden){
+      field.dataset.qaBeforeVisibility=field.style.visibility;
+      field.style.visibility="hidden";
+     }else{
+      field.style.visibility=field.dataset.qaBeforeVisibility||"";
+      delete field.dataset.qaBeforeVisibility;
+     }
+    },hidden);
+    let disabled,canvasHidden,hiddenUi,restored;
     try{
      disabled=await capture(true);
+     await setCanvasHidden(true);
+     canvasHidden=await capture(true);
+     await setCanvasHidden(false);
      await setUiHidden(true);
      hiddenUi=await capture(true);
      await setUiHidden(false);
      restored=await capture(false);
     }finally{
+     await setCanvasHidden(false);
      await setUiHidden(false);
      await guest.evaluate(()=>window.__shokokuQa.setDrawDisabledForQa(false));
     }
-    assert.ok(disabled.frames>=4&&hiddenUi.frames>=4&&restored.frames>=4,
-     "Canvas/UI isolation controls must sample actual frames");
-    for(const [label,stats] of [["Canvas off",disabled],["CSS hidden",hiddenUi],["paint restored",restored]])
+    assert.ok(disabled.frames>=4&&canvasHidden.frames>=4&&hiddenUi.frames>=4&&restored.frames>=4,
+     "Canvas/compositor/UI isolation controls must sample actual frames");
+    for(const [label,stats] of [["Canvas off",disabled],["Canvas hidden",canvasHidden],
+      ["CSS hidden",hiddenUi],["paint restored",restored]])
      assert.equal(stats.error,null,label+" guest must keep game processing");
-    assert.ok(disabled.seq>0&&hiddenUi.seq>=disabled.seq&&restored.seq>=hiddenUi.seq,
-     "Firebase guest must continue while Canvas and UI are hidden");
+    assert.ok(disabled.seq>0&&canvasHidden.seq>=disabled.seq&&hiddenUi.seq>=canvasHidden.seq
+      &&restored.seq>=hiddenUi.seq,"Firebase guest must continue through all display controls");
     console.log("LIVE GUEST CANVAS AB/A",JSON.stringify({recordVideo:qaRecordVideo,
      paintOnBefore:{frames:later.frameSamples,gapP95Ms:later.gapP95Ms,totalP95Ms:later.totalP95Ms},
-     paintOff:disabled,canvasOffUiHidden:hiddenUi,paintRestored:restored}));
+     paintOff:disabled,canvasOffElementHidden:canvasHidden,
+     canvasOffUiHidden:hiddenUi,paintRestored:restored}));
    }
   }
   console.log("CONSECUTIVE ROUNDS: 7 starts incl. 6 rematches, 8-20 unit scenes in one temporary Firebase room, no research archive");
