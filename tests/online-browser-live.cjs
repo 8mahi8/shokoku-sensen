@@ -365,6 +365,42 @@ const deadline=async (f,label,timeout=18000)=>{
       logicP95Ms:later.logicP95Ms,hudP95Ms:later.hudP95Ms,
       networkP95Ms:later.networkP95Ms,gapAfterPrevP95Ms:later.gapAfterPrevP95Ms}
    }));
+   // Matched REAL Firebase WebKit negative control: keep incoming state,
+   // JavaScript, HUD and combat running, but temporarily skip only Canvas paint.
+   // A/B/A in the SAME warm guest tab avoids comparing unrelated browsers.
+   if(scenario==="dense"){
+    const capture=async(skipPaint)=>{
+     await guest.evaluate(skip=>{
+      window.__shokokuQa.setDrawDisabledForQa(skip);
+      window.__shokokuQa.resetFrameBench();
+     },skipPaint);
+     await delay(1600);
+     return await guest.evaluate(()=>{
+      const samples=window.__shokokuQa.frameBench().filter(x=>x.phase==="battle");
+      const gaps=samples.map(x=>x.gapMs).filter(Number.isFinite).sort((a,b)=>a-b);
+      const totals=samples.map(x=>x.totalMs).filter(Number.isFinite).sort((a,b)=>a-b);
+      const p95=x=>Math.round((x[Math.min(x.length-1,Math.floor(x.length*.95))]||0)*10)/10;
+      const net=window.ShokokuNet.syncDiagnostics();
+      return {frames:samples.length,gapP95Ms:p95(gaps),totalP95Ms:p95(totals),
+       updatesHz:net.updatesHz,seq:net.seq,worldUnits:window.__shokokuQa.snapshot().units.length,
+       error:window.__onlineFrameError||null};
+     });
+    };
+    let disabled,restored;
+    try{
+     disabled=await capture(true);
+     restored=await capture(false);
+    }finally{
+     await guest.evaluate(()=>window.__shokokuQa.setDrawDisabledForQa(false));
+    }
+    assert.ok(disabled.frames>=4&&restored.frames>=4,"A/B/A Canvas control must sample actual frames");
+    assert.equal(disabled.error,null,"Canvas-off guest must keep game processing");
+    assert.equal(restored.error,null,"Canvas-on guest must restore rendering");
+    assert.ok(disabled.seq>0&&restored.seq>=disabled.seq,"Firebase guest must continue while Canvas is disabled");
+    console.log("LIVE GUEST CANVAS AB/A",JSON.stringify({recordVideo:qaRecordVideo,
+     paintOnBefore:{frames:later.frameSamples,gapP95Ms:later.gapP95Ms,totalP95Ms:later.totalP95Ms},
+     paintOff:disabled,paintRestored:restored}));
+   }
   }
   console.log("CONSECUTIVE ROUNDS: 7 starts incl. 6 rematches, 8-20 unit scenes in one temporary Firebase room, no research archive");
   // Actual new-game button path must return to the room picker inside Sites,
