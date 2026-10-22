@@ -67,6 +67,13 @@
 - **学校用開発テスト版準備:** [Google Drive `Shokoku_III_学校テスト版_20261022_表示補間改善.txt`](https://drive.google.com/file/d/1h6DrKFgm-9yxVzqY1sZb36_tPJGWQtcz/view?usp=drivesdk)。GitHub Actions smoke #39771176204 から取り出した300KB級単体HTMLを .txt としてGoogle Driveに保存、ファイルmetadata size=308803 bytesを読戻し確認。既存の学校サイトと区別し、本人がテスト用Sitesにだけ貼り付ける。検証結果が良いと判断されるまでmain/学校公開版を変えない。
 - 今後は同じ2台・Safariでの役割交代が最優先。**実際に低FPSか／兵や弾の位置だけが飛ぶのか／通信遅延か**をタイトル3タップの既存診断で区別する。QAの「headless両側4〜6FPS」を実iPadの快適性評価に流用しない。
 
+## 2026-10-22 一台ゲスト実機プレイ結果：死亡・砲撃警告だけが段階的に動く
+
+- 本人がGitHub Pagesの `guest-lab.html`（実Firebaseの赤軍ゲスト、同一ブラウザ内に青軍BOTホスト）を実際にプレイ。「**キャラが凄くヌルヌルしている**」「唯一カクカクするのは**キャラ死亡時のアニメーションとファイヤーの警告アニメーション**」と報告。以前の「ゲスト側キャラがカクカク」はこのテスト構成では大幅改善。実Google Sites版や別iPad同士でも同等とはまだ断定しない。
+- 調査結果：`online-game.js` は弾・爆発の寿命に`guestVisualTimeRemaining`を既に使うが、**`S.deaths[].t`、`S.spells.incoming[].time`、`S.spells.zones[].time`は従来、受信パケット間に進めていなかった**。約125〜180ms更新に合わせて死亡ポーズ/砲撃リングが段階的にジャンプする理屈と一致。
+- [修正 commit 6beb58b](https://github.com/8mahi8/shokoku-sensen/commit/6beb58bcf382b1b9713116021a5b63d8a5a4f982): ゲストだけ各描画フレーム時に`guestVisualTimeRemaining`で表示寿命を算出。死亡ポーズ、フェード、範囲砲撃警告リング、防護結界の秒数表示に使う。計算は表示専用で`S.deaths/S.spells`・当たり判定・着弾/召喚タイミング・Firebaseスナップショットは変更しない。ホストでは補間なし。従来の兵士歩行補間・ファイヤー実処理を保持。
+- `online-game.js` / `online-ipad.html` / `online-embed.html` / `guest-lab-game.html` に同じ見た目修正を反映、`tests/online-smoke.cjs`で16ms連続経過・元パケット非破壊・受信時刻連携を検査。開発版CI結果は各リンクで追跡。本番Google Sitesは勝手に差し替えず、ラボページへのデプロイ後に本人が再び見比べられるようにする。
+
 ## 2026-10-22 追加の本人観察：キャラの動きだけがカクつく
 
 - 本人は最新Google Sites版の試遊で「全体の通信ラグは気にならず、ゲスト停止もなし」に続けて、「**キャラがカクカクしてる**」と気付いた。これをUI/背景全体が遅いという報告に読み替えず、兵士の**位置補間と歩行ポーズ**を切り分ける。ホストかゲストか・画面表示FPSはこの報告だけでは確定していない。
