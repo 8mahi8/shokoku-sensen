@@ -1,5 +1,5 @@
 // Live Chromium host + WebKit iPad guest end-to-end test. Runs in GitHub Actions only.
-// Creates one room in shokokuRooms1v1, then deletes that same room after closing both tabs.
+// Creates one disposable room in shokokuRooms1v1, then deletes it after both tabs close.\n// A separate WebKit guest must paint and receive real Firebase battle snapshots.\n// Does NOT access or transmit research data.
 "use strict";
 const {chromium,webkit}=require("playwright"),fs=require("node:fs"),http=require("node:http"),path=require("node:path");
 const assert=require("node:assert/strict");
@@ -38,34 +38,23 @@ const deadline=async (f,label,timeout=18000)=>{
   code=await deadline(async()=>{const v=(await host.locator("#netRoom").innerText()).trim();return /^[0-9]{5}$/.test(v)?v:null},"host create",22000);
   await guest.locator("#netJoinCode").fill(code);await guest.locator("#netJoin").click();
   await deadline(async()=>(await guest.locator("#netRoom").innerText()).trim()===code,"guest join");
-  // Both local and anonymous room archival start ON for new rooms.
-  // Either friend can disable before or during a match.
-  await deadline(async()=>(await host.locator("#researchConsent").isChecked())&&
-    (await guest.locator("#researchConsent").isChecked())&&
-    (await host.locator("#researchArchiveConsent").isChecked())&&
-    (await guest.locator("#researchArchiveConsent").isChecked()),
-   "both local and room research start enabled for both peers",20000);
-  assert.equal(await host.evaluate(()=>window.ShokokuResearch.active),false,"no recording outside a match");
-  await guest.locator("#researchConsent").uncheck();
-  await deadline(async()=>{const response=await fetch(urlDB+"/"+code+"/players/guest.json");
-    const player=response.ok?await response.json():null;
-    return player?.researchConsent===false&&player?.archiveConsent===false;
-  },"guest opt-out disables both local and cloud logs",20000);
-  await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("記録 OFF"),
-    "host sees opt-out",20000);
-  await guest.locator("#researchConsent").check();
-  await deadline(async()=>(await host.locator("#researchHint").innerText()).includes("記録 ON"),
-    "host sees recording restored",20000);
-  assert.equal(await guest.locator("#researchArchiveConsent").isChecked(),false,
-   "re-enabling local logging must not silently overwrite cloud opt-out");
-  // Explicit opt-in on THIS disposable research QA room, never on real games.
-  await host.locator("#researchArchiveConsent").check();
-  await guest.locator("#researchArchiveConsent").check();
-  await deadline(async()=>{
+  // This release is 1vs1-only: no per-seat research consent, room archive,
+  // or background match-history collector. Exercise the real room shape.
+  const seats=await deadline(async()=>{
    const response=await fetch(urlDB+"/"+code+"/players.json");
-   const peers=response.ok?await response.json():null;
-   return peers?.host?.archiveConsent===true&&peers?.guest?.archiveConsent===true;
-  },"both peers opt into archive",20000);
+   return response.ok?await response.json():null;
+  },"host and guest presence",18000);
+  assert.equal(seats?.host?.online,true);
+  assert.equal(seats?.guest?.online,true);
+  for(const seat of ["host","guest"]){
+   assert.equal(seats[seat].researchConsent,undefined,"no legacy match consent on "+seat);
+   assert.equal(seats[seat].archiveConsent,undefined,"no cloud archive preference on "+seat);
+  }
+  for(const p of [host,guest]){
+   assert.equal(await p.locator("#researchConsent").count(),0);
+   assert.equal(await p.locator("#researchArchiveConsent").count(),0);
+   assert.equal(await p.evaluate(()=>window.ShokokuResearch),undefined);
+  }
   // Guest device can substitute a tactical robot: toggling also readies it.
   await deadline(async()=>await guest.locator("#netGuestBot").isVisible(),"guest BOT toggle visible");
   await guest.locator("#netGuestBot").click();
@@ -77,10 +66,8 @@ const deadline=async (f,label,timeout=18000)=>{
   for(const [name,p] of [["host",host],["guest",guest]]){
    await deadline(async()=>p.locator("#overlay").evaluate(el=>el.classList.contains("hidden")),name+" start");
   }
-  await deadline(async()=>host.evaluate(()=>window.ShokokuResearch.active===true),
-   "opt-in host logger active after battle start",15000);
-  assert.equal(await guest.evaluate(()=>window.ShokokuResearch.active),false,
-   "online guest must never create a research log");
+  // Host and guest are now plain game clients; no match recording runs.
+  assert.equal(await host.evaluate(()=>window.ShokokuResearch),undefined);
   async function summon(p,team){
    await p.locator('button.card[data-id="infantry"]').click();
    const rect=await p.locator("#field").boundingBox();
@@ -253,54 +240,11 @@ const deadline=async (f,label,timeout=18000)=>{
   }));
   await guest.screenshot({path:path.join(qaVideoDir,"guest-after-physical-reconnect.png"),
    fullPage:false});
-  // Finish a recorded match in the existing QA room, then confirm that
-  // the REAL Firebase permission allows an optional in-room archive.
-  const finalWorld=(await state()).world;
-  assert.ok(finalWorld?.capitals?.length===2&&finalWorld?.forts?.length===3);
-  await host.evaluate(w=>{
-   window.ShokokuResearch.finish(w);
-   window.ShokokuNet.finish({result:"win",reason:"QA archive"});
-  },finalWorld);
-  const archived=await deadline(async()=>{
-   const response=await fetch(urlDB+"/"+code+"/researchRounds/1.json");
-   return response.ok?(await response.json())?.match:null;
-  },"existing room accepts consented research record",15000);
-  assert.equal(archived.schema,1);
-  assert.equal(archived.mode,"online");
-  assert.ok(Array.isArray(archived.actions)&&Array.isArray(archived.samples));
-  assert.ok(!JSON.stringify(archived).includes(code));
-  console.log("PASS LIVE RESEARCH ROOM ARCHIVE",JSON.stringify({
-   actions:archived.actions.length,samples:archived.samples.length
-  }));
-  // Validate the exact user flow: on a phone-like viewport, open the
-  // one-page collector, tap collect-all, and receive match JSON WITHOUT
-  // entering any room number. Only anonymous researchRounds are fetched.
-  const mobile=await hostCtx.newPage({viewport:{width:390,height:844}});
-  pages.push(mobile);
-  mobile.on("requestfailed",request=>{
-   if(request.url().includes("mygame-df915-default-rtdb"))
-    console.log("PHONE FIREBASE REQUEST ERROR",request.failure()?.errorText,request.url().split("?")[0]);
-  });
-  mobile.on("response",response=>{
-   if(response.url().includes("mygame-df915-default-rtdb")&&!response.ok())
-    console.log("PHONE FIREBASE HTTP",response.status(),response.url().split("?")[0]);
-  });
-  await mobile.goto("http://127.0.0.1:8765/research-recover.html");
-  await mobile.locator("#fetchAll").click();
-  const collected=await deadline(async()=>{
-   const status=await mobile.locator("#status").innerText();
-   if(status.startsWith("自動回収できません"))
-    throw Error("recovery page reports: "+status);
-   const data=await mobile.evaluate(()=>typeof batch!=="undefined"?batch:null);
-   if(!data?.matches?.length)throw Error("phone status: "+status);
-   return data;
-  },"phone recovery without room number",35000);
-  assert.ok(collected.matches.some(m=>m.actions?.length===archived.actions.length&&
-   m.result?.duration===archived.result.duration),
-   "one-click phone export includes QA archived match");
-  assert.ok(!JSON.stringify(collected).includes(code),"room numbers must be stripped");
-  assert.equal(await mobile.locator("#download").isEnabled(),true);
-  console.log("PASS LIVE PHONE COLLECT-ALL",JSON.stringify({matches:collected.matches.length}));
+  // Cloud match archiving is retired. Confirm no research node is created
+  // during real Firebase battle, including the end of the first round.
+  const oldArchive=await fetch(urlDB+"/"+code+"/researchRounds.json");
+  assert.equal(oldArchive.status,200);
+  assert.equal(await oldArchive.json(),null,"no match archive generated in live Firebase room");
   // Continuous school 1v1: one temporary Firebase room must survive six
   // host->guest rematches, including realistic 18/20-unit battles.
   // No permanent room or change to the public Google Sites deployment.
@@ -402,7 +346,7 @@ const deadline=async (f,label,timeout=18000)=>{
       applyMs:later.perf.applyMs,frameSamples:later.frameSamples,gapP95Ms:later.gapP95Ms}
    }));
   }
-  console.log("CONSECUTIVE ROUNDS: 7 starts incl. 6 rematches, 8-20 unit scenes in one temporary Firebase room");
+  console.log("CONSECUTIVE ROUNDS: 7 starts incl. 6 rematches, 8-20 unit scenes in one temporary Firebase room, no research archive");
   // Actual new-game button path must return to the room picker inside Sites,
   // without iframe location.reload() or awaiting a Firebase round-trip.
   const originalUrl=guest.url();
@@ -413,7 +357,7 @@ const deadline=async (f,label,timeout=18000)=>{
   assert.equal(guest.url(),originalUrl,"new game must not reload the iframe");
   assert.equal(await guest.evaluate(()=>window.__onlineSeq),0,"old round cursor resets");
   if(errors.length)throw Error("Browser JavaScript errors: "+errors.slice(0,8).join(" | "));
-  console.log("PASS: Chromium host + WebKit iPad inline guest, default-on opt-out telemetry, recovery and non-blocking new game in room "+code);
+  console.log("PASS: Chromium host + WebKit iPad inline guest, no research logging, live guest recovery, realistic battle scenes and non-blocking new game in room "+code);
  }finally{
   for(const p of pages){try{await p.close()}catch{}}
   if(hostCtx)try{await hostCtx.close()}catch{}
