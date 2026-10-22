@@ -236,6 +236,7 @@ body.soloMode #difficulties{display:flex!important}
 #netSoloLevels button.selected{background:#476e45;color:#fcffe5;border-color:#c5e78b;box-shadow:inset 0 0 0 1px #a5cf84}
 .netPractice #netSolo{min-height:45px;border-radius:9px;padding:11px;font-weight:900;color:white;border:1px solid #92c4a5}
 @media(max-height:500px){.netPractice{margin:5px 0;padding:6px;gap:5px}#netSoloLevels button{min-height:32px;padding:5px}#onlineDialog{padding:10px}}
+#netHostBot{background:#356247;border-color:#8ed1a3;color:#eaffed;font-weight:900}
 #netGuestBot[aria-pressed="true"],#guestBotLive[aria-pressed="true"]{background:#1c6b52;border-color:#9cf5a8;color:white}
 #guestBotLive{position:fixed;right:9px;top:69px;z-index:26;border-radius:9px;padding:7px 11px;font-size:11px;
  font-weight:800;background:#1c3543;border:1px solid #82b3c8;color:#e9f9ff;touch-action:manipulation}
@@ -334,6 +335,7 @@ body.soloMode #difficulties{display:flex!important}
   <div class="netControls"><button id="netCreate">ルームを作成</button><button id="netShare" disabled>番号をコピー</button></div>
   <div class="netControls"><input id="netJoinCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="5桁のルーム番号"><button id="netJoin">ルームに参加</button></div>
   <div class="netControls"><button id="netReady" disabled>準備完了</button><button id="netStart" hidden disabled>対戦スタート</button></div>
+  <div class="netControls"><button id="netHostBot" type="button" hidden>🤖 BOTを参加させる</button></div>
    <div class="netControls"><button id="netGuestBot" type="button" hidden aria-pressed="false">この参加端末をBOT操作</button></div>
    <div class="netPractice">
     <div class="netPracticeHeading">1人プレイ・BOTの強さ</div>

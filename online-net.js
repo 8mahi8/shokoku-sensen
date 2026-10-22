@@ -11,7 +11,7 @@ const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)cr
 const clientId=token(), ROOM_VERSION=2;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null;
-let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false;
+let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false,hostBotSwitchPending=false;
 let lastRemoteAppliedAt=0,lastSyncReadAt=0,syncWarning=false;
 let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,restReadPending=false,restReadEpoch=0;
 let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
@@ -23,13 +23,16 @@ let qaMuteSdkSnapshots=false;
 let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
 // snapshots together. Apply only the newest on the next visible frame.
-let pendingRemote=null,remoteScheduled=false,remoteEpoch=0;
+let pendingRemote=null,remoteScheduled=false,remoteEpoch=0,remoteApplyFallback=null;
+const hostBotSeat=()=>host&&players?.guest?.localBot===true&&players.guest.id==="bot:"+clientId;
+function cancelRemoteFallback(){if(remoteApplyFallback!==null){clearTimeout(remoteApplyFallback);remoteApplyFallback=null;}}
 let publishing=false,publishPending=false,networkEpoch=0,publishStartedAt=0,publishRetryAt=0,publishRetryCount=0,publishSerial=0;
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
 function updateUI(){
  const inRoom=!!room,guest=!!players?.guest,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ const ownBot=hostBotSeat();
  const seat=host?"host":"guest",other=host?"guest":"host";
  const seatValid=!inRoom||players?.[seat]?.id===clientId,peerOnline=!!players?.[other]?.online;
  $("netRoom").textContent=inRoom?roomCode:"-----";
@@ -42,6 +45,9 @@ function updateUI(){
  $("netStart").hidden=!host;
  $("netStart").disabled=!host||!ready||!peerOnline||!seatValid||meta?.status!=="lobby"||!connected;
  $("netShare").disabled=!inRoom;
+ $("netHostBot").hidden=!(inRoom&&host&&meta?.status==="lobby"&&(!players?.guest?.online||ownBot));
+ $("netHostBot").disabled=!connected||hostBotSwitchPending;
+ $("netHostBot").textContent=ownBot?"🤖 BOTを退出させる":"🤖 BOTを参加させる";
   const guestControl=inRoom&&!host&&seatValid;
   $("netGuestBot").hidden=!guestControl;
   $("netGuestBot").disabled=!guestControl||!connected||guestBotSwitchPending;
@@ -121,8 +127,9 @@ function receiveGuestWorld(packet){
  pendingRemote=packet;
  if(remoteScheduled)return;
  remoteScheduled=true;const epoch=remoteEpoch;
- requestAnimationFrame(()=>{
-  remoteScheduled=false;
+ // iPad iframe can delay rAF after Firebase snapshots have already arrived.
+ const flush=()=>{
+  cancelRemoteFallback();remoteScheduled=false;
   if(epoch!==remoteEpoch||host||!room)return;
   const latest=pendingRemote;pendingRemote=null;
   if(!latest||latest.round!==meta?.round)return;
@@ -139,7 +146,11 @@ function receiveGuestWorld(packet){
    lastApplyError="";
    if(syncWarning){syncWarning=false;updateUI();}
   }catch(e){lastApplyError=String(e?.message||e);setError(e)}
- });
+ };
+ remoteApplyFallback=setTimeout(()=>{
+  if(epoch===remoteEpoch&&remoteScheduled&&!document.hidden)flush();
+ },650);
+ requestAnimationFrame(flush);
 }
 // rAF can keep painting an old world even when Firebase snapshots stop arriving.
 // An occasional one-shot read gives the guest a second way to receive the latest
@@ -209,6 +220,7 @@ function setupRoom(code,isHost){
  lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  appliedGaps=[];appliedPackets=0;
  lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;restReadPending=false;lastHostPublishAt=0;lastHostPublishSeq=0;lastApplyError="";
+ cancelRemoteFallback();
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
@@ -232,6 +244,7 @@ function setupRoom(code,isHost){
    lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
+   cancelRemoteFallback();
    remoteEpoch++;pendingRemote=null;remoteScheduled=false;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
@@ -324,6 +337,22 @@ async function join(){
   }
   setupRoom(code,false);
  }catch(e){setError(e)}
+}
+async function toggleHostBot(){
+ if(!host||!room||meta?.status!=="lobby"||!connected||hostBotSwitchPending)return;
+ hostBotSwitchPending=true;
+ const current=room,botId="bot:"+clientId,remove=hostBotSeat();
+ try{
+  const tx=await current.child("players/guest").transaction(old=>{
+   if(remove)return old?.localBot===true&&old?.id===botId?null:undefined;
+   if(old?.online===true)return;
+   return {id:botId,ready:true,online:true,botControl:true,localBot:true,joinedAt:Date.now()+serverOffset};
+  },undefined,false);
+  if(!tx.committed||room!==current||meta?.status!=="lobby")
+   throw Error("BOTの参加状態が変わりました。ルームを確認してください");
+  if(!remove)game?.setDifficulty?.(soloDifficulty);
+  show(remove?"BOTが退出しました。友達が参加できます":"BOTが赤軍として参加しました。準備完了を押して開始できます");
+ }catch(e){setError(e)}finally{hostBotSwitchPending=false;updateUI();}
 }
 async function toggleGuestBot(){
  if(solo||!room||host||players?.guest?.id!==clientId||!connected||guestBotSwitchPending)return;
@@ -435,16 +464,18 @@ async function rematch(){
   $("start").disabled=true;
   await room.update({
    "meta/status":"lobby","meta/startedAt":null,"meta/round":(meta.round||1)+1,
-   "players/host/ready":false,"players/guest/ready":false,
+   "players/host/ready":false,"players/guest/ready":hostBotSeat(),
    state:null,result:null,commands:null,feedback:null
   });
  }catch(e){setError(e)}finally{$("start").disabled=false;}
 }
 function resetLobby(){
  const leaving=room,seat=host?"host":"guest",leavingDisconnect=disconnectOp;
+ const leavingBot=hostBotSeat(),leavingBotId="bot:"+clientId;
  // Return to the room picker immediately. Never block Safari/Sites navigation
  // on a Firebase read/write; onDisconnect remains a fallback for stale presence.
- room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;
+ room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;hostBotSwitchPending=false;
+ cancelRemoteFallback();
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;
  restReadPending=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
@@ -458,6 +489,9 @@ function resetLobby(){
  onlinePanel(true);updateUI();
  show("新しいルームを作成するか、5桁の番号で参加してください");
  if(leaving&&connected){
+  if(leavingBot)leaving.child("players/guest").transaction(old=>
+   old?.localBot===true&&old?.id===leavingBotId?null:undefined,
+   undefined,false).catch(e=>console.warn("Owned BOT cleanup:",e));
   // Only change our own seat; a new visitor could have claimed a stale seat.
   leaving.child("players/"+seat).transaction(old=>
    old?.id===clientId?{...old,online:false,ready:false}:undefined,
@@ -471,7 +505,7 @@ function resetLobby(){
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
-  get botActive(){return solo||guestBot},get soloDifficulty(){return soloDifficulty},
+  get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},get soloDifficulty(){return soloDifficulty},
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
@@ -485,6 +519,7 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
 }
 document.addEventListener("DOMContentLoaded",()=>{
  $("netCreate").addEventListener("click",create);
+ $("netHostBot").addEventListener("click",toggleHostBot);
   $("netSolo").addEventListener("click",startSolo);
   document.querySelectorAll("[data-solo-level]").forEach(button=>button.addEventListener("click",()=>{
     if(room||solo)return;

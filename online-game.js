@@ -1886,7 +1886,7 @@ function tick(dt){
  S.projectiles=S.projectiles.filter(f=>f.t>0);
  if(S.effects.length>140)S.effects.splice(0,S.effects.length-140);
  if(S.projectiles.length>110)S.projectiles.splice(0,S.projectiles.length-110);
- if(NET.isSolo&&S.phase==="battle")botStep(dt);
+ if((NET.isSolo||NET.hostBot)&&S.phase==="battle")botStep(dt);
  if(S.phase==="battle"&&S.seconds<=0)finishTime();
 }
 // The tactical world remains 1280 x 660, so unit travel time and attack ranges
@@ -2773,7 +2773,7 @@ function start(){
   inspectHold(now);
   if(NET.isHost&&S.phase==="prep"){
    S.prep=Math.max(0,S.prep-delta);
-   if(NET.isSolo)botPreparation();
+   if(NET.isSolo||NET.hostBot)botPreparation();
    if(S.prep<=0){
     S.phase="battle";S.botThink=4;
     $("prepBanner").classList.remove("visible");
