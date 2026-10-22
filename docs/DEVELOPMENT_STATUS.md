@@ -13,7 +13,8 @@
 - **最新の実Firebase QA**: [run #39757874377](https://github.com/8mahi8/shokoku-sensen/actions/runs/39757874377) SUCCESS。Chromiumホスト+WebKitゲストの参加・手動召喚・BOT切替・本物のネットワーク遮断と復帰・実戦8～20体・6回の再戦・研究ログなしを確認。ただし、CI録画ありでゲストのフレーム間隔P95が通常14体562ms/20体773msで、描画の滑らかさは**未合格**。これは学校実iPadでの計測値ではない。
 - **今回の開発変更**: [fdfab0e](https://github.com/8mahi8/shokoku-sensen/commit/fdfab0ed2e84d78f29401fa8d058000daa6dc575)でスクリーンショットの計測混入を避け、フレーム時間を描画/JS/通信/HUDに分解。[4db4f22](https://github.com/8mahi8/shokoku-sensen/commit/4db4f2219193d23a79969d3904914525ea11a21f)で録画あり/なしのCI対照を追加。**結果待ちを成功扱いしない**。
 - **研究CI整理**: 開発ブランチで期限切れ研究データ削除のスケジュールCIと重複した研究名義の整合性CIを削除（コミット cddbd07 / c458836）。既存Firebaseデータ、過去の研究ソース・回収用ファイルは保持。main上の旧CIも変更していない。
-- **次**: CIの録画あり/なしの実測値を比較し、ゲストrAFとJS処理・Canvas/コンポジットの切り分けを行う。学校iPadの実体験と一致するか再検証するまでラグ修正完了・公開採用・mainマージとは言わない。
+- **実測追加**: [run #39761588111](https://github.com/8mahi8/shokoku-sensen/actions/runs/39761588111) にて録画あり/なしの両方がSUCCESS。一時ルーム削除は各回確認済み。録画なしのWebKit実Firebaseゲストでもフレーム間隔P95は14体249ms / 18体219ms / 20体185ms（各1.5秒の短期サンプル）。録画ありでは同じ順に461ms / 265ms / 200ms。描画＋ゲーム処理のP95は録画なし各16ms / 22ms / 21ms程度で、rAFフレーム間隔との差が大きい。録画だけで全体を説明できず、ヘッドレスWebKitの描画/コンポジット/スケジューリングか、試験環境の影響を引き続き切り分ける。いずれも物理iPadのFPS値ではない。
+- **次**: [commit 56372d2](https://github.com/8mahi8/shokoku-sensen/commit/56372d2805e8d2300d682a45ea9d8141365957ce) の実Firebase WebKit Canvas描画ON→OFF→ON対照（dense戦）を評価する。記録なしで改善しなかったからといって画質を落とさない。学校iPadで再検証するまでラグ修正完了・公開採用・mainマージとは言わない。
 
 ## 2026-10-22 方針転換｜軽量1vs1＋強い練習BOT（現行優先ロードマップ）
 
