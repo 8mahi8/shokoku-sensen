@@ -508,17 +508,23 @@ function resetLobby(){
  onlinePanel(true);updateUI();
  show("新しいルームを作成するか、5桁の番号で参加してください");
  if(leaving&&connected){
-  if(seat==="host")leaving.child("players/guest").transaction(old=>
-   old?.localBot===true&&old?.id===leavingBotId?{...old,online:false,ready:false}:undefined,
-   undefined,false).then(()=>leavingBotOp?.cancel?.()).catch(e=>console.warn("Owned BOT cleanup:",e));
-  // Only change our own seat; a new visitor could have claimed a stale seat.
-  leaving.child("players/"+seat).transaction(old=>
-   old?.id===clientId?{...old,online:false,ready:false}:undefined,
-   undefined,false).then(()=>{
-    // Remove the OLD disconnect hook only after the explicit leave is settled.
-    // Otherwise it could mark a replacement guest offline later.
-    leavingDisconnect?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
+  // A transaction begun only AFTER removing all room listeners can see an
+  // empty local RTDB cache and abort without writing. Read the seat from the
+  // old room first, then conditionally mark it offline. No await here: iPad
+  // Sites returns to the room picker immediately even if the network hangs.
+  const releaseSeat=(name,expectedId,botOnly,onLeave)=>{
+   const ref=leaving.child("players/"+name);
+   ref.once("value").then(snapshot=>{
+    const seen=snapshot.val();
+    if(seen?.id!==expectedId||(botOnly&&seen.localBot!==true))return null;
+    return ref.transaction(old=>old?.id===expectedId&&(!botOnly||old.localBot===true)
+     ?{...old,online:false,ready:false}:undefined,undefined,false);
+   }).then(tx=>{
+    if(tx?.committed)onLeave?.cancel?.().catch(e=>console.warn("Old room disconnect hook:",e));
    }).catch(e=>console.warn("Room exit cleanup:",e));
+  };
+  if(seat==="host")releaseSeat("guest",leavingBotId,true,leavingBotOp);
+  releaseSeat(seat,clientId,false,leavingDisconnect);
  }
 }
 const api={
