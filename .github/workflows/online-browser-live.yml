@@ -12,6 +12,13 @@ on:
 jobs:
   browser-live:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        video: ['yes', 'no']
+    env:
+      SHOKOKU_QA_RECORD_VIDEO: ${{ matrix.video }}
     timeout-minutes: 12
     permissions:
       contents: read
@@ -26,6 +33,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: online-real-firebase-guest-video
+          name: online-real-firebase-guest-video-${{ matrix.video }}
           path: qa-online-guest-visual/
           retention-days: 14
