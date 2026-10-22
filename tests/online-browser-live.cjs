@@ -6,7 +6,9 @@
 const {chromium,webkit}=require("playwright"),fs=require("node:fs"),http=require("node:http"),path=require("node:path");
 const assert=require("node:assert/strict");
 const root=process.cwd(),urlDB="https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1";
+const qaRecordVideo=process.env.SHOKOKU_QA_RECORD_VIDEO!=="no";
 const qaVideoDir=path.join(root,"qa-online-guest-visual");fs.mkdirSync(qaVideoDir,{recursive:true});
+console.log("LIVE GUEST VIDEO MODE",qaRecordVideo?"recorded":"not-recorded");
 const mime={".html":"text/html; charset=utf-8",".js":"text/javascript; charset=utf-8",".css":"text/css; charset=utf-8"};
 const server=http.createServer((req,res)=>{
  const file=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
@@ -29,7 +31,7 @@ const deadline=async (f,label,timeout=18000)=>{
   hostCtx=await browser.newContext({viewport:{width:1194,height:834}});
   guestCtx=await guestBrowser.newContext({
    viewport:{width:1194,height:834},deviceScaleFactor:2,hasTouch:true,
-   recordVideo:{dir:qaVideoDir,size:{width:1194,height:834}}
+   ...(qaRecordVideo?{recordVideo:{dir:qaVideoDir,size:{width:1194,height:834}}}:{})
   });
   const host=await hostCtx.newPage(),guest=await guestCtx.newPage();
   pages=[host,guest];const errors=[];
@@ -325,27 +327,43 @@ const deadline=async (f,label,timeout=18000)=>{
    // loading and room transitions. Measurements are CI only, not school iPad.
    await guest.evaluate(()=>window.__shokokuQa.resetFrameBench());
    await delay(1500);
-   await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-after-1100ms.png"),
-    fullPage:false});
+   // Collect the rAF timing BEFORE screenshot capture; screenshot itself can
+   // stall the render loop and contaminate frame-gap percentiles.
    const later=await guest.evaluate(()=>{
     const frames=window.__shokokuQa.frameBench().filter(r=>r.phase==="battle");
     const gaps=frames.map(r=>r.gapMs).filter(Number.isFinite).sort((a,b)=>a-b);
-    const p95=gaps[Math.min(gaps.length-1,Math.floor(gaps.length*.95))]||0;
+    const percentile=(numbers,fraction)=>numbers[Math.min(numbers.length-1,Math.floor(numbers.length*fraction))]||0;
+    const round=n=>Math.round(n*10)/10;
+    const ordered=key=>frames.map(r=>r[key]).filter(Number.isFinite).sort((a,b)=>a-b);
     return {phase:window.__shokokuQa.snapshot().phase,
      count:window.__shokokuQa.snapshot().units.length,
      perf:window.ShokokuNet.syncDiagnostics(),
      frameSamples:frames.length,
-     gapP95Ms:Math.round(p95*10)/10,
+     gapP50Ms:round(percentile(gaps,.50)),
+     gapP95Ms:round(percentile(gaps,.95)),
+     gapMaxMs:round(gaps.at(-1)||0),
+     totalP95Ms:round(percentile(ordered("totalMs"),.95)),
+     drawP95Ms:round(percentile(ordered("drawMs"),.95)),
+     logicP95Ms:round(percentile(ordered("logicMs"),.95)),
+     hudP95Ms:round(percentile(ordered("hudMs"),.95)),
+     networkP95Ms:round(percentile(ordered("networkMs"),.95)),
+     gapAfterPrevP95Ms:round(percentile(ordered("gapAfterPrevMs"),.95)),
      frameError:window.__onlineFrameError||null};
    });
+   await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-after-1100ms.png"),
+    fullPage:false});
    assert.equal(later.frameError,null,"WebKit guest should not throw during "+scenario);
    assert.ok(later.frameSamples>=5,"WebKit must paint multiple frames after "+scenario);
    assert.equal(later.phase,"battle","WebKit guest must remain in battle during "+scenario);
    console.log("REAL FIREBASE GUEST SCENE",JSON.stringify({
-    scenario,initialUnits:seeded.units,heavy:seeded.heavy,
+    scenario,recordVideo:qaRecordVideo,initialUnits:seeded.units,heavy:seeded.heavy,
     packetStats:{seq:synced.seq,updatesHz:synced.diag.updatesHz,applyMs:synced.diag.applyMs},
     after1500ms:{count:later.count,updatesHz:later.perf.updatesHz,
-      applyMs:later.perf.applyMs,frameSamples:later.frameSamples,gapP95Ms:later.gapP95Ms}
+      applyMs:later.perf.applyMs,frameSamples:later.frameSamples,
+      gapP50Ms:later.gapP50Ms,gapP95Ms:later.gapP95Ms,gapMaxMs:later.gapMaxMs,
+      drawP95Ms:later.drawP95Ms,totalP95Ms:later.totalP95Ms,
+      logicP95Ms:later.logicP95Ms,hudP95Ms:later.hudP95Ms,
+      networkP95Ms:later.networkP95Ms,gapAfterPrevP95Ms:later.gapAfterPrevP95Ms}
    }));
   }
   console.log("CONSECUTIVE ROUNDS: 7 starts incl. 6 rematches, 8-20 unit scenes in one temporary Firebase room, no research archive");
