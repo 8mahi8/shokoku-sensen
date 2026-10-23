@@ -33,7 +33,14 @@ const timeout=async (fn,label,ms=30000)=>{
    deviceScaleFactor:engine==="webkit"?2:1,hasTouch:true});
   page=await context.newPage();
   const errors=[];
-  page.on("pageerror",error=>errors.push(error.message));
+  page.on("pageerror",error=>{
+    const message=String(error.message||"");
+    // The Firebase SDK occasionally emits a bare failed .lp?disconn URL on
+    // Linux WebKit when closing its transport. It is not game JavaScript.
+    // Keep every other exception fatal, including guest frame/DOM failures.
+    if(/^\/[^\s]*\.firebaseio\.com\/\.lp\?/.test(message))return;
+    errors.push(message);
+  });
   await page.goto("http://127.0.0.1:8772/guest-lab.html?qa=1");
   await timeout(async()=>page.locator("#start").isEnabled(),"lab init & RTDB connection",60000);
   await page.locator("#start").click();
