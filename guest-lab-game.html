@@ -373,7 +373,7 @@ let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
 // Local diagnostics only; never add them to Firebase or anonymous match logs.
 let lastPayloadChars=0,lastEncodeMs=0,lastAckMs=0,lastApplyMs=0;
 let coalescedPackets=0,publishRetries=0,publishFailures=0,lastFeedbackSeq=0;
-let qaMuteSdkSnapshots=false;
+let qaMuteSdkSnapshots=false,qaFreezeGuestWorld=false;
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
@@ -476,6 +476,8 @@ function worldSizePreview(){
   packedChars:packed.chars,reductionPct:Math.round(1000*(1-packed.chars/raw.length))/10};
 }
 function receiveGuestWorld(packet){
+ // QA only: block even REST recovery and queued snapshots during a HUD test.
+ if(qaFreezeGuestWorld)return;
  if(packet?.round===meta?.round&&Number.isInteger(packet.seq)){
   lastStateEventAt=performance.now();lastStateEventSeq=Math.max(lastStateEventSeq,packet.seq);
  }
@@ -490,7 +492,7 @@ function receiveGuestWorld(packet){
   cancelRemoteFallback();remoteScheduled=false;
   if(epoch!==remoteEpoch||host||!room)return;
   const latest=pendingRemote;pendingRemote=null;
-  if(!latest||latest.round!==meta?.round)return;
+  if(qaFreezeGuestWorld||!latest||latest.round!==meta?.round)return;
   try{
    const applyStart=performance.now();
    game?.apply(latest.world,latest.seq);
@@ -916,6 +918,7 @@ window.ShokokuNet=api;
 if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSearchParams(location.search).has("qa")){
  window.__shokokuNetQa={
   muteSdkSnapshots:flag=>{qaMuteSdkSnapshots=!!flag;},
+  freezeGuestWorld:flag=>{qaFreezeGuestWorld=!!flag;},
   triggerRecovery:()=>{lastRemoteAppliedAt=performance.now()-6500;lastSyncReadAt=0;checkGuestSync();},
   stats:syncDiagnostics,packGuestWorld,worldSizePreview
  };

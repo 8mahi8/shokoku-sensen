@@ -83,6 +83,7 @@ const timeout=async (fn,label,ms=30000)=>{
   const guestEnergyStart=await page.evaluate(()=>{
     const g=document.getElementById("guestFrame").contentWindow;
     g.__shokokuNetQa.muteSdkSnapshots(true);
+    g.__shokokuNetQa.freezeGuestWorld(true);
     return {seq:g.__onlineSeq||0,...g.__shokokuQa.energyHud()};
   });
   assert.equal(guestEnergyStart.phase,"battle");
@@ -125,6 +126,7 @@ const timeout=async (fn,label,ms=30000)=>{
     .catch(()=>{});
   await page.evaluate(()=>{
     const g=document.getElementById("guestFrame").contentWindow;
+    g.__shokokuNetQa.freezeGuestWorld(false);
     g.__shokokuNetQa.muteSdkSnapshots(false);
   });
   const guestEnergyResumed=await timeout(async()=>page.evaluate(startSeq=>{
