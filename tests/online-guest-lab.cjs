@@ -79,6 +79,7 @@ const timeout=async (fn,label,ms=30000)=>{
   // Verify the actual RED HUD predictor, not just command/snapshot arrival.
   // Silence only this QA client's SDK snapshot callbacks. The host keeps
   // simulating normally, and its own Firebase packets are not touched.
+  fs.mkdirSync(path.join(root,"qa-guest-lab"),{recursive:true});
   const guestEnergyStart=await page.evaluate(()=>{
     const g=document.getElementById("guestFrame").contentWindow;
     g.__shokokuNetQa.muteSdkSnapshots(true);
@@ -126,12 +127,12 @@ const timeout=async (fn,label,ms=30000)=>{
     const g=document.getElementById("guestFrame").contentWindow;
     g.__shokokuNetQa.muteSdkSnapshots(false);
   });
-  const guestEnergyResumed=await timeout(async()=>page.evaluate(()=>{
+  const guestEnergyResumed=await timeout(async()=>page.evaluate(startSeq=>{
     const g=document.getElementById("guestFrame").contentWindow;
     const seq=g.__onlineSeq||0;
-    if(seq<=guestEnergyStart.seq)return null;
+    if(seq<=startSeq)return null;
     return {seq,...g.__shokokuQa.energyHud()};
-  }),"guest returns to fresh energy after Firebase snapshot restoration",35000);
+  },guestEnergyStart.seq),"guest returns to fresh energy after Firebase snapshot restoration",35000);
   assert.ok(guestEnergyResumed.confirmed>=guestEnergyStart.confirmed,
     "new host state must replenish confirmed energy after recovery");
   console.log("PASS: RED guest HUD progresses between packets, freezes at 350ms, and resyncs",JSON.stringify({
