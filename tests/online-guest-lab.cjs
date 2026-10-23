@@ -138,6 +138,62 @@ const timeout=async (fn,label,ms=30000)=>{
   console.log("PASS: RED guest HUD progresses between packets, freezes at 350ms, and resyncs",JSON.stringify({
     engine,begin:guestEnergyStart,muted:guestEnergyAfterCap,recovered:guestEnergyResumed
   }));
+  // Measure host-vs-guest card affordability across the same 2-energy
+  // threshold in a REAL disposable Firebase room. Neither player is given
+  // client-side spend authority; this is a QA-only state setup.
+  const adjusted=await page.evaluate(()=>{
+    const h=document.getElementById("hostFrame").contentWindow;
+    return h.__shokokuQa.setEnergyForQa(2,1.65);
+  });
+  assert.equal(adjusted,true,"QA host may prepare a real red energy threshold");
+  const baseline=await timeout(async()=>page.evaluate(()=>{
+    const h=document.getElementById("hostFrame").contentWindow;
+    const g=document.getElementById("guestFrame").contentWindow;
+    const hv=h.__shokokuQa.snapshot(),gv=g.__shokokuQa.snapshot();
+    if(hv.phase!=="battle"||gv.phase!=="battle"||
+      hv.energy[2]<1.65||hv.energy[2]>=1.9||
+      gv.energy[2]<1.65||gv.energy[2]>=1.9)return null;
+    return {host:hv.energy[2],guest:gv.energy[2],hostElapsed:hv.elapsed};
+  }),"guest receives low-energy threshold fixture",16000);
+  const availability=await page.evaluate(()=>new Promise(resolve=>{
+    const h=document.getElementById("hostFrame").contentWindow;
+    const g=document.getElementById("guestFrame").contentWindow;
+    const t0=performance.now(),initialElapsed=h.__shokokuQa.snapshot().elapsed;
+    let hostReady=null,guestReady=null,hostElapsedAtReady=null;
+    let hostEnergyAtGuest=null,guestEnergyAtHost=null,observations=0;
+    const timer=setInterval(()=>{
+      const now=performance.now()-t0;
+      const hs=h.__shokokuQa.snapshot(),gs=g.__shokokuQa.snapshot();
+      observations++;
+      if(hostReady===null&&hs.energy[2]>=2){
+        hostReady=now;hostElapsedAtReady=hs.elapsed;guestEnergyAtHost=gs.energy[2];
+      }
+      if(guestReady===null&&gs.energy[2]>=2){
+        guestReady=now;hostEnergyAtGuest=hs.energy[2];
+      }
+      if((hostReady!==null&&guestReady!==null)||now>=23000){
+        clearInterval(timer);
+        resolve({hostReadyMs:hostReady,guestReadyMs:guestReady,
+          lagMs:guestReady===null||hostReady===null?null:guestReady-hostReady,
+          hostGameSeconds:hs.elapsed-initialElapsed,realSeconds:now/1000,
+          hostElapsedAtReady,guestEnergyAtHost,hostEnergyAtGuest,observations,
+          guestSeq:g.__onlineSeq||0});
+      }
+    },25);
+  }));
+  assert.ok(availability.hostReadyMs!==null,
+    "host must reach actual 2-energy affordability in a live frame");
+  assert.ok(availability.guestReadyMs!==null,
+    "guest must eventually receive confirmed 2-energy affordability");
+  assert.ok(availability.lagMs>=-80,
+    "guest must not gain a full confirmed energy point before host");
+  assert.ok(availability.lagMs<4000,
+    "guest energy must not stay behind a confirmed host for several seconds");
+  console.log("ENERGY AFFORDABILITY HOST GUEST PROBE",JSON.stringify({
+    engine,baseline,availability,
+    note:"headless browser observation; not physical school iPad FPS/latency"
+  }));
+
   const rec=await fetch(urlDB+"/"+roomCode+"/players.json");
   const seats=await rec.json();
   assert.equal(seats.host.online,true);assert.equal(seats.guest.online,true);

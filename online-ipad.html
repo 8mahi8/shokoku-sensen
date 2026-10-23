@@ -5293,6 +5293,16 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  quality:()=>({tabletDprCap,guestLowPower,qualityMeasured,qualityFrames}),
  energyHud:()=>({confirmed:S.energy[ME()],displayed:guestDisplayEnergy(S.energy[ME()]),
   elapsed:S.elapsed,phase:S.phase,receivedAt:S.remoteVisualReceivedAt}),
+ // QA-only deterministic availability crossing probe. No public execution path:
+ // __shokokuQa is exclusively exposed for loopback origins with ?qa=1.
+ setEnergyForQa:(team,value)=>{
+  if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team)||
+     !Number.isFinite(value)||value<0||value>ENERGY_CAP)return false;
+  S.energy[team]=value;S.observedEnergy[team]=value;
+  updateHUD();
+  if(!NET.isSolo)NET.maybePublish(true);
+  return true;
+ },
  snapshot:()=>({
   phase:S.phase,selected:S.selected,prep:S.prep,elapsed:S.elapsed,
   energy:S.energy.slice(),camera:{x:S.cam.x,y:S.cam.y},
