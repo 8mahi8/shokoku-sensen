@@ -47,7 +47,10 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 #resourceRail{height:21px;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:2px;background:none;overflow:visible}
 .resourceSegment{display:block;position:relative;height:100%;border:1px solid #72668b;border-radius:4px;background:#111928;overflow:hidden}
 .resourceSegmentFill{display:block;height:100%;width:0;background:linear-gradient(#e0b4ff,#9261dc);transition:width .10s linear}
-#resourceNext{font-size:11px;font-weight:900;color:#efd5ff;white-space:nowrap;font-variant-numeric:tabular-nums}
+#resourceNext{display:flex;flex-direction:column;justify-content:center;gap:4px;min-width:0;color:#efd5ff;white-space:nowrap}
+#nextEnergyLabel{font-size:11px;font-weight:900;line-height:1.1}
+.nextEnergyTrack{display:block;width:100%;height:8px;background:#0e1725;border:1px solid #806596;border-radius:7px;overflow:hidden}
+#nextEnergyFill{display:block;width:0;height:100%;background:linear-gradient(90deg,#a473e5,#eac0ff);transition:width .12s linear}
 #rate{font-size:10px;color:#a4bacc}#remaining{font-size:10px;color:#b6d2d6}
 #collection{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
 #collectionTitle{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;color:#b8d0d7}
@@ -151,7 +154,8 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
  #resourceNumber{font-size:23px;line-height:1;grid-column:1}
  #resourceNumber small{font-size:11px}
  #resourceRail{grid-column:2;height:22px;gap:3px}
- #resourceNext{grid-column:3;font-size:10px;text-align:right}
+ #resourceNext{grid-column:3;min-width:0}
+ #nextEnergyLabel{font-size:10px;text-align:center}
  #bottom{height:156px;flex-direction:column;gap:4px}
  #collection{min-height:0;flex:1}
  #cards{gap:4px}
@@ -168,7 +172,7 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
  #resource{gap:3px}
  #resourceTitle,#remaining,#rate{display:none}
  #resourceRail{height:18px}
- #resourceNext{font-size:9px}
+ #nextEnergyLabel{font-size:9px}.nextEnergyTrack{height:7px}
  #fieldHint{font-size:9px;padding:4px 6px}
  #cameraNav{bottom:5px}
  .cameraButton{min-height:29px}
@@ -272,7 +276,9 @@ body.soloMode #difficulties{display:flex!important}
 <div id="resourceTitle">召喚エネルギー</div>
 <div id="resourceNumber">8 <small>/ 12</small></div>
 <div id="resourceRail" role="progressbar" aria-label="召喚エネルギー" aria-valuemin="0" aria-valuemax="12" aria-valuenow="8"></div>
-<div id="resourceNext">開戦後回復</div>
+<div id="resourceNext" role="progressbar" aria-label="次の1エネルギーまでの進捗" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+ <span id="nextEnergyLabel">次の＋1</span><span class="nextEnergyTrack"><span id="nextEnergyFill"></span></span>
+</div>
 <div id="rate">準備中は回復なし</div>
 <div id="remaining">基本歩兵は何度でも召喚可</div>
 </div>

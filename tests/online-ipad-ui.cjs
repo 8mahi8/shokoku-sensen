@@ -33,7 +33,9 @@ const server=http.createServer((req,res)=>{
      return {cards,portraitFit:getComputedStyle(document.querySelector(".cardPortrait")).objectFit,
       bottom:rect("#bottom"),field:rect("#fieldArea"),header:rect("#header"),
       viewport:{w:innerWidth,h:innerHeight},dpr:document.querySelector("#field").width/document.querySelector("#field").getBoundingClientRect().width,
-      nav:rect("#cameraNav")};
+      nav:rect("#cameraNav"),nextMeter:rect("#resourceNext"),
+      nextFill:rect(".nextEnergyTrack"),nextLabel:document.querySelector("#nextEnergyLabel")?.textContent,
+      nextAria:document.querySelector("#resourceNext")?.getAttribute("aria-valuenow")};
     });
     assert.equal(m.cards.length,5,source+" expected 5 playable cards");
     assert.equal(m.portraitFit,"contain",source+" portraits must preserve aspect ratio");
@@ -42,6 +44,10 @@ const server=http.createServer((req,res)=>{
     assert.ok(m.cards.every(c=>c.bottom<=m.bottom.bottom+2),source+" card clipped by footer "+JSON.stringify(m));
     assert.ok(m.field.h>=190,source+" battlefield too short "+JSON.stringify(m));
     assert.ok(m.dpr<=1.47,source+" iPad canvas still using excessive DPR "+JSON.stringify(m));
+    assert.ok(m.nextMeter.w>=55,source+" next-energy bar too narrow "+JSON.stringify(m));
+    assert.ok(m.nextFill.h>=6&&m.nextFill.w>=55,source+" next-energy track not visible "+JSON.stringify(m));
+    assert.ok(m.nextLabel,source+" next-energy label missing");
+    assert.ok(m.nextAria!==null,source+" next-energy progressbar ARIA missing");
     assert.ok(!errors.length,source+" javascript errors: "+errors.join("|"));
     await page.addStyleTag({content:"#onlinePanel{display:none!important}#overlay{display:none!important}"});
     await page.screenshot({path:"qa-ipad-screens/"+source.replace(".html","")+"-"+profile.name+".png",fullPage:false});

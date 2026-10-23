@@ -2512,6 +2512,13 @@ function putHudWidth(el,value){
 function putHudFlag(el,name,value){
  if(el.classList.contains(name)!==value)el.classList.toggle(name,value);
 }
+// The next-energy meter represents real host-owned fractional energy, not
+// a countdown based on the current regen rate (which changes mid-battle).
+// Guests use the same received fraction; no client-side gameplay prediction.
+function nextEnergyProgress(energy){
+ const value=limit(Number(energy)||0,0,ENERGY_CAP);
+ return value>=ENERGY_CAP-1e-6?1:limit(value-Math.floor(value),0,1);
+}
 function updateHUD(){
  if(!S.capitals.length)return;
  updateFortNavigation();
@@ -2528,9 +2535,13 @@ function updateHUD(){
  const ariaValue=energy.toFixed(2);
  if(rail.getAttribute("aria-valuenow")!==ariaValue)rail.setAttribute("aria-valuenow",ariaValue);
  const playing=S.phase==="battle",paused=["paused","gallery","inspect"].includes(S.phase);
- const next=energy>=ENERGY_CAP-1e-6?"MAX":playing?
-   "あと "+((Math.floor(energy)+1-energy)/(rate()*S.speed)).toFixed(1)+"秒":paused?"停止中":"開戦後回復";
- putHudText("resourceNext",next);
+ const progress=nextEnergyProgress(energy);
+ putHudText("nextEnergyLabel",energy>=ENERGY_CAP-1e-6?"MAX":playing?"次の＋1":paused?"停止中":"準備中");
+ putHudWidth($("nextEnergyFill"),(progress*100).toFixed(1)+"%");
+ const nextRail=$("resourceNext"),nextValue=String(Math.round(progress*100));
+ if(nextRail.getAttribute("aria-valuenow")!==nextValue)nextRail.setAttribute("aria-valuenow",nextValue);
+ const nextMeaning=energy>=ENERGY_CAP-1e-6?"エネルギー最大":playing?"次の1エネルギーまで"+nextValue+"%":paused?"回復停止中":"開戦後に回復";
+ if(nextRail.getAttribute("aria-valuetext")!==nextMeaning)nextRail.setAttribute("aria-valuetext",nextMeaning);
  putHudText("rate",S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒");
  putHudText("prepTime",numTime(S.prep));
  const owners=S.forts.filter(f=>f.owner===ME()).length;

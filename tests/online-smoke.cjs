@@ -225,5 +225,23 @@ assert.ok(game.includes("NET.isSolo||NET.hostBot"),"host BOT preparation missing
 for(const p of ["online.html","online-ipad.html","online-embed.html"])
  assert.ok(read(p).includes('id="netHostBot"'),p+" missing BOT join button");
 assert.ok(game.includes("setupPerfPanel()"),"opt-in performance overlay must exist");
+// Energy progress is a fraction of authoritative resource, not an inaccurate
+// seconds-left countdown at a rate transition. Test both source and Sites bundle.
+const fractionSource=game.match(/function nextEnergyProgress\(energy\)\{[\s\S]*?\n\}/)?.[0];
+assert.ok(fractionSource,"energy progress helper missing");
+const nextEnergyProgress=new Function("ENERGY_CAP","limit",
+  fractionSource+";return nextEnergyProgress")(12,(v,min,max)=>Math.max(min,Math.min(max,v)));
+for(const [v,want] of [[0,0],[7,0],[7.25,.25],[7.99,.99],[8,0],[11.5,.5],[12,1],[13,1],[-1,0]]){
+ assert.ok(Math.abs(nextEnergyProgress(v)-want)<1e-8,
+  "next energy fraction "+v+" should equal "+want);
+}
+for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-game.html"]){
+ const html=read(p);
+ assert.ok(html.includes('id="nextEnergyFill"'),p+" next-energy fill missing");
+ assert.ok(html.includes('aria-label="次の1エネルギーまでの進捗"'),p+" accessible meter missing");
+ assert.ok(html.includes("nextEnergyProgress(energy)"),p+" dynamic energy meter missing");
+ assert.ok(!html.includes('"あと "+((Math.floor(energy)+1-energy)/(rate()*S.speed))'),
+  p+" old rate-based seconds-left display remains");
+}
 
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
