@@ -69,7 +69,7 @@ assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
  "Published modular online.html keeps its original balanced defaults");
 
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=10')&&page.includes('./online-game.js?v=15'),
+assert.ok(page.includes('./online-net.js?v=11')&&page.includes('./online-game.js?v=16'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
@@ -291,6 +291,73 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  assert.ok(read("guest-lab-game.html").includes("function guestDisplayEnergy(confirmed"),
   "lab-only BOT game must include the new HUD estimator");
  console.log("PASS: bounded guest energy HUD estimation, confirmed costs, and stage boundaries");
+}
+
+
+{
+ const fortStart=game.indexOf("function getFort(u){");
+ const fortEnd=game.indexOf("\nfunction nearbyEnemy(u){",fortStart);
+ assert.ok(fortStart>0&&fortEnd>fortStart);
+ const fortSource=game.slice(fortStart,fortEnd);
+ const fortState={difficulty:"normal",forts:[
+  {x:410,y:190,owner:0},{x:633,y:444,owner:0},{x:867,y:205,owner:0}]};
+ const classes={scout:{capture:1,behavior:"capture"},
+  engineer:{capture:2,behavior:"capture"}};
+ const getFort=new Function("CLASSES","S","qaBotVariants","dist",
+  fortSource+";return getFort;")(classes,fortState,[null,"baseline","baseline"],
+   (a,b)=>Math.hypot(a.x-b.x,a.y-b.y));
+ for(const difficulty of ["easy","normal","hard"]){
+  fortState.difficulty=difficulty;
+  for(const key of ["scout","engineer"]){
+   // Forward-deep priority must not secretly depend on BLUE vs RED
+   // or on the locally selected solo BOT difficulty.
+   assert.equal(getFort({team:1,key,x:440,y:250})?.x,867,
+    difficulty+": BLUE "+key+" moves toward forward objective");
+   assert.equal(getFort({team:2,key,x:840,y:250})?.x,410,
+    difficulty+": RED "+key+" mirrors the forward policy");
+  }
+ }
+ assert.ok(!fortSource.includes("u.team===2&&S.difficulty"),
+  "human RED cannot inherit difficulty-dependent bot path");
+
+ const cardStart=game.indexOf("function playCard(team,id,x,y){");
+ const cardEnd=game.indexOf("\nfunction shieldMultiplier(",cardStart);
+ assert.ok(cardStart>0&&cardEnd>cardStart);
+ let dispatched=[],rebuild=0,hud=0,allowSend=true;
+ const gameState={selected:"scout"};
+ const netStubs={isHost:false,sendCommand(c){if(!allowSend)return false;dispatched.push(c);return true}};
+ const play=new Function("NET","ME","S","validTarget","canPay","buildCards","updateHUD",
+  "isSpell","castSpell","deploy","CATALOG","duelStats",
+  game.slice(cardStart,cardEnd)+";return playCard;")(
+  netStubs,()=>2,gameState,()=>true,()=>true,
+  ()=>rebuild++,()=>hud++,()=>false,()=>false,()=>false,
+  {scout:{cost:3},infantry:{cost:2}},null);
+ assert.equal(play(2,"scout",900,300),true);
+ assert.equal(gameState.selected,null,"RED clears nonpermanent card immediately");
+ assert.deepEqual(dispatched,[{id:"scout",x:900,y:300}]);
+ assert.equal(rebuild,1);assert.equal(hud,1);
+ gameState.selected="infantry";
+ assert.equal(play(2,"infantry",900,300),true);
+ assert.equal(gameState.selected,"infantry","permanent infantry remains selected");
+ allowSend=false;gameState.selected="scout";
+ assert.equal(play(2,"scout",900,300),false);
+ assert.equal(gameState.selected,"scout","offline command does not pretend success");
+
+ assert.ok(game.includes('S.hand[ME()].includes(oldSelected)&&S.left[ME()][oldSelected]>0'),
+  "old card selection must be removed after host hand rotation");
+ assert.ok(net.includes('get canSendCommand(){return !host&&!!room&&phase==="playing"&&connected'),
+  "offline/invalid guest must not queue commands");
+ assert.ok(net.includes('feedback?.round===meta?.round')&&net.includes('game?.notify?.(feedback.message)'),
+  "RED gets visible rejected-command notification with round isolation");
+ assert.ok(game.includes('notify:message=>notice(message)'),
+  "guest client must expose in-battle rejection notice");
+ for(const id of ["online-ipad.html","online-embed.html"]){
+  assert.ok(read(id).includes(game.trim()),id+" game JS must be synced");
+  assert.ok(read(id).includes(net.trim()),id+" Firebase JS must be synced");
+ }
+ assert.ok(read("guest-lab-game.html").includes("function guestLabBluePrepare()"),
+  "special one-device guest-lab host bot code must survive");
+ console.log("PASS: role-fair forward targeting, RED selection, command refusal/feedback, and iframe parity");
 }
 
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");

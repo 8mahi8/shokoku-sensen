@@ -161,7 +161,7 @@ function cardFailure(team,id){
  if(S.left[team][id]<=0)return "召喚回数・使用回数が残っていないよ";
  if(isSpell(id)&&S.phase==="prep")return "スペルは開戦後に使えるよ";
  if(!canPay(team,id))return "エネルギーが足りない";
- return isSpell(id)?"戦場内を指定してね":"青い召喚範囲に置いてね";
+ return isSpell(id)?"戦場内を指定してね":"自軍の召喚範囲に置いてね";
 }
 function deploy(team,id,x,y){
  if(!CLASSES[id]||!canPay(team,id)||!canPlace(team,x,y))return false;
@@ -212,7 +212,10 @@ function castSpell(team,id,x,y){
 function playCard(team,id,x,y){
  if(!NET.isHost&&team===ME()){
   if(!validTarget(team,id,x,y)||!canPay(team,id))return false;
-  NET.sendCommand({id,x,y});
+  if(!NET.sendCommand({id,x,y}))return false;
+  // Mirror host-side success UX immediately; authoritative resource/hand
+  // mutations still await the host's next snapshot.
+  if(id!=="infantry"){S.selected=null;buildCards();updateHUD();}
   return true;
  }
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
@@ -278,11 +281,10 @@ function getFort(u){
    options.sort((a,b)=>Math.abs(a.x-u.x)-Math.abs(b.x-u.x));
    return options[0];
   }
-  // Objective troops can skip intermediate forts for a high-risk deep capture.
-  // The experienced BOT secures the nearest fort first to advance its summon line.
-  // Keep the player's original deep-capture behavior unchanged.
-  if(u.team===2&&S.difficulty!=="easy")options.sort((a,b)=>b.x-a.x);
-  else options.sort((a,b)=>direction*(b.x-a.x));
+  // Human BLUE and RED troops must follow the SAME forward-targeting rule.
+  // Earlier the difficulty flag changed RED targeting even for human guests.
+  // BOT strategy belongs in summon decisions, never in shared unit physics.
+  options.sort((a,b)=>direction*(b.x-a.x));
   return options[0];
  }
  options.sort((a,b)=>dist(a,u)-dist(b,u));
@@ -2006,8 +2008,8 @@ function terrain(){
  ctx.strokeStyle="#a2e5ffcb";ctx.beginPath();ctx.moveTo(border(1),0);ctx.lineTo(border(1),H);ctx.stroke();
  ctx.strokeStyle="#ffb0bacb";ctx.beginPath();ctx.moveTo(border(2),0);ctx.lineTo(border(2),H);ctx.stroke();ctx.setLineDash([]);
  ctx.fillStyle="#c6f1ff";ctx.font="bold 14px system-ui";ctx.textAlign="left";
- ctx.fillText("自軍召喚ライン",limit(border(1)-135,10,W-140),28);
- ctx.textAlign="right";ctx.fillStyle="#ffd2d7";ctx.fillText("敵軍召喚ライン",limit(border(2)+135,140,W-10),28);
+ ctx.fillText(ME()===1?"自軍召喚ライン":"敵軍召喚ライン",limit(border(1)-135,10,W-140),28);
+ ctx.textAlign="right";ctx.fillStyle="#ffd2d7";ctx.fillText(ME()===2?"自軍召喚ライン":"敵軍召喚ライン",limit(border(2)+135,140,W-10),28);
  ctx.fillStyle="#18455433";ctx.fillRect(0,0,110,H);
  ctx.fillStyle="#6b293233";ctx.fillRect(W-110,0,110,H);
 }
@@ -2038,7 +2040,7 @@ function drawCapital(c){
   ctx.restore();
  }
  ctx.font="bold 13px system-ui";ctx.fillStyle="#f1f7ed";ctx.textAlign="center";
- ctx.fillText(blue?"自軍城壁":"敵軍城壁",face,WALL_TOP-18);
+ ctx.fillText(c.team===ME()?"自軍城壁":"敵軍城壁",face,WALL_TOP-18);
  ctx.restore();
 }
 function drawFort(f){
@@ -2054,7 +2056,7 @@ function drawFort(f){
  ctx.fillStyle="#15252b";rounded(ctx,-31,-62,62,9,4);ctx.fill();
  ctx.fillStyle=col;rounded(ctx,-29,-60,58*Math.max(0,f.hp/POST_HP),5,3);ctx.fill();
  ctx.fillStyle="#f3f0d8";ctx.font="bold 12px system-ui";ctx.textAlign="center";
- ctx.fillText(f.owner===0?"中立基地":f.owner===1?"自軍基地":"敵軍基地",0,48);
+ ctx.fillText(f.owner===0?"中立基地":f.owner===ME()?"自軍基地":"敵軍基地",0,48);
  ctx.restore();
 }
 // Guest receives projectile/effect lifetimes only at network snapshot intervals.
@@ -2614,7 +2616,9 @@ function arenaUp(e){
  const wasSwipe=p.dragging||Math.hypot(e.clientX-p.originX,e.clientY-p.originY)>12;
  if(!wasSwipe&&S.selected&&!NET.guestBot){
   const pt=point(e.clientX,e.clientY),id=S.selected;
-  if(!playCard(ME(),id,pt.x,pt.y))notice(cardFailure(ME(),id));
+  if(!playCard(ME(),id,pt.x,pt.y))
+   notice(!NET.isHost&&!NET.canSendCommand?
+    "通信が切れています。再接続後に試してね":cardFailure(ME(),id));
  }
  S.pointer=null;
 }
@@ -2695,7 +2699,7 @@ function start(){
    $("start").disabled=false;
    $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
    buildCards();updateHUD();
-  },showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
+  },notify:message=>notice(message),showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
    phase:S.phase,prep:S.prep,seconds:S.seconds,elapsed:S.elapsed,clock:S.clock,
    energy:S.energy,left:S.left,hand:S.hand,queue:S.queue,units:S.units,
    forts:S.forts,capitals:S.capitals,spells:S.spells,effects:S.effects,
@@ -2732,7 +2736,12 @@ function start(){
    }else if(data.phase==="result"){
     if(NET.hasResult()&&S.phase!=="result")end(NET.resultForMe(),NET.resultReason());
    }
-   S.selected=oldSelected;S.cam=oldCam;
+   // A card consumed by the host must not remain selected on the guest after
+   // a new hand arrives (also covers delayed/duplicated command outcomes).
+   S.selected=oldSelected&&(oldSelected==="infantry"||
+    (S.hand[ME()].includes(oldSelected)&&S.left[ME()][oldSelected]>0))?
+    oldSelected:null;
+   S.cam=oldCam;
    // Never rewind character animations when a delayed packet arrives.
    S.clock=Math.max(localClock,S.clock);
    const now=performance.now();

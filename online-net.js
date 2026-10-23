@@ -17,7 +17,7 @@ let lastStateEventAt=0,lastStateEventSeq=0,lastRestReadSeq=0,lastRestReadAt=0,re
 let lastHostPublishAt=0,lastHostPublishSeq=0,lastApplyError="";
 // Local diagnostics only; never add them to Firebase or anonymous match logs.
 let lastPayloadChars=0,lastEncodeMs=0,lastAckMs=0,lastApplyMs=0;
-let coalescedPackets=0,publishRetries=0,publishFailures=0;
+let coalescedPackets=0,publishRetries=0,publishFailures=0,lastFeedbackSeq=0;
 let qaMuteSdkSnapshots=false;
 // Browser-only measurements: never upload these metrics to Firebase.
 let appliedGaps=[],appliedPackets=0;
@@ -227,6 +227,7 @@ function setupRoom(code,isHost){
  cancelRemoteFallback();
  remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
+ lastFeedbackSeq=0;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
@@ -244,7 +245,7 @@ function setupRoom(code,isHost){
   // Short lobby transitions may be skipped: detect new rounds by number.
   const newRound=Number(priorRound)>0&&Number(meta?.round)>Number(priorRound);
   if(newRound||(meta?.status==="lobby"&&before==="finished")){
-   phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+   phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;lastFeedbackSeq=0;
    lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
@@ -283,7 +284,7 @@ function setupRoom(code,isHost){
       Number.isInteger(data.seq)&&data.seq>lastGuestSeq){
     lastGuestSeq=data.seq;
     const valid=game?.accept({id:data.id,x:data.x,y:data.y})===true;
-    if(!valid)room.child("feedback").set({seq:data.seq,message:"召喚できませんでした。コスト・範囲・カードを確認。"}).catch(()=>{});
+    if(!valid)room.child("feedback").set({seq:data.seq,round:meta.round,message:"召喚できませんでした。コスト・範囲・カードを確認。"}).catch(()=>{});
     else maybePublish(true);
    }
    try{await snap.ref.remove()}catch(e){setError(e)}
@@ -300,7 +301,14 @@ function setupRoom(code,isHost){
   attach(room.child("feedback"),"value",snap=>{
    if(room!==openedRoom)return;
    const feedback=snap.val();
-   if(feedback?.seq===commandSeq)show(feedback.message);
+   // Earlier errors must not disappear when the player has already sent
+   // another command. Accept the newest unseen rejection for THIS round.
+   if(feedback?.round===meta?.round&&Number.isInteger(feedback?.seq)&&
+      feedback.seq<=commandSeq&&feedback.seq>lastFeedbackSeq){
+    lastFeedbackSeq=feedback.seq;
+    show(feedback.message);
+    game?.notify?.(feedback.message);
+   }
   });
  }
  updateUI();
@@ -418,10 +426,11 @@ async function startMatch(){
 }
 
 function sendCommand(c){
- if(host||!room||phase!=="playing")return;
- if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return;
+ if(host||!room||phase!=="playing"||!connected||players?.guest?.id!==clientId)return false;
+ if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return false;
  const seq=++commandSeq;
  room.child("commands").push({by:clientId,seq,round:meta?.round||1,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(setError);
+ return true; // Queued locally, not yet host-confirmed.
 }
 function maybePublish(force=false){
  if(!host||!room||phase!=="playing"||!game||!connected)return;
@@ -511,7 +520,7 @@ function resetLobby(){
  restReadPending=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  detach();roomCode="";team=0;host=false;players=null;meta=null;result=null;
- seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;
+ seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;lastFeedbackSeq=0;
  lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
  window.__onlineSeq=0;window.__onlineHandSig="";
  document.body.classList.remove("soloMode");
@@ -542,7 +551,9 @@ function resetLobby(){
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
-  get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},get soloDifficulty(){return soloDifficulty},
+  get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},
+ get canSendCommand(){return !host&&!!room&&phase==="playing"&&connected&&players?.guest?.id===clientId},
+ get soloDifficulty(){return soloDifficulty},
  registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
