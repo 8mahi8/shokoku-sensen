@@ -76,6 +76,67 @@ const timeout=async (fn,label,ms=30000)=>{
   },"blue AI moves in real battle; red client receives Firebase frames",80000);
   assert.equal(active.diag.g.role,"guest");
   assert.ok(active.diag.g.seq>=8);
+  // Verify the actual RED HUD predictor, not just command/snapshot arrival.
+  // Silence only this QA client's SDK snapshot callbacks. The host keeps
+  // simulating normally, and its own Firebase packets are not touched.
+  const guestEnergyStart=await page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    g.__shokokuNetQa.muteSdkSnapshots(true);
+    return {seq:g.__onlineSeq||0,...g.__shokokuQa.energyHud()};
+  });
+  assert.equal(guestEnergyStart.phase,"battle");
+  assert.ok(guestEnergyStart.confirmed<12,"guest HUD needs room to regenerate");
+  await pause(230);
+  const guestEnergyDuring=await page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    return {seq:g.__onlineSeq||0,...g.__shokokuQa.energyHud()};
+  });
+  assert.equal(guestEnergyDuring.seq,guestEnergyStart.seq,
+    "no guest authoritative snapshots during deliberate QA mute");
+  assert.equal(guestEnergyDuring.confirmed,guestEnergyStart.confirmed,
+    "muted snapshots must never change spendable energy");
+  assert.ok(guestEnergyDuring.displayed>guestEnergyStart.confirmed+.01,
+    "guest visible energy increases between received packets");
+  await pause(700);
+  const guestEnergyCap=await page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    return {seq:g.__onlineSeq||0,...g.__shokokuQa.energyHud(),
+      bar:g.document.getElementById("nextEnergyFill").style.width};
+  });
+  await pause(330);
+  const guestEnergyAfterCap=await page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    return {seq:g.__onlineSeq||0,...g.__shokokuQa.energyHud(),
+      bar:g.document.getElementById("nextEnergyFill").style.width};
+  });
+  assert.equal(guestEnergyCap.confirmed,guestEnergyStart.confirmed);
+  assert.equal(guestEnergyAfterCap.confirmed,guestEnergyStart.confirmed);
+  assert.ok(Math.abs(guestEnergyAfterCap.displayed-guestEnergyCap.displayed)<.00001,
+    "guest HUD estimation must stop once 350ms snapshot allowance is exhausted");
+  assert.ok(guestEnergyAfterCap.displayed<Math.floor(guestEnergyStart.confirmed)+1,
+    "prediction must not grant an unconfirmed whole energy point");
+  console.log("GUEST ENERGY VISUAL PROBE",JSON.stringify({
+    engine,hostStillActive:true,
+    start:guestEnergyStart,during:guestEnergyDuring,
+    capped:guestEnergyCap,stalled:guestEnergyAfterCap
+  }));
+  await page.screenshot({path:path.join(root,"qa-guest-lab","energy-stalled-"+engine+".png")})
+    .catch(()=>{});
+  await page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    g.__shokokuNetQa.muteSdkSnapshots(false);
+  });
+  const guestEnergyResumed=await timeout(async()=>page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    const seq=g.__onlineSeq||0;
+    if(seq<=guestEnergyStart.seq)return null;
+    return {seq,...g.__shokokuQa.energyHud()};
+  }),"guest returns to fresh energy after Firebase snapshot restoration",35000);
+  assert.ok(guestEnergyResumed.confirmed>=guestEnergyStart.confirmed,
+    "new host state must replenish confirmed energy after recovery");
+  console.log("PASS: RED guest HUD progresses between packets, freezes at 350ms, and resyncs",JSON.stringify({
+    engine,begin:guestEnergyStart,muted:guestEnergyAfterCap,recovered:guestEnergyResumed
+  }));
   const rec=await fetch(urlDB+"/"+roomCode+"/players.json");
   const seats=await rec.json();
   assert.equal(seats.host.online,true);assert.equal(seats.guest.online,true);
