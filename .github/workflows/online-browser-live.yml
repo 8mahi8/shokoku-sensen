@@ -37,7 +37,12 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
-      - run: npx playwright install --with-deps chromium webkit
+      - run: |
+          if [ "$SHOKOKU_QA_MATCHED_WEBKIT" = "yes" ]; then
+            npx playwright install --with-deps webkit
+          else
+            npx playwright install --with-deps chromium webkit
+          fi
       - run: node tests/online-browser-live.cjs
       - uses: actions/upload-artifact@v4
         if: always()
