@@ -239,7 +239,8 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  const html=read(p);
  assert.ok(html.includes('id="nextEnergyFill"'),p+" next-energy fill missing");
  assert.ok(html.includes('aria-label="次の1エネルギーまでの進捗"'),p+" accessible meter missing");
- assert.ok(html.includes("nextEnergyProgress(energy)"),p+" dynamic energy meter missing");
+ if(p==="online.html")assert.ok(html.includes("online-game.js"),"modular online page must load energy HUD logic");
+ else assert.ok(html.includes("nextEnergyProgress(energy)"),p+" dynamic energy meter missing");
  assert.ok(!html.includes('"あと "+((Math.floor(energy)+1-energy)/(rate()*S.speed))'),
   p+" old rate-based seconds-left display remains");
 }
