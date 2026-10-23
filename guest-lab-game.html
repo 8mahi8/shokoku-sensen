@@ -4307,7 +4307,9 @@ function start(){
    logicMs:0,hudMs:0,networkMs:0,drawMs:0,totalMs:0,
    gapAfterPrevMs:Math.max(0,now-previous-qa.prevTotalMs)}:null;
   try{
-  const delta=Math.min(.09,Math.max(0,(now-previous)/1000));previous=now;
+  // Recover up to 150ms after a missed frame (max five 30Hz steps).
+  // Keep the existing bounded accumulator to prevent a catch-up spiral.
+  const delta=Math.min(.15,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   S.clock+=delta;
   updateCamera(delta);

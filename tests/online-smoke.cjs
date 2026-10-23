@@ -69,7 +69,7 @@ assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
  "Published modular online.html keeps its original balanced defaults");
 
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=11')&&page.includes('./online-game.js?v=16'),
+assert.ok(page.includes('./online-net.js?v=11')&&page.includes('./online-game.js?v=17'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
@@ -358,6 +358,38 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  assert.ok(read("guest-lab-game.html").includes("function guestLabBluePrepare()"),
   "special one-device guest-lab host bot code must survive");
  console.log("PASS: role-fair forward targeting, RED selection, command refusal/feedback, and iframe parity");
+}
+
+
+{
+ // The actual host frame path should recover more of a moderate 100-150ms
+ // browser scheduling gap without attempting an unbounded catch-up.
+ const timing=game.match(/const delta=Math\\.min\\((\\.\\d+),Math\\.max\\(0,\\(now-previous\\)\\/1000\\)\\);previous=now;/);
+ assert.ok(timing,"host fixed-timestep frame limiter missing");
+ const cap=Number(timing[1]);
+ assert.equal(cap,.15,"maximum frame time must stay bounded to 150ms");
+ const frameSection=game.slice(game.indexOf("function frame(now){"),game.indexOf("// Test-only readback."));
+ assert.ok(frameSection.includes("while(acc>=1/30&&iter<5&&S.phase===\"battle\")"),
+  "no more than five physics steps per rendered frame");
+ assert.ok(frameSection.includes("tick(S.speed/30)"),"host continues fixed 30Hz gameplay steps");
+ assert.ok(frameSection.includes("if(iter===5)acc=0"),"catchup remains bounded");
+ const simulate=fps=>{
+  let acc=0,steps=0;
+  for(let i=0;i<fps*60;i++){
+   acc+=Math.min(cap,1/fps);
+   let count=0;
+   while(acc>=1/30-1e-10&&count<5){acc-=1/30;count++;steps++;}
+   if(count===5)acc=0;
+  }
+  return steps/30;
+ };
+ assert.ok(simulate(60)>59.9,"normal 60FPS game clock unchanged");
+ assert.ok(simulate(30)>59.9,"normal 30FPS game clock unchanged");
+ assert.ok(simulate(10)>59.9,"10FPS host can catch up without losing a tenth of the match");
+ assert.ok(simulate(8)>59.9,"8FPS host can catch up under the bounded limit");
+ assert.ok(simulate(5)<50,"5FPS host is still bounded instead of spiralling");
+ assert.ok(simulate(5)>44.9,"5FPS host must lose less time than the prior 90ms cap");
+ console.log("PASS: bounded host clock catch-up at 30/10/8FPS, with 5FPS safety cap");
 }
 
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
