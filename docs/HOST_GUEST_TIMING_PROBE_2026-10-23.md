@@ -17,6 +17,24 @@
 - ラグ値4秒以下はテスト暴走／完全凍結の防止という粗いガードであり、快適さの合格基準ではない。
 - **録画・結果以外のユーザー対戦履歴や試合ログは収集しない**。使い捨てルームのFirebaseデータは終了時に削除。
 
-## 時計の大改修をしない理由
+## 2026-10-23 の実Firebase計測結果
 
-現在、ホストは `requestAnimationFrame` ごとに最大90msの経過時間を扱い、30Hz固定刻みで最大5tickだけ進める。長いフレーム停止によりゲーム秒が失われる可能性は明確だが、catch-up上限を単に増やすと、CPUが混雑している端末で余計に処理を増やし、連続してFPS低下する危険がある。Gaffer On Games / Fix Your Timestep: https://gafferongames.com/post/fix_your_timestep/ 。またSafariではバックグラウンドのiframeのrAFが制限され得る: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame 。実測に基づいて変更を決める。
+[Chromium / WebKit ゲスト試験 #39965647419](https://github.com/8mahi8/shokoku-sensen/actions/runs/39965647419) は両ブラウザーで成功した。
+
+| ブラウザー | ホスト正式エネルギー2到達 | ゲスト正式エネルギー2到達 | ゲスト遅れ | 区間の実時間 | ホストのゲーム時間 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Chromium | 1,150ms | 1,225ms | **75ms** | 1.225秒 | 1.200秒 |
+| WebKit | 1,233ms | 1,407ms | **174ms** | 1.407秒 | 1.433秒 |
+
+- コスト2のカードを使える正式なエネルギーに到達する瞬間を比較。ゲストの操作入力からホストの承認までの遅延測定ではない。
+- ゲストHUDはSDK+RESTの全更新をQA限定で凍結した際、未確定の小数分を最大350ms分だけ予測し、それ以上は進まない。受信再開後はホスト確定値へ復帰することをChromiumとWebKitの両方で確認した。
+- 試験専用の freezeGuestWorld はlocalhost / 127.0.0.1 かつ qa=1 でのみ公開される。ゲーム本番のREST自動復旧には変更がない。
+- これは各ブラウザー1回の短時間計測であって、学校iPadの実測・平均値・保証値ではない。エネルギーを未確定のまま召喚可能にする変更は行わない。
+
+## ホスト時計の後続改善と今後の扱い
+
+[e7ebee02](https://github.com/8mahi8/shokoku-sensen/commit/e7ebee02700998759a4aee14be955c48cccb3d35)でホスト描画フレームの取り込み上限を90msから150msへ拡張。ただし固定30Hz、最大5tick/フレームの安全弁は維持。理論上10FPSの60秒間で従来54秒相当→60秒相当、5FPSでも45秒相当であり完全な時間同期ではない。最新の基本テストは成功、Safari実機のCPU負荷確認は未実施。
+
+関連ドキュメント：[時計改善](HOST_CLOCK_BOUNDED_RECOVERY_2026-10-23.md)、[WebKitゲスト試験修正](GUEST_ENERGY_HUD_WEBKIT_QA_FREEZE_2026-10-23.md)。
+
+Google Sites版は引き続きユーザーが貼り付けた**再戦修正版**。開発版のコミットで公開済みと判断しない。
