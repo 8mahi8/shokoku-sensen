@@ -364,7 +364,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
 {
  // The actual host frame path should recover more of a moderate 100-150ms
  // browser scheduling gap without attempting an unbounded catch-up.
- const timing=game.match(/const delta=Math\\.min\\((\\.\\d+),Math\\.max\\(0,\\(now-previous\\)\\/1000\\)\\);previous=now;/);
+ const timing=game.match(/const delta=Math\.min\((\.\d+),Math\.max\(0,\(now-previous\)\/1000\)\);previous=now;/);
  assert.ok(timing,"host fixed-timestep frame limiter missing");
  const cap=Number(timing[1]);
  assert.equal(cap,.15,"maximum frame time must stay bounded to 150ms");
