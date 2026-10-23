@@ -69,7 +69,7 @@ assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
  "Published modular online.html keeps its original balanced defaults");
 
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=10')&&page.includes('./online-game.js?v=14'),
+assert.ok(page.includes('./online-net.js?v=10')&&page.includes('./online-game.js?v=15'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
@@ -243,6 +243,54 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  else assert.ok(html.includes("nextEnergyProgress(energy)"),p+" dynamic energy meter missing");
  assert.ok(!html.includes('"あと "+((Math.floor(energy)+1-energy)/(rate()*S.speed))'),
   p+" old rate-based seconds-left display remains");
+}
+
+
+{
+ // Verify the REAL shipped HUD estimator without Firebase or a live room.
+ const begin=game.indexOf("function guestDisplayEnergy(");
+ const end=game.indexOf("\n// The next-energy meter uses",begin);
+ assert.ok(begin>=0&&end>begin,"guest-only display estimator exists");
+ const state={phase:"battle",elapsed:80,speed:1,remoteVisualReceivedAt:800};
+ const netRole={isHost:false},visibility={hidden:false};
+ const estimate=new Function("S","NET","document","performance","ENERGY_CAP",
+  game.slice(begin,end)+"\nreturn guestDisplayEnergy;")(state,netRole,visibility,{now:()=>1000},12);
+ const close=(actual,expected,reason)=>assert.ok(Math.abs(actual-expected)<1e-8,
+  reason+": "+actual+" != "+expected);
+ close(estimate(4.2,1000),4.25,"200ms early-game gain");
+ close(estimate(4.2,1200),4.2875,"350ms prediction bound");
+ close(estimate(4.2,30000),4.2875,"no infinite refill during network stall");
+ close(estimate(4.99,1000),4.999,"no unconfirmed whole point");
+ close(estimate(11.9995,1000),11.9995,"never reduce confirmed value");
+ close(estimate(12,1000),12,"energy cap 12");
+ state.elapsed=99.9;
+ close(estimate(2.1,1000),2.1+.1*.25+.1*.36,"100s rate switch");
+ state.elapsed=209.9;
+ close(estimate(2.1,1000),2.1+.1*.36+.1*.53,"210s rate switch");
+ state.elapsed=269.9;
+ close(estimate(2.1,1000),2.1+.1*.53+.1*.7,"270s rate switch");
+ state.elapsed=80;netRole.isHost=true;
+ close(estimate(4.2,1000),4.2,"host unchanged");
+ netRole.isHost=false;state.phase="prep";
+ close(estimate(4.2,1000),4.2,"preparation unchanged");
+ state.phase="battle";visibility.hidden=true;
+ close(estimate(4.2,1000),4.2,"background unchanged");
+ visibility.hidden=false;state.remoteVisualReceivedAt=0;
+ close(estimate(4.2,1000),4.2,"before initial remote snapshot unchanged");
+ state.remoteVisualReceivedAt=999;
+ close(estimate(2,1000),2.00025,"spend reanchors new authoritative value");
+ state.speed=0;close(estimate(2,1000),2,"zero-speed battle unchanged");
+ assert.ok(game.includes("const confirmedEnergy=limit(S.energy[ME()],0,ENERGY_CAP);"));
+ assert.ok(game.includes("Math.floor(confirmedEnergy)"));
+ assert.ok(game.includes("const ariaValue=confirmedEnergy.toFixed(2)"));
+ assert.ok(game.includes("return S.energy[team]+1e-6>=d.cost;"),
+  "card affordability remains authoritative");
+ for(const p of ["online-ipad.html","online-embed.html"]){
+  assert.ok(read(p).includes(game.trim()),p+" inline JS sync");
+ }
+ assert.ok(read("guest-lab-game.html").includes("function guestDisplayEnergy(confirmed"),
+  "lab-only BOT game must include the new HUD estimator");
+ console.log("PASS: bounded guest energy HUD estimation, confirmed costs, and stage boundaries");
 }
 
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");

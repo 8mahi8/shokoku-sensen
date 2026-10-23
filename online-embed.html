@@ -3967,9 +3967,26 @@ function putHudWidth(el,value){
 function putHudFlag(el,name,value){
  if(el.classList.contains(name)!==value)el.classList.toggle(name,value);
 }
-// The next-energy meter represents real host-owned fractional energy, not
-// a countdown based on the current regen rate (which changes mid-battle).
-// Guests use the same received fraction; no client-side gameplay prediction.
+// Energy costs and playable cards still use S.energy (host-authoritative).
+// Guest-only HUD estimation removes the visible pauses between snapshots.
+// Limit extrapolation to 350 ms so a stalled connection cannot keep filling
+// the bar, and never show the next WHOLE energy until confirmed by the host.
+// A packet also resets remoteVisualReceivedAt and anchors estimation anew.
+function guestDisplayEnergy(confirmed,now=performance.now()){
+ if(NET.isHost||S.phase!=="battle"||document.hidden||
+    !S.remoteVisualReceivedAt||confirmed>=ENERGY_CAP)return confirmed;
+ let remaining=Math.max(0,Math.min(.35,(now-S.remoteVisualReceivedAt)/1000))*S.speed;
+ let elapsed=S.elapsed,estimated=confirmed;
+ for(const [boundary,gain] of [[100,.25],[210,.36],[270,.53],[Infinity,.7]]){
+  if(elapsed>=boundary)continue;
+  const dt=Math.min(remaining,boundary-elapsed);
+  estimated+=dt*gain;elapsed+=dt;remaining-=dt;
+  if(remaining<=0)break;
+ }
+ return Math.max(confirmed,Math.min(ENERGY_CAP,Math.floor(confirmed)+.999,estimated));
+}
+// The next-energy meter uses the visual fraction; affordability still uses
+// exact S.energy, and the integer label advances only on confirmed snapshots.
 function nextEnergyProgress(energy){
  const value=limit(Number(energy)||0,0,ENERGY_CAP);
  return value>=ENERGY_CAP-1e-6?1:limit(value-Math.floor(value),0,1);
@@ -3983,19 +4000,20 @@ function updateHUD(){
  putHudText("redText",Math.ceil(capital(2).hp)+" / "+START_HP);
  putHudWidth($("blueBar"),100*capital(1).hp/START_HP+"%");
  putHudWidth($("redBar"),100*capital(2).hp/START_HP+"%");
- const energy=limit(S.energy[ME()],0,ENERGY_CAP);
- putHudHtml("resourceNumber",Math.floor(energy)+' <small>/ '+ENERGY_CAP+'</small>');
+ const confirmedEnergy=limit(S.energy[ME()],0,ENERGY_CAP);
+ const energy=guestDisplayEnergy(confirmedEnergy);
+ putHudHtml("resourceNumber",Math.floor(confirmedEnergy)+' <small>/ '+ENERGY_CAP+'</small>');
  const rail=$("resourceRail"),segments=rail.children;
  for(let i=0;i<segments.length;i++)putHudWidth(segments[i].children[0],100*limit(energy-i,0,1)+"%");
- const ariaValue=energy.toFixed(2);
+ const ariaValue=confirmedEnergy.toFixed(2);
  if(rail.getAttribute("aria-valuenow")!==ariaValue)rail.setAttribute("aria-valuenow",ariaValue);
  const playing=S.phase==="battle",paused=["paused","gallery","inspect"].includes(S.phase);
  const progress=nextEnergyProgress(energy);
- putHudText("nextEnergyLabel",energy>=ENERGY_CAP-1e-6?"MAX":playing?"次の＋1":paused?"停止中":"準備中");
+ putHudText("nextEnergyLabel",confirmedEnergy>=ENERGY_CAP-1e-6?"MAX":playing?"次の＋1":paused?"停止中":"準備中");
  putHudWidth($("nextEnergyFill"),(progress*100).toFixed(1)+"%");
  const nextRail=$("resourceNext"),nextValue=String(Math.round(progress*100));
  if(nextRail.getAttribute("aria-valuenow")!==nextValue)nextRail.setAttribute("aria-valuenow",nextValue);
- const nextMeaning=energy>=ENERGY_CAP-1e-6?"エネルギー最大":playing?"次の1エネルギーまで"+nextValue+"%":paused?"回復停止中":"開戦後に回復";
+ const nextMeaning=confirmedEnergy>=ENERGY_CAP-1e-6?"エネルギー最大":playing?"次の1エネルギーまで"+nextValue+"%":paused?"回復停止中":"開戦後に回復";
  if(nextRail.getAttribute("aria-valuetext")!==nextMeaning)nextRail.setAttribute("aria-valuetext",nextMeaning);
  putHudText("rate",S.phase==="prep"?"準備中：回復なし":"回復 +"+rate().toFixed(2)+"/ゲーム秒");
  putHudText("prepTime",numTime(S.prep));
@@ -5255,6 +5273,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
   S.view.dpr=d;cv.width=Math.round(S.view.w*d);cv.height=Math.round(S.view.h*d);
  },
  quality:()=>({tabletDprCap,guestLowPower,qualityMeasured,qualityFrames}),
+ energyHud:()=>({confirmed:S.energy[ME()],displayed:guestDisplayEnergy(S.energy[ME()]),
+  elapsed:S.elapsed,phase:S.phase,receivedAt:S.remoteVisualReceivedAt}),
  snapshot:()=>({
   phase:S.phase,selected:S.selected,prep:S.prep,elapsed:S.elapsed,
   energy:S.energy.slice(),camera:{x:S.cam.x,y:S.cam.y},
