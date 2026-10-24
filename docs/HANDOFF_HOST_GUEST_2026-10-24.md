@@ -65,3 +65,10 @@
 - Online matched HUD WebKit diagnostic: **success** ([run #40090916893](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916893))
 
 - PR #22 はDraftのままで説明を更新済み。**学校iPad実機のホスト／ゲスト交代、混戦、エネルギー使用の体感試験がなお必要**。main、Google Sites、Firebase Rules／データに触れない。不要な再試験や大規模改修をせず、証拠があれば最小修正で対応。
+
+
+## 追補：同日さらに実施したホスト時計WebKit A/B
+- 以前「実行中」と書いた`9a192f65...`対応の8系統のGitHub Actionsは全件**success**となった。証跡: [HOST_CLOCK_WEBKIT_AB_2026-10-24.md](HOST_CLOCK_WEBKIT_AB_2026-10-24.md)。
+- [90ms対150ms実ゲーム時計のABBA実験](../tests/online-host-clock-cap-ab.cjs)をQA専用に追加し、WebKit性能CI [#40091681407](https://github.com/8mahi8/shokoku-sensen/actions/runs/40091681407)で検証。学校用実HTML・戦闘本体・Firebase通信は未変更。
+- 旧CIログではheadless WebKitの10部隊戦闘で通常約11fps、大型部隊入り約8〜9fps、ゲームロジックのJS処理平均はフレーム当たり0.5ms未満。rAFや描画側の制約が強いが、これを実iPad性能と同一視しない。
+- **ABBA実験の具体的結果・合否はCIジョブログとアーティファクトで確認してから追記すること。** 実機の前に大規模改修や90msへの勝手な巻き戻しはしない。
