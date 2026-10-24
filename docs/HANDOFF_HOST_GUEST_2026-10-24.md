@@ -72,3 +72,4 @@
 - [90ms対150ms実ゲーム時計のABBA実験](../tests/online-host-clock-cap-ab.cjs)をQA専用に追加し、WebKit性能CI [#40091681407](https://github.com/8mahi8/shokoku-sensen/actions/runs/40091681407)で検証。学校用実HTML・戦闘本体・Firebase通信は未変更。
 - 旧CIログではheadless WebKitの10部隊戦闘で通常約11fps、大型部隊入り約8〜9fps、ゲームロジックのJS処理平均はフレーム当たり0.5ms未満。rAFや描画側の制約が強いが、これを実iPad性能と同一視しない。
 - **ABBA実験の具体的結果・合否はCIジョブログとアーティファクトで確認してから追記すること。** 実機の前に大規模改修や90msへの勝手な巻き戻しはしない。
+- [90/150ms WebKit ABBA #40091681407](https://github.com/8mahi8/shokoku-sensen/actions/runs/40091681407) は3ステップすべて**成功**。大型部隊を含む10体戦闘のヘッドレスWebKitでは、90ms上限の時計進行率約0.83倍・平均9.55fpsに対し、150msでは約1.05倍・平均8.81fps（各2試行の平均、短時間で測定のゆらぎを含む）。通常部隊は両条件約1.02倍・約11.5fps。青赤エネルギー増分は全測定で一致。ゲーム本体未変更。150msを維持し学校実機で採否を判断。詳細: [比較報告](HOST_CLOCK_WEBKIT_AB_2026-10-24.md)。
