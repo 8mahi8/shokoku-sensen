@@ -400,7 +400,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  const rateEnd=game.indexOf("\n// Known regeneration timeline:",rateBegin);
  const tickBegin=game.indexOf("function tick(dt){");
  const tickEnd=game.indexOf("\n// The tactical world remains",tickBegin);
- const accumulator=frameSection.match(/   acc\\+=delta;[\\s\\S]*?   if\\(iter===5\\)acc=0;/)?.[0];
+ const accumulator=frameSection.match(/   acc\+=delta;[\s\S]*?   if\(iter===5\)acc=0;/)?.[0];
  assert.ok(rateBegin>=0&&rateEnd>rateBegin&&tickBegin>=0&&tickEnd>tickBegin&&accumulator,
   "real engine timing fragments must remain extractable");
  const runClockCase=(fps,speed=1)=>{

@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 jobs:
   matched-hud:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 8
     permissions:
       contents: read
