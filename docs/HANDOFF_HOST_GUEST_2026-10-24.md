@@ -46,3 +46,22 @@
 ## 最重要の認識
 
 **学校のGoogle Sitesで公開中のゲームは「再戦修正版」。開発ブランチの最新版はまだ学校に貼り替えていない。** ユーザーからの公開完了通知までは絶対に混同しない。
+
+## 追補：2026-10-24 夜 — CI環境修復とホスト時計回帰
+
+- 開発ブランチ最新のゲーム本体は、2026-10-23の実Firebase試験成功時SHA `834e9babb...` から**変更していない**。その後は資料、追加回帰テスト、CIワークフローのみ更新。Google Sites実公開版は引き続きユーザー申告の「再戦修正版」で、勝手に更新していない。
+- `tests/online-smoke.cjs` に、**実`tick(dt)`、`rate()`、ホストフレームの固定ステップ部**を抽出した決定的QAを追加（[commit 9c1073a](https://github.com/8mahi8/shokoku-sensen/commit/9c1073af7bd93f8a5e0416de91360626d1e6bd59)、記述のエスケープ誤りは後続commitで修正）。60/30/15/10/8FPS相当で20秒分のゲーム時間・青赤エネルギーが一致し、5FPS相当では約15秒で頭打ちになることをチェック。移動はunitStepスタブなので**混戦実機性能を証明しない**。
+- キャンセルされたHUD #39965647433の再実行はWebKitセットアップで失敗。原因はGitHub Actions `ubuntu-latest` がUbuntu 26.04になりPlaywright 1.56.1が対応していないこと。GitHubの[2026-09-17移行告知](https://github.blog/changelog/2026-09-17-ubuntu-26-generally-available-and-latest-migration/)に沿い、Playwright利用7ワークフローを`ubuntu-24.04`に固定し、回帰テスト誤記を修正した（[commit 9a192f6](https://github.com/8mahi8/shokoku-sensen/commit/9a192f650d1715313cc010b3cb98d5f33bd84c43)）。
+- 新ゲストラボ #40090916913はChromium・WebKit双方合格。コスト2の確定エネルギー到達差は今回**Chromium約143ms / WebKit約146ms**（各1回、25ms間隔観測。入力命令遅延・実iPad測定ではない）。ゲージの350ms上限・受信再開も合格。
+- 新HUD診断 #40090916893、スモーク #40090916965、iPad画面 #40090916883は合格。以下は追補作成時の全CI状態で、未完了分を成功扱いしない。
+
+- One-shot online two-browser live QA: **queued** ([run #40090916863](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916863))
+- Online battle visual review: **in_progress** ([run #40090916872](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916872))
+- School guest history A/B: **in_progress** ([run #40090916870](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916870))
+- Online same-page WebKit perf QA: **in_progress** ([run #40090916941](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916941))
+- Online 1v1 smoke: **success** ([run #40090916965](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916965))
+- Online iPad UI visual QA: **success** ([run #40090916883](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916883))
+- One-device guest lab browser QA: **success** ([run #40090916913](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916913))
+- Online matched HUD WebKit diagnostic: **success** ([run #40090916893](https://github.com/8mahi8/shokoku-sensen/actions/runs/40090916893))
+
+- PR #22 はDraftのままで説明を更新済み。**学校iPad実機のホスト／ゲスト交代、混戦、エネルギー使用の体感試験がなお必要**。main、Google Sites、Firebase Rules／データに触れない。不要な再試験や大規模改修をせず、証拠があれば最小修正で対応。
