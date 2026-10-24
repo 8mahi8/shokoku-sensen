@@ -4211,8 +4211,13 @@ function start(){
     (S.hand[ME()].includes(oldSelected)&&S.left[ME()][oldSelected]>0))?
     oldSelected:null;
    S.cam=oldCam;
-   // Never rewind character animations when a delayed packet arrives.
-   S.clock=Math.max(localClock,S.clock);
+   // A guest can spend minutes in the lobby while the host resets its match
+   // clock to zero. Re-anchor once when entering a remote round, otherwise
+   // the guest may permanently skip spawn/hit art tied to the host clock.
+   // Within an active round preserve the existing no-rewind presentation.
+   const enteringRemoteRound=(S.phase==="prep"||S.phase==="battle")&&
+    was!=="prep"&&was!=="battle";
+   S.clock=enteringRemoteRound?S.clock:Math.max(localClock,S.clock);
    const now=performance.now();
    S.remoteVisualReceivedAt=now;
    const sprites=S.remoteSprites||(S.remoteSprites=new Map());

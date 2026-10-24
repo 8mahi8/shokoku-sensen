@@ -447,4 +447,41 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
 
 }
 
+
+{
+ // Execute the actual guest clock reconciliation from the shipped apply().
+ // Old behavior Math.max(localClock,clock) retained minutes of lobby time,
+ // causing host-relative hitAt/spawnAt animations to start fully expired.
+ const marker="   // A guest can spend minutes in the lobby";
+ const begin=game.indexOf(marker),end=game.indexOf("\n   const now=performance.now();",begin);
+ assert.ok(begin>=0&&end>begin,"remote round visual clock reconciliation exists");
+ const source=game.slice(begin,end);
+ const reconcile=new Function("S","was","localClock",
+  source+"\nreturn S.clock;");
+ const check=(previousPhase,nextPhase,remoteClock,oldClock,expected)=>{
+  const state={phase:nextPhase,clock:remoteClock,energy:[0,2,3]};
+  const energy=state.energy.slice();
+  assert.equal(reconcile(state,previousPhase,oldClock),expected,
+   previousPhase+" => "+nextPhase+" remote clock "+remoteClock+" local "+oldClock);
+  assert.equal(state.clock,expected);
+  assert.deepEqual(state.energy,energy,"clock sync may not change spendable resources");
+ };
+ check("menu","prep",.4,180,.4);
+ check("menu","battle",12,90,12); // late match join
+ check("result","prep",.2,307,.2); // same-room rematch
+ check("prep","prep",.65,.8,.8); // do not rewind on network lag
+ check("prep","battle",2.1,2.0,2.1);
+ check("battle","battle",3.1,3.3,3.3);
+ check("battle","battle",4.2,3.3,4.2);
+ check("menu","menu",.5,60,60);
+ // The Gald animation runner uses host-relative spawnAt and hitAt.
+ const art=read("gald-render.js");
+ assert.ok(art.includes("(t-u.spawnAt)")&&art.includes("t-u.hitAt"),
+  "clock is used to time spawn and hit animation in actual art renderer");
+ for(const path of ["online-ipad.html","online-embed.html","guest-lab-game.html"])
+  assert.ok(read(path).includes(game.trim()),
+   path+" must include the identical re-anchored game engine");
+ console.log("PASS: guest visual clock re-anchors on first match or rematch, never rewinds in battle");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
