@@ -1,0 +1,48 @@
+# 小国戦線III — FORTRESS FRONT｜開発引き継ぎ（2026-10-24）
+
+## まず必ず守ること
+
+- 目的：**学校のiPad（Safari）、Google SitesのHTML/CSS/JS直接埋め込み**で友達と1vs1対戦する際、**ホストとゲストの動作・表示・戦闘ルールを極力一致**させること。Firebase Realtime Databaseは現行のまま使う。無料運用を厳守。
+- **Google Sites版＝ユーザーが実際に貼り付けている「再戦修正版」**。現在の開発版とは別。最新コードがGitHubに存在する、あるいはGoogle Driveに保存されたことを理由にGoogle Sites版が更新されたと思わないこと。**ユーザーが貼り替えたと報告したときのみ**Google Sites版を更新済みと扱う。GitHub上からサイトの実物HTMLが完全に同一かは検証していない。
+- **開発版＝`perf/online-guest-snapshot-diagnostics-20261020`**。開発はこのブランチのみ。mainや学校で稼働中のGoogle Sites版は勝手に変更しない。PR #22、GitHub: https://github.com/8mahi8/shokoku-sensen
+- ユーザーの「任した／任せた」は、調査・実装・テストまで自律的に進める許可であり、**学校への公開指示ではない**。
+- ユーザーは**操作遅延にあまり困っておらず、主にゲスト側エネルギーの溜まり方・戦場同期と公平性**が気になっている。通信方式のP2P全面移行、フル二重戦闘計算、ログ収集・リプレイなどは不要。小さく正確な改善を優先。
+- 学校iPadはApple製。古いことだけを理由に低性能と決めつけない。ヘッドレスWebKitのFPS数値は実iPadの計測値ではない。身内専用ゲームなので過剰な運用機能や安全作業を増やさない。
+
+## 現状：実装済み（未公開）
+
+1. **「次の＋1エネルギー」チャージUI**：以前の秒数表示から進捗ゲージへ変更。Google Sites版には未反映。
+2. **ゲストのエネルギー表示補間**：最新のホスト確定値から回復を**最大350msだけ**先読みして、次の整数値が正式に確定するまでは未到達表示にする。**実際にカードを使えるかは確定済み `S.energy` のみ**。Firebase停止・復旧で同期し、ホスト側のゲーム計算は不変。
+3. **ホスト／ゲスト間の公平性修正**：赤軍占領兵だけBOT難易度に左右されていた進軍先を共通化。赤軍カード使用後の選択状態残存を修正。ゲストの通信切断時入力／失敗通知を改善。基地・城壁・召喚ラインの自軍・敵軍ラベルを自分の陣営に相対化。
+4. **ホスト試合時計の限定改善**：`requestAnimationFrame`で取り込む経過時間の上限を90→150msに。戦闘は**30Hz固定、最大5tick/フレーム**の安全弁維持。従来の10FPS時に理論上ゲーム時間が約10%遅れるケースを軽減するが、低FPS時に負荷が増え得るので実機判断が必要。
+5. **QA**：ゲスト1台テスト用`guest-lab.html`、実Firebase2ブラウザー`tests/online-browser-live.cjs`、`tests/online-guest-lab.cjs`、基本／画面／HUD試験を維持。テストでは使い捨てFirebaseルームを消去。WebKitの受信凍結試験に`localhost?qa=1`専用`freezeGuestWorld`を設け、SDK・REST・描画待ちをすべて凍結可能とした（本番の通信回復は変更しない）。CIのブラウザーセットアップを最小化した。
+
+## 最新結果：観測と注意
+
+- **最終ゲームロジックに対応するCI**：[実Firebase2ブラウザー #39965647443](https://github.com/8mahi8/shokoku-sensen/actions/runs/39965647443)、[ゲストラボ #39965647419](https://github.com/8mahi8/shokoku-sensen/actions/runs/39965647419)、[基本 #39965647426](https://github.com/8mahi8/shokoku-sensen/actions/runs/39965647426)、[iPad画面 #39965647445](https://github.com/8mahi8/shokoku-sensen/actions/runs/39965647445)、[戦闘視覚 #39965647546](https://github.com/8mahi8/shokoku-sensen/actions/runs/39965647546) は成功。
+- [同一WebKit HUD診断 #39965647433](https://github.com/8mahi8/shokoku-sensen/actions/runs/39965647433) はキャンセル（**成功扱いしない**）。その前のHUD診断 #39961366690 は成功。もし完全なCI合格を示すならキャンセル分を別途確認。
+- **エネルギー使用可能タイミングの実Firebaseテスト**：Chromiumゲストでは約75ms、WebKitゲストでは約174msの遅れを1回ずつ観測。学校iPadの実測・保証値ではない。操作命令のエンドツーエンド遅延測定でもない。測定方法と結果は`docs/HOST_GUEST_TIMING_PROBE_2026-10-23.md`。
+- 旧版のCIでキャンセルになったものや、テストスクリプトの誤りがあったものは、修正後の結果と区別。**実機Safariでの体感やホスト端末負荷の実測は未完**。
+
+## 次チャットがやること
+
+1. この文書に加えて、次の資料とブランチの最新コミットを読み、ユーザーに現在の**Google Sites版／開発版**を区別して報告する。
+2. **テスト状態を正確に確認**。まずキャンセルされたHUD診断の扱いと、最新版とCI成功時SHAの差を確認。テストだけのために不要な連続実行をしない。
+3. ホストの時計変更(90→150ms)により、低FPS実機・混戦での戦闘負荷やスキップが悪化しないか検証。現時点では設計上の改善であり、実機合格は未宣言。
+4. ゲストのエネルギー使用判定は約75～174msという短時間観測の範囲では全面的な先読み権限が不要に見える。正式コストを勝手に先払い可能にしない。必要ならカード使用境界の分布を複数試験し、現行Firebaseのまま改善。
+5. 問題がなければ**ユーザーの指示があった時**、最新版のGoogle Sitesに直接貼る単体HTMLを渡す（ZIPより**そのままコピーできる.txt / HTML**を優先）。ユーザーが実際に貼り替えた報告をした時点でGoogle Sites版名を更新。
+6. 将来アイデア：**初期手札マリガン**（別々のシャッフルは維持、最大2枚・1回交換が候補）、ただし未実装・未確定。ユーザーは今は通信／公平性の方を優先。
+
+## 根拠となる資料／コード
+
+- ゲーム・通信本体：`online-game.js`, `online-net.js`。単体埋め込み：`online-ipad.html`, `online-embed.html`。ゲスト1台実験：`guest-lab.html`, `guest-lab-game.html`。実Firebaseテスト：`tests/online-guest-lab.cjs`, `tests/online-browser-live.cjs`。スモーク：`tests/online-smoke.cjs`。
+- `docs/HOST_GUEST_RULE_PARITY_AUDIT_2026-10-23.md` — 不公平箇所の調査
+- `docs/HOST_GUEST_PARITY_FIXES_2026-10-23.md` — AI／カード選択／通知／陣営ラベル修正
+- `docs/GUEST_ENERGY_DISPLAY_2026-10-23.md` — チャージ表示先読み仕様
+- `docs/HOST_GUEST_TIMING_PROBE_2026-10-23.md` — エネルギータイミング実測
+- `docs/HOST_CLOCK_BOUNDED_RECOVERY_2026-10-23.md` — ゲーム時計改善
+- `docs/GUEST_ENERGY_HUD_WEBKIT_QA_FREEZE_2026-10-23.md` — WebKitでのQA受信停止と本番復旧の分離
+
+## 最重要の認識
+
+**学校のGoogle Sitesで公開中のゲームは「再戦修正版」。開発ブランチの最新版はまだ学校に貼り替えていない。** ユーザーからの公開完了通知までは絶対に混同しない。
