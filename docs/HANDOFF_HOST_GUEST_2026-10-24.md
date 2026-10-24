@@ -80,3 +80,10 @@
 - テストは現行実行コードの時計分岐を抽出して初回入室・途中参加・再戦・準備/戦闘中の遅延・進行を検証。`guest-lab-game.html`は専用ロジックを含むため完全一致チェックから除外し、同修正個所の存在を検証する。[スモーク #40094854291 success](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094854291)。初回スモーク失敗 #40094818128 はテストの専用HTML完全一致誤認で、後続コミット`d942a3e`で修正。
 - [専用資料](GUEST_VISUAL_CLOCK_JOIN_2026-10-24.md)。実Firebaseブラウザー／ゲストラボ／HUD／画面／戦闘描画CIは別途確認し、未完了分をsuccess扱いしない。
 - **学校Google Sites版はまだ「再戦修正版」。本更新を学校へ貼ったことにしない。** 実機ではゲストがロビー20〜30秒待ってから開始し、登場・被弾演出とエネルギーの体感差を確認してほしい。
+
+## 追補：2026-10-24 — 学校実機試験の準備完了
+- **Google Sites直接埋め込み用の最新版単体HTMLを、Google Driveの新しい生`.txt`ファイルとして保存済み**: [Shokoku_III_学校実機テスト用_GoogleSites貼付_20261024.txt](https://drive.google.com/file/d/12fab0-6CMdgyHkYXxln3mjCr4jZQAN5F/view)。
+- この`.txt`は開発ブランチの`online-ipad.html`の内容そのもの。**Google Driveから実際に読み戻したUTF-8原文がGitHubと完全一致**。Git blob SHA `62ccf4687cda818a881d5695c71d4324c61bfc6f`、原文319353バイト、UTF-16コード単位311486。Google Docsを経由すると行間や一部空白が変換されるため、差分を補正して原本と完全一致を検証してから生テキストとして保存した。途中の変換用Google Docは削除。
+- 新しい視覚時計修正に対応したCI: [smoke #40094854291](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094854291)、[実Firebase2ブラウザ #40094817981](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094817981)、[Chromium/WebKitゲストラボ #40094817963](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094817963)、[iPad UI #40094818011](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094818011)、[戦闘描画 #40094818023](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094818023)、[WebKit HUD #40094818006](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094818006) はすべてsuccess。旧smoke #40094818128は失敗したが、テストのゲストラボ用コードの完全一致誤認を修正し、後続smoke成功済み。
+- 次は本人が学校でGoogle Sitesを編集して**既存の埋め込みコードを新テキストに置き換え、Google Sites上で公開操作をする必要がある**。こちらではGoogle Sites、main、PR Draft、Firebase設定・ユーザールームは未変更。**本人が貼り替え完了と伝えるまでは学校公開版は「再戦修正版」のまま**。
+- 学校での試験順: (1) 1vs1がルーム番号で接続するか、(2) ゲストが20〜30秒ロビー待機した後にホストが開始し両陣営の登場/攻撃/被弾エフェクトを確認、(3) 重い兵士を含む混戦のホスト/ゲスト描画差、(4) エネルギーが使えるタイミング、(5) 同室再戦、(6) ホスト/ゲストを交代して同条件を観察。危険な研究ログ・リプレイ・常設テレメトリは不要。
