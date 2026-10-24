@@ -392,6 +392,59 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  assert.ok(simulate(5)<50,"5FPS host is still bounded instead of spiralling");
  assert.ok(simulate(5)>44.9,"5FPS host must lose less time than the prior 90ms cap");
  console.log("PASS: bounded host clock catch-up at 30/10/8FPS, with 5FPS safety cap");
+
+ // Drive the REAL fixed-step accumulator and REAL tick()/rate() engine
+ // without Canvas or network. This catches low-FPS clock regressions that
+ // a simple arithmetic estimate would miss (both armies share the host tick).
+ const rateBegin=game.indexOf("function rate(){");
+ const rateEnd=game.indexOf("\n// Known regeneration timeline:",rateBegin);
+ const tickBegin=game.indexOf("function tick(dt){");
+ const tickEnd=game.indexOf("\n// The tactical world remains",tickBegin);
+ const accumulator=frameSection.match(/   acc\\+=delta;[\\s\\S]*?   if\\(iter===5\\)acc=0;/)?.[0];
+ assert.ok(rateBegin>=0&&rateEnd>rateBegin&&tickBegin>=0&&tickEnd>tickBegin&&accumulator,
+  "real engine timing fragments must remain extractable");
+ const runClockCase=(fps,speed=1)=>{
+  const state={phase:"battle",elapsed:0,seconds:600,speed,
+   energy:[0,0,0],observedEnergy:[0,0,0],deaths:[],effects:[],projectiles:[],
+   units:[{x:0}]};
+  const online={isHost:true,isSolo:false,hostBot:false};
+  const actualRate=new Function("S",game.slice(rateBegin,rateEnd)+"\nreturn rate;")(state);
+  const actualTick=new Function("S","NET","ENERGY_CAP","rate","unitStep",
+   "spellStep","botStep","finishTime",
+   game.slice(tickBegin,tickEnd)+"\nreturn tick;")(
+    state,online,12,actualRate,dt=>{state.units[0].x+=10*dt;},
+    ()=>{},()=>{},()=>{throw Error("unexpected finishTime in host clock QA");});
+  const stepFrame=new Function("S","tick","delta","previousAcc",
+   "let acc=previousAcc;\n"+accumulator+"\nreturn acc;");
+  let fractional=0;
+  for(let frame=0;frame<fps*20;frame++){
+   fractional=stepFrame(state,actualTick,Math.min(cap,1/fps),fractional);
+  }
+  return state;
+ };
+ for(const fps of [60,30,15,10,8]){
+  const actual=runClockCase(fps);
+  assert.ok(Math.abs(actual.elapsed-20)<1/30+1e-5,
+   fps+"FPS should preserve 20s of host simulation");
+  assert.ok(Math.abs(actual.energy[1]-5)<.01,
+   fps+"FPS actual tick must recover BLUE energy at +0.25/s");
+  assert.ok(Math.abs(actual.energy[2]-actual.energy[1])<1e-12,
+   fps+"FPS RED and BLUE gain identical host-authoritative energy");
+  assert.ok(Math.abs(actual.observedEnergy[1]-actual.energy[1])<1e-12,
+   fps+"FPS visible host energy ledger follows confirmed state");
+  assert.ok(Math.abs(actual.units[0].x-200)<.4,
+   fps+"FPS unit update must receive the same simulated time");
+ }
+ const restricted=runClockCase(5);
+ assert.ok(restricted.elapsed>14.9&&restricted.elapsed<15.1,
+  "5FPS protects host CPU by advancing roughly 15 simulated seconds");
+ assert.ok(Math.abs(restricted.energy[1]-3.75)<.02,
+  "5FPS resource recovery slows with the bounded host clock");
+ const faster=runClockCase(10,2);
+ assert.ok(Math.abs(faster.elapsed-40)<.07&&Math.abs(faster.energy[1]-10)<.02,
+  "2x match speed remains consistent under 10FPS host scheduling");
+ console.log("PASS: real host tick, energy parity, and unit clock at 60/30/15/10/8/5FPS");
+
 }
 
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
