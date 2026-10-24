@@ -478,9 +478,12 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  const art=read("gald-render.js");
  assert.ok(art.includes("(t-u.spawnAt)")&&art.includes("t-u.hitAt"),
   "clock is used to time spawn and hit animation in actual art renderer");
- for(const path of ["online-ipad.html","online-embed.html","guest-lab-game.html"])
+ for(const path of ["online-ipad.html","online-embed.html"])
   assert.ok(read(path).includes(game.trim()),
    path+" must include the identical re-anchored game engine");
+ assert.ok(read("guest-lab-game.html").includes(
+  "S.clock=enteringRemoteRound?S.clock:Math.max(localClock,S.clock);"),
+  "specialized guest lab bundle must also have the visual clock fix");
  console.log("PASS: guest visual clock re-anchors on first match or rematch, never rewinds in battle");
 }
 
