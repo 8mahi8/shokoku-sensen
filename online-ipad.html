@@ -3375,8 +3375,8 @@ function clampCamera(){
 // consistently slow tablet displays. A one-way change avoids resolution flicker.
 let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
 let guestLowPower=false,guestLastPaint=0;
-// Preserve full animation at normal FPS. Only after TWO sustained low-FPS
-// windows in a real crowded battle do we reuse cached character poses.
+// Preserve full art normally. One extremely slow battle window, or two
+// moderately slow windows, activates the existing cached sprites.
 // This changes Canvas presentation alone; units, hit timing, energy, and
 // authoritative host simulation never change. No extra network messages.
 let lowFpsCrowdedSprites=false;
@@ -3393,10 +3393,10 @@ function adaptCrowdedSprites(now){
  if(!spriteFpsWindowStart){spriteFpsWindowStart=now;return;}
  spriteFpsFrames++;
  const elapsed=now-spriteFpsWindowStart;
- if(elapsed<2600)return;
+ if(elapsed<2000)return;
  const fps=spriteFpsFrames/(elapsed/1000);
  spriteFpsSlowWindows=fps<23?spriteFpsSlowWindows+1:0;
- if(spriteFpsSlowWindows>=2)lowFpsCrowdedSprites=true;
+ if(fps<17||spriteFpsSlowWindows>=2)lowFpsCrowdedSprites=true;
  spriteFpsWindowStart=now;spriteFpsFrames=0;
 }
 function adaptCanvasQuality(now){
