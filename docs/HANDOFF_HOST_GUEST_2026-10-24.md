@@ -108,3 +108,10 @@
 - `resetWorld()`で`resetAdaptiveCanvasForMatch()`を呼び、新しい試合に対し解像度上限1.45と通常描画ペースへ戻して品質判定をやり直す。前試合で解像度を下げた場合だけ必要な`fit()`を実行。画質が変わらない試合や起動時1px画面の余計なリサイズなし。重ければ約3.4秒後の従来の自動判定で再び制限する。ゲーム/通信/Firebaseデータは無変更。
 - [smoke #40196922945](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196922945) success。[WebKit実ブラウザー #40197002201](https://github.com/8mahi8/shokoku-sensen/actions/runs/40197002201) success：10体→10体再戦でCanvasの実描画幅1194→1731（DPR 1.0→1.45）、ゲスト画面間引き true→false、FPSカウンタとタイムスタンプゼロへ戻る。72ポーズ輪郭欠けゼロ。
 - [詳細](CANVAS_QUALITY_REMATCH_2026-10-25.md)。学校Google Sites版と10/24にDriveへ渡した試験用HTMLは依然として変更していない。PR #22 Draft、mainにはマージしていない。最新実Firebaseや戦闘映像CIは個別の完了結果で確認する。
+
+
+## 追補：2026-10-25 — 実Firebase6回再戦×3構成の画質初期化検証完了
+- [実Firebase 2ブラウザー CI #40198227022](https://github.com/8mahi8/shokoku-sensen/actions/runs/40198227022) は **3/3構成 success**（WebKitゲスト＋Chromium/WebKitホストなど）。各構成でラウンド2～7、**合計18回の同室再戦**を確認。各再戦時にホストとゲストの両方で`tabletDprCap=1.45`、`guestLowPower=false`、`qualityMeasured=false`、`qualityFrames=0`をログ・アサーションで確認。元のテストが接続、カード操作、実Firebase同期、回復、全再戦等も通過。
+- [WebKit Canvas品質 #40197002201](https://github.com/8mahi8/shokoku-sensen/actions/runs/40197002201) success、[smoke #40196922945](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196922945) success、Chromium/WebKit guest lab、matched HUD、iPad UI、battle visualも当該ゲーム実装に対してsuccess。変更は`9c816df`のレンダリング品質初期化と`777123e`のFirebaseテスト検証（追加の本番ゲームコード変更はなし）。
+- **次に必要なのは本物の学校iPadで「快適に見えるか」**であり、ヘッドレスWebKit FPSを端末実測と混同しない。友達との対戦を煩わせないよう、学校向け手順を[IPAD_PHASE1_CHECKLIST.md](IPAD_PHASE1_CHECKLIST.md)へ短縮。診断やログは任意、友達の名前やルーム番号の回収不要。
+- **バージョン区分**：現行学校Google Sitesはユーザーが最後に報告した「再戦修正版」。10/24に渡した[Drive HTML](https://drive.google.com/file/d/12fab0-6CMdgyHkYXxln3mjCr4jZQAN5F/view)は固定の旧テスト候補。この後に開発した低FPS適応/歩行/時計/画質再戦初期化は旧Drive版に入っていない。改良版の実機試験が必要なら別の新ファイルを準備し、ユーザーがGoogle Sitesのコードを貼り替える。main未更新、PR #22 Draft、Firebase Rules変更なし。
