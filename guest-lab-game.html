@@ -1595,6 +1595,8 @@ function resetWorld(){
  }
  S.remoteSprites=null;
  S.remoteVisualReceivedAt=0;S.remoteHostClock=null;
+ // The previous round's low-FPS art downgrade must never carry into rematches.
+ resetCrowdedArtForMatch();
  S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP},
              {team:2,x:1206,y:328,hp:START_HP,max:START_HP}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
@@ -3398,6 +3400,10 @@ let guestLowPower=false,guestLastPaint=0;
 // authoritative host simulation never change. No extra network messages.
 let lowFpsCrowdedSprites=false,lowFpsCrowdedSpritesAt=0;
 let spriteFpsWindowStart=0,spriteFpsFrames=0,spriteFpsSlowWindows=0;
+function resetCrowdedArtForMatch(){
+ lowFpsCrowdedSprites=false;lowFpsCrowdedSpritesAt=0;
+ spriteFpsWindowStart=0;spriteFpsFrames=0;spriteFpsSlowWindows=0;
+}
 function adaptCrowdedSprites(now){
  // Existing localhost QA runs compare fixed rendering conditions. Tests
  // explicitly opt in when exercising this auto-fallback.

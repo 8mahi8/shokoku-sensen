@@ -496,7 +496,8 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  assert.ok(begin>0&&end>begin,"low-FPS crowded art sampler present");
  const block=game.slice(begin,end);
  const create=new Function("S","document","qaFrameBench","window",block+
-  "\nreturn {step:adaptCrowdedSprites,active:()=>lowFpsCrowdedSprites};");
+  "\nreturn {step:adaptCrowdedSprites,reset:resetCrowdedArtForMatch,"+
+  "active:()=>lowFpsCrowdedSprites,at:()=>lowFpsCrowdedSpritesAt};");
  const check=(fps,phase,count,hidden=false,qa=null,qaEnabled=false)=>{
   const state={phase,units:Array.from({length:count},(_,i)=>({uid:i}))};
   const renderer=create(state,{hidden},qa,{__qaEnableCrowdedArtAdapt:qaEnabled});
@@ -522,6 +523,27 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
   "local QA is unchanged by production adaptive artwork");
  assert.equal(check(10,"battle",10,false,{},true),true,
   "local QA can explicitly opt in to the real production adaptive sampler");
+ // Exercise a whole session: after severe FPS activates cache once, the new
+ // rematch begins with full art and requires a fresh low-FPS observation.
+ {
+  const session=create({phase:"battle",units:Array.from({length:10},(_,i)=>({uid:i}))},
+   {hidden:false},null,{});
+  session.step(1);
+  for(let t=1;t<=7000;t+=100)session.step(t+1);
+  assert.equal(session.active(),true,"first match severe FPS engages the fallback");
+  assert.ok(session.at()>0,"activation remembers an entry time");
+  session.reset();
+  assert.equal(session.active(),false,"rematch begins with full artwork");
+  assert.equal(session.at(),0,"rematch resets the blend timestamp");
+  session.step(8000);
+  for(let t=8000;t<=14000;t+=1000/60)session.step(t+1);
+  assert.equal(session.active(),false,"rematch recovers to 60FPS full artwork");
+  session.step(15000);
+  for(let t=15000;t<=22000;t+=100)session.step(t+1);
+  assert.equal(session.active(),true,"new severe slowdown may re-enable cache");
+ }
+ assert.ok(game.includes("resetCrowdedArtForMatch();"),
+  "actual resetWorld() must clear the old round's fallback");
  assert.ok(game.includes("S.units.length<(lowFpsCrowdedSprites?6:"),
   "severe mode uses cached artwork for medium-sized fights");
  assert.ok(game.includes("const preserveMoment=lowFpsCrowdedSprites&&("),
