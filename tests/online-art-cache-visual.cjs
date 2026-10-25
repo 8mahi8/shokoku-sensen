@@ -18,6 +18,23 @@ const hook=[
 "  attackAnim:pose===3?(MOTION.attack[key]||.5)*.6:0,",
 "  attackAnimMax:MOTION.attack[key]||.5};",
 " return {tile:cachedSprite(u,pose),sample,ax,ay,frame:Math.max(300,S.clock)};",
+"};",
+"window.__qaCacheBlendProbe=ageMs=>{",
+" const u={uid:88771,key:'infantry',team:1,x:605,y:398,hp:100,max:100,",
+"   spawnAt:-100,hitAt:-100,flash:0,walking:true,walkPhase:2.07,",
+"   attackAnim:0,deathProgress:0};",
+" cachedSprite(u,1);",
+" const oldMode=lowFpsCrowdedSprites,oldAt=lowFpsCrowdedSpritesAt;",
+" const previous=window.KokokuArt.drawUnit;",
+" let fullCalls=0;",
+" window.KokokuArt.drawUnit=(...a)=>{fullCalls++;return previous(...a);};",
+" lowFpsCrowdedSprites=true;lowFpsCrowdedSpritesAt=performance.now()-ageMs;",
+" const before=denseSpritesRendered;",
+" try{renderCrowdedUnit(u);}finally{",
+"  window.KokokuArt.drawUnit=previous;",
+"  lowFpsCrowdedSprites=oldMode;lowFpsCrowdedSpritesAt=oldAt;",
+" }",
+" return {ageMs,fullCalls,cachedCalls:denseSpritesRendered-before};",
 "};"].join("\n");
 html=html.replace(anchor,hook+"\n"+anchor);
 const server=http.createServer((req,res)=>{
@@ -110,6 +127,18 @@ const server=http.createServer((req,res)=>{
   });
   assert.equal(audit.report.length,72,"nine types, both teams, four poses");
   assert.ok(audit.version.includes("B-04"),"large Gald sprite atlas loaded");
+  // Execute the actual game's emergency-cache drawing method at distinct
+  // transition ages. Cache frames must render throughout, but the expensive
+  // full frame must disappear completely after 180 ms.
+  const setup=await page.evaluate(()=>window.__shokokuQa.seedRealisticBattle("heavy"));
+  assert.equal(setup.units,10,"real playable battle before fade review");
+  const blends=await page.evaluate(()=>[0,90,220].map(
+   ageMs=>window.__qaCacheBlendProbe(ageMs)));
+  console.log("CACHE SWITCH BLEND",JSON.stringify(blends));
+  assert.deepEqual(blends.map(x=>x.fullCalls),[1,1,0],
+   "full artwork must only be drawn in 180ms initial crossfade");
+  assert.deepEqual(blends.map(x=>x.cachedCalls),[1,1,1],
+   "cheap tile must stay visible for whole transition");
   assert.equal(audit.gait.length,8,"both teams, four representative walking classes");
   console.log("CACHE WALK POSE DIFFERENCES",JSON.stringify(audit.gait));
   for(const info of audit.gait)assert.ok(info.changedPixels>20,
@@ -123,7 +152,7 @@ const server=http.createServer((req,res)=>{
    timeout:20000
   });
   fs.writeFileSync(path.join(out,"art-cache-audit.json"),JSON.stringify({
-   report:audit.report,clipped,gait:audit.gait,notes:[
+   report:audit.report,clipped,gait:audit.gait,blends,notes:[
     "Same unit properties and same frame for full and cached art",
     "Offline localhost only; no Firebase writes, rules, or game simulation changes",
     "Linux headless WebKit, not a physical iPad measurement"
