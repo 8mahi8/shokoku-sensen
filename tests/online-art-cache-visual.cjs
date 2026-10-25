@@ -35,6 +35,26 @@ const hook=[
 "  lowFpsCrowdedSprites=oldMode;lowFpsCrowdedSpritesAt=oldAt;",
 " }",
 " return {ageMs,fullCalls,cachedCalls:denseSpritesRendered-before};",
+"};",
+"window.__qaRoundArtProbe=()=>{",
+" const old=window.__shokokuQa.seedRealisticBattle('heavy');",
+" if(old.units!==10)throw Error('missing ten-unit first battle');",
+" lowFpsCrowdedSprites=true;lowFpsCrowdedSpritesAt=performance.now()-500;",
+" const unit=S.units.find(u=>u.key==='guardian');",
+" if(!unit)throw Error('missing guardian in actual battle');",
+" const sample={...unit,spawnAt:-100,hitAt:-100,flash:0};",
+" const a=denseSpritesRendered;",
+" renderCrowdedUnit(sample);",
+" const cachedFirst=denseSpritesRendered-a;",
+" const next=window.__shokokuQa.seedRealisticBattle('heavy');",
+" const isFullAgain=!lowFpsCrowdedSprites&&lowFpsCrowdedSpritesAt===0;",
+" const freshUnit=S.units.find(u=>u.key==='guardian');",
+" const c=denseSpritesRendered;",
+" renderCrowdedUnit({...freshUnit,spawnAt:-100,hitAt:-100,flash:0});",
+" const cachedSecond=denseSpritesRendered-c;",
+" return {oldUnits:old.units,newUnits:next.units,cachedFirst,",
+"  cachedSecond,isFullAgain,windowStart:spriteFpsWindowStart,",
+"  slowWindows:spriteFpsSlowWindows};",
 "};"].join("\n");
 html=html.replace(anchor,hook+"\n"+anchor);
 const server=http.createServer((req,res)=>{
@@ -139,6 +159,13 @@ const server=http.createServer((req,res)=>{
    "full artwork must only be drawn in 180ms initial crossfade");
   assert.deepEqual(blends.map(x=>x.cachedCalls),[1,1,1],
    "cheap tile must stay visible for whole transition");
+  const rounds=await page.evaluate(()=>window.__qaRoundArtProbe());
+  console.log("CACHE REMATCH QUALITY",JSON.stringify(rounds));
+  assert.equal(rounds.cachedFirst,1,"emergency art cache active in first game");
+  assert.equal(rounds.cachedSecond,0,"the next game must start with full-quality art");
+  assert.equal(rounds.isFullAgain,true,"round reset must clear cache activation and fade");
+  assert.equal(rounds.windowStart,0,"old round FPS window cannot leak into rematch");
+  assert.equal(rounds.slowWindows,0,"low-FPS detection restarts per match");
   assert.equal(audit.gait.length,8,"both teams, four representative walking classes");
   console.log("CACHE WALK POSE DIFFERENCES",JSON.stringify(audit.gait));
   for(const info of audit.gait)assert.ok(info.changedPixels>20,
@@ -152,7 +179,7 @@ const server=http.createServer((req,res)=>{
    timeout:20000
   });
   fs.writeFileSync(path.join(out,"art-cache-audit.json"),JSON.stringify({
-   report:audit.report,clipped,gait:audit.gait,blends,notes:[
+   report:audit.report,clipped,gait:audit.gait,blends,rounds,notes:[
     "Same unit properties and same frame for full and cached art",
     "Offline localhost only; no Firebase writes, rules, or game simulation changes",
     "Linux headless WebKit, not a physical iPad measurement"
