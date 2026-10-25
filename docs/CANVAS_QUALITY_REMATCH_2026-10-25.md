@@ -21,3 +21,8 @@
 ## 次の判断
 - 新しい学校貼り付け用コードはこの作業では作り直さない。以前渡した安定版で先に学校テストする。
 - 実機で「再戦直後だけ重くなる」ことが確認されたら、高DPRへ戻す前の短時間リハーサルや高速判定など、必要最小限の調整を検討する。
+
+## 実Firebaseの連続再戦でも両端の画質設定を検査
+- [QA追加コミット `777123e`](https://github.com/8mahi8/shokoku-sensen/commit/777123ecf0673a7b74581a646bc9eb7502facdad)。`tests/online-browser-live.cjs`に、同じルームで6回再戦する各ラウンドのロビー直後、**Chromium/WebKitのホストとWebKitゲスト両方**の`phase="menu"`、`tabletDprCap===1.45`、`guestLowPower===false`、`qualityMeasured===false`、`qualityFrames===0`を検証するアサーションを追加。
+- こちらはオフラインの`seedRealisticBattle`だけでなく、実Firebaseで`meta.status`→`resetForLobby()`→双方の画面更新を通っているかを確認する狙い。計測ログはCIへ出力するだけで、ユーザーの対戦履歴やFirebaseへ保存しない。
+- [実Firebase2ブラウザCI #40198227022](https://github.com/8mahi8/shokoku-sensen/actions/runs/40198227022)を実行。完了結果を確認するまではこの新規チェックを合格扱いにしない。
