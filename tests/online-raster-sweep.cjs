@@ -151,7 +151,8 @@ for(const terrain of [true,false,false,true])
     "Linux headless WebKit is not a physical school iPad: use qualitative results only"
    ]},null,2));
   // Full production adaptive path: do not force the low-threshold cache.
-  // Allow the QA gate to exercise two sustained slow windows naturally.
+  // A severe <17fps window acts after ~2s; 17-23fps requires two windows.
+  // Observe every 225ms because combat may eliminate units before 6.7s.
   const fresh=await page.evaluate(()=>{
    window.__qaSkipTerrain=false;
    window.__qaDenseAtSix=false;
