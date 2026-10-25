@@ -1,5 +1,5 @@
 "use strict";
-// Recheck sprite-cache speed after 2026-10-25 large/compact tile bounds repair.
+// Recheck cached gait and 180ms emergency-entry blend with identical playable scenes.
 // Phase A: same-tab Linux headless WebKit comparisons of actual playable
 // 10-unit scenes. All overrides exist ONLY in the loopback-served HTML bytes.
 // Nothing changes online-game.js, school Google Sites HTML, main, or Firebase.
