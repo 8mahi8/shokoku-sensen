@@ -487,4 +487,47 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  console.log("PASS: guest visual clock re-anchors on first match or rematch, never rewinds in battle");
 }
 
+
+{
+ // Test the real browser fallback closure in a pure Node sandbox, without
+ // relying on expensive headless WebKit scheduling or altering gameplay.
+ const begin=game.indexOf("let lowFpsCrowdedSprites=false;");
+ const end=game.indexOf("function adaptCanvasQuality(now){",begin);
+ assert.ok(begin>0&&end>begin,"low-FPS crowded art sampler present");
+ const block=game.slice(begin,end);
+ const create=new Function("S","document","qaFrameBench","window",block+
+  "\nreturn {step:adaptCrowdedSprites,active:()=>lowFpsCrowdedSprites};");
+ const check=(fps,phase,count,hidden=false,qa=null,qaEnabled=false)=>{
+  const state={phase,units:Array.from({length:count},(_,i)=>({uid:i}))};
+  const renderer=create(state,{hidden},qa,{__qaEnableCrowdedArtAdapt:qaEnabled});
+  renderer.step(1);
+  for(let t=1;t<=7000;t+=1000/fps)renderer.step(t+1);
+  return renderer.active();
+ };
+ assert.equal(check(10,"battle",10),true,
+  "two sustained 10FPS windows in a crowded battle enable cached art");
+ assert.equal(check(60,"battle",10),false,
+  "normal 60FPS preserves fully animated artwork");
+ assert.equal(check(10,"prep",10),false,
+  "slow lobby / prep frames cannot trigger artwork degradation");
+ assert.equal(check(10,"battle",5),false,
+  "small battles retain full animation even at low FPS");
+ assert.equal(check(10,"battle",10,true),false,
+  "hidden pages must not falsely activate the fallback");
+ assert.equal(check(10,"battle",10,false,{}),false,
+  "local QA is unchanged by production adaptive artwork");
+ assert.equal(check(10,"battle",10,false,{},true),true,
+  "local QA can explicitly opt in to the real production adaptive sampler");
+ assert.ok(game.includes("S.units.length<(lowFpsCrowdedSprites?6:"),
+  "severe mode uses cached artwork for medium-sized fights");
+ assert.ok(game.includes("const preserveMoment=lowFpsCrowdedSprites&&("),
+  "spawn and hit moments remain full-detail artwork");
+ for(const path of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(path).includes(game.trim()),
+   path+" must embed the exact post-fallback online-game.js");
+ assert.ok(read("guest-lab-game.html").includes(
+  "adaptCrowdedSprites(now);"),"guest-lab bundle keeps the fallback");
+ console.log("PASS: severe low-FPS adaptive art cache, full-detail transitions and bundled pages");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");

@@ -1908,6 +1908,30 @@ function clampCamera(){
 // consistently slow tablet displays. A one-way change avoids resolution flicker.
 let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
 let guestLowPower=false,guestLastPaint=0;
+// Preserve full animation at normal FPS. Only after TWO sustained low-FPS
+// windows in a real crowded battle do we reuse cached character poses.
+// This changes Canvas presentation alone; units, hit timing, energy, and
+// authoritative host simulation never change. No extra network messages.
+let lowFpsCrowdedSprites=false;
+let spriteFpsWindowStart=0,spriteFpsFrames=0,spriteFpsSlowWindows=0;
+function adaptCrowdedSprites(now){
+ // Existing localhost QA runs compare fixed rendering conditions. Tests
+ // explicitly opt in when exercising this auto-fallback.
+ if(qaFrameBench&&!window.__qaEnableCrowdedArtAdapt)return;
+ if(lowFpsCrowdedSprites)return;
+ if(document.hidden||S.phase!=="battle"||S.units.length<6){
+  spriteFpsWindowStart=0;spriteFpsFrames=0;spriteFpsSlowWindows=0;
+  return;
+ }
+ if(!spriteFpsWindowStart){spriteFpsWindowStart=now;return;}
+ spriteFpsFrames++;
+ const elapsed=now-spriteFpsWindowStart;
+ if(elapsed<2600)return;
+ const fps=spriteFpsFrames/(elapsed/1000);
+ spriteFpsSlowWindows=fps<23?spriteFpsSlowWindows+1:0;
+ if(spriteFpsSlowWindows>=2)lowFpsCrowdedSprites=true;
+ spriteFpsWindowStart=now;spriteFpsFrames=0;
+}
 function adaptCanvasQuality(now){
  if(qualityMeasured||!(S.phase==="battle"||S.phase==="prep")||document.hidden){
   if(document.hidden){qualityWindowStart=0;qualityFrames=0;}
@@ -2216,8 +2240,13 @@ function guestSimplifyVisuals(){
 function renderCrowdedUnit(u){
  // Host and small fights retain full artwork. Densely populated guest iPads
  // use pose tiles for even their heavyweight units.
- if(!useDenseSpriteCache||denseCacheBroken||S.units.length<(!NET.isHost&&guestLowPower?28:40)||
-   ((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals())||
+ // Preserve full spawn and hit animations even after the low-FPS fallback.
+ const preserveMoment=lowFpsCrowdedSprites&&(
+  Number.isFinite(u.spawnAt)&&S.clock>=u.spawnAt&&S.clock-u.spawnAt<(u.spawnDuration||.45)||
+  Number.isFinite(u.hitAt)&&S.clock>=u.hitAt&&S.clock-u.hitAt<.3);
+ if(!useDenseSpriteCache||denseCacheBroken||preserveMoment||
+   S.units.length<(lowFpsCrowdedSprites?6:(!NET.isHost&&guestLowPower?28:40))||
+   ((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals()&&!lowFpsCrowdedSprites)||
    !window.KokokuArt){
   fullSpritesRendered++;drawUnit(u);return;
  }
@@ -2835,6 +2864,7 @@ function start(){
   // Keep the existing bounded accumulator to prevent a catch-up spiral.
   const delta=Math.min(.15,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
+  adaptCrowdedSprites(now);
   S.clock+=delta;
   updateCamera(delta);
   inspectHold(now);
