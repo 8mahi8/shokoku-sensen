@@ -2214,15 +2214,24 @@ function drawPreview(){
 // Inspired by the readability of silhouette-led realtime strategy battles:
 // cache recognizable character artwork under heavy crowding, never gameplay state.
 const denseSpriteCache=new Map(),FAST_W=164,FAST_H=190,FAST_AX=82,FAST_AY=155;
+// The tank and the 201x227 Gald guardian extend outside the compact tile.
+// Give only those two classes room so their silhouettes are not clipped.
+// At most 2 teams x 4 poses x 2 big classes get these larger tiles.
+const BIG_W=282,BIG_H=278,BIG_AX=136,BIG_AY=210;
+const cachedHealthTop={infantry:82,scout:92,engineer:101,archer:88,
+ suppress:97,sentinel:107,guardian:187,drone:100,tank:141};
 let useDenseSpriteCache=true,denseCacheBroken=false,denseSpritesRendered=0,fullSpritesRendered=0;
 function cachedSprite(u,pose){
  const key=u.key+"/"+u.team+"/"+pose;
  if(denseSpriteCache.has(key))return denseSpriteCache.get(key);
  if(denseCacheBroken||!window.KokokuArt?.drawUnit)return null;
  try{
-  const tile=document.createElement("canvas");tile.width=FAST_W;tile.height=FAST_H;
+  const big=u.key==="guardian"||u.key==="tank";
+  const ax=big?BIG_AX:FAST_AX,ay=big?BIG_AY:FAST_AY;
+  const tile=document.createElement("canvas");
+  tile.width=big?BIG_W:FAST_W;tile.height=big?BIG_H:FAST_H;
   const g=tile.getContext("2d");if(!g)throw Error("Canvas2D unavailable");
-  const sample={...u,x:FAST_AX,y:FAST_AY,hp:100,max:100,
+  const sample={...u,x:ax,y:ay,hp:100,max:100,
    spawnAt:-100,spawnDuration:.4,deathProgress:0,flash:0,hitAt:-100,drift:0,
    walking:pose===1||pose===2,walkPhase:pose===2?3.2:.4,windup:0,
    attackAnim:pose===3?(MOTION.attack[u.key]||.5)*.6:0,
@@ -2258,15 +2267,22 @@ function renderCrowdedUnit(u){
  // Small colored ground indicator separates friend and foe in overlapping crowds.
  ctx.strokeStyle=u.team===1?"#7fe4ffad":"#ff879bac";ctx.lineWidth=1.65;
  ctx.beginPath();ctx.ellipse(u.x,u.y+1,Math.max(14,CLASSES[u.key].r+6),7,0,0,Math.PI*2);ctx.stroke();
- ctx.drawImage(sprite,Math.round(u.x-FAST_AX),Math.round(u.y-FAST_AY));
+ const big=u.key==="guardian"||u.key==="tank";
+ ctx.drawImage(sprite,Math.round(u.x-(big?BIG_AX:FAST_AX)),
+  Math.round(u.y-(big?BIG_AY:FAST_AY)));
  if(u.flash>0){
   ctx.save();ctx.globalAlpha=Math.min(.42,u.flash*.85);ctx.fillStyle="#fff";
   ctx.beginPath();ctx.arc(u.x,u.y-38,14,0,Math.PI*2);ctx.fill();ctx.restore();
  }
  if(u.hp<u.max){
-  const ratio=Math.max(0,Math.min(1,u.hp/u.max)),y=u.y-(u.key==="drone"?100:105);
-  ctx.fillStyle="#10242b";ctx.fillRect(u.x-22,y,44,6);
-  ctx.fillStyle=TEAM[u.team];ctx.fillRect(u.x-21,y+1,42*ratio,4);
+  // Match the *full* art renderer's HP bar height. The guardian uses a
+  // unique 227px Gald sprite; its bar is much higher than a normal soldier.
+  const ratio=Math.max(0,Math.min(1,u.hp/u.max));
+  const y=u.y-(cachedHealthTop[u.key]||105),isGuardian=u.key==="guardian";
+  const w=isGuardian?66:44,x=u.x-(isGuardian?33:22);
+  ctx.fillStyle="#10242b";ctx.fillRect(x,y,w,7);
+  ctx.fillStyle=TEAM[u.team];
+  ctx.fillRect(x+1,y+1,(w-2)*ratio,5);
  }
 }
 // Large-unit arrival: short, non-blocking battlefield atmosphere cue.

@@ -534,4 +534,33 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  console.log("PASS: severe low-FPS adaptive art cache, full-detail transitions and bundled pages");
 }
 
+
+{
+ // Guardian Gald atlas is rendered at width 201 and height 227, with
+ // anchorX 105/330 and anchorY 292.8/372 of that destination size.
+ // Old 164x190 tiles clipped ~55px from the right, 24px at the top.
+ const packed=game.match(/const BIG_W=(\d+),BIG_H=(\d+),BIG_AX=(\d+),BIG_AY=(\d+)/);
+ assert.ok(packed,"large-art cache tile layout exists");
+ const [bigW,bigH,ax,ay]=packed.slice(1).map(Number);
+ const gald=read("gald-render.js");
+ assert.ok(gald.includes("width=201,height=227"),"expected actual Gald atlas size");
+ const left=ax-105/330*201,top=ay-292.8/372*227;
+ assert.ok(left>=5&&left+201<=bigW-5,
+  "Gald guardian must not clip horizontally on cached tile");
+ assert.ok(top>=5&&top+227<=bigH-5,
+  "Gald guardian must not clip vertically on cached tile");
+ assert.ok(game.includes("tile.width=big?BIG_W:FAST_W")&&
+  game.includes("u.key===\"guardian\"||u.key===\"tank\""),
+  "only bulky models receive the larger tiles");
+ assert.ok(game.includes("const y=u.y-(cachedHealthTop[u.key]||105)")&&
+  game.includes("guardian:187")&&game.includes("tank:141"),
+  "cached HP bars must align vertically with full-size renderers");
+ for(const path of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(path).includes(game.trim()),
+   path+" must match the corrected cache engine");
+ assert.ok(read("guest-lab-game.html").includes("const BIG_W=282"),
+  "guest visual QA includes the correct cache bounds");
+ console.log("PASS: large cached sprites fit, guardian/tank HP bars align");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
