@@ -33,3 +33,5 @@
 - [歩行・移行時の実描画テスト #40193710058](https://github.com/8mahi8/shokoku-sensen/actions/runs/40193710058) success。キャッシュ歩行の前後差、180msで通常描画を停止、72ポーズ欠けゼロ。
 - [ローカル基本回帰 #40193521734](https://github.com/8mahi8/shokoku-sensen/actions/runs/40193521734) success。[実Firebase2ブラウザー #40193285356](https://github.com/8mahi8/shokoku-sensen/actions/runs/40193285356) 3/3 success、Chromium/WebKitゲストラボ・HUD・iPad UIも成功。
 - 数値はLinux headless WebKitで各2回の短時間測定。学校iPadへの貼り替え、Drive再保存、mainマージは未実施。
+
+- [戦闘動画・スクリーンショットQA #40193850035](https://github.com/8mahi8/shokoku-sensen/actions/runs/40193850035) **success**。WebKitで通常8シーン、代表的な動画録画2シーン、対照4シーン、Chromiumコンパクト画面8シーンの計22シーンを実行。兵士の移動がある実カード戦闘（8/10/14/18/20体を含む）、戦車・ゴーレム・スペルを撮影し、例外なし。アーティファクトにスクリーンショット・代表戦闘のWebM・各シーンの結果JSONを保存。録画は代表2件に限定してCIブラウザーの過負荷を軽減した。
