@@ -724,4 +724,78 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  console.log("PASS: repeat matches restore Canvas DPR and guest FPS quality, then re-sample");
 }
 
+
+{
+ // Use the actual production snapshot scheduling function with fake Safari
+ // paint callbacks. No Firebase writes or synthetic replacement algorithm.
+ const begin=net.indexOf("function receiveGuestWorld(packet){");
+ const end=net.indexOf("\n// rAF can keep painting",begin);
+ assert.ok(begin>0&&end>begin,"production guest packet scheduler must be extractable");
+ const frames=[],timers=new Map(),applied=[],errors=[];
+ let nextTimer=0,now=1000,throwOnce=false;
+ const browser={hidden:false};
+ const harness=new Function("applyWorld","requestAnimationFrame","setTimeout","clearTimeout","performance","document","errors",`
+let room={},host=false,meta={round:1},lastRemoteSeq=0,pendingRemote=null,remoteScheduled=false,remoteEpoch=0,remoteApplyFallback=null;
+let qaFreezeGuestWorld=false,lastStateEventAt=0,lastStateEventSeq=0,coalescedPackets=0,lastRemoteAppliedAt=0,appliedGaps=[],appliedPackets=0,lastApplyMs=0,lastApplyError="",syncWarning=false;
+const game={apply:(world,seq)=>applyWorld(world,seq)};
+function cancelRemoteFallback(){if(remoteApplyFallback!==null){clearTimeout(remoteApplyFallback);remoteApplyFallback=null;}}
+function updateUI(){}
+function setError(e){errors.push(String(e));}
+`+net.slice(begin,end)+`
+return {deliver:receiveGuestWorld,
+ newRound:n=>{meta={round:n};cancelRemoteFallback();remoteEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteSeq=0;},
+ stats:()=>({appliedPackets,lastRemoteSeq,coalescedPackets,remoteScheduled,pendingSeq:pendingRemote?.seq||0})};
+`);
+ const qa=harness((world,seq)=>{if(throwOnce){throwOnce=false;throw Error("synthetic apply failure");}applied.push({seq,round:world.round});},
+  callback=>frames.push(callback),
+  callback=>{const id=++nextTimer;timers.set(id,callback);return id;},
+  id=>timers.delete(id),
+  {now:()=>now},browser,errors);
+ const packet=(seq,round=1)=>({seq,round,world:{round}});
+ qa.deliver(packet(1));qa.deliver(packet(2));
+ assert.equal(frames.length,1,"bursty snapshots use one animation frame");
+ assert.equal(qa.stats().coalescedPackets,1,"bursty snapshots coalesce");
+ assert.equal(applied.length,0,"do not apply several snapshots before paint");
+ frames.shift()();
+ assert.deepEqual(applied,[{seq:2,round:1}],"first frame applies newest snapshot only");
+ qa.deliver(packet(1));
+ assert.equal(frames.length,0,"older packet must not requeue a frame");
+ qa.deliver(packet(3));
+ const stranded=frames.shift();
+ now+=700;
+ const fallback=timers.get(nextTimer);
+ assert.ok(fallback,"Safari rAF fallback is registered");
+ fallback();
+ assert.equal(qa.stats().lastRemoteSeq,3,"stalled rAF fallback delivers newest world");
+ stranded();
+ assert.equal(applied.length,2,"a late rAF must not replay a fallback-applied packet");
+ qa.deliver(packet(4));
+ const latePriorRoundFrame=frames.shift();
+ qa.newRound(2);
+ qa.deliver(packet(99,1));
+ assert.equal(frames.length,0,"obsolete round cannot schedule a new frame");
+ qa.deliver(packet(1,2));
+ const newRoundFrame=frames.shift();
+ latePriorRoundFrame();
+ assert.equal(qa.stats().lastRemoteSeq,0,"old round rAF must not consume new-round state");
+ newRoundFrame();
+ assert.deepEqual(applied.at(-1),{seq:1,round:2},"fresh round accepts seq 1");
+ qa.deliver(packet(2,2));
+ browser.hidden=true;
+ const hiddenFallback=timers.get(nextTimer);
+ hiddenFallback();
+ assert.equal(qa.stats().lastRemoteSeq,1,"hidden iframe fallback must not force paint");
+ browser.hidden=false;frames.shift()();
+ assert.equal(qa.stats().lastRemoteSeq,2,"visible rAF resumes queued world");
+ qa.deliver(packet(3,2));
+ throwOnce=true;
+ frames.shift()();
+ assert.equal(qa.stats().lastRemoteSeq,2,"a failed apply cannot consume network sequence");
+ assert.equal(errors.length,1,"apply error must surface in diagnostic feedback");
+ qa.deliver(packet(3,2));frames.shift()();
+ assert.equal(qa.stats().lastRemoteSeq,3,"failed packet can be retried with identical sequence");
+ assert.deepEqual(applied.map(x=>x.seq),[2,3,1,2,3],"ordered verified snapshot delivery");
+ console.log("PASS: real guest snapshot scheduler coalescing, stalled Safari rAF recovery, old-round isolation, hidden frames and retry");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
