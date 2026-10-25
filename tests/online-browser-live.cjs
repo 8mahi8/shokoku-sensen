@@ -297,6 +297,22 @@ const deadline=async (f,label,timeout=18000)=>{
      (await host.locator("#onlinePanel").isVisible())&&
      (await guest.locator("#onlinePanel").isVisible());
    },"round "+round+" both clients returned to lobby",18000);
+   // Each player must start this real Firebase rematch with a fresh local
+   // rendering-quality assessment, even if the last round had poor FPS.
+   const freshQuality=await Promise.all([host,guest].map(p=>p.evaluate(()=>({
+    ...window.__shokokuQa.quality(),phase:window.__shokokuQa.snapshot().phase
+   }))));
+   for(const [index,quality] of freshQuality.entries()){
+    const name=index===0?"host":"guest";
+    assert.equal(quality.phase,"menu",name+" returns to fresh lobby");
+    assert.equal(quality.tabletDprCap,1.45,name+" restores normal DPR budget");
+    assert.equal(quality.guestLowPower,false,name+" resets guest painting limiter");
+    assert.equal(quality.qualityMeasured,false,name+" rechecks quality next match");
+    assert.equal(quality.qualityFrames,0,name+" clears the old FPS window");
+   }
+   console.log("REAL FIREBASE ROUND QUALITY RESET",JSON.stringify({
+    round,host:freshQuality[0],guest:freshQuality[1]
+   }));
    await guest.locator("#netReady").click();
    await host.locator("#netReady").click();
    await deadline(async()=>host.locator("#netStart").isEnabled(),"round "+round+" ready",18000);
