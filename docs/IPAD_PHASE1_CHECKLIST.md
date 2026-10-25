@@ -1,8 +1,15 @@
 # 小国戦線III｜学校iPad 1vs1 最小実機チェック（2026-10-25）
 
+## 最新の学校試験用コード（2026-10-25追加）
+- **最新版・Google Sitesコード直接貼り付け用**：[Shokoku_III_GoogleSites_latest_20261025.txt](https://drive.google.com/file/d/1fi7sp3IW3AjcLAPFa7ZExeI42xEcVAXK/view)。**非公開の新規別ファイル**として保存し、Drive読み戻しと開発ブランチの`online-ipad.html`全文一致を確認（Git blob SHA `b709337046abb4bee736c578f60ff868e6f5dce5`、324279 bytes）。
+- こちらが**軽量化・ゲスト演出時計調整・再戦画質リセットまで含む最新試験候補**。Google Sitesに貼るなら、HTML全文を「埋め込みコード」欄へ直接コピーし、サイトを公開する。GitHub PagesのURL埋め込みではない。
+- 以前渡した**10/24の固定ファイルは旧候補**であり、最新版の再戦画質修正等は入っていない。旧ファイルは上書きせず残す。
+- **学校Google Sites版はまだユーザー申告の「再戦修正版」**。最新版コードのDrive保存だけで学校版が更新されたことにはならない。実際の貼り替え・公開は本人の判断・操作で行う。
+
+
 ## 版の区別（最重要）
 - **学校Google Sites版**：最後にユーザーが報告した「再戦修正版」。開発者はGoogle Sites自体を変更していない。
-- **学校に渡したテスト用コード**：[2026-10-24 Google Drive の単体HTML全文（.txt）](https://drive.google.com/file/d/12fab0-6CMdgyHkYXxln3mjCr4jZQAN5F/view)。学校Google Sitesの「埋め込みコード」に全内容を貼り替えて**公開**して初めてこの版を試せる。GitHub PagesのURL埋め込みではない。ファイル自体は後から変更していない。
+- **以前渡した10/24テスト用コード**：[2026-10-24 Google Drive の単体HTML全文（.txt）](https://drive.google.com/file/d/12fab0-6CMdgyHkYXxln3mjCr4jZQAN5F/view)。学校Google Sitesの「埋め込みコード」に全内容を貼り替えて**公開**して初めてこの版を試せる。GitHub PagesのURL埋め込みではない。ファイル自体は後から変更していない。
 - **現在の開発版**：PR #22（Draft、GitHubブランチ `perf/online-guest-snapshot-diagnostics-20261020`）。10/24テスト用コードより後に描画軽量化・ホスト/ゲスト表示時計・再戦ごとの画質初期化などを修正。これらの**新しい修正の実機確認は、10/24版ではできない**。その版で学校の問題を切り分け、必要なら開発側で次のテスト用HTMLを別ファイルとして用意する。
 
 ## 友達との1vs1（普段通りに遊ぶだけでOK）
