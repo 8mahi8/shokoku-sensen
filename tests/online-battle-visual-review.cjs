@@ -16,7 +16,12 @@ const server=http.createServer((req,res)=>{
  fs.createReadStream(file).pipe(res);
 });
 const profiles=[
- {name:"webkit-ipad-landscape",engine:webkit,width:1194,height:834,video:true},
+ {name:"webkit-ipad-landscape",engine:webkit,width:1194,height:834,video:false},
+ // Record short representative moving battles, not ALL eight WebKit scenes.
+ // Keeping video capture on for every 20-unit case caused intermittent
+ // WebKit process exits on resource-constrained GitHub Actions runners.
+ {name:"webkit-ipad-motion-video",engine:webkit,width:1194,height:834,
+  video:true,only:["light","heavy"]},
  // Video capture can itself affect headless WebKit scheduling.
  // Run the matched 10-unit controls once more with recording disabled.
  {name:"webkit-ipad-no-video",engine:webkit,width:1194,height:834,video:false,only:["light","heavy"]},
@@ -169,7 +174,7 @@ const round=n=>Math.round(n*10)/10;
    await context.close();await browser.close();browsers.pop();
   }
   fs.writeFileSync(path.join(out,"realistic-results.json"),JSON.stringify(allResults,null,2));
-  assert.equal(allResults.length,scenes.length*2+4);
+  assert.equal(allResults.length,scenes.length*2+6);
   console.log("PASS: 8/10/14/18/20-unit real-card battles, heavy art + spells, WebKit + compact Sites; visual evidence saved");
  }finally{
   for(const browser of browsers)try{await browser.close()}catch(_){}
