@@ -55,6 +55,21 @@ const hook=[
 " return {oldUnits:old.units,newUnits:next.units,cachedFirst,",
 "  cachedSecond,isFullAgain,windowStart:spriteFpsWindowStart,",
 "  slowWindows:spriteFpsSlowWindows};",
+"};",
+"window.__qaCanvasQualityRoundProbe=()=>{",
+" const first=window.__shokokuQa.seedRealisticBattle('light');",
+" if(first.units!==10)throw Error('first quality trial needs real 10-unit battle');",
+" tabletDprCap=1;guestLowPower=true;guestLastPaint=performance.now();",
+" qualityMeasured=true;qualityWindowStart=performance.now()-5500;qualityFrames=42;",
+" fit();",
+" const lowered={cap:tabletDprCap,dpr:S.view.dpr,",
+"  width:document.getElementById('field').width,paint:guestLowPower};",
+" const second=window.__shokokuQa.seedRealisticBattle('light');",
+" return {firstUnits:first.units,secondUnits:second.units,lowered,",
+"   restored:{cap:tabletDprCap,dpr:S.view.dpr,",
+"    width:document.getElementById('field').width,paint:guestLowPower,",
+"    measured:qualityMeasured,windowStart:qualityWindowStart,",
+"    frames:qualityFrames,lastPaint:guestLastPaint}};",
 "};"].join("\n");
 html=html.replace(anchor,hook+"\n"+anchor);
 const server=http.createServer((req,res)=>{
@@ -166,6 +181,20 @@ const server=http.createServer((req,res)=>{
   assert.equal(rounds.isFullAgain,true,"round reset must clear cache activation and fade");
   assert.equal(rounds.windowStart,0,"old round FPS window cannot leak into rematch");
   assert.equal(rounds.slowWindows,0,"low-FPS detection restarts per match");
+  const qualityRound=await page.evaluate(()=>window.__qaCanvasQualityRoundProbe());
+  console.log("CANVAS QUALITY REMATCH",JSON.stringify(qualityRound));
+  assert.equal(qualityRound.firstUnits,10);
+  assert.equal(qualityRound.secondUnits,10);
+  assert.equal(qualityRound.lowered.cap,1,"first match simulated quality downgrade");
+  assert.equal(qualityRound.lowered.paint,true,"first match simulated guest limiter");
+  assert.equal(qualityRound.restored.cap,1.45,"host Canvas quality restored on rematch");
+  assert.equal(qualityRound.restored.paint,false,"guest paint limiter reset on rematch");
+  assert.equal(qualityRound.restored.measured,false,"new match measures FPS again");
+  assert.equal(qualityRound.restored.windowStart,0,"quality window start reset");
+  assert.equal(qualityRound.restored.frames,0,"old match FPS count discarded");
+  assert.equal(qualityRound.restored.lastPaint,0,"paint frame limiter timestamp cleared");
+  assert.ok(qualityRound.restored.width>qualityRound.lowered.width,
+   "Canvas backing-pixel resolution actually recovers");
   assert.equal(audit.gait.length,8,"both teams, four representative walking classes");
   console.log("CACHE WALK POSE DIFFERENCES",JSON.stringify(audit.gait));
   for(const info of audit.gait)assert.ok(info.changedPixels>20,
@@ -179,7 +208,7 @@ const server=http.createServer((req,res)=>{
    timeout:20000
   });
   fs.writeFileSync(path.join(out,"art-cache-audit.json"),JSON.stringify({
-   report:audit.report,clipped,gait:audit.gait,blends,rounds,notes:[
+   report:audit.report,clipped,gait:audit.gait,blends,rounds,qualityRound,notes:[
     "Same unit properties and same frame for full and cached art",
     "Offline localhost only; no Firebase writes, rules, or game simulation changes",
     "Linux headless WebKit, not a physical iPad measurement"
