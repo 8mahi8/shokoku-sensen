@@ -24,3 +24,12 @@
 - 学校に以前渡した2026-10-24 Google Drive上の固定テスト用HTMLは**未更新**。
 - PR #22はDraftのまま、`main`やGoogle Sitesは変更しない。
 - 次に学校で見る点：重い混戦の歩行、攻撃・被弾演出、描画切り替え前後の体感、ホストとゲストの操作公平性。
+
+
+## 最終追試：歩行修正後のFPS比較
+- [WebKit 24条件＋自動切り替え #40193872973](https://github.com/8mahi8/shokoku-sensen/actions/runs/40193872973) success。
+- 10体の正規戦闘（各条件2回）：大型部隊は通常9.38→キャッシュ11.37fps（平均JS描画時間5.06→1.44ms）、通常部隊は11.81→18.40fps（5.50→1.17ms）。
+- 自動切り替えが実対戦中に作動し、10体の画像キャッシュを描画。数体まで減少後はキャッシュ描画対象0体。ブラウザー例外0。初回の180msクロスフェードを付けても、比較実験では改善を維持した。
+- [歩行・移行時の実描画テスト #40193710058](https://github.com/8mahi8/shokoku-sensen/actions/runs/40193710058) success。キャッシュ歩行の前後差、180msで通常描画を停止、72ポーズ欠けゼロ。
+- [ローカル基本回帰 #40193521734](https://github.com/8mahi8/shokoku-sensen/actions/runs/40193521734) success。[実Firebase2ブラウザー #40193285356](https://github.com/8mahi8/shokoku-sensen/actions/runs/40193285356) 3/3 success、Chromium/WebKitゲストラボ・HUD・iPad UIも成功。
+- 数値はLinux headless WebKitで各2回の短時間測定。学校iPadへの貼り替え、Drive再保存、mainマージは未実施。
