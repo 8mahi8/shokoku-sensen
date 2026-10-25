@@ -12,7 +12,8 @@ function patch(src,from,to){
  assert.equal(src.split(from).length,2,"single injection anchor required: "+from);
  return src.replace(from,to);
 }
-let html=patch(original,"S.clock+=delta;","if(!window.__qaTickPause)S.clock+=delta;");
+let html=patch(original,"S.clock+=delta*guestVisualClockPace(now);",
+ "if(!window.__qaTickPause)S.clock+=delta*guestVisualClockPace(now);");
 html=patch(html,'}else if(NET.isHost&&S.phase==="battle"){',
  '}else if(NET.isHost&&S.phase==="battle"&&!window.__qaTickPause){');
 html=patch(html,"function updateHUD(){\n if(!S.capitals.length)return;",

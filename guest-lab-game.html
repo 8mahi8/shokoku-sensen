@@ -1594,7 +1594,7 @@ function resetWorld(){
   S.queue[team]=deck.slice(HAND_SIZE);
  }
  S.remoteSprites=null;
- S.remoteVisualReceivedAt=0;
+ S.remoteVisualReceivedAt=0;S.remoteHostClock=null;
  S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP},
              {team:2,x:1206,y:328,hp:START_HP,max:START_HP}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
@@ -3573,6 +3573,18 @@ function drawFort(f){
 // Advance their *visual* time between packets, exactly as the host's 30 Hz
 // simulation would; never mutate the authoritative S.effects/projectiles.
 // This affects presentation only, not collisions, damage, timing or Firebase.
+// Match the host's presentation clock during severe host frame stalls.
+// The host can advance less than wall time below ~7 FPS (bounded 150ms rAF).
+// Never rewind a displayed guest frame: gently slow its visual clock when it
+// gets >150ms ahead of the most recently confirmed host clock plus packet age.
+// Combat/timers/cards still follow host-authoritative snapshots unchanged.
+function guestVisualClockPace(now){
+ if(NET.isHost||!(S.phase==="battle"||S.phase==="prep")||
+    !S.remoteVisualReceivedAt||!Number.isFinite(S.remoteHostClock))return 1;
+ const since=Math.max(0,Math.min(.25,(now-S.remoteVisualReceivedAt)/1000));
+ const lead=S.clock-S.remoteHostClock-since;
+ return limit(1-Math.max(0,lead-.15)*3,0,1);
+}
 function guestVisualTimeRemaining(snapshotTime,now){
  if(NET.isHost||!S.remoteVisualReceivedAt)return snapshotTime;
  const elapsed=Math.max(0,Math.min(.25,(now-S.remoteVisualReceivedAt)/1000));
@@ -4300,6 +4312,7 @@ function start(){
    S.clock=enteringRemoteRound?S.clock:Math.max(localClock,S.clock);
    const now=performance.now();
    S.remoteVisualReceivedAt=now;
+   S.remoteHostClock=Number.isFinite(data.clock)?data.clock:null;
    const sprites=S.remoteSprites||(S.remoteSprites=new Map());
    const seen=new Set();
    for(const u of S.units){
@@ -4385,7 +4398,7 @@ function start(){
   const delta=Math.min(.15,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   adaptCrowdedSprites(now);
-  S.clock+=delta;
+  S.clock+=delta*guestVisualClockPace(now);
   updateCamera(delta);
   inspectHold(now);
   if(NET.isHost&&S.phase==="prep"){

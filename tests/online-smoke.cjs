@@ -596,4 +596,68 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  console.log("PASS: opposite cached walking strides and bounded fade-on switch");
 }
 
+
+{
+ // Reproduce real 150ms host clock cap and 60FPS guest drawing for twenty
+ // seconds. With the old Math.max-only clock the host at 5FPS advances only
+ // 15 seconds while a 60FPS guest races ahead 20 seconds, permanently
+ // expiring its host-relative spawn and hit visual effects.
+ const begin=game.indexOf("function guestVisualClockPace(now){");
+ const end=game.indexOf("\nfunction guestVisualTimeRemaining(",begin);
+ assert.ok(begin>=0&&end>begin,"host-anchored guest presentation pace exists");
+ const source=game.slice(begin,end);
+ const factory=new Function("NET","S","limit",source+
+  "\nreturn guestVisualClockPace;");
+ const limit=(x,a,b)=>Math.max(a,Math.min(b,x));
+ const simulate=hostFps=>{
+  const state={clock:0,remoteHostClock:null,remoteVisualReceivedAt:0,phase:"battle"};
+  const net={isHost:false},pace=factory(net,state,limit);
+  let hostClock=0,lastHostAt=0,lastPacketAt=0,maxLead=0;
+  for(let frame=1;frame<=1200;frame++){
+   const t=frame/60,now=1000+t*1000;
+   while(lastHostAt+1/hostFps<=t+1e-9){
+    hostClock+=Math.min(.15,1/hostFps);
+    lastHostAt+=1/hostFps;
+   }
+   if(lastPacketAt+.2<=t+1e-9){
+    state.remoteHostClock=hostClock;state.remoteVisualReceivedAt=now;
+    state.clock=Math.max(state.clock,hostClock);
+    lastPacketAt+=.2;
+   }
+   const previous=state.clock;
+   state.clock+=(1/60)*pace(now);
+   assert.ok(state.clock>=previous,"guest presentation clock must not rewind");
+   maxLead=Math.max(maxLead,state.clock-hostClock);
+  }
+  return {hostClock,guestClock:state.clock,maxLead};
+ };
+ for(const fps of [30,10,8,5,4]){
+  const {hostClock,guestClock,maxLead}=simulate(fps);
+  assert.ok(maxLead<=.55,"guest clock may not run seconds ahead at "+fps+"FPS");
+  assert.ok(guestClock>=hostClock,"guest must not trail latest host clock");
+  if(fps>=8)assert.ok(Math.abs(guestClock-20)<.25,
+   "normal 8-30FPS should retain host-like full-speed animation clock");
+  else assert.ok(guestClock-hostClock<.5,
+   "extremely slow host remains visually synchronized without a backwards jump");
+ }
+ const idle={clock:23,remoteHostClock:null,remoteVisualReceivedAt:0,phase:"menu"};
+ const guestPace=factory({isHost:false},idle,limit);
+ assert.equal(guestPace(9000),1,"menu phase retains normal clock pace");
+ idle.phase="battle";
+ assert.equal(guestPace(9000),1,"guest awaiting first packet retains normal clock");
+ idle.remoteHostClock=22;idle.remoteVisualReceivedAt=8000;
+ assert.equal(guestPace(9000),0,"stale guest may not run far beyond last host clock");
+ assert.equal(factory({isHost:true},idle,limit)(9000),1,
+  "host game clock must never be throttled by a guest-only guard");
+ assert.ok(game.includes("S.clock+=delta*guestVisualClockPace(now);"),
+  "render frame must use bounded guest presentation pace");
+ assert.ok(game.includes("S.remoteHostClock=Number.isFinite(data.clock)?data.clock:null;"),
+  "each authoritative snapshot must anchor the guest pacing");
+ for(const p of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(p).includes(game.trim()),p+" must embed matching visual pacing");
+ assert.ok(read("guest-lab-game.html").includes("function guestVisualClockPace(now){"),
+  "guest lab also includes presentation clock guard");
+ console.log("PASS: 30/10/8/5/4FPS host/guest visual clock stays bounded and monotonic");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
