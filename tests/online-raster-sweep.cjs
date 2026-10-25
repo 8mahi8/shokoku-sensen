@@ -150,6 +150,35 @@ for(const terrain of [true,false,false,true])
     "Disabling terrain is a diagnostic control, not a playable candidate",
     "Linux headless WebKit is not a physical school iPad: use qualitative results only"
    ]},null,2));
+  // Full production adaptive path: do not force the low-threshold cache.
+  // Allow the QA gate to exercise two sustained slow windows naturally.
+  const fresh=await page.evaluate(()=>{
+   window.__qaSkipTerrain=false;
+   window.__qaDenseAtSix=false;
+   window.__qaEnableCrowdedArtAdapt=true;
+   const scenario=window.__shokokuQa.seedRealisticBattle("heavy");
+   window.__shokokuQa.setDpr(1);
+   return {scenario,sprites:window.__shokokuQa.spriteStats()};
+  });
+  assert.equal(fresh.scenario.units,10);
+  assert.equal(fresh.sprites.cached,0,"auto-fallback must begin with full artwork");
+  await page.screenshot({path:path.join(output,"adaptive-before.png")});
+  await page.waitForTimeout(6700);
+  const auto=await page.evaluate(()=>({
+   sprites:window.__shokokuQa.spriteStats(),
+   state:window.__shokokuQa.snapshot(),
+   error:window.__onlineFrameError||null
+  }));
+  await page.screenshot({path:path.join(output,"adaptive-after.png")});
+  assert.equal(auto.error,null);
+  assert.ok(auto.state.units.length>=6,"keep a real six-unit battle to exercise fallback");
+  assert.ok(auto.sprites.cached>0,
+   "severe 10FPS WebKit battle should enable low-FPS cached art");
+  assert.deepEqual(errors,[],"no JavaScript errors after adaptive trial");
+  console.log("RASTER AUTO FALLBACK",JSON.stringify({
+   initiallyFull:fresh.sprites.cached===0,postCached:auto.sprites.cached,
+   units:auto.state.units.length,phase:auto.state.phase}));
+  console.log("PASS: production severe-FPS fallback changes cached sprites only after sustained slow battle");
   console.log("PASS: QA-only DPR / sprite-cache / background control");
  }finally{
   await ctx?.close().catch(()=>{});
