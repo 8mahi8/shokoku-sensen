@@ -541,6 +541,11 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  // Old 164x190 tiles clipped ~55px from the right, 24px at the top.
  const packed=game.match(/const BIG_W=(\d+),BIG_H=(\d+),BIG_AX=(\d+),BIG_AY=(\d+)/);
  assert.ok(packed,"large-art cache tile layout exists");
+ const compact=game.match(/FAST_W=(\d+),FAST_H=(\d+),FAST_AX=(\d+),FAST_AY=(\d+)/);
+ assert.ok(compact,"compact artwork layout exists");
+ const [sw,sh,sx,sy]=compact.slice(1).map(Number);
+ assert.ok(sw>=192&&sh>=214&&sx>=96&&sy>=167,
+  "ordinary attack poses need margin inside compact tile");
  const [bigW,bigH,ax,ay]=packed.slice(1).map(Number);
  const gald=read("gald-render.js");
  assert.ok(gald.includes("width=201,height=227"),"expected actual Gald atlas size");

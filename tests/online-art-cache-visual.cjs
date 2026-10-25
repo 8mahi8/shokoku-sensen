@@ -92,8 +92,7 @@ const server=http.createServer((req,res)=>{
   const clipped=audit.report.filter(x=>x.outsideCount>5);
   console.log("CACHE ART OUTSIDE TILE",JSON.stringify(clipped));
   assert.deepEqual(errors,[],"no unexpected browser errors");
-  assert.equal(clipped.filter(x=>x.key==="guardian"||x.key==="tank").length,0,
-   "large character cache may not truncate visible art");
+  // Capture all visual evidence before making clipping a hard failure.
   await page.locator("#qaCacheMontage").screenshot({
    path:path.join(out,"cache-vs-full-guardian-tank.png"),animations:"disabled",
    timeout:20000
@@ -104,7 +103,8 @@ const server=http.createServer((req,res)=>{
     "Offline localhost only; no Firebase writes, rules, or game simulation changes",
     "Linux headless WebKit, not a physical iPad measurement"
    ]},null,2));
-  console.log("PASS: 72 full-vs-cache art poses and heavy silhouette clipping audit");
+  assert.equal(clipped.length,0,"all 72 full-art poses must fit cache tiles");
+  console.log("PASS: 72 source-vs-cache art poses have no clipped silhouettes");
  }finally{
   await ctx?.close().catch(()=>{});await browser?.close().catch(()=>{});
   await new Promise(resolve=>server.close(resolve));
