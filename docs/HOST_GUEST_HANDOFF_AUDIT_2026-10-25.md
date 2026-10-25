@@ -33,3 +33,11 @@
 
 ## 保護範囲
 main・Google Sitesの公開コード・Firebaseルール/既存ルーム・10/24 Driveファイルは変更しない。PR #22はDraftを維持。ログ収集、リプレイ、課金、大規模なセキュリティ機能追加は不要。
+
+## 2026-10-26追記｜Safari戦況反映スケジューラの実コード・回帰試験
+
+- **実装済みの通信処理を実行する新規スモーク回帰テスト**を `tests/online-smoke.cjs` に追加した（commit [52aefad](https://github.com/8mahi8/shokoku-sensen/commit/52aefad1c9acec977d76bafcd8ddd7148ef4abae)）。モックのFirebase/代替アルゴリズムではなく、`online-net.js` 本体の `receiveGuestWorld(packet)` を抽出して実行。
+- ケース: 連続スナップショットは最新版1件だけ反映、古いseq破棄、`requestAnimationFrame` が停止した時の650ms代替反映、代替反映後の遅延rAF重複防止、再戦後の旧round callback遮断、新round seq=1、非表示iframeでの代替描画抑制、反映例外時はseqを消費せず同一packetを再試行。
+- GitHub Actions [Online 1v1 smoke #40212141248](https://github.com/8mahi8/shokoku-sensen/actions/runs/40212141248) **SUCCESS**。新アサーションPASSをジョブログで確認し、既存の`online-sim.cjs`と学校HTML生成もPASS。
+- **ゲーム本体・通信本体・学校HTMLの変更はなし**。既存の実Firebase 2ブラウザ検証は前回run [#40198227022](https://github.com/8mahi8/shokoku-sensen/actions/runs/40198227022) の証拠を引き続き利用。今回の単体テストを新しい実Firebase試験・学校iPad試験だとは扱わない。
+- 次はGoogle Sitesへ今回のDrive最新候補を本人が貼り替えた時に、学校iPad×2台の主観的滑らかさ・混戦・2〜3再戦・可能なら役割交代を確認。新事象がなければCanvas/CSS探索を無計画に繰り返さない。
