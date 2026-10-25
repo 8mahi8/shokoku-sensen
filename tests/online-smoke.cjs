@@ -508,6 +508,10 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
   "two sustained 10FPS windows in a crowded battle enable cached art");
  assert.equal(check(60,"battle",10),false,
   "normal 60FPS preserves fully animated artwork");
+ assert.equal(check(20,"battle",10),true,
+  "two moderately slow windows activate cached art");
+ assert.equal(check(30,"battle",10),false,
+  "full-detail animations remain at 30FPS");
  assert.equal(check(10,"prep",10),false,
   "slow lobby / prep frames cannot trigger artwork degradation");
  assert.equal(check(10,"battle",5),false,
