@@ -13,7 +13,8 @@ const hook=[
 " const ax=big?BIG_AX:FAST_AX,ay=big?BIG_AY:FAST_AY;",
 " const sample={...u,x:200,y:270,hp:100,max:100,",
 "  spawnAt:-100,spawnDuration:.4,deathProgress:0,flash:0,hitAt:-100,drift:0,",
-"  walking:pose===1||pose===2,walkPhase:pose===2?3.2:.4,windup:0,",
+"  walking:pose===1||pose===2,",
+"  walkPhase:pose===2?3*Math.PI/(2*.76):Math.PI/(2*.76),windup:0,",
 "  attackAnim:pose===3?(MOTION.attack[key]||.5)*.6:0,",
 "  attackAnimMax:MOTION.attack[key]||.5};",
 " return {tile:cachedSprite(u,pose),sample,ax,ay,frame:Math.max(300,S.clock)};",
@@ -84,11 +85,35 @@ const server=http.createServer((req,res)=>{
      g.fillText("CACHED",WIDTH+10,row*HEIGHT+30);
     }
    }
+   // Verify the two cached gait poses visibly differ; old source samples
+   // (.4 and 3.2) both produced forward swing and a stiff-looking stride.
+   const gait=[];
+   for(const key of ["infantry","scout","guardian","tank"])for(const team of [1,2]){
+    const p1=window.__qaCachedArtProbe(key,team,1);
+    const p2=window.__qaCachedArtProbe(key,team,2);
+    const c1=document.createElement("canvas"),c2=document.createElement("canvas");
+    c1.width=c2.width=p1.tile.width;c1.height=c2.height=p1.tile.height;
+    const a1=c1.getContext("2d",{willReadFrequently:true});
+    const a2=c2.getContext("2d",{willReadFrequently:true});
+    a1.drawImage(p1.tile,0,0);a2.drawImage(p2.tile,0,0);
+    const pix1=a1.getImageData(0,0,c1.width,c1.height).data;
+    const pix2=a2.getImageData(0,0,c2.width,c2.height).data;
+    let changed=0;
+    for(let p=0;p<pix1.length;p+=4){
+     let d=0;for(let k=0;k<4;k++)d+=Math.abs(pix1[p+k]-pix2[p+k]);
+     if(d>65)changed++;
+    }
+    gait.push({key,team,changedPixels:changed});
+   }
    document.body.append(montage);
-   return {report,version:window.GaldArt.version};
+   return {report,gait,version:window.GaldArt.version};
   });
   assert.equal(audit.report.length,72,"nine types, both teams, four poses");
   assert.ok(audit.version.includes("B-04"),"large Gald sprite atlas loaded");
+  assert.equal(audit.gait.length,8,"both teams, four representative walking classes");
+  console.log("CACHE WALK POSE DIFFERENCES",JSON.stringify(audit.gait));
+  for(const info of audit.gait)assert.ok(info.changedPixels>20,
+   info.key+" team "+info.team+" must show distinct opposing stride frames");
   const clipped=audit.report.filter(x=>x.outsideCount>5);
   console.log("CACHE ART OUTSIDE TILE",JSON.stringify(clipped));
   assert.deepEqual(errors,[],"no unexpected browser errors");
@@ -98,7 +123,7 @@ const server=http.createServer((req,res)=>{
    timeout:20000
   });
   fs.writeFileSync(path.join(out,"art-cache-audit.json"),JSON.stringify({
-   report:audit.report,clipped,notes:[
+   report:audit.report,clipped,gait:audit.gait,notes:[
     "Same unit properties and same frame for full and cached art",
     "Offline localhost only; no Firebase writes, rules, or game simulation changes",
     "Linux headless WebKit, not a physical iPad measurement"
