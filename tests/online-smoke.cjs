@@ -491,7 +491,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
 {
  // Test the real browser fallback closure in a pure Node sandbox, without
  // relying on expensive headless WebKit scheduling or altering gameplay.
- const begin=game.indexOf("let lowFpsCrowdedSprites=false;");
+ const begin=game.indexOf("let lowFpsCrowdedSprites=false,lowFpsCrowdedSpritesAt=0;");
  const end=game.indexOf("function adaptCanvasQuality(now){",begin);
  assert.ok(begin>0&&end>begin,"low-FPS crowded art sampler present");
  const block=game.slice(begin,end);
