@@ -94,3 +94,11 @@
 - [修正commit 7586deb](https://github.com/8mahi8/shokoku-sensen/commit/7586debfbec822f2c0fc54846632f7dcc9e728be)。ゲスト内部に最後のホストclockとパケット受信時刻のアンカーを保存し、最大250msの短いネットワーク見かけ経過を許容しつつ、先行150msから時計の進行速度を穏やかに減らす。**巻き戻しなし**。ホスト・メニュー・新規入室前は従来どおり。Firebase/worldパケット・30Hzホスト進行・資源・攻撃判定・BOTシステムは変更しない。
 - `tests/online-smoke.cjs`の実本番関数抽出・20秒間、ホスト30/10/8/5/4FPS×ゲスト60FPSを検証。[smoke #40195144802](https://github.com/8mahi8/shokoku-sensen/actions/runs/40195144802) success。通常30/10/8FPSはほぼ等時、5/4FPSの条件でもゲスト演出時計最大先行0.55秒未満・単調増加を検証。QA側`tests/online-hud-matched-control.cjs`の注入箇所も合わせて更新。
 - [詳細・留保](GUEST_CLOCK_LONG_STALL_2026-10-25.md)。実Firebase、Chromium/WebKit、描画、HUD、iPad画面CIはそれぞれ結果確認前に合格扱いしない。学校Google Sites版、10/24にDriveへ渡した試験用単体ファイルは固定のまま。PR #22はDraft。
+
+
+## 追補：2026-10-25 — 同室再戦で軽量化の状態を引きずらない
+- 旧`lowFpsCrowdedSprites=true`は同じSafariタブの**次の試合へ持ち越される**ことを特定。ロビー・結果画面でも解除されず、一度10FPSで重くなると再戦が60FPSでも6体以上でキャッシュ画質になり得た。
+- `resetWorld()`に`resetCrowdedArtForMatch()`を追加。毎試合フルアニメーションで開始、重ければ再判定。画像タイルのメモリキャッシュ自体は再利用し、描画・攻撃・計算/通信は無変更。[修正commit 0ad4fb6](https://github.com/8mahi8/shokoku-sensen/commit/0ad4fb61add5d64b777c0ea19b38eee74c59e2db)。
+- [Smoke #40196135401](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196135401) success。実コード20秒以上の2回目60FPSシミュレーションと、再度低FPSに移行した場合のON再発動を検証。
+- [実ブラウザーの再戦QA #40196269980](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196269980) success。WebKit 10体戦闘→10体再戦で最初キャッシュ1体、2試合目は通常絵（キャッシュ0体）。70余りの絵の品質試験も通過。[詳細](ADAPTIVE_ART_ROUND_RESET_2026-10-25.md)。
+- Google Sites版・10/24配布の単体HTMLは今も変更なし。PR #22はDraftでmainは変更しない。実Firebase全構成の最新検証は完了を確認するまで未合格扱い。
