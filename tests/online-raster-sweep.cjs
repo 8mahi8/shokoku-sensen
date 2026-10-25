@@ -16,10 +16,10 @@ let html=substitute(original,"adaptCanvasQuality(now);",
  "if(!window.__qaDisableAdaptiveDpr)adaptCanvasQuality(now);");
 html=substitute(html,"terrain();drawSpellFields(now);",
  "if(!window.__qaSkipTerrain)terrain();drawSpellFields(now);");
-html=substitute(html,'S.units.length<(!NET.isHost&&guestLowPower?28:40)',
- 'S.units.length<(window.__qaDenseAtSix?6:(!NET.isHost&&guestLowPower?28:40))');
-html=substitute(html,'((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals())||',
- '((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals()&&!window.__qaDenseAtSix)||');
+html=substitute(html,'S.units.length<(lowFpsCrowdedSprites?6:(!NET.isHost&&guestLowPower?28:40))',
+ 'S.units.length<(window.__qaDenseAtSix?6:(lowFpsCrowdedSprites?6:(!NET.isHost&&guestLowPower?28:40)))');
+html=substitute(html,'((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals()&&!lowFpsCrowdedSprites)||',
+ '((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals()&&!lowFpsCrowdedSprites&&!window.__qaDenseAtSix)||');
 const server=http.createServer((req,res)=>{
  const pathname=decodeURIComponent(req.url.split("?")[0]);
  const file=path.resolve(root,"."+pathname);
