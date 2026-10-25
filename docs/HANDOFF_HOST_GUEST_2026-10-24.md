@@ -87,3 +87,10 @@
 - 新しい視覚時計修正に対応したCI: [smoke #40094854291](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094854291)、[実Firebase2ブラウザ #40094817981](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094817981)、[Chromium/WebKitゲストラボ #40094817963](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094817963)、[iPad UI #40094818011](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094818011)、[戦闘描画 #40094818023](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094818023)、[WebKit HUD #40094818006](https://github.com/8mahi8/shokoku-sensen/actions/runs/40094818006) はすべてsuccess。旧smoke #40094818128は失敗したが、テストのゲストラボ用コードの完全一致誤認を修正し、後続smoke成功済み。
 - 次は本人が学校でGoogle Sitesを編集して**既存の埋め込みコードを新テキストに置き換え、Google Sites上で公開操作をする必要がある**。こちらではGoogle Sites、main、PR Draft、Firebase設定・ユーザールームは未変更。**本人が貼り替え完了と伝えるまでは学校公開版は「再戦修正版」のまま**。
 - 学校での試験順: (1) 1vs1がルーム番号で接続するか、(2) ゲストが20〜30秒ロビー待機した後にホストが開始し両陣営の登場/攻撃/被弾エフェクトを確認、(3) 重い兵士を含む混戦のホスト/ゲスト描画差、(4) エネルギーが使えるタイミング、(5) 同室再戦、(6) ホスト/ゲストを交代して同条件を観察。危険な研究ログ・リプレイ・常設テレメトリは不要。
+
+
+## 追補：2026-10-25 — ゲスト演出時計の長時間先行を抑制
+- ホストが5FPSを20秒間継続すると、150ms/フレーム上限によってホストの試合時計が約15秒しか進まず、60FPSゲストが20秒進む従来コードは**演出時刻の先行5秒**を作る。極端な4FPSなら先行約8秒。実iPadでこのFPSが発生したとの主張ではない。
+- [修正commit 7586deb](https://github.com/8mahi8/shokoku-sensen/commit/7586debfbec822f2c0fc54846632f7dcc9e728be)。ゲスト内部に最後のホストclockとパケット受信時刻のアンカーを保存し、最大250msの短いネットワーク見かけ経過を許容しつつ、先行150msから時計の進行速度を穏やかに減らす。**巻き戻しなし**。ホスト・メニュー・新規入室前は従来どおり。Firebase/worldパケット・30Hzホスト進行・資源・攻撃判定・BOTシステムは変更しない。
+- `tests/online-smoke.cjs`の実本番関数抽出・20秒間、ホスト30/10/8/5/4FPS×ゲスト60FPSを検証。[smoke #40195144802](https://github.com/8mahi8/shokoku-sensen/actions/runs/40195144802) success。通常30/10/8FPSはほぼ等時、5/4FPSの条件でもゲスト演出時計最大先行0.55秒未満・単調増加を検証。QA側`tests/online-hud-matched-control.cjs`の注入箇所も合わせて更新。
+- [詳細・留保](GUEST_CLOCK_LONG_STALL_2026-10-25.md)。実Firebase、Chromium/WebKit、描画、HUD、iPad画面CIはそれぞれ結果確認前に合格扱いしない。学校Google Sites版、10/24にDriveへ渡した試験用単体ファイルは固定のまま。PR #22はDraft。
