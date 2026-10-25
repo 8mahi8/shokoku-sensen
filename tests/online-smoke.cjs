@@ -682,4 +682,46 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  console.log("PASS: 30/10/8/5/4FPS host/guest visual clock stays bounded and monotonic");
 }
 
+
+{
+ // Run the production round-quality reset function with the same mutable
+ // flags used by the real frame-loop DPR and guest paint throttling logic.
+ const start=game.indexOf("let tabletDprCap=1.45,qualityWindowStart=");
+ const end=game.indexOf("// Preserve full art normally.",start);
+ assert.ok(start>0&&end>start,"adaptive Canvas quality reset must be present");
+ const source=game.slice(start,end);
+ const create=new Function("S","fit",source+
+  "\nreturn {set:(v)=>{tabletDprCap=v.cap;qualityWindowStart=v.t0;"+
+  "qualityFrames=v.frames;qualityMeasured=v.measured;guestLowPower=v.guest;"+
+  "guestLastPaint=v.paint;},reset:resetAdaptiveCanvasForMatch,"+
+  "get:()=>({cap:tabletDprCap,t0:qualityWindowStart,frames:qualityFrames,"+
+  "measured:qualityMeasured,guest:guestLowPower,paint:guestLastPaint})};");
+ const state={view:{w:1194,h:834}},calls=[];
+ const qa=create(state,()=>calls.push("fit"));
+ qa.set({cap:1,guest:true,measured:true,t0:6000,frames:7,paint:6200});
+ qa.reset();
+ assert.deepEqual(qa.get(),{cap:1.45,t0:0,frames:0,measured:false,
+  guest:false,paint:0},"rematch restores full raster and re-samples frame rate");
+ assert.deepEqual(calls,["fit"],
+  "a lowered host raster must restore Canvas backing pixels once");
+ qa.reset();
+ assert.equal(calls.length,1,
+  "no extra fit/layout work when the quality is already at normal DPR");
+ state.view={w:1,h:1};
+ qa.set({cap:1,guest:true,measured:true,t0:7000,frames:1,paint:7200});
+ qa.reset();
+ assert.equal(calls.length,1,
+  "initial 1px canvas startup must not trigger premature resizing");
+ assert.ok(game.includes("resetAdaptiveCanvasForMatch();"),
+  "actual resetWorld() must reset DPR quality and guest frame limiter");
+ assert.ok(game.includes("if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;"),
+  "guest frame throttle remains only an adaptive fallback");
+ for(const p of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(p).includes(game.trim()),
+   p+" must embed the exact quality reset logic");
+ assert.ok(read("guest-lab-game.html").includes("resetAdaptiveCanvasForMatch();"),
+  "guest lab must embed match-local quality reset");
+ console.log("PASS: repeat matches restore Canvas DPR and guest FPS quality, then re-sample");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");

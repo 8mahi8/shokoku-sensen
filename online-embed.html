@@ -1596,8 +1596,10 @@ function resetWorld(){
  }
  S.remoteSprites=null;
  S.remoteVisualReceivedAt=0;S.remoteHostClock=null;
- // The previous round's low-FPS art downgrade must never carry into rematches.
+ // Re-evaluate both sprite quality and Canvas frame/raster quality per match.
+ // Do not retain a previous round's one-way downgrade during a fresh rematch.
  resetCrowdedArtForMatch();
+ resetAdaptiveCanvasForMatch();
  S.capitals=[{team:1,x:74,y:328,hp:START_HP,max:START_HP},
              {team:2,x:1206,y:328,hp:START_HP,max:START_HP}];
  S.forts=[{x:410,y:190,hp:POST_HP,owner:0},{x:633,y:444,hp:POST_HP,owner:0},{x:867,y:205,hp:POST_HP,owner:0}];
@@ -3379,6 +3381,15 @@ function clampCamera(){
 // consistently slow tablet displays. A one-way change avoids resolution flicker.
 let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
 let guestLowPower=false,guestLastPaint=0;
+function resetAdaptiveCanvasForMatch(){
+ const priorCap=tabletDprCap;
+ tabletDprCap=1.45;
+ guestLowPower=false;guestLastPaint=0;
+ qualityMeasured=false;qualityWindowStart=0;qualityFrames=0;
+ // Refresh backing resolution once if a previous host round lowered it.
+ // The initial start() already calls fit(); avoid resizing its 1px fixture.
+ if(priorCap<1.45&&S.view.w>1&&S.view.h>1)fit();
+}
 // Preserve full art normally. One extremely slow battle window, or two
 // moderately slow windows, activates the existing cached sprites.
 // This changes Canvas presentation alone; units, hit timing, energy, and
