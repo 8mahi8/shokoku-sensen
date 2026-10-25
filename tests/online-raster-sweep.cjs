@@ -124,14 +124,14 @@ for(const terrain of [true,false,false,true])
   assert.deepEqual(errors,[],"no JavaScript page errors");
   const summary=[];
   for(const probe of ["raster","sprite-cache","background-control"]){
+   const variants=probe==="raster"?[1.45,1,.8]:[false,true];
    for(const scene of ["heavy","light"]){
-    for(const variant of ["1.45","1","0.8"]){
-     let subset=rows.filter(row=>row.probe===probe&&row.scene===scene);
-     if(probe==="raster")subset=subset.filter(row=>String(row.dpr)===variant);
-     else if(probe==="sprite-cache")subset=subset.filter(row=>row.tiles===(variant==="1"));
-     else subset=subset.filter(row=>row.terrain===(variant==="1"));
-     if(probe!=="raster"&&variant==="0.8")continue;
+    for(const variant of variants){
+     const subset=rows.filter(row=>row.probe===probe&&row.scene===scene&&
+      (probe==="raster"?row.dpr===variant:
+       probe==="sprite-cache"?row.tiles===variant:row.terrain===variant));
      if(subset.length===0)continue;
+     assert.equal(subset.length,2,"each comparison must have two matched samples");
      const avg=k=>round(subset.reduce((sum,row)=>sum+row[k],0)/subset.length);
      summary.push({probe,scene,variant,
       n:subset.length,meanFps:avg("fps"),meanP95Ms:avg("gapP95Ms"),
