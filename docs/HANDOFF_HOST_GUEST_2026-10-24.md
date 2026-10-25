@@ -102,3 +102,9 @@
 - [Smoke #40196135401](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196135401) success。実コード20秒以上の2回目60FPSシミュレーションと、再度低FPSに移行した場合のON再発動を検証。
 - [実ブラウザーの再戦QA #40196269980](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196269980) success。WebKit 10体戦闘→10体再戦で最初キャッシュ1体、2試合目は通常絵（キャッシュ0体）。70余りの絵の品質試験も通過。[詳細](ADAPTIVE_ART_ROUND_RESET_2026-10-25.md)。
 - Google Sites版・10/24配布の単体HTMLは今も変更なし。PR #22はDraftでmainは変更しない。実Firebase全構成の最新検証は完了を確認するまで未合格扱い。
+
+## 追補：2026-10-25 — 再戦時Canvas解像度とゲスト描画制限も再測定
+- [修正commit 9c816df](https://github.com/8mahi8/shokoku-sensen/commit/9c816df75a8efebd58316e0fef14e0706571777a)：先行実装で低FPSキャラキャッシュのみ再戦時に初期化したが、DPR上限`tabletDprCap`、ゲスト低FPS表示間引き`guestLowPower`、`qualityMeasured`とFPS計測窓は前試合から残っていた問題を修正。
+- `resetWorld()`で`resetAdaptiveCanvasForMatch()`を呼び、新しい試合に対し解像度上限1.45と通常描画ペースへ戻して品質判定をやり直す。前試合で解像度を下げた場合だけ必要な`fit()`を実行。画質が変わらない試合や起動時1px画面の余計なリサイズなし。重ければ約3.4秒後の従来の自動判定で再び制限する。ゲーム/通信/Firebaseデータは無変更。
+- [smoke #40196922945](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196922945) success。[WebKit実ブラウザー #40197002201](https://github.com/8mahi8/shokoku-sensen/actions/runs/40197002201) success：10体→10体再戦でCanvasの実描画幅1194→1731（DPR 1.0→1.45）、ゲスト画面間引き true→false、FPSカウンタとタイムスタンプゼロへ戻る。72ポーズ輪郭欠けゼロ。
+- [詳細](CANVAS_QUALITY_REMATCH_2026-10-25.md)。学校Google Sites版と10/24にDriveへ渡した試験用HTMLは依然として変更していない。PR #22 Draft、mainにはマージしていない。最新実Firebaseや戦闘映像CIは個別の完了結果で確認する。
