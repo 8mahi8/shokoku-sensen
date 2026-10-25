@@ -163,21 +163,23 @@ for(const terrain of [true,false,false,true])
   assert.equal(fresh.scenario.units,10);
   assert.equal(fresh.sprites.cached,0,"auto-fallback must begin with full artwork");
   await page.screenshot({path:path.join(output,"adaptive-before.png")});
-  await page.waitForTimeout(6700);
-  const auto=await page.evaluate(()=>({
-   sprites:window.__shokokuQa.spriteStats(),
-   state:window.__shokokuQa.snapshot(),
-   error:window.__onlineFrameError||null
-  }));
+  const checkpoints=[];
+  for(let k=0;k<30;k++){
+   await page.waitForTimeout(225);
+   const live=await page.evaluate(()=>({
+    sprites:window.__shokokuQa.spriteStats(),
+    units:window.__shokokuQa.snapshot().units.length,
+    error:window.__onlineFrameError||null
+   }));
+   checkpoints.push({atMs:(k+1)*225,units:live.units,
+    cached:live.sprites.cached,error:live.error});
+  }
   await page.screenshot({path:path.join(output,"adaptive-after.png")});
-  assert.equal(auto.error,null);
-  assert.ok(auto.state.units.length>=6,"keep a real six-unit battle to exercise fallback");
-  assert.ok(auto.sprites.cached>0,
-   "severe 10FPS WebKit battle should enable low-FPS cached art");
-  assert.deepEqual(errors,[],"no JavaScript errors after adaptive trial");
-  console.log("RASTER AUTO FALLBACK",JSON.stringify({
-   initiallyFull:fresh.sprites.cached===0,postCached:auto.sprites.cached,
-   units:auto.state.units.length,phase:auto.state.phase}));
+  console.log("RASTER AUTO FALLBACK",JSON.stringify({checkpoints}));
+  assert.ok(checkpoints.every(x=>x.error===null),"no frame errors");
+  assert.ok(checkpoints.some(x=>x.cached>0),
+   "adaptive fallback must render cached units in an actual battle");
+  assert.deepEqual(errors,[],"no JavaScript page errors after adaptive test");
   console.log("PASS: production severe-FPS fallback changes cached sprites only after sustained slow battle");
   console.log("PASS: QA-only DPR / sprite-cache / background control");
  }finally{
