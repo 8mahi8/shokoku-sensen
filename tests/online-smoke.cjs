@@ -568,4 +568,32 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  console.log("PASS: large cached sprites fit, guardian/tank HP bars align");
 }
 
+
+{
+ // The real Canvas renderer uses sin(walkPhase*.76) for a walking leg.
+ // Old cached sample phases .4 and 3.2 both had positive sine and could
+ // not represent the opposite stride. Extract the actual pose selector.
+ const w=game.match(/const CACHED_STRIDE_PEAK=Math\.PI\/\(2\*\.76\)/);
+ assert.ok(w,"cached walk stride samples come from real 0.76 gait");
+ const peak=Math.PI/(2*.76);
+ assert.ok(Math.sin(peak*.76)>.999,"first cached leg swings forward");
+ assert.ok(Math.sin(3*peak*.76)<-.999,"second cached leg swings back");
+ assert.ok(game.includes("Math.sin((u.walkPhase||0)*.76)>=0?1:2"),
+  "live pose selector must use same stride period as full-art renderer");
+ assert.ok(game.includes("lowFpsCrowdedSpritesAt=now"),
+  "only real emergency cache activation starts the fade");
+ assert.ok(game.includes("Math.min(1,Math.max(0,(performance.now()-lowFpsCrowdedSpritesAt)/180))"),
+  "crossfade must be finite and end rapidly to preserve FPS");
+ assert.ok(game.includes("window.KokokuArt.drawUnit(ctx,{...u,hp:100,max:100},S.clock)"),
+  "transition must use already-interpolated position without double guest easing");
+ const art=read("v3-art.js");
+ assert.ok(art.includes("Math.sin((unit.walkPhase||clock*5)*.76)"),
+  "pose sampling and full Canvas source must have same stride period");
+ for(const path of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(path).includes(game.trim()),path+" must match gait/transition code");
+ assert.ok(read("guest-lab-game.html").includes("CACHED_STRIDE_PEAK"),
+  "QA guest-lab bundle includes matching gait");
+ console.log("PASS: opposite cached walking strides and bounded fade-on switch");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");

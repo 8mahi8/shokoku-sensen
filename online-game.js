@@ -1912,7 +1912,7 @@ let guestLowPower=false,guestLastPaint=0;
 // moderately slow windows, activates the existing cached sprites.
 // This changes Canvas presentation alone; units, hit timing, energy, and
 // authoritative host simulation never change. No extra network messages.
-let lowFpsCrowdedSprites=false;
+let lowFpsCrowdedSprites=false,lowFpsCrowdedSpritesAt=0;
 let spriteFpsWindowStart=0,spriteFpsFrames=0,spriteFpsSlowWindows=0;
 function adaptCrowdedSprites(now){
  // Existing localhost QA runs compare fixed rendering conditions. Tests
@@ -1929,7 +1929,9 @@ function adaptCrowdedSprites(now){
  if(elapsed<2000)return;
  const fps=spriteFpsFrames/(elapsed/1000);
  spriteFpsSlowWindows=fps<23?spriteFpsSlowWindows+1:0;
- if(fps<17||spriteFpsSlowWindows>=2)lowFpsCrowdedSprites=true;
+ if(fps<17||spriteFpsSlowWindows>=2){
+  lowFpsCrowdedSprites=true;lowFpsCrowdedSpritesAt=now;
+ }
  spriteFpsWindowStart=now;spriteFpsFrames=0;
 }
 function adaptCanvasQuality(now){
@@ -2218,6 +2220,9 @@ const denseSpriteCache=new Map(),FAST_W=192,FAST_H=214,FAST_AX=96,FAST_AY=167;
 // Give only those two classes room so their silhouettes are not clipped.
 // At most 2 teams x 4 poses x 2 big classes get these larger tiles.
 const BIG_W=282,BIG_H=278,BIG_AX=136,BIG_AY=210;
+// Draw both legs of the cycle: the full artist uses sin(walkPhase * .76).
+// The old (.4,3.2) both sampled POSITIVE leg swing, causing a stiff gait.
+const CACHED_STRIDE_PEAK=Math.PI/(2*.76);
 const cachedHealthTop={infantry:82,scout:92,engineer:101,archer:88,
  suppress:97,sentinel:107,guardian:187,drone:100,tank:141};
 let useDenseSpriteCache=true,denseCacheBroken=false,denseSpritesRendered=0,fullSpritesRendered=0;
@@ -2233,7 +2238,8 @@ function cachedSprite(u,pose){
   const g=tile.getContext("2d");if(!g)throw Error("Canvas2D unavailable");
   const sample={...u,x:ax,y:ay,hp:100,max:100,
    spawnAt:-100,spawnDuration:.4,deathProgress:0,flash:0,hitAt:-100,drift:0,
-   walking:pose===1||pose===2,walkPhase:pose===2?3.2:.4,windup:0,
+   walking:pose===1||pose===2,
+   walkPhase:pose===2?3*CACHED_STRIDE_PEAK:CACHED_STRIDE_PEAK,windup:0,
    attackAnim:pose===3?(MOTION.attack[u.key]||.5)*.6:0,
    attackAnimMax:MOTION.attack[u.key]||.5};
   window.KokokuArt.drawUnit(g,sample,Math.max(300,S.clock));
@@ -2260,7 +2266,10 @@ function renderCrowdedUnit(u){
   fullSpritesRendered++;drawUnit(u);return;
  }
  u=presentRemoteUnit(u);
- const pose=(u.attackAnim||0)>.12?3:!u.walking?0:Math.sin(u.walkPhase||0)>0?1:2;
+ // Match the .76 multiplier in v3-art.js; otherwise gait swaps at
+ // a different time from the real unit's legs (visual stutter).
+ const pose=(u.attackAnim||0)>.12?3:!u.walking?0:
+  Math.sin((u.walkPhase||0)*.76)>=0?1:2;
  const sprite=cachedSprite(u,pose);
  if(!sprite){fullSpritesRendered++;drawUnit(u);return;}
  denseSpritesRendered++;
@@ -2268,8 +2277,19 @@ function renderCrowdedUnit(u){
  ctx.strokeStyle=u.team===1?"#7fe4ffad":"#ff879bac";ctx.lineWidth=1.65;
  ctx.beginPath();ctx.ellipse(u.x,u.y+1,Math.max(14,CLASSES[u.key].r+6),7,0,0,Math.PI*2);ctx.stroke();
  const big=u.key==="guardian"||u.key==="tank";
- ctx.drawImage(sprite,Math.round(u.x-(big?BIG_AX:FAST_AX)),
-  Math.round(u.y-(big?BIG_AY:FAST_AY)));
+ const px=Math.round(u.x-(big?BIG_AX:FAST_AX));
+ const py=Math.round(u.y-(big?BIG_AY:FAST_AY));
+ // One short crossfade when emergency caching first activates. The
+ // authoritative unit pose/position is shared between both layers.
+ // This never adds extra full-art rendering after the transition.
+ const fade=lowFpsCrowdedSprites&&lowFpsCrowdedSpritesAt?
+  Math.min(1,Math.max(0,(performance.now()-lowFpsCrowdedSpritesAt)/180)):1;
+ if(fade<1){
+  ctx.save();ctx.globalAlpha*=1-fade;
+  window.KokokuArt.drawUnit(ctx,{...u,hp:100,max:100},S.clock);
+  ctx.restore();
+ }
+ ctx.save();ctx.globalAlpha*=fade;ctx.drawImage(sprite,px,py);ctx.restore();
  if(u.flash>0){
   ctx.save();ctx.globalAlpha=Math.min(.42,u.flash*.85);ctx.fillStyle="#fff";
   ctx.beginPath();ctx.arc(u.x,u.y-38,14,0,Math.PI*2);ctx.fill();ctx.restore();
