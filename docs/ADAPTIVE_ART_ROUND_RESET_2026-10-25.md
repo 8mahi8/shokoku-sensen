@@ -18,3 +18,10 @@
 - PR #22はDraft、`main`は未変更。
 - 学校Google Sites版と、2026-10-24にユーザーへ渡したGoogle Drive貼り付け用HTMLの内容・リンクは変更しない。
 - Linux headless WebKitでの回帰結果は学校iPad実機の画質やFPSを保証しない。
+
+
+## ブラウザー追加検証結果
+- [WebKitビジュアル・再戦QA #40196269980](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196269980) **success**。`tests/online-art-cache-visual.cjs`は1ページで合法な10体戦闘を2回開始する試験を行い、実際の`renderCrowdedUnit()`呼び出しで初戦は`cachedFirst=1`、2戦目は`cachedSecond=0`、`isFullAgain=true`、FPS窓・低FPSカウンター`0`を確認。
+- 同じテストで脚の前後ポーズ差、180msクロスフェード、72ポーズの輪郭欠けゼロもすべて成功。
+- [battle visual #40196135330](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196135330)、[HUD WebKit #40196135309](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196135309)、[iPad UI #40196135295](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196135295)、[Chromium/WebKit guest lab #40196135310](https://github.com/8mahi8/shokoku-sensen/actions/runs/40196135310) はいずれもsuccess。
+- 実Firebaseの独立した2ブラウザーCIは最終判定を確認するまで未合格扱い。
