@@ -181,7 +181,8 @@ function restRecoverGuest(){
    lastApplyError="REST "+String(error?.message||error);
    // SDK read remains a compatibility fallback if REST is unavailable.
    ref.child("state").once("value").then(snap=>{
-    if(epoch===remoteEpoch&&ref===room&&!host)receiveGuestWorld(snap.val());
+    // A cached one-shot read is not evidence the live SDK listener resumed.
+    if(epoch===remoteEpoch&&ref===room&&!host)receiveGuestWorld(snap.val(),"cache");
    }).catch(setError);
   }).finally(()=>{
    clearTimeout(timeout);

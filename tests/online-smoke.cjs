@@ -799,6 +799,10 @@ return {deliver:receiveGuestWorld,
  qa.deliver(packet(4,2),"rest");frames.shift()();
  assert.equal(qa.stats().sdkSeq,sdkSeqBeforeRest,"REST packet must not masquerade as Firebase SDK event");
  assert.equal(qa.stats().lastRemoteSeq,4,"REST packet still updates guest world");
+ qa.deliver(packet(5,2),"cache");frames.shift()();
+ assert.equal(qa.stats().sdkSeq,sdkSeqBeforeRest,"cached one-shot fallback cannot fake live SDK recovery");
+ assert.equal(qa.stats().lastRemoteSeq,5,"cached one-shot fallback can still apply newer data");
+ assert.ok(net.includes('receiveGuestWorld(snap.val(),"cache")'),"REST fallback must label SDK cache as non-live");
  console.log("PASS: real guest snapshot scheduler coalescing, stalled Safari rAF recovery, old-round isolation, hidden frames and retry");
 }
 
