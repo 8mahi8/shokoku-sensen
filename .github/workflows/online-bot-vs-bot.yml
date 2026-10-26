@@ -5,6 +5,7 @@ on:
       - 'tests/online-bot-vs-bot.cjs'
       - 'online-net.js'
       - 'online-ipad.html'
+      - 'online-embed.html'
       - 'online-game.js'
       - 'online.html'
       - '.github/workflows/online-bot-vs-bot.yml'
