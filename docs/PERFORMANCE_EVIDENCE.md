@@ -235,3 +235,11 @@
 - 壁時計186.8秒、ゲーム内176.1秒で首都破壊決着、青15・赤19アクション、最大11体、JSエラー0。最大ゲストフレーム間隔197ms、500ms以上0件。
 - **録画フレームの直接レビュー**：91.6〜93.8秒頃は約2.2秒間、兵士と残り時間「03:43」がほぼ停止し、直後に「03:41」へ飛んだ。数値の「長い描画停止0回」とは異なり、**世界の状態更新停滞が視覚的なフリーズとして現れる**実例を確認。別の短い停滞も観測。対応するSDK無受信／ホスト送信空白があるが、一因への断定は不可。
 - 切り出し方法とソース動画の出所、限界は [SDK停滞診断](GUEST_SDK_STALL_DIAGNOSIS_2026-10-26.md) に記載。学校実iPadおよびGoogle Sites埋込での同じ症状の再現・操作体感の改善は**引き続き未検証**。学校版・main・ルールは変更なし。
+
+
+### 2026-10-27｜同時録画によるゲスト固着の確認と限定回復策
+
+- [両視点動画つきBOT実戦 #40352533153](https://github.com/8mahi8/shokoku-sensen/actions/runs/40352533153) SUCCESS。実Firebaseで最後まで対戦、ゲスト最大フレーム間隔217ms・500ms以上0だが、SDKが2,252ms無受信、ホスト最終送信は114ms前、REST seq929がSDK seq924を先行。ゲスト画面の試合時計表示が約3.4秒変わらない区間を録画から確認。**rAFが動いていても戦況が静止して見える**。
+- [限定修正commit `8cd0638e`](https://github.com/8mahi8/shokoku-sensen/commit/8cd0638e5f64d61a61ecc2f2b8d04be42e18d345)：SDKイベントとゲスト状態適用が止まった場合のみ、1,100msでREST回復開始、最短2,200ms間隔で再試行。SDK正常時・戦闘ルール・画質・ホスト送信頻度は変えない。[修正後のBOT実戦 #40353330150](https://github.com/8mahi8/shokoku-sensen/actions/runs/40353330150) SUCCESS。壁時計166.2秒、試合内154.9秒、ゲスト適用経過最大534ms（5秒間隔サンプル）、SDK最大2,091ms無受信中もREST seq930の前進を確認。別々の録画での試合時計最長静止は約3.4秒→2.0秒だったが厳密なA/Bではない。
+- [キャッシュ誤認対策 `dfe5961f`](https://github.com/8mahi8/shokoku-sensen/commit/dfe5961f5506f7f98b0ee59ae9b7faaa0fc2df34)：REST失敗後のSDK単発 `once` をリアルタイムリスナーイベントと混同しない。[smoke #40354890270](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890270) SUCCESS。貼り付け用 `online-ipad.html`／`online-embed.html` も同期済み。
+- [詳細な目視・プローブ記録](GUEST_SDK_STALL_DIAGNOSIS_2026-10-26.md)。Linux headless WebKitの結果は学校iPadの合格保証ではない。**学校Google Sites版・main・Firebaseルールは未変更**。
