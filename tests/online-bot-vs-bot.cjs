@@ -34,6 +34,7 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
  let allSamples=[],pageErrors=[],startedAt=0,lastGameElapsed=0,finished=false;
  let maxBlue=0,maxRed=0,maxUnits=0,latestBotStats=null;
  let endedStatus="",endReason="",cleanupOk=false;
+ let stallProbes=[];
  try{
   await new Promise(r=>server.listen(8766,"127.0.0.1",r));
   hostBrowser=await chromium.launch({headless:true,args:["--no-sandbox"]});
@@ -108,9 +109,40 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
   await Promise.all([host,guest].map(p=>p.evaluate(()=>window.__shokokuQa.resetFrameBench())));
   startedAt=Date.now();
   let nextStats=Date.now()+5000;
+  let nextStallCheck=Date.now()+950,lastStallProbeAt=0;
   const hardDeadline=Date.now()+495000;
   while(Date.now()<hardDeadline){
    const now=Date.now();
+   // Observe real BOT gameplay. Only on SDK silence, compare the RTDB
+   // server's actual latest seq with host-published and guest-received seq.
+   // Test-only reads never change rooms, rules, or production code.
+   if(now>=nextStallCheck){
+    nextStallCheck=now+950;
+    const [hd,gd]=await Promise.all([
+     host.evaluate(()=>window.ShokokuNet.syncDiagnostics()),
+     guest.evaluate(()=>window.ShokokuNet.syncDiagnostics())
+    ]);
+    if(gd.phase==="playing"&&gd.eventAgeMs>=1250&&
+      hd.seq-gd.eventSeq>=4&&now-lastStallProbeAt>=1900){
+     lastStallProbeAt=now;
+     const probe={atSec:round((Date.now()-startedAt)/1000),
+      hostSeq:hd.seq,hostPublishAgeMs:hd.publishAgeMs,
+      hostAckMs:hd.ackMs,hostRetries:hd.retries,hostWriteFailures:hd.writeFailures,
+      guestSdkSeq:gd.eventSeq,guestAppliedSeq:gd.seq,
+      guestSdkAgeMs:gd.eventAgeMs,guestAppliedAgeMs:gd.ageMs,
+      guestApplyMs:gd.applyMs,guestCoalesced:gd.coalesced,
+      restSeq:null,restError:null};
+     try{
+      const response=await fetch(stateURL+"?staleProbe="+Date.now(),
+       {signal:AbortSignal.timeout(2500),cache:"no-store"});
+      if(!response.ok)throw Error("HTTP "+response.status);
+      const latest=await response.json();
+      probe.restSeq=Number.isInteger(latest?.seq)?latest.seq:null;
+     }catch(e){probe.restError=String(e?.message||e)}
+     stallProbes.push(probe);
+     console.log("BOT VS BOT STALL PROBE",JSON.stringify(probe));
+    }
+   }
    if(now>=nextStats){
     const [h,g]=await Promise.all([sample(host,"host"),sample(guest,"guest")]);
     allSamples.push({atSec:round((Date.now()-startedAt)/1000),host:h,guest:g});
@@ -153,6 +185,11 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
    guestWindowsOver1000ms:allSamples.filter(x=>x.guest.gapOver1000>0).length,
    guestMaxRenderWorkMs:Math.max(0,...allSamples.map(x=>x.guest.maxFrameJs)),
    guestMaxSnapshotAgeMs:Math.max(0,...allSamples.map(x=>x.guest.applyAgeMs)),
+   maxSdkEventAgeMs:Math.max(0,...allSamples.map(x=>x.guest.eventAgeMs),
+    ...stallProbes.map(x=>x.guestSdkAgeMs)),
+   stallProbes:stallProbes.length,
+   restAheadOfSdkCount:stallProbes.filter(x=>x.restSeq!==null&&
+    x.restSeq>x.guestSdkSeq).length,
    lastGuestSeq:allSamples.at(-1)?.guest.seq||0,
    maxUnits,maxBlue,maxRed,
    blueBotActions:latestBotStats?.host.played[1]||0,
@@ -163,7 +200,7 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
    pageErrors,
    limitations:"Linux headless WebKit is not physical school Safari or Google Sites iframe; guest BOT issues validated network commands"
   };
-  fs.writeFileSync(path.join(dir,"bot-vs-bot-results.json"),JSON.stringify({summary,samples:allSamples},null,2));
+  fs.writeFileSync(path.join(dir,"bot-vs-bot-results.json"),JSON.stringify({summary,samples:allSamples,stallProbes},null,2));
   console.log("BOT VS BOT RESULT",JSON.stringify(summary));
   assert.ok(finished,"Full match must reach a genuine win, loss or time-expiry result");
   assert.ok(lastGameElapsed>30,"Match must progress through meaningful battle time");
