@@ -206,3 +206,16 @@
 - [**BOT対BOT GitHub Actions #40339084192**](https://github.com/8mahi8/shokoku-sensen/actions/runs/40339084192) **SUCCESS**。壁時計**138.3秒**、ゲーム内**127.3秒**で首都が破壊され決着。青軍BOT実行カード**13回**、赤軍ゲストBOT送信**11回**、ホスト青軍BOT判断機会41回、戦場の同時最多兵士11体。JS未処理エラーなし、テストルーム削除とnull確認。赤軍側の送信件数はホストによる全件確定承認数ではない。
 - ゲスト最大フレーム間隔**345ms**（ホスト33ms）、500ms以上の描画間隔なし。**最終スナップショット適用からの経過時間最大2895ms**、描画JS最長30ms。約2.9秒の値だけで「通信不調が原因」と決めず、SDK受信時刻・フレーム停止の同時性を次回照合する。学校の旧iPad Safari/Google Sites iframeではなく、Linux/headless WebKitの結果。
 - 最初のGitHub Actions実行はブラウザ環境構築が長時間停止。Playwrightブラウザ同梱のコンテナに移行して実戦を成功させた。**学校Google Sites版・main・Firebaseルール・Drive既存候補には未反映**。
+
+## 2026-10-26〜27｜実Firebase BOT対BOT：ゲストのSDK受信停滞とホスト送信停滞を分離
+
+詳しくは [診断資料](GUEST_SDK_STALL_DIAGNOSIS_2026-10-26.md)。
+
+- [最初のBOT実戦 #40339084192](https://github.com/8mahi8/shokoku-sensen/actions/runs/40339084192) SUCCESS：15.6秒地点でホスト送信試行seq120・ゲストSDK受信/適用seq98。SDK受信から2,898ms、状態適用から2,895ms。ゲストの同じ5秒描画窓は84フレーム、最大間隔82ms。ゲストSDKに状態が届く前の経路が有力だが、ホスト送信試行seqはサーバー保存完了の証明ではない。
+- [因果検証のBOT実戦 #40342942177](https://github.com/8mahi8/shokoku-sensen/actions/runs/40342942177) SUCCESS：14.1秒地点にホストseq97／RESTサーバーseq97／ゲストSDK seq82・適用seq82を確認。SDK受信無応答1,950ms、ホストACK50ms、書込失敗0件。SDK受信よりサーバーが進んでいる事象を実測。計測追加 [dfac671c](https://github.com/8mahi8/shokoku-sensen/commit/dfac671ce385163af62094187ebe2b8f40759424)はテスト専用・実戦BOT・REST GET・CI artifactのみ。
+- [対策commit f97c788a](https://github.com/8mahi8/shokoku-sensen/commit/f97c788a0ef3d2d2ab8bc7bc60f93dc7a03a92a4)：ゲストSDKイベントと状態適用がともに1,600ms以上滞る場合だけ既存REST再取得を早める。SDKが正常なときは元の3,500ms描画フォールバック維持。短い停滞では警告を出さない。RESTで取得したseqはSDK受信seqに混ぜず診断を分離する。戦闘ルール・送信頻度・画質は無変更。
+- [HTML同期commit 649eb5af](https://github.com/8mahi8/shokoku-sensen/commit/649eb5afc33f062069cfa1a66531086a6eb90d9f)：`online-net.js` と `online-ipad.html`／`online-embed.html` 内の通信ソースを完全一致させた。中間smoke失敗はもう一方のHTMLに古い通信コードが残ったため。最新版 [smoke #40344599076](https://github.com/8mahi8/shokoku-sensen/actions/runs/40344599076)、[WebKit HUD #40344599044](https://github.com/8mahi8/shokoku-sensen/actions/runs/40344599044)、[キャッシュ画像 #40344599111](https://github.com/8mahi8/shokoku-sensen/actions/runs/40344599111)は全てSUCCESS。
+- [修正後BOT実戦 #40344384040](https://github.com/8mahi8/shokoku-sensen/actions/runs/40344384040) SUCCESS：ゲーム内258.1秒、青BOT26回・赤BOT30回、最大11体、ゲスト最大フレーム間隔437ms、500ms以上0、JSエラー0、一時ルーム清掃成功。SDKよりRESTが進んでいた自然発生の停滞2回。
+- [最新版BOT実戦 #40344599098](https://github.com/8mahi8/shokoku-sensen/actions/runs/40344599098) SUCCESS：ゲーム内300秒・時間切れ決着、最大20体、ゲスト最大フレーム間隔182ms、500ms以上0、JSエラー0、一時ルーム清掃成功。309.4秒時点、ゲストSDK seq2071のままRESTは2085に進み、ゲストはRESTでseq2084を適用済み（適用から37ms）という復帰を確認。一方、144.8秒地点で適用から3,913msの停滞が残る。同じ約5.5秒でホスト送信試行seqは993→1007の14増に留まり、通常の125ms目安より遅い。SDKだけではなくホスト送信パイプライン・RTDB側の停滞の可能性も調査が必要。
+- **次の検証**：実BOT対BOTテストに、ホスト最終送信からの経過・ACK・再試行・書込失敗と、ゲスト停滞時の実REST seqを追加。ホストに新しい書き込みがないのか、RTDBには届いていてSDKだけ止まるのかを分離。根拠なくホスト再送頻度を上げたり品質を下げたりしない。学校実機問題の完治は未確認。
+- 主な操作対象は開発Draft PR #22だけ。**学校Google Sites版、main、本番Firebaseルール、既存Google Drive貼付ファイルは変更していない。**

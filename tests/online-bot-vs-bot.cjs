@@ -100,6 +100,9 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
      eventAgeMs:d.eventAgeMs||0,applyAgeMs:d.ageMs||0,
      updatesHz:d.updatesHz||0,applyMs:d.applyMs||0,
      coalesced:d.coalesced||0,error:d.error||"",frameError:window.__onlineFrameError||"",
+     publishAgeMs:d.publishAgeMs||0,ackMs:d.ackMs||0,
+     publishRetries:d.retries||0,publishFailures:d.writeFailures||0,
+     restSeq:d.restSeq||0,restAgeMs:d.restAgeMs||0,
      bots:q.botStats(),
      blueCount:g.units.filter(x=>x.team===1).length,
      redCount:g.units.filter(x=>x.team===2).length,
@@ -123,7 +126,8 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
      guest.evaluate(()=>window.ShokokuNet.syncDiagnostics())
     ]);
     if(gd.phase==="playing"&&gd.eventAgeMs>=1250&&
-      hd.seq-gd.eventSeq>=4&&now-lastStallProbeAt>=1900){
+      (hd.seq-gd.eventSeq>=4||hd.publishAgeMs>=1250)&&
+      now-lastStallProbeAt>=1900){
      lastStallProbeAt=now;
      const probe={atSec:round((Date.now()-startedAt)/1000),
       hostSeq:hd.seq,hostPublishAgeMs:hd.publishAgeMs,
@@ -185,6 +189,8 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
    guestWindowsOver1000ms:allSamples.filter(x=>x.guest.gapOver1000>0).length,
    guestMaxRenderWorkMs:Math.max(0,...allSamples.map(x=>x.guest.maxFrameJs)),
    guestMaxSnapshotAgeMs:Math.max(0,...allSamples.map(x=>x.guest.applyAgeMs)),
+   hostMaxPublishAgeMs:Math.max(0,...allSamples.map(x=>x.host.publishAgeMs)),
+   hostMaxPublishRetries:Math.max(0,...allSamples.map(x=>x.host.publishRetries)),
    maxSdkEventAgeMs:Math.max(0,...allSamples.map(x=>x.guest.eventAgeMs),
     ...stallProbes.map(x=>x.guestSdkAgeMs)),
    stallProbes:stallProbes.length,
