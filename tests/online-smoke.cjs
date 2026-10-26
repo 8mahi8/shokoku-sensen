@@ -828,7 +828,7 @@ return (time,appliedAt,sdkAt)=>{
    "rechecking the stalled SDK must not spam REST");
   assert.deepEqual(test(5100,3900,5050),{reads:1,warnings:0,syncWarning:false},
    "fresh SDK events must not trigger early REST recovery");
-  assert.deepEqual(test(6600,3000,3000),{reads:2,warnings:0,syncWarning:false},
+  assert.deepEqual(test(6600,3000,3000),{reads:2,warnings:1,syncWarning:true},
    "REST can retry after 2.2s if the host was stalled on the first read");
   assert.deepEqual(test(9200,3000,3000),{reads:3,warnings:1,syncWarning:true},
    "prolonged stall retains warning and rate-limited REST fallback");
