@@ -323,19 +323,19 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  const cardStart=game.indexOf("function playCard(team,id,x,y){");
  const cardEnd=game.indexOf("\nfunction shieldMultiplier(",cardStart);
  assert.ok(cardStart>0&&cardEnd>cardStart);
- let dispatched=[],rebuild=0,hud=0,allowSend=true;
+ let dispatched=[],rebuild=0,selectedRefresh=0,hud=0,allowSend=true;
  const gameState={selected:"scout"};
  const netStubs={isHost:false,sendCommand(c){if(!allowSend)return false;dispatched.push(c);return true}};
- const play=new Function("NET","ME","S","validTarget","canPay","buildCards","updateHUD",
+ const play=new Function("NET","ME","S","validTarget","canPay","buildCards","refreshSelectedCardClasses","updateHUD",
   "isSpell","castSpell","deploy","CATALOG","duelStats",
   game.slice(cardStart,cardEnd)+";return playCard;")(
   netStubs,()=>2,gameState,()=>true,()=>true,
-  ()=>rebuild++,()=>hud++,()=>false,()=>false,()=>false,
+  ()=>rebuild++,()=>selectedRefresh++,()=>hud++,()=>false,()=>false,()=>false,
   {scout:{cost:3},infantry:{cost:2}},null);
  assert.equal(play(2,"scout",900,300),true);
  assert.equal(gameState.selected,null,"RED clears nonpermanent card immediately");
  assert.deepEqual(dispatched,[{id:"scout",x:900,y:300}]);
- assert.equal(rebuild,1);assert.equal(hud,1);
+ assert.equal(rebuild,0);assert.equal(selectedRefresh,1);assert.equal(hud,1);
  gameState.selected="infantry";
  assert.equal(play(2,"infantry",900,300),true);
  assert.equal(gameState.selected,"infantry","permanent infantry remains selected");
