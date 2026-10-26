@@ -8,7 +8,9 @@ on:
 jobs:
   bot-duel:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    # Browsers and system dependencies are preinstalled; avoid flaky apt downloads.
+    container: mcr.microsoft.com/playwright:v1.56.1-noble
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -17,7 +19,6 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
-      - run: npx playwright install --with-deps chromium webkit
       - name: Let both real expert bots play a full online match
         run: node tests/online-bot-vs-bot.cjs
       - uses: actions/upload-artifact@v4
