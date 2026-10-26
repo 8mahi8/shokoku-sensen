@@ -243,3 +243,12 @@
 - [限定修正commit `8cd0638e`](https://github.com/8mahi8/shokoku-sensen/commit/8cd0638e5f64d61a61ecc2f2b8d04be42e18d345)：SDKイベントとゲスト状態適用が止まった場合のみ、1,100msでREST回復開始、最短2,200ms間隔で再試行。SDK正常時・戦闘ルール・画質・ホスト送信頻度は変えない。[修正後のBOT実戦 #40353330150](https://github.com/8mahi8/shokoku-sensen/actions/runs/40353330150) SUCCESS。壁時計166.2秒、試合内154.9秒、ゲスト適用経過最大534ms（5秒間隔サンプル）、SDK最大2,091ms無受信中もREST seq930の前進を確認。別々の録画での試合時計最長静止は約3.4秒→2.0秒だったが厳密なA/Bではない。
 - [キャッシュ誤認対策 `dfe5961f`](https://github.com/8mahi8/shokoku-sensen/commit/dfe5961f5506f7f98b0ee59ae9b7faaa0fc2df34)：REST失敗後のSDK単発 `once` をリアルタイムリスナーイベントと混同しない。[smoke #40354890270](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890270) SUCCESS。貼り付け用 `online-ipad.html`／`online-embed.html` も同期済み。
 - [詳細な目視・プローブ記録](GUEST_SDK_STALL_DIAGNOSIS_2026-10-26.md)。Linux headless WebKitの結果は学校iPadの合格保証ではない。**学校Google Sites版・main・Firebaseルールは未変更**。
+
+
+### 2026-10-27｜最新のキャッシュ誤認対策まで含めたBOT実戦・動画QA
+
+- [実Firebase BOT対BOT実戦 #40354890152](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890152) **SUCCESS**、対象のゲームコードSHA `dfe5961f5506f7f98b0ee59ae9b7faaa0fc2df34`。壁時計261.7秒、ゲーム時間250.7秒で実際に首都破壊決着。青BOT29手、赤ゲストBOT28手、同時最多11体、JS未処理エラー0、実Firebase試験ルーム清掃PASS。ゲストとホスト両方の試合全体の録画がartifact `online-bot-vs-bot-real-match` にある。
+- **映像だけでなく数値も確認**：ゲスト最大フレーム間隔517ms、500ms以上のフレーム窓は**1件**、1000ms以上0。ゲスト5秒定点サンプルの最大適用経過1596ms。SDKイベント無受信の最大3960msに対し、9回の停滞REST照合の**全9回でサーバーのseqがSDK受信seqを上回った**。例：壁時計147.4秒にSDK seq908・無受信3960msでも、REST seq938・最新適用seq936／適用から143ms。SDKイベントが止まっていてもRESTが救済している。
+- **限界**：実際の試合中に500ms超の描画間隔が1件残る。SDK受信が止まっても常に1秒以内に表示更新する保証はない。ホスト側送信の一時停止、旧iPadの低FPS、Google Sites埋込iframeの負荷も残る。録画の主要場面を抽出し目視したが、実iPadで突発カクつき解消を保証しない。
+- 同SHAに対する [Online smoke #40354890270](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890270)、[WebKit HUD #40354890170](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890170)、[ブラウザ戦闘視覚 #40354890106](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890106)、[実Firebase 2ブラウザ #40354890228](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890228) はSUCCESS。キャラ絵QA #40354890060 とiPad UI #40354890119はジョブがcancelされたため、同SHAのジョブをそれぞれ再実行依頼済み（結果を確認するまで合格と書かない）。
+- 学校Sites用 `online-ipad.html`／`online-embed.html` は修正後 `online-net.js` を内包し、smokeの全文一致検証を通過。**学校Google Sites・main・Firebaseルールの変更なし**。開発PR #22はDraft。
