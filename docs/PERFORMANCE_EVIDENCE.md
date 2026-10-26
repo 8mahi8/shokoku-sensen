@@ -199,3 +199,10 @@
 - **解釈の限界**：CIのLinux/headless WebKitは学校の旧iPad Safari/Google Sites埋め込みiframeとは環境が違う。WebKitゲストは通してホストよりFPSが低く、**平均的な表示の滑らかさが実iPadと同等だとはみなさない**。テスト操作はPlaywrightのマウスポインターイベントであり、iPad実際の指によるタッチイベントとは完全一致しない。部隊数は途中概ね10体程度で、攻撃演出や混戦30体以上の再現を保証しない。**単発完走で断続的な学校不具合を完治と判定しない**。
 - **今後の合理的な次段階**：学校サイト風iframe内でWebKitの実タッチ入力と複数枚カード選択・密集戦を行い、可能なら全試合測定の比較。恒常的な処理の軽さ・画質を壊さず、今回記録した**ゲスト単独の全画面停止／入力遅延**の再現を優先。過去の5秒・1.5秒テスト結果を「全試合テスト済み」と誤記しない。
 - 学校Google Sites版、本番Firebaseルール、main、従来Drive配布ファイルは変更していない。
+
+## 2026-10-26 実BOT対BOTオンライン対戦：AI同士が勝敗までプレイ
+
+- 本人から「ただ歩兵を定期的に置くのでなく、BOT対BOTで普通に試合する」要望。localhostの`?qa=1`限定で、実戦BOT `botExpertAction(1)` をホスト青軍にも動かし、ゲストWebKit赤軍は既存の本物のオンライン `guestBot` を使用。戦闘物理・コスト・Firebaseコマンド・ゲーム内経過・首都破壊の実判定を省略しない。テストコードは`tests/online-bot-vs-bot.cjs`、CIは`.github/workflows/online-bot-vs-bot.yml`。通常学校版のBOT機能は変えない。
+- [**BOT対BOT GitHub Actions #40339084192**](https://github.com/8mahi8/shokoku-sensen/actions/runs/40339084192) **SUCCESS**。壁時計**138.3秒**、ゲーム内**127.3秒**で首都が破壊され決着。青軍BOT実行カード**13回**、赤軍ゲストBOT送信**11回**、ホスト青軍BOT判断機会41回、戦場の同時最多兵士11体。JS未処理エラーなし、テストルーム削除とnull確認。赤軍側の送信件数はホストによる全件確定承認数ではない。
+- ゲスト最大フレーム間隔**345ms**（ホスト33ms）、500ms以上の描画間隔なし。**最終スナップショット適用からの経過時間最大2895ms**、描画JS最長30ms。約2.9秒の値だけで「通信不調が原因」と決めず、SDK受信時刻・フレーム停止の同時性を次回照合する。学校の旧iPad Safari/Google Sites iframeではなく、Linux/headless WebKitの結果。
+- 最初のGitHub Actions実行はブラウザ環境構築が長時間停止。Playwrightブラウザ同梱のコンテナに移行して実戦を成功させた。**学校Google Sites版・main・Firebaseルール・Drive既存候補には未反映**。
