@@ -3,6 +3,10 @@ on:
   push:
     paths:
       - 'tests/online-bot-vs-bot.cjs'
+      - 'online-net.js'
+      - 'online-ipad.html'
+      - 'online-game.js'
+      - 'online.html'
       - '.github/workflows/online-bot-vs-bot.yml'
   workflow_dispatch:
 jobs:

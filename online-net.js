@@ -120,10 +120,10 @@ function worldSizePreview(){
  return {unitCount:original.units?.length||0,rawChars:raw.length,
   packedChars:packed.chars,reductionPct:Math.round(1000*(1-packed.chars/raw.length))/10};
 }
-function receiveGuestWorld(packet){
+function receiveGuestWorld(packet,source="sdk"){
  // QA only: block even REST recovery and queued snapshots during a HUD test.
  if(qaFreezeGuestWorld)return;
- if(packet?.round===meta?.round&&Number.isInteger(packet.seq)){
+ if(source==="sdk"&&packet?.round===meta?.round&&Number.isInteger(packet.seq)){
   lastStateEventAt=performance.now();lastStateEventSeq=Math.max(lastStateEventSeq,packet.seq);
  }
  if(!packet||!Number.isInteger(packet.seq)||packet.round!==meta?.round||
@@ -175,7 +175,7 @@ function restRecoverGuest(){
    if(epoch!==remoteEpoch||ref!==room||host)return;
    lastRestReadAt=performance.now();
    if(Number.isInteger(data?.seq))lastRestReadSeq=data.seq;
-   receiveGuestWorld(data);
+   receiveGuestWorld(data,"rest");
   }).catch(error=>{
    if(epoch!==remoteEpoch||ref!==room||host)return;
    lastApplyError="REST "+String(error?.message||error);
@@ -192,13 +192,22 @@ function checkGuestSync(){
  if(host||!room||phase!=="playing")return;
  const now=performance.now();
  if(!lastRemoteAppliedAt)lastRemoteAppliedAt=now;
- if(now-lastRemoteAppliedAt<3500)return;
- if(!syncWarning){
+ const appliedAge=now-lastRemoteAppliedAt;
+ if(appliedAge<1600)return;
+ // The browser may still paint old frames when SDK events stop arriving.
+ // A real Firebase BOT duel showed SDK seq=82 while REST already had seq=97.
+ // Read once sooner ONLY for SDK silence; preserve the slower fallback for
+ // received-but-not-applied packets (e.g. stalled Safari rAF).
+ const sdkAge=lastStateEventAt?now-lastStateEventAt:appliedAge;
+ if(sdkAge<1600&&appliedAge<3500)return;
+ // Short SDK delivery hiccups are not shown as a user-visible warning.
+ if(appliedAge>=3500&&!syncWarning){
   syncWarning=true;
   $("networkBar").classList.remove("hidden");
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 戦況同期が遅れています";
  }
- if(now-lastSyncReadAt<4500)return;
+ // A zero timestamp means "never fetched" and must not delay first recovery.
+ if(lastSyncReadAt&&now-lastSyncReadAt<4500)return;
  lastSyncReadAt=now;
  restRecoverGuest();
 }

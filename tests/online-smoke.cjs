@@ -728,7 +728,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
 {
  // Use the actual production snapshot scheduling function with fake Safari
  // paint callbacks. No Firebase writes or synthetic replacement algorithm.
- const begin=net.indexOf("function receiveGuestWorld(packet){");
+ const begin=net.indexOf("function receiveGuestWorld(");
  const end=net.indexOf("\n// rAF can keep painting",begin);
  assert.ok(begin>0&&end>begin,"production guest packet scheduler must be extractable");
  const frames=[],timers=new Map(),applied=[],errors=[];
@@ -744,7 +744,7 @@ function setError(e){errors.push(String(e));}
 `+net.slice(begin,end)+`
 return {deliver:receiveGuestWorld,
  newRound:n=>{meta={round:n};cancelRemoteFallback();remoteEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteSeq=0;},
- stats:()=>({appliedPackets,lastRemoteSeq,coalescedPackets,remoteScheduled,pendingSeq:pendingRemote?.seq||0})};
+ stats:()=>({appliedPackets,lastRemoteSeq,coalescedPackets,remoteScheduled,pendingSeq:pendingRemote?.seq||0,sdkSeq:lastStateEventSeq})};
 `);
  const qa=harness((world,seq)=>{if(throwOnce){throwOnce=false;throw Error("synthetic apply failure");}applied.push({seq,round:world.round});},
   callback=>frames.push(callback),
@@ -795,9 +795,39 @@ return {deliver:receiveGuestWorld,
  qa.deliver(packet(3,2));frames.shift()();
  assert.equal(qa.stats().lastRemoteSeq,3,"failed packet can be retried with identical sequence");
  assert.deepEqual(applied.map(x=>x.seq),[2,3,1,2,3],"ordered verified snapshot delivery");
+ const sdkSeqBeforeRest=qa.stats().sdkSeq;
+ qa.deliver(packet(4,2),"rest");frames.shift()();
+ assert.equal(qa.stats().sdkSeq,sdkSeqBeforeRest,"REST packet must not masquerade as Firebase SDK event");
+ assert.equal(qa.stats().lastRemoteSeq,4,"REST packet still updates guest world");
  console.log("PASS: real guest snapshot scheduler coalescing, stalled Safari rAF recovery, old-round isolation, hidden frames and retry");
 }
 
+
+{
+ // Extract and execute production checkGuestSync against simulated clocks.
+ // This verifies the early REST read does not display a warning or poll for
+ // a normally arriving SDK stream, and keeps the 3.5s rAF safety path.
+ const a=net.indexOf("function checkGuestSync(){");
+ const b=net.indexOf("\nfunction syncDiagnostics()",a);
+ assert.ok(a>0&&b>a,"guest synchronization watchdog exists");
+ const test=new Function(`
+let host=false,room={},phase="playing",lastRemoteAppliedAt=3000,lastStateEventAt=3000;
+let lastSyncReadAt=0,syncWarning=false,roomCode="QA",now=4700,reads=0,warnings=0;
+const performance={now:()=>now},restRecoverGuest=()=>{reads++};
+const $=()=>({classList:{remove(){}},set textContent(value){warnings++}});
+`+net.slice(a,b)+`
+return (time,appliedAt,sdkAt)=>{
+ now=time;lastRemoteAppliedAt=appliedAt;lastStateEventAt=sdkAt;
+ checkGuestSync();return {reads,warnings,syncWarning};
+};`)();
+ assert.deepEqual(test(4700,3000,3000),{reads:1,warnings:0,syncWarning:false},
+  "1.7s real SDK silence starts one REST recovery without alarming player");
+ assert.deepEqual(test(5500,3800,5350),{reads:1,warnings:0,syncWarning:false},
+  "fresh SDK events must not trigger early REST recovery");
+ assert.deepEqual(test(9200,3000,3000),{reads:2,warnings:1,syncWarning:true},
+  "prolonged stall retains warning and rate-limited REST fallback");
+ console.log("PASS: SDK-only early REST recovery and slow rAF fallback");
+}
 
 {
  const a=game.indexOf("function refreshSelectedCardClasses(){");
