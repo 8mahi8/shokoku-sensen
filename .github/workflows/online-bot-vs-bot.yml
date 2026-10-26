@@ -1,0 +1,28 @@
+name: Online BOT vs BOT full match
+on:
+  push:
+    paths:
+      - 'tests/online-bot-vs-bot.cjs'
+      - '.github/workflows/online-bot-vs-bot.yml'
+  workflow_dispatch:
+jobs:
+  bot-duel:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Let both real expert bots play a full online match
+        run: node tests/online-bot-vs-bot.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: online-bot-vs-bot-real-match
+          path: qa-online-bot-vs-bot/
+          retention-days: 14
