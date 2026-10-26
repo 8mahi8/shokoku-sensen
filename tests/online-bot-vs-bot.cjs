@@ -39,7 +39,10 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
   await new Promise(r=>server.listen(8766,"127.0.0.1",r));
   hostBrowser=await chromium.launch({headless:true,args:["--no-sandbox"]});
   guestBrowser=await webkit.launch({headless:true});
-  hostContext=await hostBrowser.newContext({viewport:{width:1194,height:834}});
+  hostContext=await hostBrowser.newContext({viewport:{width:1194,height:834},
+   // Observe what the authoritative host actually displayed at the same time
+   // as the WebKit guest, rather than guessing from packet counters alone.
+   recordVideo:{dir,size:{width:960,height:672}}});
   guestContext=await guestBrowser.newContext({viewport:{width:1194,height:834},
    deviceScaleFactor:2,hasTouch:true,
    // QA-only visual review: record what the WebKit guest actually displays.
@@ -223,6 +226,7 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
   // Videos are finalized when the context closes. Keep the entire real match
   // so momentary visual stutter can be reviewed, not just a final screenshot.
   if(guest?.video())await guest.video().saveAs(path.join(dir,"bot-vs-bot-guest-full-match.webm")).catch(e=>console.error("GUEST VIDEO SAVE FAILED",e));
+  if(host?.video())await host.video().saveAs(path.join(dir,"bot-vs-bot-host-full-match.webm")).catch(e=>console.error("HOST VIDEO SAVE FAILED",e));
   for(const browser of [hostBrowser,guestBrowser])if(browser)await browser.close().catch(()=>{});
   if(roomCode){
    await sleep(650);
