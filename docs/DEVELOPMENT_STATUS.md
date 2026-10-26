@@ -314,3 +314,16 @@
 - **参照:** PR #22 と本ファイル
 
 段階・公開状態が変わったら**このファイル自体を更新**する。新チャットがこの正本を読み込んで開始できるように保つ。
+
+
+## 2026-10-27 開発引継ぎ更新｜ゲスト画面の固着を映像で確認・回復修正済み
+
+- **本人の学校実機報告**：普段は快適だが、ときどきゲスト側だけ全画面がカクつき召喚反応も悪い。学校版の正確な貼付HTMLバージョンは未確定。既存公開版は変更しない。
+- **原因の切り分け**：BOT同士が本当に戦闘するChromiumホスト/WebKitゲスト両動画と実Firebase RESTのseqを同時計測。[詳細](GUEST_SDK_STALL_DIAGNOSIS_2026-10-26.md)。ホスト・サーバーが進んでいるのにゲストSDKリスナーが2秒以上停止し、戦闘と残り時間が固まって見えることを確認。ホスト送信自身が一時停滞する別パターンもあり、SDKだけが全原因と断定しない。
+- **現行の改善コード**：`online-net.js` と直接貼付2種HTMLに、ゲストSDK無応答＋最新反映も古い場合だけ1.1秒でREST回復、2.2秒より短い再GETの抑止、SDK単発キャッシュ読取をライブ受信と誤認しない修正を実装済み。戦闘ルール・Firebase設定・ホスト送信間隔・Canvas画質は不変。ゲームコードの最新commit [`dfe5961f`](https://github.com/8mahi8/shokoku-sensen/commit/dfe5961f5506f7f98b0ee59ae9b7faaa0fc2df34)。
+- **同コード実戦 [#40354890152](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890152) SUCCESS**：壁時計261.7秒、実ゲーム250.7秒、青BOT29手・赤BOT28手、最大11体、JSエラー0、ルーム清掃成功。ゲストSDKイベント約3.96秒無受信中にRESTから反映済みの世界は最大seq936へ進行、9回すべてのREST停滞照合でSDK受信seqよりサーバーseqが進んでいた。**残課題**：ゲスト実描画の最大517msフレーム間隔が1件（1000ms以上0）。学校実iPadでの根治は未確認。
+- **回帰成功**：同コードSHAの [smoke #40354890270](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890270)、[WebKit HUD #40354890170](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890170)、[ブラウザ戦闘視覚 #40354890106](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890106)、[実Firebase 2ブラウザ #40354890228](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890228) はSUCCESS。キャラ絵とiPad UIの初回ジョブは並走時にcancel、同一SHAのジョブを個別再実行中（成功確認まで合格扱いしない）。
+- **学校貼付の正本**：[ONLINE_1V1.md](ONLINE_1V1.md)、[開発ブランチの `online-ipad.html`](../online-ipad.html)、[smoke workflow成果物](https://github.com/8mahi8/shokoku-sensen/actions/workflows/online-smoke.yml) の `Shokoku_III_1v1_school_iPad.txt`。ただし**学校Google Sites既存版・main・Firebaseルール・従来配布ファイルは未変更**。今は身内用試遊候補であり学校受入待ち。研究ログの自動記録・クラウド保存・スマホ回収の復活はしない。
+- **次の具体的タスク**：学校iPadのGoogle Sitesテストページでホスト・ゲストを入れ替えて5分程度対戦し、ゲストの「全画面のカクつき／残り時間の飛び／召喚操作の反応」を人間が確認する。採用後に本人が既存学校ページの貼付コードを置換する。操作担当が必要になるまでは既存学校版を変更しない。
+
+**開発位置｜小国戦線III**：Phase 3（原因切り分け・回復策の実戦検証）まで進行。Phase 4（学校実機QA・Google Sites採用）は未完了。
