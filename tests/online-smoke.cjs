@@ -833,4 +833,27 @@ return {deliver:receiveGuestWorld,
  console.log("PASS: lightweight card taps and recent in-memory guest hitch diagnosis");
 }
 
+
+{
+ const botQaStart=game.indexOf("function qaRunBlueBot(dt){");
+ const botQaEnd=game.indexOf("\n// QA-only six-second contact forecast.",botQaStart);
+ assert.ok(botQaStart>0&&botQaEnd>botQaStart,"QA blue BOT driver exists");
+ const state={phase:"prep",prep:7,speed:1},netRole={isHost:true},calls=[];
+ const create=new Function("S","NET","qaFrameBench","botExpertAction","rand",
+  "let qaBotPlayed=[0,0,0],qaBlueBot=true,qaBlueReady=false,qaBlueThink=1.5,qaBlueDecisions=0;\n"+
+  game.slice(botQaStart,botQaEnd)+
+  "\nreturn {tick:qaRunBlueBot,decisions:()=>qaBlueDecisions};");
+ const qa=create(state,netRole,{samples:[]},team=>calls.push(team),(a,b)=>(a+b)/2);
+ qa.tick(.1);assert.deepEqual(calls,[1],"expert blue BOT executes prep turn");
+ state.phase="battle";
+ for(let i=0;i<300;i++)qa.tick(.1);
+ assert.ok(calls.length>=8,"expert blue BOT makes decisions during 30s");
+ assert.ok(calls.every(team=>team===1),"never takes over guest/human side");
+ netRole.isHost=false;const prev=calls.length;qa.tick(12);
+ assert.equal(calls.length,prev,"QA driver cannot activate on guest");
+ for(const name of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(name).includes(game.trim()),"school bundle matches QA engine");
+ console.log("PASS: BOT-vs-BOT QA mirrors blue expert without changing normal gameplay");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
