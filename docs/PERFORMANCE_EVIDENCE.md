@@ -219,3 +219,11 @@
 - [最新版BOT実戦 #40344599098](https://github.com/8mahi8/shokoku-sensen/actions/runs/40344599098) SUCCESS：ゲーム内300秒・時間切れ決着、最大20体、ゲスト最大フレーム間隔182ms、500ms以上0、JSエラー0、一時ルーム清掃成功。309.4秒時点、ゲストSDK seq2071のままRESTは2085に進み、ゲストはRESTでseq2084を適用済み（適用から37ms）という復帰を確認。一方、144.8秒地点で適用から3,913msの停滞が残る。同じ約5.5秒でホスト送信試行seqは993→1007の14増に留まり、通常の125ms目安より遅い。SDKだけではなくホスト送信パイプライン・RTDB側の停滞の可能性も調査が必要。
 - **次の検証**：実BOT対BOTテストに、ホスト最終送信からの経過・ACK・再試行・書込失敗と、ゲスト停滞時の実REST seqを追加。ホストに新しい書き込みがないのか、RTDBには届いていてSDKだけ止まるのかを分離。根拠なくホスト再送頻度を上げたり品質を下げたりしない。学校実機問題の完治は未確認。
 - 主な操作対象は開発Draft PR #22だけ。**学校Google Sites版、main、本番Firebaseルール、既存Google Drive貼付ファイルは変更していない。**
+
+
+### 2026-10-27｜ホスト送信・ゲストSDK・RESTを同時照合（BOT対BOT実Firebase）
+
+- [run #40346406655](https://github.com/8mahi8/shokoku-sensen/actions/runs/40346406655) **SUCCESS**、試験対象commit `628622fa`、成果物 `online-bot-vs-bot-real-match` の `bot-vs-bot-results.json` を解析。
+- 壁時計315.9秒／試合内300秒のBOT実戦完走、青BOT32回・赤BOT33回、最大19体。ゲスト最大フレーム間隔349ms（500ms以上0件）、ホスト最大33ms、ゲスト最長描画JS35ms、JSエラー0件、実Firebaseテスト用ルーム清掃はCI通過。
+- 停滞REST検査6回（ロビー1回＋試合中5回）。**試合中5/5回でREST seqがSDK seqを先行**。うち3件はホスト最終送信試行から117〜130ms、ゲストSDK無応答1650〜2029ms、REST先行12〜16seqで、受信SDKイベント停滞が有力。残る2件はホスト側にも1722ms・2062msの送信空白があり、送信経路側の要因も残る。詳しくは [ゲストSDK停滞診断](GUEST_SDK_STALL_DIAGNOSIS_2026-10-26.md)。
+- 開発PR #22内のSDK無受信1600msからのREST再取得は維持。既存テスト（smoke、HUD WebKit、キャラクター画像、BOT実戦）で後退が見つかっていない。ただし学校iPad/Google Sites実機での突発的な全画面停止・入力低下の解消は未確認。**学校Google Sites版、main、Firebaseルールは変更していない**。
