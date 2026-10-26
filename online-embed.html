@@ -1688,7 +1688,7 @@ function playCard(team,id,x,y){
   if(!NET.sendCommand({id,x,y}))return false;
   // Mirror host-side success UX immediately; authoritative resource/hand
   // mutations still await the host's next snapshot.
-  if(id!=="infantry"){S.selected=null;buildCards();updateHUD();}
+  if(id!=="infantry"){S.selected=null;refreshSelectedCardClasses();updateHUD();}
   return true;
  }
  const ok=isSpell(id)?castSpell(team,id,x,y):deploy(team,id,x,y);
@@ -3942,6 +3942,11 @@ function buildEnergyMeter(){
   segment.append(fill);rail.append(segment);
  }
 }
+// Selecting a card must not redraw five costly portrait canvases.
+function refreshSelectedCardClasses(){
+ for(const button of cards.querySelectorAll("button[data-id]"))
+  button.classList.toggle("selected",button.dataset.id===S.selected);
+}
 function buildCards(){
  cards.replaceChildren();
  for(const id of ["infantry",...S.hand[ME()]]){
@@ -4154,7 +4159,7 @@ function onGlobalMove(e){
 }
 function onGlobalUp(e){
  const m=S.drag;if(!m||m.pointer!==e.pointerId)return;
- if(!m.active){S.selected=S.selected===m.id?null:m.id;buildCards();}
+ if(!m.active){S.selected=S.selected===m.id?null:m.id;refreshSelectedCardClasses();}
  S.drag=null;
 }
 function arenaDown(e){
@@ -4193,6 +4198,15 @@ function resumeButton(){
 }
 // Opt-in, local-only guest diagnostics. Triple-tap the game title to show/hide.
 let perfPanel=null,perfStart=0,perfFrames=0,perfDrawTotal=0,perfDrawWorst=0,perfMaxGap=0,perfLastFrame=0;
+// Guest-only recent hitch snapshot; never stored, uploaded or shared.
+let lastGuestHitch=null;
+function trackGuestFrameHitch(gapMs){
+ if(NET.isHost||document.hidden||S.phase!=="battle"||gapMs<450)return;
+ const n=NET.syncDiagnostics?.()||{};
+ lastGuestHitch={gapMs:Math.round(gapMs),units:S.units.length,
+  sdkSeq:n.eventSeq||0,appliedSeq:n.seq||0,
+  sdkAgeMs:n.eventAgeMs||0,appliedAgeMs:n.ageMs||0};
+}
 function togglePerfPanel(){
  if(perfPanel){perfPanel.remove();perfPanel=null;return;}
  perfPanel=document.createElement("div");
@@ -4233,6 +4247,12 @@ function samplePerf(now,drawMs){
    "反映 "+(n.applyMs||0)+"ms / 最新優先 "+(n.coalesced||0)+"件",
   isHost?"滞留再送 "+(n.retries||0)+"回 / 送信失敗 "+(n.writeFailures||0)+"回":
    "診断値はこの端末のみ（Firebaseへ送信しません）",
+  !isHost&&lastGuestHitch?
+   "直近の停止 "+lastGuestHitch.gapMs+"ms / 受信seq "+lastGuestHitch.sdkSeq+" / 反映seq "+lastGuestHitch.appliedSeq:
+   "直近の停止 450ms以上なし",
+  !isHost&&lastGuestHitch?
+   "停止時 受信経過 "+lastGuestHitch.sdkAgeMs+"ms / 反映経過 "+lastGuestHitch.appliedAgeMs+"ms / 兵士 "+lastGuestHitch.units+"体":
+   "診断はこの端末内のみ",
   window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
   n.error?"同期エラー "+String(n.error).slice(0,48):
    "兵士 "+S.units.length+"体 / キャッシュ "+denseSpritesRendered+"体"];
@@ -4258,7 +4278,7 @@ function start(){
     if(active){S.selected=null;S.drag=null;S.pointer=null;S.botThink=2.5;S.botPrepDone=false;}
     buildCards();updateHUD();
    },resetForLobby:()=>{
-   resetWorld();S.phase="menu";S.remoteSprites=null;
+   resetWorld();S.phase="menu";S.remoteSprites=null;lastGuestHitch=null;
    $("start").disabled=false;
    $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
    buildCards();updateHUD();
@@ -4384,7 +4404,7 @@ function start(){
   if(e.code==="Escape"&&S.phase==="inspect"){e.preventDefault();closeCardInfo();return;}
   if(e.code==="Space"){e.preventDefault();resumeButton();}
   if(/^[1-5]$/.test(e.key)&&(S.phase==="prep"||S.phase==="battle")){
-   S.selected=Number(e.key)===1?"infantry":S.hand[ME()][Number(e.key)-2]||null;buildCards();
+   S.selected=Number(e.key)===1?"infantry":S.hand[ME()][Number(e.key)-2]||null;refreshSelectedCardClasses();
   }
  });
  let previous=performance.now(),acc=0,lastFrameErrorAt=-1e9;
@@ -4397,6 +4417,7 @@ function start(){
   try{
   // Recover up to 150ms after a missed frame (max five 30Hz steps).
   // Keep the existing bounded accumulator to prevent a catch-up spiral.
+  trackGuestFrameHitch(now-previous);
   const delta=Math.min(.15,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   adaptCrowdedSprites(now);

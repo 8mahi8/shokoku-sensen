@@ -798,4 +798,39 @@ return {deliver:receiveGuestWorld,
  console.log("PASS: real guest snapshot scheduler coalescing, stalled Safari rAF recovery, old-round isolation, hidden frames and retry");
 }
 
+
+{
+ const a=game.indexOf("function refreshSelectedCardClasses(){");
+ const b=game.indexOf("\nfunction buildCards(){",a);
+ assert.ok(a>0&&b>a,"lightweight selection handler exists");
+ const buttons=["infantry","scout","archer"].map(id=>({dataset:{id},selected:false,classList:{toggle(name,on){this.parent.selected=on}}}));
+ for(const item of buttons)item.classList.parent=item;
+ const state={selected:"scout"};
+ const update=new Function("cards","S",game.slice(a,b)+"\nreturn refreshSelectedCardClasses;")(
+  {querySelectorAll(){return buttons;}},state);
+ update();
+ assert.deepEqual(buttons.map(x=>x.selected),[false,true,false],"only chosen card is selected");
+ state.selected=null;update();
+ assert.deepEqual(buttons.map(x=>x.selected),[false,false,false],"selection reset is cheap");
+ assert.ok(game.includes("S.selected=S.selected===m.id?null:m.id;refreshSelectedCardClasses();"));
+ assert.ok(game.includes('S.selected=null;refreshSelectedCardClasses();updateHUD();'));
+ const hs=game.indexOf("function trackGuestFrameHitch(gapMs){");
+ const he=game.indexOf("\nfunction togglePerfPanel(){",hs);
+ assert.ok(hs>0&&he>hs,"in-memory guest hitch capture exists");
+ const n={eventSeq:15,seq:14,eventAgeMs:125,ageMs:160};
+ const role={isHost:false,syncDiagnostics:()=>n},document={hidden:false},S={phase:"battle",units:[{},{}]};
+ const qa=new Function("NET","document","S","let lastGuestHitch=null;\n"+game.slice(hs,he)+
+  "\nreturn {sample:trackGuestFrameHitch,last:()=>lastGuestHitch,reset:()=>lastGuestHitch=null};")(role,document,S);
+ qa.sample(100);assert.equal(qa.last(),null,"ordinary frames are ignored");
+ qa.sample(725);
+ assert.deepEqual(qa.last(),{gapMs:725,units:2,sdkSeq:15,appliedSeq:14,sdkAgeMs:125,appliedAgeMs:160});
+ qa.reset();role.isHost=true;qa.sample(800);assert.equal(qa.last(),null,"host ignored");
+ role.isHost=false;document.hidden=true;qa.sample(800);assert.equal(qa.last(),null,"hidden iframe ignored");
+ document.hidden=false;S.phase="menu";qa.sample(800);assert.equal(qa.last(),null,"menu ignored");
+ assert.ok(game.includes("S.remoteSprites=null;lastGuestHitch=null;"),"new round clears old stop");
+ for(const page of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(page).includes(game.trim()),"bundles match school game");
+ console.log("PASS: lightweight card taps and recent in-memory guest hitch diagnosis");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
