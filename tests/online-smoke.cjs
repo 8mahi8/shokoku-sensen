@@ -820,13 +820,19 @@ return (time,appliedAt,sdkAt)=>{
  now=time;lastRemoteAppliedAt=appliedAt;lastStateEventAt=sdkAt;
  checkGuestSync();return {reads,warnings,syncWarning};
 };`)();
- assert.deepEqual(test(4700,3000,3000),{reads:1,warnings:0,syncWarning:false},
-  "1.7s real SDK silence starts one REST recovery without alarming player");
- assert.deepEqual(test(5500,3800,5350),{reads:1,warnings:0,syncWarning:false},
-  "fresh SDK events must not trigger early REST recovery");
- assert.deepEqual(test(9200,3000,3000),{reads:2,warnings:1,syncWarning:true},
-  "prolonged stall retains warning and rate-limited REST fallback");
- console.log("PASS: SDK-only early REST recovery and slow rAF fallback");
+ assert.deepEqual(test(4000,3000,3000),{reads:0,warnings:0,syncWarning:false},
+   "1.0s SDK silence is below REST recovery threshold");
+  assert.deepEqual(test(4300,3000,3000),{reads:1,warnings:0,syncWarning:false},
+   "1.3s real SDK silence starts one REST recovery without alarming player");
+  assert.deepEqual(test(4400,3000,3000),{reads:1,warnings:0,syncWarning:false},
+   "rechecking the stalled SDK must not spam REST");
+  assert.deepEqual(test(5100,3900,5050),{reads:1,warnings:0,syncWarning:false},
+   "fresh SDK events must not trigger early REST recovery");
+  assert.deepEqual(test(6600,3000,3000),{reads:2,warnings:0,syncWarning:false},
+   "REST can retry after 2.2s if the host was stalled on the first read");
+  assert.deepEqual(test(9200,3000,3000),{reads:3,warnings:1,syncWarning:true},
+   "prolonged stall retains warning and rate-limited REST fallback");
+  console.log("PASS: SDK-only early REST recovery and slow rAF fallback");
 }
 
 {

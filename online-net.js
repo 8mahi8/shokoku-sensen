@@ -193,13 +193,13 @@ function checkGuestSync(){
  const now=performance.now();
  if(!lastRemoteAppliedAt)lastRemoteAppliedAt=now;
  const appliedAge=now-lastRemoteAppliedAt;
- if(appliedAge<1600)return;
+ if(appliedAge<1100)return;
  // The browser may still paint old frames when SDK events stop arriving.
  // A real Firebase BOT duel showed SDK seq=82 while REST already had seq=97.
- // Read once sooner ONLY for SDK silence; preserve the slower fallback for
+ // Read after ~1.1s of SDK silence; preserve the slower fallback for
  // received-but-not-applied packets (e.g. stalled Safari rAF).
  const sdkAge=lastStateEventAt?now-lastStateEventAt:appliedAge;
- if(sdkAge<1600&&appliedAge<3500)return;
+ if(sdkAge<1100&&appliedAge<3500)return;
  // Short SDK delivery hiccups are not shown as a user-visible warning.
  if(appliedAge>=3500&&!syncWarning){
   syncWarning=true;
@@ -207,7 +207,9 @@ function checkGuestSync(){
   $("networkBar").textContent="ONLINE "+roomCode+" ｜ 戦況同期が遅れています";
  }
  // A zero timestamp means "never fetched" and must not delay first recovery.
- if(lastSyncReadAt&&now-lastSyncReadAt<4500)return;
+ // The first REST read may arrive before a paused host resumes. Retry
+ // occasionally, bounded to at most one fallback read per 2.2 seconds.
+ if(lastSyncReadAt&&now-lastSyncReadAt<2200)return;
  lastSyncReadAt=now;
  restRecoverGuest();
 }
