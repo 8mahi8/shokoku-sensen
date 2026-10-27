@@ -734,8 +734,12 @@ const deadline=async (f,label,timeout=18000)=>{
    manualGuestCommandReceived:true,scenario:"standard"
   }));
   // Leave both sides so no old-host/old-guest role can leak into a later room.
-  await host.locator("#newRoom").click();
-  await guest.locator("#newRoom").click();
+  // This button lives inside the hidden end-of-match overlay during battle.
+  // The existing in-game new-room flow intentionally uses DOM click while
+  // gameplay is active; a Playwright locator.click() would wait forever for
+  // visibility and falsely fail an otherwise working role-crossover test.
+  await host.evaluate(()=>document.getElementById("newRoom").click());
+  await guest.evaluate(()=>document.getElementById("newRoom").click());
   for(const page of [host,guest])await deadline(async()=>
    (await page.locator("#netRoom").innerText()).trim()==="-----"&&
    await page.locator("#netCreate").isEnabled(),
