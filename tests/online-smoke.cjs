@@ -953,13 +953,20 @@ return (time,appliedAt,sdkAt)=>{
  const role={isHost:false,syncDiagnostics:()=>n},document={hidden:false},S={phase:"battle",units:[{},{}]};
  const qa=new Function("NET","document","S","let lastGuestHitch=null;\n"+game.slice(hs,he)+
   "\nreturn {sample:trackGuestFrameHitch,last:()=>lastGuestHitch,reset:()=>lastGuestHitch=null};")(role,document,S);
- qa.sample(100);assert.equal(qa.last(),null,"ordinary frames are ignored");
+ qa.sample(179);assert.equal(qa.last(),null,"sub-180ms frame gaps are ignored");
+ qa.sample(180);assert.deepEqual(qa.last(),{gapMs:180,units:2,sdkSeq:15,appliedSeq:14,sdkAgeMs:125,appliedAgeMs:160},
+  "brief stutters from 180ms should be visible in diagnostics");
+ qa.reset();
  qa.sample(725);
  assert.deepEqual(qa.last(),{gapMs:725,units:2,sdkSeq:15,appliedSeq:14,sdkAgeMs:125,appliedAgeMs:160});
  qa.reset();role.isHost=true;qa.sample(800);assert.equal(qa.last(),null,"host ignored");
  role.isHost=false;document.hidden=true;qa.sample(800);assert.equal(qa.last(),null,"hidden iframe ignored");
  document.hidden=false;S.phase="menu";qa.sample(800);assert.equal(qa.last(),null,"menu ignored");
  assert.ok(game.includes("S.remoteSprites=null;lastGuestHitch=null;"),"new round clears old stop");
+ assert.ok(game.includes("datum.hitchNet={sdkSeq:sync.eventSeq||0,appliedSeq:sync.seq||0,"),
+  "QA frame benchmark correlates hitch with SDK and applied-world timing");
+ assert.ok(game.includes('const qaFrameBench=(["localhost","127.0.0.1"].includes(location.hostname)'),
+  "extra per-frame network samples remain loopback QA-only");
  for(const page of ["online-ipad.html","online-embed.html"])
   assert.ok(read(page).includes(game.trim()),"bundles match school game");
  console.log("PASS: lightweight card taps and recent in-memory guest hitch diagnosis");

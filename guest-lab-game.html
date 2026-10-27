@@ -4549,6 +4549,15 @@ function start(){
   }finally{
    if(qa){
     datum.totalMs=performance.now()-started;
+    // Local QA only: same-frame SDK/REST context for short rAF hitches.
+    // Never upload or persist this instrumentation.
+    if(!NET.isHost&&datum.phase==="battle"&&datum.gapMs>=180&&!document.hidden){
+     const sync=NET.syncDiagnostics?.()||{};
+     datum.hitchNet={sdkSeq:sync.eventSeq||0,appliedSeq:sync.seq||0,
+      sdkAgeMs:sync.eventAgeMs||0,appliedAgeMs:sync.ageMs||0,
+      restSeq:sync.restSeq||0,restAgeMs:sync.restAgeMs||0,
+      applyMs:sync.applyMs||0};
+    }
     qa.prevTotalMs=datum.totalMs;
     if(qa.samples.length>=1000)qa.samples.shift();
     qa.samples.push(datum);

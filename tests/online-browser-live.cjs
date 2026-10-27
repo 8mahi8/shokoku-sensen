@@ -386,6 +386,7 @@ const deadline=async (f,label,timeout=18000)=>{
     const round=n=>Math.round(n*10)/10;
     const ordered=key=>frames.map(r=>r[key]).filter(Number.isFinite).sort((a,b)=>a-b);
     const elapsedMs=performance.now()-window.__qaPairStartedAt;
+    const hitches=frames.filter(r=>r.hitchNet).sort((a,b)=>b.gapMs-a.gapMs);
     return {phase:window.__shokokuQa.snapshot().phase,
      count:window.__shokokuQa.snapshot().units.length,
      perf:window.ShokokuNet.syncDiagnostics(),
@@ -401,6 +402,10 @@ const deadline=async (f,label,timeout=18000)=>{
      hudP95Ms:round(percentile(ordered("hudMs"),.95)),
      networkP95Ms:round(percentile(ordered("networkMs"),.95)),
      gapAfterPrevP95Ms:round(percentile(ordered("gapAfterPrevMs"),.95)),
+     hitchSamples:hitches.length,
+     worstHitches:hitches.slice(0,3).map(r=>({gapMs:round(r.gapMs),
+      outsidePrevFrameMs:round(r.gapAfterPrevMs),frameJsMs:round(r.totalMs),
+      drawMs:round(r.drawMs),...r.hitchNet})),
      frameError:window.__onlineFrameError||null};
    };
    const [hostLater,later]=await Promise.all([
@@ -435,7 +440,8 @@ const deadline=async (f,label,timeout=18000)=>{
       gapP50Ms:later.gapP50Ms,gapP95Ms:later.gapP95Ms,gapMaxMs:later.gapMaxMs,
       drawP95Ms:later.drawP95Ms,totalP95Ms:later.totalP95Ms,
       logicP95Ms:later.logicP95Ms,hudP95Ms:later.hudP95Ms,
-      networkP95Ms:later.networkP95Ms,gapAfterPrevP95Ms:later.gapAfterPrevP95Ms}
+      networkP95Ms:later.networkP95Ms,gapAfterPrevP95Ms:later.gapAfterPrevP95Ms,
+      hitchSamples:later.hitchSamples,worstHitches:later.worstHitches}
    }));
    // Matched REAL Firebase WebKit negative control: keep incoming state,
    // JavaScript, HUD and combat running, but temporarily skip only Canvas paint.

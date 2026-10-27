@@ -4304,7 +4304,7 @@ let perfPanel=null,perfStart=0,perfFrames=0,perfDrawTotal=0,perfDrawWorst=0,perf
 // Guest-only recent hitch snapshot; never stored, uploaded or shared.
 let lastGuestHitch=null;
 function trackGuestFrameHitch(gapMs){
- if(NET.isHost||document.hidden||S.phase!=="battle"||gapMs<450)return;
+ if(NET.isHost||document.hidden||S.phase!=="battle"||gapMs<180)return;
  const n=NET.syncDiagnostics?.()||{};
  lastGuestHitch={gapMs:Math.round(gapMs),units:S.units.length,
   sdkSeq:n.eventSeq||0,appliedSeq:n.seq||0,
@@ -4351,10 +4351,10 @@ function samplePerf(now,drawMs){
   isHost?"滞留再送 "+(n.retries||0)+"回 / 送信失敗 "+(n.writeFailures||0)+"回":
    "診断値はこの端末のみ（Firebaseへ送信しません）",
   !isHost&&lastGuestHitch?
-   "直近の停止 "+lastGuestHitch.gapMs+"ms / 受信seq "+lastGuestHitch.sdkSeq+" / 反映seq "+lastGuestHitch.appliedSeq:
-   "直近の停止 450ms以上なし",
+   "直近のカクつき "+lastGuestHitch.gapMs+"ms / 受信seq "+lastGuestHitch.sdkSeq+" / 反映seq "+lastGuestHitch.appliedSeq:
+   "直近のカクつき 180ms以上なし",
   !isHost&&lastGuestHitch?
-   "停止時 受信経過 "+lastGuestHitch.sdkAgeMs+"ms / 反映経過 "+lastGuestHitch.appliedAgeMs+"ms / 兵士 "+lastGuestHitch.units+"体":
+   "発生時 受信経過 "+lastGuestHitch.sdkAgeMs+"ms / 反映経過 "+lastGuestHitch.appliedAgeMs+"ms / 兵士 "+lastGuestHitch.units+"体":
    "診断はこの端末内のみ",
   window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
   n.error?"同期エラー "+String(n.error).slice(0,48):
@@ -4581,6 +4581,15 @@ function start(){
   }finally{
    if(qa){
     datum.totalMs=performance.now()-started;
+    // Local QA only: same-frame SDK/REST context for short rAF hitches.
+    // Never upload or persist this instrumentation.
+    if(!NET.isHost&&datum.phase==="battle"&&datum.gapMs>=180&&!document.hidden){
+     const sync=NET.syncDiagnostics?.()||{};
+     datum.hitchNet={sdkSeq:sync.eventSeq||0,appliedSeq:sync.seq||0,
+      sdkAgeMs:sync.eventAgeMs||0,appliedAgeMs:sync.ageMs||0,
+      restSeq:sync.restSeq||0,restAgeMs:sync.restAgeMs||0,
+      applyMs:sync.applyMs||0};
+    }
     qa.prevTotalMs=datum.totalMs;
     if(qa.samples.length>=1000)qa.samples.shift();
     qa.samples.push(datum);
