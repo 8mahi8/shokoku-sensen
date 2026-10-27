@@ -12,6 +12,11 @@ on:
 jobs:
   browser-live:
     runs-on: ubuntu-24.04
+    # Use Playwright's version-matched official image: browser binaries and
+    # Linux dependencies are already installed, avoiding flaky apt mirrors.
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -37,12 +42,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
-      - run: |
-          if [ "$SHOKOKU_QA_MATCHED_WEBKIT" = "yes" ]; then
-            npx playwright install --with-deps webkit
-          else
-            npx playwright install --with-deps chromium webkit
-          fi
+      # The pinned container already has matching Chromium and WebKit builds.
       - run: node tests/online-browser-live.cjs
       - uses: actions/upload-artifact@v4
         if: always()

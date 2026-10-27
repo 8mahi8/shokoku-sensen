@@ -11,6 +11,11 @@ on:
 jobs:
   moving-battle:
     runs-on: ubuntu-24.04
+    # Use Playwright's version-matched official image: browser binaries and
+    # Linux dependencies are already installed, avoiding flaky apt mirrors.
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
     permissions:
       contents: read
     timeout-minutes: 12
@@ -20,7 +25,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
-      - run: npx playwright install --with-deps chromium webkit
+      # Do not install apt dependencies during each visual QA run.
       - run: node tests/online-battle-visual-review.cjs
       - uses: actions/upload-artifact@v4
         if: always()
