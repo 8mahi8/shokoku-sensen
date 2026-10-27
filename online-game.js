@@ -3042,6 +3042,7 @@ function start(){
   // Recover up to 150ms after a missed frame (max five 30Hz steps).
   // Keep the existing bounded accumulator to prevent a catch-up spiral.
   trackGuestFrameHitch(now-previous);
+  NET.flushGuestBeforePaint?.();
   const delta=Math.min(.15,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   adaptCrowdedSprites(now);

@@ -84,6 +84,51 @@ for(const functionName of ["sendCommand","maybePublish","finish","resultForMe","
  assert.ok(net.includes("function "+functionName+"("),
   "network code must keep essential game function "+functionName);
 assert.ok(page.includes('id="newRoom"'));
+// Simulate a late WebKit rAF after the SDK has delivered multiple worlds.
+// The game frame must apply the most recent pending packet before drawing;
+// a stale callback from an earlier room must not cancel the new pending one.
+{
+ const begin=net.indexOf('function receiveGuestWorld(packet,source="sdk"){');
+ const end=net.indexOf('// rAF can keep painting an old world',begin);
+ assert.ok(begin>=0&&end>begin,'guest snapshot coalescing source present');
+ const js=net.slice(begin,end);
+ const create=new Function('callbacks','applied',
+  'const performance={now:()=>1000},document={hidden:false};'+
+  'const setTimeout=()=>42,clearTimeout=()=>{};'+
+  'const requestAnimationFrame=fn=>callbacks.push(fn);'+
+  'let qaFreezeGuestWorld=false,meta={round:1},lastStateEventAt=0,lastStateEventSeq=0;'+
+  'let lastRemoteSeq=0,pendingRemote=null,coalescedPackets=0,remoteScheduled=false;'+
+  'let remoteEpoch=0,remoteApplyFallback=null,remoteFrameFlush=null,host=false,room={};'+
+  'let lastApplyMs=0,lastRemoteAppliedAt=0,appliedGaps=[],appliedPackets=0;'+
+  'let lastApplyError="",syncWarning=false;'+
+  'const cancelRemoteFallback=()=>{remoteApplyFallback=null};'+
+  'const game={apply:(world,seq)=>applied.push(seq)};'+
+  'const updateUI=()=>{},setError=e=>{throw e};'+
+  js+
+  'return {receive:receiveGuestWorld,paint:flushGuestBeforePaint,'+
+  'newRound:()=>{remoteEpoch++;meta.round++;lastRemoteSeq=0;pendingRemote=null;'+
+  'remoteScheduled=false;remoteFrameFlush=null;},'+
+  'waiting:()=>remoteScheduled,seq:()=>lastRemoteSeq};');
+ const callbacks=[],applied=[],qa=create(callbacks,applied);
+ const pkt=(round,seq)=>({round,seq,world:{units:[]}});
+ qa.receive(pkt(1,1));qa.receive(pkt(1,2));
+ assert.equal(callbacks.length,1,'coalesced packets share one rAF');
+ qa.paint();assert.deepEqual(applied,[2],'latest world applied BEFORE draw');
+ assert.equal(qa.waiting(),false,'prepaint removes pending queue');
+ callbacks.shift()();assert.deepEqual(applied,[2],'original rAF cannot double-apply');
+ qa.receive(pkt(1,3));const old=callbacks.shift();
+ qa.newRound();qa.receive(pkt(2,4));
+ old();assert.equal(qa.waiting(),true,'stale epoch callback keeps new queue');
+ qa.paint();assert.deepEqual(applied,[2,4],'new round applies its own packet');
+ callbacks.shift()();assert.deepEqual(applied,[2,4],'new callback cannot double apply');
+ assert.ok(game.includes('NET.flushGuestBeforePaint?.();'),'paint loop hooks coalesced flush');
+ assert.ok(net.includes('registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,'),
+  'game can request prepaint sync');
+ assert.ok(read('guest-lab-game.html').includes('NET.flushGuestBeforePaint?.();'),
+  'same-device guest lab receives prepaint sync');
+ console.log('PASS: prepaint newest-world flush, no duplicate apply, stale round isolation');
+}
+
 assert.ok(net.includes('data.round===meta.round'));
 assert.ok(net.includes('packet.round!==meta?.round'));
 assert.ok(net.includes('async function rematch()'));

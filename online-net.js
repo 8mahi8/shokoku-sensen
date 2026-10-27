@@ -23,7 +23,7 @@ let qaMuteSdkSnapshots=false,qaFreezeGuestWorld=false;
 let appliedGaps=[],appliedPackets=0;
 // When reconnecting after a stall Firebase can deliver several obsolete
 // snapshots together. Apply only the newest on the next visible frame.
-let pendingRemote=null,remoteScheduled=false,remoteEpoch=0,remoteApplyFallback=null;
+let pendingRemote=null,remoteScheduled=false,remoteEpoch=0,remoteApplyFallback=null,remoteFrameFlush=null;
 const hostBotSeat=()=>host&&players?.guest?.online===true&&players.guest.localBot===true&&players.guest.id==="bot:"+clientId;
 function cancelRemoteFallback(){if(remoteApplyFallback!==null){clearTimeout(remoteApplyFallback);remoteApplyFallback=null;}}
 function stopGuestHeartbeat(){
@@ -133,9 +133,13 @@ function receiveGuestWorld(packet,source="sdk"){
  if(remoteScheduled)return;
  remoteScheduled=true;const epoch=remoteEpoch;
  // iPad iframe can delay rAF after Firebase snapshots have already arrived.
+ let finished=false;
  const flush=()=>{
-  cancelRemoteFallback();remoteScheduled=false;
-  if(epoch!==remoteEpoch||host||!room)return;
+  // A callback from a previous room/round must never clear the new queue.
+  if(finished||epoch!==remoteEpoch)return;
+  finished=true;cancelRemoteFallback();remoteScheduled=false;
+  if(remoteFrameFlush===flush)remoteFrameFlush=null;
+  if(host||!room)return;
   const latest=pendingRemote;pendingRemote=null;
   if(qaFreezeGuestWorld||!latest||latest.round!==meta?.round)return;
   try{
@@ -152,10 +156,18 @@ function receiveGuestWorld(packet,source="sdk"){
    if(syncWarning){syncWarning=false;updateUI();}
   }catch(e){lastApplyError=String(e?.message||e);setError(e)}
  };
+ remoteFrameFlush=flush;
  remoteApplyFallback=setTimeout(()=>{
   if(epoch===remoteEpoch&&remoteScheduled&&!document.hidden)flush();
  },650);
  requestAnimationFrame(flush);
+}
+// The game loop may have been queued before the SDK listener's rAF callback.
+// Apply its latest coalesced packet just BEFORE drawing, avoiding one extra
+// visibly stale frame on a slow guest WebKit rAF. The existing rAF/650ms
+// fallback remains for cases without a game paint callback.
+function flushGuestBeforePaint(){
+ if(!host&&room&&remoteScheduled&&remoteFrameFlush)remoteFrameFlush();
 }
 // rAF can keep painting an old world even when Firebase snapshots stop arriving.
 // An occasional one-shot read gives the guest a second way to receive the latest
@@ -239,7 +251,7 @@ function setupRoom(code,isHost){
  appliedGaps=[];appliedPackets=0;
  lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;restReadPending=false;lastHostPublishAt=0;lastHostPublishSeq=0;lastApplyError="";
  cancelRemoteFallback();
- remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
+ remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;remoteFrameFlush=null;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  lastFeedbackSeq=0;
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
@@ -264,7 +276,7 @@ function setupRoom(code,isHost){
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
    cancelRemoteFallback();
-   remoteEpoch++;pendingRemote=null;remoteScheduled=false;
+   remoteEpoch++;pendingRemote=null;remoteScheduled=false;remoteFrameFlush=null;
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
    game?.resetForLobby?.();
@@ -530,7 +542,7 @@ function resetLobby(){
  // on a Firebase read/write; onDisconnect remains a fallback for stale presence.
  room=null;phase="none";solo=false;guestBot=false;guestBotSwitchPending=false;hostBotSwitchPending=false;
  cancelRemoteFallback();stopGuestHeartbeat();
- remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;
+ remoteEpoch++;restReadEpoch++;pendingRemote=null;remoteScheduled=false;remoteFrameFlush=null;
  restReadPending=false;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
  networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
  detach();roomCode="";team=0;host=false;players=null;meta=null;result=null;
@@ -568,7 +580,7 @@ const api={
   get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},
  get canSendCommand(){return !host&&!!room&&phase==="playing"&&connected&&players?.guest?.id===clientId},
  get soloDifficulty(){return soloDifficulty},
- registerGame(x){game=x},maybePublish,checkGuestSync,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
+ registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;
