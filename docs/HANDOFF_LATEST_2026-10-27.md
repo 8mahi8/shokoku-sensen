@@ -23,6 +23,15 @@
 5. ゲストだけのラグを改善することが主眼。攻撃/資源/召喚のホスト権威、戦闘バランス、ホストのpublish間隔を根拠なく変えない。見た目だけの改善と本当の通信/処理速度改善を混同しない。
 6. 重複するCanvas/CSS/HUDの負荷実験は既に多数実施済み。`PERFORMANCE_EVIDENCE.md`を読む前に繰り返さない。headless WebKitのrAF値を学校の実iPad性能と同一視しない。
 
+## 2026-10-27 最終検証追記：今回の開発QA 7系統通過（以降は実機の体感判定）
+- **ゲーム/診断最新コミット:** [c2ac17f](https://github.com/8mahi8/shokoku-sensen/commit/c2ac17f63882d5a078d6781f3515cdcdc37a83e1)。**WebKit戦闘QA隔離:** [e088380](https://github.com/8mahi8/shokoku-sensen/commit/e0883804c6502b802b466c28fab545731c5252d4)。以後はGitHub docs更新のみ。詳細：[最終検証記録](GUEST_VISUAL_AND_CI_ACCEPTANCE_2026-10-27.md)。
+- **実Firebase2ブラウザ [#40516092601](https://github.com/8mahi8/shokoku-sensen/actions/runs/40516092601): 3/3 SUCCESS**。録画あり Chromium/WebKit、録画なし Chromium/WebKit、同一WebKit両端が完走。7ラウンド6再戦、切断・復帰、最新seq、テスト用Firebase2ルーム削除確認を維持。旧runの録画なし12分キャンセルを解消。
+- **実Firebase BOT full match [#40516092866](https://github.com/8mahi8/shokoku-sensen/actions/runs/40516092866): SUCCESS**。実戦300秒、青34手赤34手、最大16体、ゲスト最大フレーム間隔325ms、500ms以上0、page error0、通信再送0、REST停滞補助0、テストルーム削除確認。代表10カ所の録画を目視し、進軍/戦闘/カード/HUDの更新を確認。
+- **WebKit/Chromium戦闘ビジュアル [#40517254705](https://github.com/8mahi8/shokoku-sensen/actions/runs/40517254705): SUCCESS**。22場面全部、合法な8/10/14/18/20体、タンクとゴーレム、ファイヤー、Chromiumコンパクト、WebKit録画・無録画・Canvas非描画対照。6場面の画像を抽出目視し、主要な表示に明白な崩れは認めず。以前のWebKit WebProcessのクラッシュは場面ごとのbrowser/context隔離で今回のrunでは再現せず。
+- **smoke [#40516092610](https://github.com/8mahi8/shokoku-sensen/actions/runs/40516092610)、iPad UI [#40516092678](https://github.com/8mahi8/shokoku-sensen/actions/runs/40516092678)、WebKit HUD [#40516092686](https://github.com/8mahi8/shokoku-sensen/actions/runs/40516092686)、キャッシュ画像 [#40516092677](https://github.com/8mahi8/shokoku-sensen/actions/runs/40516092677) もSUCCESS。**
+- **受入評価はまだ保留:** Linux headless WebKitのFPSは学校iPad Safari実測ではない。CIのゲストだけが特殊に悪いとの確証はなく、時折の軽いカクつきの体感は次の学校iPad対戦でホスト/ゲスト交代して確認する。次の開発では、学校実機と再現証拠が対応する場合にだけ最小変更。
+- **運用厳守:** Google Driveは君から「保存」と頼まれた場合のみ。今回の処理でGoogle Sites版、`main`、Firebase Rules、既存Driveファイルは変更していない。
+
 ## 2026-10-27 追加引継ぎ｜描画前反映・短いカクつき調査・CI安定化
 - **直近ゲーム変更:** [b949e8b](https://github.com/8mahi8/shokoku-sensen/commit/b949e8b2e739d97007eed75d3840130b91e8b151) はSDKの受信済み最新stateをゲームの描画rAFより前に適用する`flushGuestBeforePaint`を導入。二重反映防止・旧ラウンドの遅延callback隔離を含む。ラウンド/資源/host tick/Firebaseプロトコルは不変。[詳細](GUEST_PREPAINT_APPLY_2026-10-27.md)。
 - **短いカクつき診断:** [3cb80d3](https://github.com/8mahi8/shokoku-sensen/commit/3cb80d368fdbeff452049fed9b67ad6fefb9e8fc) で180ms以上のゲストrAF gapを検出し、local QAのみSDK・反映seq、REST・描画時間を同一フレームに記録。[c2ac17f](https://github.com/8mahi8/shokoku-sensen/commit/c2ac17f63882d5a078d6781f3515cdcdc37a83e1) で**描画前の最新状態反映が終わってから**停止時のseqを診断記録する順序へ修正。診断の誤読防止でありFPS改善の主張ではない。
