@@ -12,7 +12,10 @@ on:
 jobs:
   cached-art:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    # Use the same Playwright browser image as the passing live/BOT suites.
+    # It avoids Ubuntu apt mirror stalls before tests even start.
+    container: mcr.microsoft.com/playwright:v1.56.1-noble
+    timeout-minutes: 12
     permissions:
       contents: read
     steps:
@@ -21,7 +24,6 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
-      - run: npx playwright install --with-deps webkit
       - run: node tests/online-art-cache-visual.cjs
       - uses: actions/upload-artifact@v4
         if: always()
