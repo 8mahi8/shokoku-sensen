@@ -327,3 +327,13 @@
 - **次の具体的タスク**：学校iPadのGoogle Sitesテストページでホスト・ゲストを入れ替えて5分程度対戦し、ゲストの「全画面のカクつき／残り時間の飛び／召喚操作の反応」を人間が確認する。採用後に本人が既存学校ページの貼付コードを置換する。操作担当が必要になるまでは既存学校版を変更しない。
 
 **開発位置｜小国戦線III**：Phase 3（原因切り分け・回復策の実戦検証）まで進行。Phase 4（学校実機QA・Google Sites採用）は未完了。
+
+
+## 2026-10-27 学校からの通信実機評価→軽微なカクつき改善（新しい正本）
+
+- **学校iPadのユーザー・友達の声**：ゲスト側通信について「悪くもなく良くもなく」。以前あったゲスト画面の**大きなフリーズはだいぶ改善された**。残っているのは**たまに少しカクつく**程度。このコメントはゲームの面白さではなく通信/描画の品質評価。今ある比較的安定したGoogle Sites版は変えない。
+- **外部資料・原因候補・実装・検証**：[GUEST_VISUAL_SMOOTHING_2026-10-27.md](GUEST_VISUAL_SMOOTHING_2026-10-27.md) が今回の正本。ゲストだけ3.4秒の早期FPS測定で30FPS描画制限が試合終了まで固定される問題と、歩行中の170ms位置予測期限による短い止まり方を発見。ゲーム本体+2種HTMLに「8.5秒の回復した高FPSで制限解除（20秒ヒステリシス）」「歩行中だけ240msまで見た目の予測」を実装。ゲームロジック・Firebase通信・戦術BOTは変更していない。
+- **関連commit**：[描画コード 838fb0cd](https://github.com/8mahi8/shokoku-sensen/commit/838fb0cd6de198f1ca3a233a6bce8ad6fa4266a8)、[テスト 93558952](https://github.com/8mahi8/shokoku-sensen/commit/93558952d1cdb3fb5190a91a911707d7affe3bce)、[開発WebKitゲストラボ同期 5252e087](https://github.com/8mahi8/shokoku-sensen/commit/5252e08709e25cdd6afca3afb4b87acc119147d1)。
+- **通過済みの開発QA**：[smoke #40453050856](https://github.com/8mahi8/shokoku-sensen/actions/runs/40453050856)、[iPad UI #40452985793](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985793)、[キャラ描画 #40452985775](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985775)、[WebKit HUD #40452985719](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985719)、[ゲーム画面レビュー #40452985821](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985821) がSUCCESS。
+- **長時間実戦と2ブラウザQA**：[#40452985770](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985770) と [#40452985732](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985732) は最終結果確認後に合否を追記する。未確認で成功とは書かない。新コードが学校実機で前版より滑らかとはまだ断言しない。
+- **次工程**：CI長時間実戦でエラー・通信停止・映像・ゲストFPS制限状態を確かめる→開発版試遊候補を個別HTML/TXTで用意→**本人の学校Google Sites別テストページで実機試験**。現学校版・main・Firebaseルールは一切変更しない。PR #22はDraftのまま。
