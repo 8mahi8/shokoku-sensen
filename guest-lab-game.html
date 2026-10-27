@@ -1569,6 +1569,10 @@ const limit=(v,min,max)=>Math.max(min,Math.min(max,v));
 const rand=(min,max)=>min+(max-min)*Math.random();
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
+// Guest commands are queued, not immediately confirmed by the host.
+// Give short, subtle feedback that explicitly means "sent", not "spawned".
+const GUEST_COMMAND_HINT_MS=650;
+let guestCommandHints=[],lastGuestHintPainted=0;
 const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
  energy:[0,8,8],observedEnergy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
  uid:0,botThink:0,botPrepDone:false,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
@@ -1594,6 +1598,7 @@ function resetWorld(){
   S.queue[team]=deck.slice(HAND_SIZE);
  }
  S.remoteSprites=null;
+ guestCommandHints=[];lastGuestHintPainted=0;
  S.remoteVisualReceivedAt=0;S.remoteHostClock=null;
  // Re-evaluate both sprite quality and Canvas frame/raster quality per match.
  // Do not retain a previous round's one-way downgrade during a fresh rematch.
@@ -1685,6 +1690,7 @@ function playCard(team,id,x,y){
  if(!NET.isHost&&team===ME()){
   if(!validTarget(team,id,x,y)||!canPay(team,id))return false;
   if(!NET.sendCommand({id,x,y}))return false;
+  queueGuestCommandHint(x,y);
   // Mirror host-side success UX immediately; authoritative resource/hand
   // mutations still await the host's next snapshot.
   if(id!=="infantry"){S.selected=null;buildCards();updateHUD();}
@@ -3740,6 +3746,33 @@ function drawSpellFields(now){
   ctx.fillText("砲撃予告",shot.x,shot.y-shot.r-13);ctx.restore();
  }
 }
+function queueGuestCommandHint(x,y,now=performance.now()){
+ if(NET.isHost||!Number.isFinite(x)||!Number.isFinite(y))return;
+ // Limit both duration and quantity, even if multiple taps arrive together.
+ guestCommandHints=guestCommandHints.filter(h=>now-h.at<GUEST_COMMAND_HINT_MS);
+ guestCommandHints.push({x,y,at:now});
+ if(guestCommandHints.length>4)guestCommandHints.shift();
+}
+function drawGuestCommandHints(now){
+ lastGuestHintPainted=0;
+ if(NET.isHost||!["prep","battle"].includes(S.phase)){
+  guestCommandHints=[];return;
+ }
+ if(!guestCommandHints.length)return;
+ guestCommandHints=guestCommandHints.filter(h=>now-h.at<GUEST_COMMAND_HINT_MS);
+ for(const h of guestCommandHints){
+  const age=Math.max(0,now-h.at),life=Math.max(0,1-age/GUEST_COMMAND_HINT_MS);
+  if(life<=0)continue;
+  ctx.save();
+  ctx.globalAlpha*=.75*life;
+  ctx.strokeStyle="#b0f4ff";ctx.lineWidth=2.4;
+  ctx.beginPath();ctx.arc(h.x,h.y,22+11*(1-life),0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle="#eefbff";ctx.font="bold 13px system-ui";ctx.textAlign="center";
+  ctx.fillText("送信中",h.x,h.y-32);
+  ctx.restore();
+  lastGuestHintPainted++;
+ }
+}
 function drawPreview(){
  const item=S.selected;
  if(!item)return;
@@ -3982,7 +4015,7 @@ function draw(){
   ctx.beginPath();ctx.moveTo(x-Math.cos(a)*len,y-Math.sin(a)*len);ctx.lineTo(x,y);ctx.stroke();
   ctx.restore();
  }
- ctx.globalAlpha=1;drawPreview();
+ ctx.globalAlpha=1;drawGuestCommandHints(now);drawPreview();
  ctx.restore();
  paintGrandArrival(now);
 }
@@ -4527,6 +4560,8 @@ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&new URLSe
  resetFrameBench:()=>{if(qaFrameBench){qaFrameBench.samples=[];qaFrameBench.prevTotalMs=0;}},
  setDrawDisabledForQa:disabled=>{if(qaFrameBench)qaFrameBench.skipDrawing=!!disabled;},
  frameBench:()=>qaFrameBench?qaFrameBench.samples.map(x=>({...x})):[],
+ guestCommandHints:()=>({items:guestCommandHints.map(h=>({...h})),
+  lastPainted:lastGuestHintPainted}),
  // Test-only: inject a legitimate barrage via the host combat path. Never on public origin.
  fireStress:(team=1,x=640,y=330)=>{
   if(!NET.isHost||S.phase!=="battle"||![1,2].includes(team))return false;
