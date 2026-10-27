@@ -196,6 +196,66 @@ const timeout=async (fn,label,ms=30000)=>{
     note:"headless browser observation; not physical school iPad FPS/latency"
   }));
 
+  // Exercise the actual iPad-style pointer selection and Canvas tap from the
+  // RED iframe. This must acknowledge the queued command immediately, while
+  // the host remains the only authority allowed to spawn a soldier.
+  const queuedTap=await page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    const doc=g.document,q=g.__shokokuQa;
+    const state=q.snapshot();
+    const startUid=Math.max(0,...state.units.filter(u=>u.team===2).map(u=>u.uid));
+    const card=doc.querySelector('#cards [data-id="infantry"]');
+    const field=doc.getElementById("field"),area=doc.getElementById("fieldArea");
+    if(!card||!field||!area)return {error:"missing card/canvas",startUid};
+    const cardId=41,fieldId=42;
+    const cardEvent={pointerId:cardId,pointerType:"touch",bubbles:true,
+      clientX:20,clientY:20};
+    card.dispatchEvent(new g.PointerEvent("pointerdown",cardEvent));
+    doc.dispatchEvent(new g.PointerEvent("pointerup",cardEvent));
+    const selected=q.snapshot().selected;
+    const v=q.snapshot().view,rect=area.getBoundingClientRect();
+    const x=1150,y=330;
+    const touch={pointerId:fieldId,pointerType:"touch",bubbles:true,
+      clientX:rect.left+v.ox+x*v.s,clientY:rect.top+v.oy+y*v.s};
+    field.dispatchEvent(new g.PointerEvent("pointerdown",touch));
+    field.dispatchEvent(new g.PointerEvent("pointerup",touch));
+    return {selected,after:q.snapshot().selected,startUid,
+      markers:q.guestCommandHints(),energy:q.snapshot().energy[2],
+      phase:q.snapshot().phase};
+  });
+  console.log("GUEST POINTER SEND HINT",JSON.stringify({engine,queuedTap}));
+  assert.equal(queuedTap.selected,"infantry",
+    "RED permanent infantry card should be selected by a real pointer event");
+  assert.ok(queuedTap.energy>=2,"RED guest must have affordable confirmed resources");
+  assert.equal(queuedTap.markers.items.length,1,
+    "successfully queued guest summon must show exactly one local marker");
+  assert.equal(queuedTap.markers.items[0].x,1150);
+  assert.equal(queuedTap.markers.items[0].y,330);
+  const markerPaint=await timeout(async()=>page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    return g.__shokokuQa.guestCommandHints().lastPainted>0?true:null;
+  }),"RED queued summon hint reaches a WebKit/Chromium paint",1800);
+  assert.equal(markerPaint,true,"visual cue is actually painted, not just stored in memory");
+  const commandConfirmed=await timeout(async()=>page.evaluate(startUid=>{
+    const h=document.getElementById("hostFrame").contentWindow;
+    const g=document.getElementById("guestFrame").contentWindow;
+    const hu=h.__shokokuQa.snapshot().units,gu=g.__shokokuQa.snapshot().units;
+    const accepted=hu.find(u=>u.team===2&&u.uid>startUid&&
+      u.x>1020&&Math.abs(u.y-330)<100);
+    const received=gu.find(u=>u.uid===accepted?.uid);
+    if(!accepted||!received)return null;
+    return {uid:accepted.uid,hostX:accepted.x,guestX:received.x};
+  },queuedTap.startUid),"host authoritatively spawns and guest receives tapped infantry",15000);
+  console.log("PASS: RED touch gets queued cue, host confirms actual unit, guest renders it",
+   JSON.stringify({engine,queuedTap,commandConfirmed}));
+  await page.waitForTimeout(900);
+  const expired=await page.evaluate(()=>{
+    const g=document.getElementById("guestFrame").contentWindow;
+    return g.__shokokuQa.guestCommandHints();
+  });
+  assert.equal(expired.items.length,0,"pending visual must disappear after 650ms");
+  assert.equal(expired.lastPainted,0,"expired hint must stop painting");
+
   const rec=await fetch(urlDB+"/"+roomCode+"/players.json");
   const seats=await rec.json();
   assert.equal(seats.host.online,true);assert.equal(seats.guest.online,true);
