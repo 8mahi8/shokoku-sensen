@@ -3779,7 +3779,7 @@ function drawGuestCommandHints(now){
   const age=Math.max(0,now-h.at),life=Math.max(0,1-age/GUEST_COMMAND_HINT_MS);
   if(life<=0)continue;
   ctx.save();
-  ctx.globalAlpha*=.75*life;
+  ctx.globalAlpha*=.9*Math.min(1,(GUEST_COMMAND_HINT_MS-age)/180);
   ctx.strokeStyle="#b0f4ff";ctx.lineWidth=2.4;
   ctx.beginPath();ctx.arc(h.x,h.y,22+11*(1-life),0,Math.PI*2);ctx.stroke();
   // Below the feet, not over the newly arriving soldier's body.

@@ -382,10 +382,10 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
 const hintStart=game.indexOf("function queueGuestCommandHint(");
 const hintEnd=game.indexOf("\nfunction drawPreview(){",hintStart);
 assert.ok(hintStart>0&&hintEnd>hintStart,"guest command hint renderer exists");
-let drawTime=1000,labels=[],paintArcs=0,captionPlates=0;
+let drawTime=1000,labels=[],paintArcs=0,captionPlates=0,captionOpacity=[],alphaStack=[];
 const guestRole={isHost:false},hintState={phase:"battle"};
-const ctxMock={globalAlpha:1,save(){},restore(){},beginPath(){},arc(){paintArcs++;},
- stroke(){},fill(){},fillText(value){labels.push(value)}};
+const ctxMock={globalAlpha:1,save(){alphaStack.push(this.globalAlpha)},restore(){this.globalAlpha=alphaStack.pop()},beginPath(){},arc(){paintArcs++;},
+ stroke(){},fill(){},fillText(value){labels.push(value);captionOpacity.push(this.globalAlpha)}};
 const hintsQa=new Function("NET","S","performance","ctx","Math","H","rounded",
  "const GUEST_COMMAND_HINT_MS=650;let guestCommandHints=[],lastGuestHintPainted=0;\n"+
  game.slice(hintStart,hintEnd)+
@@ -397,6 +397,8 @@ assert.equal(hintsQa.read().painted,1,"queued guest tap paints on next available
 assert.deepEqual(labels,["送信中"],"display explicitly says in transit, not successful summon");
 assert.ok(paintArcs>0,"visual cue draws on canvas without a DOM rebuild");
 assert.equal(captionPlates,1,"text caption uses a distinct contrast plate for readability");
+drawTime=1500;hintsQa.draw(drawTime);
+assert.ok(captionOpacity.at(-1)>=.65,"queued feedback remains readable after 500ms, before the final fade");
 drawTime=1700;hintsQa.draw(drawTime);
 assert.equal(hintsQa.read().items.length,0,"queued visual cue expires in 650ms");
 for(let i=0;i<9;i++)hintsQa.queue(1070+i,315);
