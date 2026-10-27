@@ -2301,8 +2301,13 @@ function drawGuestCommandHints(now){
   ctx.globalAlpha*=.75*life;
   ctx.strokeStyle="#b0f4ff";ctx.lineWidth=2.4;
   ctx.beginPath();ctx.arc(h.x,h.y,22+11*(1-life),0,Math.PI*2);ctx.stroke();
-  ctx.fillStyle="#eefbff";ctx.font="bold 13px system-ui";ctx.textAlign="center";
-  ctx.fillText("送信中",h.x,h.y-32);
+  // Below the feet, not over the newly arriving soldier's body.
+  // Use a small dark caption plate so the wording stays legible on forts.
+  const labelY=h.y>H-80?h.y-78:h.y+51;
+  ctx.fillStyle="#071c27";ctx.strokeStyle="#9ce8f4";ctx.lineWidth=1.2;
+  rounded(ctx,h.x-32,labelY-17,64,24,6);ctx.fill();ctx.stroke();
+  ctx.fillStyle="#f0fdff";ctx.font="bold 13px system-ui";ctx.textAlign="center";
+  ctx.fillText("送信中",h.x,labelY);
   ctx.restore();
   lastGuestHintPainted++;
  }
