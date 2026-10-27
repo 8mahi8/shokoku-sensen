@@ -81,8 +81,10 @@ const runs=[];
         profile.name+"/"+scene+" camera "+x+" must remain pixel-identical");
        runs.push(output);
        console.log("TERRAIN VIEWPORT AB",JSON.stringify(output));
-       await page.screenshot({path:path.join(out,profile.name+"-"+scene+"-"+x+".png"),
-        animations:"disabled",timeout:12000});
+       // Full-page screenshot after hundreds of synchronous Canvas frames
+       // once exceeded 12s in headless WebKit. Pixel-identical raw imageData
+       // is a stronger assertion here and avoids saturating the QA compositor.
+       fs.writeFileSync(path.join(out,"terrain-ab.json"),JSON.stringify(runs,null,2));
       }
      }
      assert.deepEqual(errors,[],profile.name+" must not throw browser JS errors");
