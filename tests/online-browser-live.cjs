@@ -729,18 +729,44 @@ const deadline=async (f,label,timeout=18000)=>{
   // A new red guest should already be aimed at the red deployment zone;
   // use a fixed legal world position rather than a viewport percentage, so
   // this actually verifies the touch-to-world coordinate transform.
+  // The lobby reset hides #overlay before a new match applies its first
+  // authoritative Firebase state. meta/status=playing and canSendCommand
+  // can therefore precede S.phase becoming "prep". Only now is a card click
+  // a meaningful game action rather than an ignored menu-phase pointerdown.
+  const redReady=await deadline(async()=>host.evaluate(()=>{
+   const scene=window.__shokokuQa.snapshot(),seq=window.__onlineSeq||0;
+   const infantry=document.querySelector('button.card[data-id="infantry"]');
+   return (scene.phase==="prep"||scene.phase==="battle")&&seq>0&&
+    infantry&&window.ShokokuNet.canSendCommand?
+    {phase:scene.phase,seq,team:window.ShokokuNet.team,energy:scene.energy[2]}:null;
+  }),"swapped red guest applies first playable battle snapshot",18000);
+  assert.equal(redReady.team,2,"red guest has correct seat after world apply");
+  console.log("ROLE SWAP RED WORLD READY",JSON.stringify(redReady));
   await host.locator('button.card[data-id="infantry"]').click();
+  const chosen=await host.evaluate(()=>({
+   scene:window.__shokokuQa.snapshot().phase,
+   selected:window.__shokokuQa.snapshot().selected,
+   uiSelected:document.querySelector('button.card[data-id="infantry"]')?.classList.contains("selected"),
+   seq:window.__onlineSeq||0
+  }));
+  assert.equal(chosen.selected,"infantry",
+   "real pointerdown/up must select infantry after the first snapshot: "+JSON.stringify(chosen));
+  assert.equal(chosen.uiSelected,true,"red infantry card must visually select");
   const tap=await host.evaluate(()=>{
    const scene=window.__shokokuQa.snapshot(),rect=document.getElementById("fieldArea").getBoundingClientRect();
    const worldX=1130,worldY=405,view=scene.view;
    return {screenX:rect.left+view.ox+worldX*view.s,
     screenY:rect.top+view.oy+worldY*view.s,
     bounds:{left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom},
-    camera:scene.camera,view:scene.view};
+    camera:scene.camera,view:scene.view,
+    hitId:document.elementFromPoint(
+     rect.left+view.ox+worldX*view.s,rect.top+view.oy+worldY*view.s)?.id||null};
   });
   assert.ok(tap.screenX>tap.bounds.left+10&&tap.screenX<tap.bounds.right-10&&
    tap.screenY>tap.bounds.top+10&&tap.screenY<tap.bounds.bottom-10,
    "red home deployment point must be on-screen as soon as guest starts: "+JSON.stringify(tap));
+  assert.equal(tap.hitId,"field",
+   "legal red home point must receive pointer events on field Canvas: "+JSON.stringify(tap));
   await host.mouse.click(tap.screenX,tap.screenY);
   console.log("ROLE SWAP GUEST RED TAP",JSON.stringify({tap,recordVideo:qaRecordVideo}));
   const roleStateURL=urlDB+"/"+swapCode+"/state.json";
