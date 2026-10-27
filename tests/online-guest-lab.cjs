@@ -236,6 +236,12 @@ const timeout=async (fn,label,ms=30000)=>{
     return g.__shokokuQa.guestCommandHints().lastPainted>0?true:null;
   }),"RED queued summon hint reaches a WebKit/Chromium paint",1800);
   assert.equal(markerPaint,true,"visual cue is actually painted, not just stored in memory");
+  // Capture the actual guest Canvas while its submitted-command cue is up.
+  // This is QA evidence only; no screenshot or gameplay is sent to Firebase.
+  await page.frameLocator("#guestFrame").locator("#field").screenshot({
+    path:path.join(root,"qa-guest-lab","guest-command-queued-"+engine+".png"),
+    timeout:12000
+  });
   const commandConfirmed=await timeout(async()=>page.evaluate(startUid=>{
     const h=document.getElementById("hostFrame").contentWindow;
     const g=document.getElementById("guestFrame").contentWindow;
