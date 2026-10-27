@@ -71,7 +71,35 @@ const hook=[
 "    measured:qualityMeasured,windowStart:qualityWindowStart,",
 "    frames:qualityFrames,lastPaint:guestLastPaint}};",
 "};"].join("\n");
-html=html.replace(anchor,hook+"\n"+anchor);
+const budgetHook=[
+"window.__qaBuildBudgetProbe=()=>{",
+" const oldCache=new Map(denseSpriteCache);",
+" const oldMode=lowFpsCrowdedSprites,oldAt=lowFpsCrowdedSpritesAt;",
+" const oldBudget=denseSpriteBuildsThisFrame;",
+" try{",
+"  const battle=window.__shokokuQa.seedRealisticBattle('heavy');",
+"  denseSpriteCache.clear();",
+"  lowFpsCrowdedSprites=true;lowFpsCrowdedSpritesAt=performance.now()-500;",
+"  const frames=[];",
+"  for(let frame=0;frame<8;frame++){",
+"   denseSpriteBuildsThisFrame=0;",
+"   const fullBefore=fullSpritesRendered,cheapBefore=denseSpritesRendered;",
+"   for(const unit of S.units)",
+"    renderCrowdedUnit({...unit,spawnAt:-100,hitAt:-100,flash:0});",
+"   frames.push({built:denseSpriteBuildsThisFrame,",
+"    full:fullSpritesRendered-fullBefore,",
+"    cheap:denseSpritesRendered-cheapBefore,size:denseSpriteCache.size});",
+"  }",
+"  return {units:battle.units,frames};",
+" }finally{",
+"  denseSpriteCache.clear();",
+"  for(const [key,value] of oldCache)denseSpriteCache.set(key,value);",
+"  lowFpsCrowdedSprites=oldMode;lowFpsCrowdedSpritesAt=oldAt;",
+"  denseSpriteBuildsThisFrame=oldBudget;",
+" }",
+"};"
+].join("\n");
+html=html.replace(anchor,hook+"\n"+budgetHook+"\n"+anchor);
 const server=http.createServer((req,res)=>{
  const name=decodeURIComponent(req.url.split("?")[0]);
  const file=path.resolve(root,"."+name);
@@ -195,6 +223,14 @@ const server=http.createServer((req,res)=>{
   assert.equal(qualityRound.restored.lastPaint,0,"paint frame limiter timestamp cleared");
   assert.ok(qualityRound.restored.width>qualityRound.lowered.width,
    "Canvas backing-pixel resolution actually recovers");
+  const budget=await page.evaluate(()=>window.__qaBuildBudgetProbe());
+  console.log("LOW-FPS TILE BUILD SPREAD",JSON.stringify(budget));
+  assert.equal(budget.units,10,"art-buildup QA uses real ten-unit battle");
+  assert.equal(budget.frames[0].built,2,"initial cached paint builds at most two tiles");
+  assert.ok(budget.frames[0].full>0,"missing cached poses retain full-quality character art");
+  assert.ok(budget.frames.every(x=>x.built<=2),"no paint builds three or more tiles");
+  assert.ok(budget.frames.at(-1).size>=3,"pose tiles warm up over multiple frames");
+  assert.equal(budget.frames.at(-1).full,0,"eventually all poses use warmed cache");
   assert.equal(audit.gait.length,8,"both teams, four representative walking classes");
   console.log("CACHE WALK POSE DIFFERENCES",JSON.stringify(audit.gait));
   for(const info of audit.gait)assert.ok(info.changedPixels>20,

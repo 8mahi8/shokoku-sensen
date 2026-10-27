@@ -98,6 +98,12 @@ assert.ok(net.includes('async function registerPresence()'));
 assert.ok(net.includes('"meta/status":"finished"'));
 assert.ok(game.includes('resetForLobby:'));
 assert.ok(game.includes('S.remoteSprites')&&!game.includes('remoteBlend'),'Guest uses frame smoothing');
+assert.ok(game.includes("const DENSE_TILE_BUILDS_PER_FRAME=2;"),
+ "at most two new character pose tiles in each rendered frame");
+assert.ok(game.includes("denseSpriteBuildsThisFrame=0;\n const v=S.view,d=v.dpr;"),
+ "new-tile budget resets at start of each frame");
+assert.ok(game.includes("fullSpritesRendered++;drawUnit(u,true);return;"),
+ "cached art misses keep original full-resolution art without duplicate guest interpolation");
 const shuffled=game.match(/function shuffledDeck\(\)\{[\s\S]*?\n\}/);
 assert.ok(shuffled,'Fisher-Yates shuffle function present');
 const keys=['scout','engineer','archer','barrage','sentinel','suppress','guardian','ward','drone','tank'];

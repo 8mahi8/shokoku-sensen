@@ -99,6 +99,7 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
      p50Gap:Math.round(p(gaps,.50)),p95Gap:Math.round(p(gaps,.95)),
      maxGap:Math.round(p(gaps,1)),maxDraw:Math.round(p(draws,1)),
      maxFrameJs:Math.round(p(times,1)),
+     maxNewCachedTiles:Math.max(0,...frames.map(x=>x.newCachedTiles||0)),
      gapOver250:gaps.filter(x=>x>=250).length,
      gapOver500:gaps.filter(x=>x>=500).length,
      gapOver1000:gaps.filter(x=>x>=1000).length,
@@ -194,6 +195,7 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
    guestWindowsOver500ms:allSamples.filter(x=>x.guest.gapOver500>0).length,
    guestWindowsOver1000ms:allSamples.filter(x=>x.guest.gapOver1000>0).length,
    guestMaxRenderWorkMs:Math.max(0,...allSamples.map(x=>x.guest.maxFrameJs)),
+   guestMaxNewCachedTilesPerFrame:Math.max(0,...allSamples.map(x=>x.guest.maxNewCachedTiles)),
    guestMaxSnapshotAgeMs:Math.max(0,...allSamples.map(x=>x.guest.applyAgeMs)),
    hostMaxPublishAgeMs:Math.max(0,...allSamples.map(x=>x.host.publishAgeMs)),
    hostMaxPublishRetries:Math.max(0,...allSamples.map(x=>x.host.publishRetries)),
@@ -220,6 +222,8 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
   assert.ok(summary.redBotActions>=6,"red guest BOT must actually issue legal network commands");
   assert.ok(maxBlue>=1&&maxRed>=1,"host and guest BOTs must both field troops");
   assert.equal(pageErrors.length,0,"No JS uncaught errors");
+  assert.ok(summary.guestMaxNewCachedTilesPerFrame<=2,
+   "cache tiles must not be created more than twice per guest painting frame");
   console.log("PASS: full 300s real BOT-vs-BOT Firebase match with frame/network monitoring");
  }finally{
   for(const ctx of [hostContext,guestContext])if(ctx)await ctx.close().catch(()=>{});
