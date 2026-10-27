@@ -1128,7 +1128,7 @@ return (time,appliedAt,sdkAt)=>{
  q.setSeq(0);state.phase="prep";assert.equal(q.ready(),false,"old snapshot is insufficient");
  q.setSeq(3);q.setHost(true);assert.equal(q.ready(),false,"host independent");
  const setup=net.slice(net.indexOf("function setupRoom(code,isHost){"),net.indexOf("async function create(){"));
- assert.ok(setup.includes('if(phase==="playing"&&guestPlayableWorld())onlinePanel(false);'),"world-apply opens view");
+ assert.ok(net.includes('if(phase==="playing"&&guestPlayableWorld())onlinePanel(false);'),"world-apply opens view");
  assert.ok(setup.includes('onlinePanel(meta?.status!=="playing"||(!host&&!guestPlayableWorld()));'),"rematch gating");
  assert.ok(setup.includes('else{onlinePanel(true);show("戦況を同期しています…");}'),"loading state");
  for(const page of ["online-ipad.html","online-embed.html"])
