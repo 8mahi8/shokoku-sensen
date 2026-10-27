@@ -122,6 +122,10 @@ assert.ok(page.includes('id="newRoom"'));
  qa.paint();assert.deepEqual(applied,[2,4],'new round applies its own packet');
  callbacks.shift()();assert.deepEqual(applied,[2,4],'new callback cannot double apply');
  assert.ok(game.includes('NET.flushGuestBeforePaint?.();'),'paint loop hooks coalesced flush');
+ assert.ok(game.includes('"描画モード "+(isHost?"ホスト通常":guestLowPower?"ゲスト約30FPS上限":"ゲスト通常")'),
+  "the existing opt-in local diagnostics must reveal guest 30FPS cap");
+ assert.ok(game.includes('lowFpsCrowdedSprites?" / 兵士キャッシュ中":" / 兵士通常"'),
+  "the existing local-only panel reveals auto-cached art state");
  assert.ok(game.includes('if(was==="menu")panCamera(980-S.cam.x,330-S.cam.y);'),
   "red guest snaps to its own deployment camera when new room begins");
  assert.ok(!game.includes('if(was==="menu")cameraTo(980,330);'),

@@ -2871,6 +2871,12 @@ function samplePerf(now,drawMs){
    "反映 "+(n.applyMs||0)+"ms / 最新優先 "+(n.coalesced||0)+"件",
   isHost?"滞留再送 "+(n.retries||0)+"回 / 送信失敗 "+(n.writeFailures||0)+"回":
    "診断値はこの端末のみ（Firebaseへ送信しません）",
+  // Expose existing adaptive settings in the opt-in local panel so an actual
+  // school iPad can distinguish the guest's ~30FPS cap from network stalls.
+  // Observational only; no new network messages, records or gameplay changes.
+  "描画モード "+(isHost?"ホスト通常":guestLowPower?"ゲスト約30FPS上限":"ゲスト通常")+
+   " / DPR "+S.view.dpr.toFixed(2)+
+   (lowFpsCrowdedSprites?" / 兵士キャッシュ中":" / 兵士通常"),
   !isHost&&lastGuestHitch?
    "直近のカクつき "+lastGuestHitch.gapMs+"ms / 受信seq "+lastGuestHitch.sdkSeq+" / 反映seq "+lastGuestHitch.appliedSeq:
    "直近のカクつき 180ms以上なし",
