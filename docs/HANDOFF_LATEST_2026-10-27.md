@@ -14,6 +14,12 @@
 
 **保存ルールを厳守：** Google Driveにはユーザーが「保存して」と言った場合のみ保存。学校Google Sites版、GitHub main、Firebase rulesも明示指示なしで変更しない。開発PR #22はDraft。
 
+## 2026-10-27 夜：実戦映像を時間順で直接レビューした
+- **最新の実際の動画レビュー：** [FULL_MATCH_VIDEO_MOTION_REVIEW_2026-10-27.md](FULL_MATCH_VIDEO_MOTION_REVIEW_2026-10-27.md)。実Firebase BOT実戦 [#40523519064](https://github.com/8mahi8/shokoku-sensen/actions/runs/40523519064) のホスト約148秒／ゲスト約130秒の**両録画実ファイル**を回収し、ゲスト3,257枚・ホスト3,688枚のデコードフレームを画像差分走査、ゲスト序盤・中盤・終盤・決着の4区間×各16秒を1秒刻みのコンタクトシートで実際に目視。兵士・砲撃・カード・城壁HP・時計・敗北結果画面の画面変化を確認。数値PASSだけで評価しない。
+- ゲスト試合時計ROI（960×672動画のx402..485,y2..34、平均画素差0.6未満を「変化が小さい」として解析）では、14〜127秒の戦闘中の低変化区間は最大約1.16秒。以前録画で発見した約2.2秒間の時計・兵士全体の停止はこの**別の試合では再現せず**。圧縮ノイズの影響があるため厳密なフリーズ不在の証明ではない。ヘッドレスWebKitの動きは目視でもコマ送り気味、学校iPad実測値ではない。
+- 同じコードの固定端末ロール交代CI [#40523519043](https://github.com/8mahi8/shokoku-sensen/actions/runs/40523519043) は**録画なしChromium/WebKitと同一WebKitの2条件SUCCESS、録画あり条件はcancelled**。どちらも実Firebaseの赤軍手動タップ→新ホストへの召喚→戦況再受信まで成功。一方、録画ありジョブは`ROLE SWAP GUEST RED TAP`後に長い無応答。テスト側のFirebase GETと失敗診断に明示的な時間上限を付けた [QA commit 4a09dee](https://github.com/8mahi8/shokoku-sensen/commit/4a09dee2487ceef6a5cba4dab1d62506086296ad) の [CI #40527496485](https://github.com/8mahi8/shokoku-sensen/actions/runs/40527496485) を**最終確認すること**。未完了を全条件合格と言わない。
+- **開発保存ルール継続：** 今回はGitHub文書とテストのみ更新。Google Drive保存は本人の明示指示時に限り、Google Sites既存版・main・Firebase rulesには触れない。
+
 ## 最初に読むこと・ルール
 
 あなたは学校iPad（Safari）で友達と無料で遊ぶ横スクロールRTS「小国戦線III — FORTRESS FRONT」の開発担当AI。
