@@ -731,25 +731,39 @@ const deadline=async (f,label,timeout=18000)=>{
   await host.mouse.click(tap.screenX,tap.screenY);
   console.log("ROLE SWAP GUEST RED TAP",JSON.stringify({tap,recordVideo:qaRecordVideo}));
   const roleStateURL=urlDB+"/"+swapCode+"/state.json";
-  const roleWorld=async()=>{
-   const response=await fetch(roleStateURL);return response.ok?response.json():null;
+  // The video-enabled WebKit job once hung after the tap for >10min without
+  // producing a result: a failed poll must not itself hang while collecting
+  // feedback/command diagnostics. Abort each Firebase REST read explicitly.
+  const roleJson=async(pathPart)=>{
+   const controller=new AbortController();
+   const abort=setTimeout(()=>controller.abort(),6500);
+   try{
+    const res=await fetch(urlDB+"/"+swapCode+pathPart+".json",{signal:controller.signal});
+    if(!res.ok)throw Error("HTTP "+res.status+" on "+pathPart);
+    return await res.json();
+   }finally{clearTimeout(abort)}
   };
+  const roleWorld=()=>roleJson("/state");
+  console.log("ROLE SWAP WAIT RED PUBLISH",JSON.stringify({recordVideo:qaRecordVideo,matchedWebkit:qaMatchedWebkit}));
   const redPublished=await deadline(async()=>{
    const packet=await roleWorld();
    return packet?.world?.units?.some(u=>u.team===2)?packet:null;
   },"swapped red manual summon published by new host",23000)
    .catch(async error=>{
+    const collect=async(promise,name)=>bounded(promise,name,7000).catch(e=>({error:String(e)}));
     const [hostUi,guestUi,current,feedback,commands]=await Promise.all([
-     host.evaluate(()=>({net:window.ShokokuNet.syncDiagnostics(),scene:window.__shokokuQa.snapshot(),canSend:window.ShokokuNet.canSendCommand})).catch(e=>({error:String(e)})),
-     guest.evaluate(()=>({net:window.ShokokuNet.syncDiagnostics(),scene:window.__shokokuQa.snapshot()})).catch(e=>({error:String(e)})),
-     roleWorld().catch(()=>null),
-     fetch(urlDB+"/"+swapCode+"/feedback.json").then(r=>r.json()).catch(()=>null),
-     fetch(urlDB+"/"+swapCode+"/commands.json").then(r=>r.json()).catch(()=>null)
+     collect(host.evaluate(()=>({net:window.ShokokuNet.syncDiagnostics(),scene:window.__shokokuQa.snapshot(),canSend:window.ShokokuNet.canSendCommand})),"swap host UI"),
+     collect(guest.evaluate(()=>({net:window.ShokokuNet.syncDiagnostics(),scene:window.__shokokuQa.snapshot()})),"swap guest UI"),
+     collect(roleWorld(),"swap latest RTDB state"),
+     collect(roleJson("/feedback"),"swap command feedback"),
+     collect(roleJson("/commands"),"swap pending commands")
     ]);
     console.error("ROLE SWAP MANUAL RED TAP FAILURE",JSON.stringify({hostUi,guestUi,
      server:{seq:current?.seq,units:current?.world?.units?.length,phase:current?.world?.phase},feedback,commands,tap}));
     throw error;
    });
+  console.log("ROLE SWAP RED PUBLISHED",JSON.stringify({seq:redPublished.seq,
+   redUnits:redPublished.world.units.filter(u=>u.team===2).length}));
   await deadline(async()=>await host.evaluate(()=>window.__onlineSeq||0)>=redPublished.seq,
    "swapped red guest receives its own host-confirmed summon",21000);
   // Same 14-unit gameplay scene as the initial role assignment. The FPS
