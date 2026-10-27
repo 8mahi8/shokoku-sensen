@@ -838,24 +838,51 @@ const deadline=async (f,label,timeout=18000)=>{
    "role swapped clients return to room picker",8000);
   console.log("PASS: "+(qaMatchedWebkit?"WebKit host + WebKit guest":"Chromium host + WebKit guest")+
    " real Firebase 1v1, no research logging, recovery, rematches and new room "+code);
+ }catch(e){
+  // Report the original test failure before slow browser/RTDB cleanup begins.
+  console.error("LIVE QA MAIN FAILURE",e?.stack||String(e));
+  throw e;
  }finally{
-  for(const p of pages){try{await p.close()}catch{}}
-  if(hostCtx)try{await hostCtx.close()}catch{}
-  if(guestCtx)try{await guestCtx.close()}catch{}
-  if(browser)try{await browser.close()}catch{}
-  if(guestBrowser)try{await guestBrowser.close()}catch{}
+  console.log("LIVE QA CLEANUP BEGIN",JSON.stringify({
+   browserPages:pages.length,roomCount:[code,botCode,swapCode].filter(Boolean).length
+  }));
+  const cleanupProblems=[];
+  const safelyClose=async(label,operation)=>{
+   try{await bounded(Promise.resolve().then(operation),"cleanup "+label,6000);}
+   catch(e){console.error("LIVE QA CLEANUP TIMEOUT/ERROR",label,e?.message||String(e));
+    cleanupProblems.push(label);}
+  };
+  // WebKit screenshot/recording can leave a close() pending indefinitely.
+  // All cleanup is bounded so an original failure is never hidden until Actions timeout.
+  for(const [i,p] of pages.entries())await safelyClose("page "+i,()=>p.close({runBeforeUnload:false}));
+  if(hostCtx)await safelyClose("host context",()=>hostCtx.close());
+  if(guestCtx)await safelyClose("guest context",()=>guestCtx.close());
+  if(browser)await safelyClose("host browser",()=>browser.close());
+  if(guestBrowser)await safelyClose("guest browser",()=>guestBrowser.close());
+  const cleanupFetch=async(url,method="GET")=>{
+   const controller=new AbortController(),abort=setTimeout(()=>controller.abort(),6500);
+   try{return await fetch(url,{method,signal:controller.signal});}
+   finally{clearTimeout(abort);}
+  };
   for(const tempCode of [code,botCode,swapCode].filter(Boolean)){
-   // Let onDisconnect presence operations finish before removing our own room.
+   // Delete only our own disposable test rooms; do not touch player rooms.
    await delay(750);
    const u=urlDB+"/"+tempCode+".json";
-   const del=await fetch(u,{method:"DELETE"});
-   if(!del.ok)console.error("WARNING: Cleanup failed, HTTP "+del.status+" for test room "+tempCode);
-   else {
-    const check=await fetch(u);
-    const payload=await check.text();
-    console.log("CLEANUP:",payload.trim()==="null"?"confirmed":"not confirmed");
+   try{
+    const del=await cleanupFetch(u,"DELETE");
+    if(!del.ok)throw Error("DELETE HTTP "+del.status);
+    const check=await cleanupFetch(u);
+    if(!check.ok||((await bounded(check.text(),"cleanup REST body",4000)).trim()!=="null"))
+     throw Error("room deletion not confirmed");
+    console.log("CLEANUP: confirmed");
+   }catch(e){
+    console.error("LIVE QA CLEANUP ROOM ERROR",e?.message||String(e));
+    cleanupProblems.push("disposable room");
    }
   }
-  await new Promise(r=>server.close(r));
+  server.closeAllConnections?.();
+  await safelyClose("local HTTP server",()=>new Promise(r=>server.close(r)));
+  if(cleanupProblems.length)process.exitCode=1;
+  console.log("LIVE QA CLEANUP END",JSON.stringify({issues:cleanupProblems.length}));
  }
 })().catch(e=>{console.error(e);process.exitCode=1});
