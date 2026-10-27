@@ -261,3 +261,9 @@
 - [smoke #40488504924](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488504924) SUCCESS。[通常BOT実Firebase #40488358990](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488358990) SUCCESS（ゲーム190.8秒、ゲストの最大rAF間隔278ms、0.5秒以上のフレーム停止0、JS例外なし、最大10体）。このBOT実戦はQAの仕様上、自動キャッシュ切替を無効にしていたので、タイル枚数上限の実戦根拠とは**扱わない**。
 - 本番同等のキャッシュ切替を有効化するBOT QA変更は [bed2b7d6](https://github.com/8mahi8/shokoku-sensen/commit/bed2b7d6691239d7ecef2b4e89e301287f8d652e)。最初のCIはQA文字列に `async()=>>` という構文誤りが入り起動前停止。ゲーム側の不具合ではない。修正版 [aee9710a](https://github.com/8mahi8/shokoku-sensen/commit/aee9710a2a3f474b847e30fb662d5fba5969a4cb) 後のrun [#40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) が対象。
 - **性能主張の境界**：異なる試合のmax rAF gap比較から改善率は推定しない。headless WebKitのrAFはiPad Safari実機のFPSではない。Canvas内JS処理で説明不能な長いギャップも残り、単発フレームスパイク以外のカクつきに対して根治は未証明。学校Google Sites版を上書きせず安定版を温存。
+
+
+### 2026-10-27 低FPSアート切替の実Firebase最終結果
+
+- [BOT実戦 #40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) **SUCCESS**。低FPS自動切替をlocalhostでも明示ONにし、実FirebaseのChromiumホスト＋WebKitゲストで**ゲーム時間300秒を完走**。青45手/赤32手、最多17体、JSエラー0、ルーム清掃確認。WebKitゲストのキャッシュタイルは最大58枚、新規ビルドは**描画1フレーム最大2枚**。ゲスト最大フレームギャップ270ms、500ms以上0、JS描画最大34ms、SDK受信経過最大219ms、スナップショット適用から最大225ms。生成上限が**実戦中に実際に守られた**直接証拠。
+- artifact `online-bot-vs-bot-real-match` ID 12728326226 のゲストフル録画315秒/960×672を回収。20〜295秒の12場面と112〜125秒の交戦を画像・映像で目視。該当場面に明らかなキャラ欠落なし。ただし学校iPadとは異なるLinux headless WebKit。**性能改善率は試合条件の異なる旧実戦と比較して断言しない**。

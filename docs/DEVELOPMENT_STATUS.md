@@ -358,3 +358,10 @@
 - **実Firebase基本回帰**：[実BOT対BOT #40488358990](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488358990) SUCCESS（試合内190.8秒で首都破壊、青20・赤18手、最多10体、JS例外なし、テストルーム削除確認、ゲストフレーム最大278ms）。ただし従来のlocalhost QAフラグにより、**自動キャッシュ切替がこの試合では無効**で、新タイル0枚。通常戦闘の保全確認であり新キャッシュ実戦の合格ではない。
 - **新規検査の設定**：[test bed2b7d6](https://github.com/8mahi8/shokoku-sensen/commit/bed2b7d6691239d7ecef2b4e89e301287f8d652e) にて長時間BOTのWebKitゲストだけ、本番と同じ低FPSキャッシュ自動切替を有効化し、生成タイル上限・総数を計測。初回run #40489289033 はテスト用接続確認の`async()=>`に`>`が1個重なる**テスト構文ミスで起動前に失敗**。 [commit aee9710a](https://github.com/8mahi8/shokoku-sensen/commit/aee9710a2a3f474b847e30fb662d5fba5969a4cb) で修正し、ブラウザテストの構文チェックを追加実施。最新実戦 [#40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) の完了結果は別途確認する。
 - **公開**：開発PR #22はDraft。既存Google Sites版、main、Firebaseルール、先にDriveへ保存した安定版は未変更。次は学校iPadで残る時々のカクつきについて、新旧試遊比較と一時的なキャッシュ切替の確認。実機性能改善率は未測定。
+
+
+### 2026-10-27 低FPSキャッシュ実戦の最終合格
+
+- [低FPS自動切替ONで実Firebase BOT 5分 #40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) **SUCCESS**。ゲストでは58ポーズの描画キャッシュが生成されたが、各フレームの新規タイル作成数は最大2。壁時計310.8秒・ゲーム内300秒で時間切れ決着、青45手/赤ゲスト32手、最多17兵士、JSエラー0、試験ルーム清掃成功。WebKitゲスト最大rAF間隔270ms、500ms以上0、JS描画最大34ms、SDK受信無応答最大219ms。初期のQA接続待ち構文ミスは修正済み。**新機能を現実のキャッシュ自動切替つき対戦で検証完了**。
+- ゲストフル録画約315秒から時間位置を分散させた静止画と戦闘シーンを直接目視し、確認した範囲で兵士の消失・画面崩壊を確認せず。ビデオはActionsのartifact ID 12728326226。
+- 最新実装の受入れ：smoke SUCCESS／WebKit cached art SUCCESS／同コードのiPad UI SUCCESS／WebKit HUD SUCCESS／ゲストラボ SUCCESS／実Firebase5分 SUCCESS。ただし**学校iPad Safari＋Google Sites埋込では今回版未試験**。既存Google Sites・main・Firebaseルール未変更。次工程は実機で旧安定版との体感比較、悪化すれば採用しない。[詳細](GUEST_CACHE_WARMUP_2026-10-27.md)。

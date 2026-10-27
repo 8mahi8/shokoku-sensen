@@ -36,3 +36,15 @@ main、学校のGoogle Sites既存コード、Firebaseルール、前回Driveに
 - [ゲーム本体改修直後の実Firebase試合 #40488067422](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488067422) もSUCCESS。壁時計266.9秒・試合内255.8秒、青24手・赤34手、最多15体、JS例外なし、試験ルーム削除確認。ゲスト最大フレーム間隔501msが1件、ホスト50ms。**両試合は部隊数・展開が異なるので比較だけで改修の性能効果を断定しない**。
 - [BOT通しテスト条件の改善 `bed2b7d6`](https://github.com/8mahi8/shokoku-sensen/commit/bed2b7d6691239d7ecef2b4e89e301287f8d652e)：本番では有効な低FPS時のキャラキャッシュ自動切替を、localhostのBOT通しテストでも明示的に有効化。実Firebaseで自動切替を通った新タイル生成とキャッシュ総数、各フレームの上限を記録する。**テストコード限定の変更**であり学校版には影響しない。
 - [新実戦 #40489289033](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489289033) の最終結果で、自然な低FPSキャッシュ切替中も新規タイル数が1フレーム2枚を超えないこと、および試合継続・Firebaseルーム清掃を確認する。
+
+
+## 完了｜本番同等の自動キャッシュ切替あり・実Firebase 5分戦
+
+- [Actions #40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) **SUCCESS**。修正済みBOT通しQAでゲストの`__qaEnableCrowdedArtAdapt=true`を明示し、**本番同様に低FPS時のキャッシュ自動切替が機能**する状態で実Firebaseの連戦ではない1試合を最初から最後まで検証。
+- **実ゲーム時間300秒、壁時計310.8秒、時間切れ判定で決着**。青BOT45回、ゲスト赤BOT32回、最大17ユニット、JS例外0、実Firebaseテストルーム削除後の`null`確認。
+- **キャッシュが本当に作られた証拠**：`guestMaxCacheTilesSeen=58`。`guestMaxNewCachedTilesPerFrame=2`、設計通り1描画につき2タイルを超過していない。通信はSDK最新受信経過最大219ms、スナップショット適用から最大225ms、ホストpublish経過最大134ms、送信再試行0、SDK長期停滞プローブ0。
+- **WebKitゲストのrAF最大間隔270ms、500ms以上0、1000ms以上0、JS描画最大34ms**。ホストrAF最大133ms。異なる旧試合より数値が良くても、試合展開・兵士数が異なるため最適化の改善率は導けない。今回の強い結論は**自動切替・分散・通信・勝敗・後片付けを同時に正常完走したこと**。
+- 実Firebase試合のartifact `online-bot-vs-bot-real-match`（artifact ID `12728326226`）から、WebKitゲストの**約315秒・960×672フル動画**を回収。約20〜295秒の12カ所を抽出した接触シートと、112〜125秒の映像を目視確認。キャラ描画、カード、UI、時計、画面上の交戦進行を確認し、**確認した範囲では兵士が消える/絵が壊れる症状はなし**。録画全フレーム/学校の実機検証を代替するものではない。
+- QA起動スクリプトにいったん入った`async()=>>`の構文誤りは [aee9710a](https://github.com/8mahi8/shokoku-sensen/commit/aee9710a2a3f474b847e30fb662d5fba5969a4cb) で解消され、**その後の正式QA #40489499643 はSUCCESS**。過去の起動前失敗をゲームエンジンの実動作エラーと混同しない。
+
+**採用判断**：学校実機での滑らかさ改善は未証明。現時点でGoogle Sites既存公開版・main・Firebase設定・前回Googleドライブ保存版は変更しない。新修正はDraft PR #22上の学校試遊候補として保存。必要な手動操作が発生するのはGoogle Sitesの別ページへ貼り付けるときのみ。
