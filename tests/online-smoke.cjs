@@ -113,6 +113,7 @@ assert.ok(page.includes('id="newRoom"'));
   'let lastApplyError="",syncWarning=false;'+
   'const cancelRemoteFallback=()=>{remoteApplyFallback=null};'+
   'const game={apply:(world,seq)=>applied.push(seq)};'+
+  'let phase="playing";const guestPlayableWorld=()=>false,onlinePanel=()=>{};'+
   'const updateUI=()=>{},setError=e=>{throw e};'+
   js+
   'return {receive:receiveGuestWorld,paint:flushGuestBeforePaint,'+
@@ -898,6 +899,7 @@ const game={apply:(world,seq)=>applyWorld(world,seq)};
 function cancelRemoteFallback(){if(remoteApplyFallback!==null){clearTimeout(remoteApplyFallback);remoteApplyFallback=null;}}
 function updateUI(){}
 function setError(e){errors.push(String(e));}
+let phase="playing";const guestPlayableWorld=()=>false,onlinePanel=()=>{};
 `+net.slice(begin,end)+`
 return {deliver:receiveGuestWorld,
  newRound:n=>{meta={round:n};cancelRemoteFallback();remoteEpoch++;pendingRemote=null;remoteScheduled=false;lastRemoteSeq=0;},
@@ -1111,4 +1113,27 @@ return (time,appliedAt,sdkAt)=>{
  console.log("PASS: fort navigation preserves battle, contested, warning, and hidden states without no-op DOM writes");
 }
 
+{
+ const a=net.indexOf("function guestPlayableWorld(){"),b=net.indexOf("\nfunction updateUI(){",a);
+ assert.ok(a>0&&b>a,"guest readiness source exists");
+ const make=new Function("world",
+  "const game={world:()=>world};let host=false,lastRemoteSeq=0;"+net.slice(a,b)+
+  "\nreturn {ready:guestPlayableWorld,setSeq:n=>lastRemoteSeq=n,setHost:v=>host=v};");
+ const state={phase:"menu"},q=make(state);
+ assert.equal(q.ready(),false,"menu is not playable");
+ state.phase="prep";assert.equal(q.ready(),false,"no applied snapshot");
+ q.setSeq(2);assert.equal(q.ready(),true,"ready after first prep snapshot");
+ state.phase="battle";assert.equal(q.ready(),true,"battle ready");
+ state.phase="menu";assert.equal(q.ready(),false,"rematch blocks input");
+ q.setSeq(0);state.phase="prep";assert.equal(q.ready(),false,"old snapshot is insufficient");
+ q.setSeq(3);q.setHost(true);assert.equal(q.ready(),false,"host independent");
+ const setup=net.slice(net.indexOf("function setupRoom(code,isHost){"),net.indexOf("async function create(){"));
+ assert.ok(setup.includes('if(phase==="playing"&&guestPlayableWorld())onlinePanel(false);'),"world-apply opens view");
+ assert.ok(setup.includes('onlinePanel(meta?.status!=="playing"||(!host&&!guestPlayableWorld()));'),"rematch gating");
+ assert.ok(setup.includes('else{onlinePanel(true);show("戦況を同期しています…");}'),"loading state");
+ for(const page of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(page).includes(net.trim()),"bundle network consistency "+page);
+ assert.ok(read("guest-lab-game.html").includes("function guestPlayableWorld(){"),"guest lab gating");
+ console.log("PASS: playable world required before guest input UI");
+}
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");

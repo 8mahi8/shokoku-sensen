@@ -33,6 +33,11 @@ let publishing=false,publishPending=false,networkEpoch=0,publishStartedAt=0,publ
 const show=s=>{const el=$("netStatus");if(el)el.textContent=s;};
 const setError=e=>{console.warn("Online:",e);show("通信エラー："+(e?.code==="PERMISSION_DENIED"?"Firebaseのルーム権限を確認してください":e?.message||String(e)));};
 function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visible);}
+// A meta event is not proof the first playable world has been applied.
+function guestPlayableWorld(){
+ const state=game?.world?.();
+ return !host&&lastRemoteSeq>0&&(state?.phase==="prep"||state?.phase==="battle");
+}
 function updateUI(){
  const inRoom=!!room,guest=!!players?.guest?.online,ready=!!players?.host?.ready&&!!players?.guest?.ready;
  const ownBot=hostBotSeat();
@@ -152,6 +157,8 @@ function receiveGuestWorld(packet,source="sdk"){
     if(appliedGaps.length>32)appliedGaps.shift();
    }
    appliedPackets++;lastRemoteSeq=latest.seq;lastRemoteAppliedAt=appliedAt;
+   // Protect the initial touch from arriving while game phase is still menu.
+   if(phase==="playing"&&guestPlayableWorld())onlinePanel(false);
    lastApplyError="";
    if(syncWarning){syncWarning=false;updateUI();}
   }catch(e){lastApplyError=String(e?.message||e);setError(e)}
@@ -284,15 +291,19 @@ function setupRoom(code,isHost){
    networkEpoch++;publishing=false;publishPending=false;publishStartedAt=0;publishRetryAt=0;publishRetryCount=0;publishSerial++;
    window.__onlineSeq=0;window.__onlineHandSig="";
    game?.resetForLobby?.();
-   onlinePanel(meta?.status!=="playing");$("networkBar").classList.add("hidden");
+   onlinePanel(meta?.status!=="playing"||(!host&&!guestPlayableWorld()));$("networkBar").classList.add("hidden");
    if(meta?.status!=="playing")show("再戦の準備をしてください。2人とも準備完了で開始できます");
   }
   if(meta?.status==="playing"&&(before!=="playing"||newRound)){
-   phase="playing";lastRemoteAppliedAt=performance.now();onlinePanel(false);
+   phase="playing";lastRemoteAppliedAt=performance.now();
    if(host){
-    game?.begin();
+    onlinePanel(false);game?.begin();
     maybePublish(true);
-   }else if(newRound)restRecoverGuest();
+   }else{
+    if(guestPlayableWorld())onlinePanel(false);
+    else{onlinePanel(true);show("戦況を同期しています…");}
+    if(newRound)restRecoverGuest();
+   }
   }
   if(meta?.status==="finished"&&before!=="finished"){
    phase="finished";
