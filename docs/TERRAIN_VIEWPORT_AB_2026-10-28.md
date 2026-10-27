@@ -1,17 +1,30 @@
-# Phase 1｜背景キャッシュの可視範囲描画をA/Bで評価（2026-10-28）
+# Phase 1｜背景キャッシュ可視範囲描画 A/B 結果（2026-10-28）
 
-## なぜこの実験が新しいか
-- 既存の `docs/PERFORMANCE_EVIDENCE.md` を精査。Canvas全停止・HUD削除・カード肖像・CSS filter・固定画像cacheの一部は既に検証済み。本件は **キャッシュ済み1280×660pxの地面を、カメラの可視部分だけ9引数drawImageで描く**個別の候補。従来実験の繰り返しではない。
-- 画面全体のrAF間隔がCanvas関数の実行時間だけで決まらないことは確認済み。描画コスト削減がFPS改善へ直結すると主張しない。
-- [MDN drawImage](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage) の9引数指定を使用。カメラ端のサンプリングを壊さないよう、2 world pxの余白を取る。画面外ユニットのカリングや動的な砦／召喚線には触れない。
+## 結論：不採用・実験コードを取り除いた
+- [実行 #40531949523](https://github.com/8mahi8/shokoku-sensen/actions/runs/40531949523) は **SUCCESS**、8条件で従来描画と切り出し描画の `getImageData` 画素差は**全て0**。
+- FPSに直結する差は見られなかった。過去のrAF/CSS合成負荷調査とも整合する。**新方式をデフォルトONにはしない**。
+- 過去の不安定な初回run [#40531505978](https://github.com/8mahi8/shokoku-sensen/actions/runs/40531505978) は4条件の画素一致を確認した後、`page.screenshot()`が12秒タイムアウトした。画像撮影を除き、JSで各画素を直接照合する方式に変えて再計測した。
+- 測定用のコミット： [20bcb60](https://github.com/8mahi8/shokoku-sensen/commit/20bcb602d086673a928d0bbd5d380834d744e1d6)、[f66715e](https://github.com/8mahi8/shokoku-sensen/commit/f66715ea156799cb695701ecec6c2ffc52eb189a)。実験スクリプトとCI workflowは履歴から再取得可能。通常の開発ブランチでは削除して余計な分岐・保守負担を残さない。
 
-## 非公開A/B試験
-- `terrainViewportCropEnabled=false` が**初期値**、よって今回のコード段階では学校／通常の開発版の描画内容も性能も変わらない。
-- localhost `?qa=1` に限って切替API追加。WebKit iPadサイズ1194×834／Chromium Sites 900×520、14体通常戦・20体混戦、両陣営カメラx=300/980の計8条件を試す。
-- 各シーンでJavaScript 1タスクの間に既存描画と裁断描画の全Canvas画素を比較（UI/シミュレーションを止めず、比較処理中にrAFが割り込まない）。**ピクセル差0**を必須とする。
-- ABBA/BAABで計8ブロック×各24描画、性能測定は`performance.now()`のCanvas JS部分のみ。録画とrAFを含まないため、出た数値を実iPad FPSと呼ばない。
-- GitHub Actions workflow `Online terrain viewport A/B experiment` の完了を待ち、計測結果とスクリーンショットを確認してから、**改善が複数場面で再現した場合のみ本番の既定を変更**。効果が無い／画素ズレは実験を不採用とする。
+## 全8条件の計測（数値は Canvas JS描画部分のみ・単位ms）
+各カメラとシーンにつき4測定ブロック×24描画。表示とシミュレーションが同じ1タスクで、新規Chrome/WebKitブラウザページから測定した。あくまでも headless CI であり、学校iPad SafariのFPSではない。
 
-## 保護
-- ゲームの当たり判定・キャラ絵・Firebase通信・AI・描画順序・HUDは一切変更なし。
-- Google Sites貼付済み版／main／Firebase Rulesは未変更。本人が明示指示するまでGoogle Driveに保存しない。
+| エンジン | シーン | カメラ要求x | 従来方式・平均 | 切り出し・平均 | 画素差 |
+| --- | --- | ---: | ---: | ---: | ---: |
+| WebKit 1194x834 | 14体通常 | 300 | 5.075 | 4.948 | 0 |
+| WebKit 1194x834 | 14体通常 | 980 | 3.990 | 4.043 | 0 |
+| WebKit 1194x834 | 20体混戦 | 300 | 5.315 | 5.253 | 0 |
+| WebKit 1194x834 | 20体混戦 | 980 | 5.200 | 5.170 | 0 |
+| Chromium 900x520 | 14体通常 | 300 | 0.853 | 0.978 | 0 |
+| Chromium 900x520 | 14体通常 | 980 | 0.673 | 0.670 | 0 |
+| Chromium 900x520 | 20体混戦 | 300 | 0.850 | 0.835 | 0 |
+| Chromium 900x520 | 20体混戦 | 980 | 0.788 | 0.788 | 0 |
+
+- WebKit 4条件平均では従来4.895ms、切り出し4.854ms。全体差約0.04ms程度で、改善が明確とは言えない。
+- Chromiumのほとんどは誤差範囲、14体通常のカメラx300ではむしろ遅い観測。
+- **切り出しを有効化すれば滑らかになるという根拠はない。** Canvasに渡すソース矩形変更よりも、今後は実iPadでの瞬間rAF停止時に、Firebase受信・反映・HUD/描画・WebKit合成のどれが連動していたかを区別する。旧HUD無効化や単純CSS削除を再試験しない。
+- [Canvas drawImage の9引数仕様](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/drawImage) を利用。ピクセル一致の試験は実験コードの見た目の安全性を確認したもので、性能効果の証明ではない。
+
+## 保護・保存
+- 通常コードの `online-game.js`、`online-ipad.html`、`online-embed.html`、`guest-lab-game.html` は実験直前のGit blobへ戻し、通常画面の描画分岐は増やさない。
+- Google Sites学校公開版、GitHub `main`、Firebase Rules、本番データは変更なし。Google Driveにも保存なし（本人の明示指示時のみ）。
