@@ -337,3 +337,14 @@
 - **通過済みの開発QA**：[smoke #40453050856](https://github.com/8mahi8/shokoku-sensen/actions/runs/40453050856)、[iPad UI #40452985793](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985793)、[キャラ描画 #40452985775](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985775)、[WebKit HUD #40452985719](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985719)、[ゲーム画面レビュー #40452985821](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985821) がSUCCESS。
 - **長時間実戦と2ブラウザQA**：[#40452985770](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985770) と [#40452985732](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985732) は最終結果確認後に合否を追記する。未確認で成功とは書かない。新コードが学校実機で前版より滑らかとはまだ断言しない。
 - **次工程**：CI長時間実戦でエラー・通信停止・映像・ゲストFPS制限状態を確かめる→開発版試遊候補を個別HTML/TXTで用意→**本人の学校Google Sites別テストページで実機試験**。現学校版・main・Firebaseルールは一切変更しない。PR #22はDraftのまま。
+
+
+### 2026-10-27 受入追記｜自動テスト完走＋Google Driveに最新版試遊候補保存
+
+- **全自動QA完了**：前項の smoke、iPad UI、キャラ描画、HUD、画面レビューに加え、[実Firebase 5分BOT対BOT #40452985770](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985770) と [2ブラウザ対戦 #40452985732](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985732) が**両方SUCCESS**。BOT同士の300秒対戦、青51手・赤32手、最多22体、JS例外0、使い捨てFirebaseルーム削除確認。SDK最大414ms無受信・世界適用経過最大374msの比較的安定した通信だった一方、ゲストrAF最大686msの停止が1件（描画関数最大36ms）。録画からゲーム画面の進行を確認。**WebKit headless実戦と学校実機の滑らかさは別**。
+- **最新Google Sites貼り付けファイルの証拠**：smoke #40453050856の artifact HTML全文328,328 bytes、`git hash-object` が開発コード `online-ipad.html` の blob SHA `0678eee311ff9f7260baec97e876b5669a21f40f` と完全一致、TXTとHTMLのSHA-256も同一。
+- **Google Drive 個別保存・メタデータ読戻し完了**（ZIPではない）：
+  - [最新版のGoogle Sites貼り付け用TXT](https://drive.google.com/file/d/18DJ4UQqZRF0SuTVKmHXcUhrQg0BzmtHT/view?usp=drivesdk)（328,328 bytes、text/plain）
+  - [同一コードのHTML試遊候補](https://drive.google.com/file/d/1diljznUmp5-hNv6H295QjajQGmIfOBB8/view?usp=drivesdk)（328,328 bytes、text/html）
+  - 保存先は `Google Drive/学校ゲーム/小国戦線III`、旧安定版を**上書きせず**別名で保存。
+- **公開判断**：CIは合格したが、学校iPadにとって30FPS安全モードの自動復帰が本当に効果的かは**実機試遊待ち**。Google Sitesに今回版を勝手に貼り替えない。既存Google Sites版、main、Firebase設定は変更なし。次は本人が希望する場合に学校Google Sitesの別テストページに上記TXTのHTML全文を貼り、ホスト/ゲスト交代で体感比較。
