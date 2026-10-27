@@ -372,6 +372,10 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  assert.equal(play(2,"scout",900,300),false);
  assert.equal(gameState.selected,"scout","offline command does not pretend success");
   assert.equal(hints.length,2,"failed transport must not show a queued-command hint");
+  allowSend=true;netStubs.guestBot=true;
+  assert.equal(play(2,"infantry",920,310),true,"guest BOT may still issue legal orders");
+  assert.equal(hints.length,2,"BOT-controlled guest does not draw human input hints");
+  netStubs.guestBot=false;
 
  // Pure rendering contract: guest-only, visual-only, transient, and bounded.
 // A queued marker must not claim host confirmation or touch game state.

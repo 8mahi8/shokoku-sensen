@@ -1690,7 +1690,7 @@ function playCard(team,id,x,y){
  if(!NET.isHost&&team===ME()){
   if(!validTarget(team,id,x,y)||!canPay(team,id))return false;
   if(!NET.sendCommand({id,x,y}))return false;
-  queueGuestCommandHint(x,y);
+  if(!NET.guestBot)queueGuestCommandHint(x,y);
   // Mirror host-side success UX immediately; authoritative resource/hand
   // mutations still await the host's next snapshot.
   if(id!=="infantry"){S.selected=null;buildCards();updateHUD();}
