@@ -675,8 +675,24 @@ const deadline=async (f,label,timeout=18000)=>{
   }
   // Manual red input must cross Firebase to the new host, and come back
   // through that same page's WebKit/Chromium receiver after roles invert.
-  assert.equal(await host.evaluate(()=>window.ShokokuNet.canSendCommand),true,
-   "old host must now be an active remote-command guest");
+  // The guest's game overlay may hide from the first state packet before
+  // the independent Firebase meta/players listeners finish their callbacks.
+  // Do not classify that brief transition as a broken guest connection;
+  // still FAIL the QA if the former host never becomes able to send.
+  await deadline(async()=>await host.evaluate(()=>window.ShokokuNet.canSendCommand),
+   "old host becomes an active remote-command guest after role swap",18000)
+   .catch(async error=>{
+    const client=await host.evaluate(()=>({
+     team:window.ShokokuNet.team,isHost:window.ShokokuNet.isHost,
+     canSendCommand:window.ShokokuNet.canSendCommand,
+     net:window.ShokokuNet.syncDiagnostics(),
+     scene:window.__shokokuQa.snapshot().phase
+    })).catch(e=>({error:String(e)}));
+    const response=await fetch(urlDB+"/"+swapCode+"/meta.json").catch(()=>null);
+    const meta=response?.ok?await response.json():null;
+    console.error("ROLE SWAP GUEST COMMAND TIMEOUT",JSON.stringify({client,meta}));
+    throw error;
+   });
   await summon(host,2);
   const roleStateURL=urlDB+"/"+swapCode+"/state.json";
   const roleWorld=async()=>{
