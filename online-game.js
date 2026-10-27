@@ -3041,8 +3041,10 @@ function start(){
   try{
   // Recover up to 150ms after a missed frame (max five 30Hz steps).
   // Keep the existing bounded accumulator to prevent a catch-up spiral.
-  trackGuestFrameHitch(now-previous);
+  // Measure the actual state painted after consuming the newest packet.
+  // A pre-flush seq could otherwise make a short rAF hitch look like SDK lag.
   NET.flushGuestBeforePaint?.();
+  trackGuestFrameHitch(now-previous);
   const delta=Math.min(.15,Math.max(0,(now-previous)/1000));previous=now;
   adaptCanvasQuality(now);
   adaptCrowdedSprites(now);

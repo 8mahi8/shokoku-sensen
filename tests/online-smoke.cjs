@@ -122,6 +122,8 @@ assert.ok(page.includes('id="newRoom"'));
  qa.paint();assert.deepEqual(applied,[2,4],'new round applies its own packet');
  callbacks.shift()();assert.deepEqual(applied,[2,4],'new callback cannot double apply');
  assert.ok(game.includes('NET.flushGuestBeforePaint?.();'),'paint loop hooks coalesced flush');
+ assert.ok(game.indexOf('NET.flushGuestBeforePaint?.();')<game.indexOf('trackGuestFrameHitch(now-previous);'),
+  'guest hitch diagnosis samples the latest applied state after prepaint flush');
  assert.ok(net.includes('registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,'),
   'game can request prepaint sync');
  assert.ok(read('guest-lab-game.html').includes('NET.flushGuestBeforePaint?.();'),

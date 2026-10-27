@@ -23,9 +23,23 @@ const server=http.createServer((req,res)=>{
  fs.createReadStream(file).pipe(res);
 });
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
+// Raw Playwright calls can remain pending until Actions cancels the job.
+// Keep every custom deadline bounded even when one poll hangs indefinitely.
+const bounded=async(promise,label,timeoutMs=12000)=>{
+ let timer;
+ try{return await Promise.race([promise,new Promise((_,reject)=>{
+  timer=setTimeout(()=>reject(Error("Browser operation timeout: "+label)),timeoutMs);
+ })]);}
+ finally{clearTimeout(timer);}
+};
 const deadline=async (f,label,timeout=18000)=>{
  const end=Date.now()+timeout;let error;
- while(Date.now()<end){try{const v=await f();if(v)return v}catch(e){error=e}await delay(300)}
+ while(Date.now()<end){
+  const left=end-Date.now();
+  try{const v=await bounded(Promise.resolve().then(f),label+" poll",Math.min(8000,Math.max(1,left)));if(v)return v;}
+  catch(e){error=e;}
+  if(Date.now()<end)await delay(Math.min(300,end-Date.now()));
+ }
  throw Error("Timed out "+label+" "+(error?.message||""));
 };
 (async()=>{
@@ -45,6 +59,8 @@ const deadline=async (f,label,timeout=18000)=>{
   });
   const host=await hostCtx.newPage(),guest=await guestCtx.newPage();
   pages=[host,guest];const errors=[];
+  // Bound screenshots and actions even with an unresponsive headless WebKit.
+  for(const page of pages){page.setDefaultTimeout(12000);page.setDefaultNavigationTimeout(20000);}
   // Idle headless WebKit reference before loading any game HTML, RTDB or CSS.
   // Without this, slow CI rAF scheduling can be misattributed to game Canvas.
   const idleReference=await guest.evaluate(()=>new Promise(resolve=>{
@@ -328,6 +344,7 @@ const deadline=async (f,label,timeout=18000)=>{
    // The resulting WebKit guest render uses real Firebase state, not
    // a directly injected client-side fake or 130-unit stress preset.
    const scenario={2:"standard",3:"light",4:"heavy",5:"spell",6:"crowded",7:"dense"}[round];
+   console.log("LIVE FIREBASE SCENE START",JSON.stringify({scenario,round,recordVideo:qaRecordVideo,matchedWebkit:qaMatchedWebkit}));
    const expected={standard:14,light:10,heavy:10,spell:8,crowded:18,dense:20}[scenario];
    const seeded=await host.evaluate(s=>window.__shokokuQa.seedRealisticBattle(s),scenario);
    assert.ok(seeded&&seeded.units===expected&&seeded.actions.every(a=>a.ok),
@@ -367,8 +384,13 @@ const deadline=async (f,label,timeout=18000)=>{
    });
    assert.equal(synced.scene.phase,"battle","guest must display real battle "+scenario);
    assert.equal(synced.diag.error,"","guest application errors in "+scenario);
-   await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-initial.png"),
-    fullPage:false});
+   // Visual QA already covers all artwork. Reduce screenshot pressure in
+   // no-video network diagnostics; only the dense scene keeps a still image.
+   if(qaRecordVideo||scenario==="dense"){
+    console.log("LIVE FIREBASE SCENE SCREENSHOT",JSON.stringify({scenario,kind:"initial"}));
+    await bounded(guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-initial.png"),
+     fullPage:false,timeout:12000}),"screenshot initial "+scenario,14000);
+   }
    // Measure the SAME real Firebase battle at both ends of the connection.
    // A host-only Chromium FPS from an earlier unrelated test is not a valid
    // answer to host-vs-guest performance, especially with WebKit as guest.
@@ -427,8 +449,13 @@ const deadline=async (f,label,timeout=18000)=>{
     caveat:qaMatchedWebkit?"same engine, same viewport, same HTML; not physical iPad Safari":
      "browser engine and network role differ; not physical iPad Safari"
    }));
-   await guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-after-1100ms.png"),
-    fullPage:false});
+   // Visual QA already covers all artwork. Reduce screenshot pressure in
+   // no-video network diagnostics; only the dense scene keeps a still image.
+   if(qaRecordVideo||scenario==="dense"){
+    console.log("LIVE FIREBASE SCENE SCREENSHOT",JSON.stringify({scenario,kind:"after-1100ms"}));
+    await bounded(guest.screenshot({path:path.join(qaVideoDir,"realistic-"+scenario+"-guest-after-1100ms.png"),
+     fullPage:false,timeout:12000}),"screenshot after-1100ms "+scenario,14000);
+   }
    assert.equal(later.frameError,null,"WebKit guest should not throw during "+scenario);
    assert.ok(later.frameSamples>=5,"WebKit must paint multiple frames after "+scenario);
    assert.equal(later.phase,"battle","WebKit guest must remain in battle during "+scenario);
