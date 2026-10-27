@@ -3411,10 +3411,12 @@ function clampCamera(){
 // consistently slow tablet displays. A one-way change avoids resolution flicker.
 let tabletDprCap=1.45,qualityWindowStart=0,qualityFrames=0,qualityMeasured=false;
 let guestLowPower=false,guestLastPaint=0;
+let guestRecoveryStart=0,guestRecoveryFrames=0,guestQualityRecoveredAt=-1e9;
 function resetAdaptiveCanvasForMatch(){
  const priorCap=tabletDprCap;
  tabletDprCap=1.45;
  guestLowPower=false;guestLastPaint=0;
+ guestRecoveryStart=0;guestRecoveryFrames=0;guestQualityRecoveredAt=-1e9;
  qualityMeasured=false;qualityWindowStart=0;qualityFrames=0;
  // Refresh backing resolution once if a previous host round lowered it.
  // The initial start() already calls fit(); avoid resizing its 1px fixture.
@@ -3451,10 +3453,29 @@ function adaptCrowdedSprites(now){
  spriteFpsWindowStart=now;spriteFpsFrames=0;
 }
 function adaptCanvasQuality(now){
- if(qualityMeasured||!(S.phase==="battle"||S.phase==="prep")||document.hidden){
-  if(document.hidden){qualityWindowStart=0;qualityFrames=0;}
+ if(!(S.phase==="battle"||S.phase==="prep")||document.hidden){
+  if(document.hidden){
+   qualityWindowStart=0;qualityFrames=0;
+   guestRecoveryStart=0;guestRecoveryFrames=0;
+  }
   return;
  }
+ // Release the guest's 30 FPS safety cap after sustained healthy rAF:
+ // 8.5s >=55FPS, with a 20s cooldown to avoid quality oscillation.
+ if(guestLowPower&&!NET.isHost){
+  if(!guestRecoveryStart){guestRecoveryStart=now;return;}
+  guestRecoveryFrames++;
+  const duration=now-guestRecoveryStart;
+  if(duration>=8500){
+   if(guestRecoveryFrames*1000/duration>=55){
+    guestLowPower=false;qualityMeasured=false;
+    guestQualityRecoveredAt=now;qualityWindowStart=0;qualityFrames=0;
+   }
+   guestRecoveryStart=0;guestRecoveryFrames=0;
+  }
+  return;
+ }
+ if(qualityMeasured)return;
  if(!qualityWindowStart){qualityWindowStart=now;return;}
  qualityFrames++;
  const elapsed=now-qualityWindowStart;
@@ -3462,7 +3483,10 @@ function adaptCanvasQuality(now){
  const fps=qualityFrames/(elapsed/1000);
  qualityWindowStart=now;qualityFrames=0;
  if(fps<42&&!NET.isHost&&S.view.dpr<=1.02){
-  guestLowPower=true;qualityMeasured=true;
+  if(now-guestQualityRecoveredAt>=20000){
+   guestLowPower=true;qualityMeasured=true;
+   guestRecoveryStart=0;guestRecoveryFrames=0;
+  }
  }else if(fps<38&&S.view.dpr>1.02){
   tabletDprCap=1.0;qualityMeasured=true;fit();
  }
@@ -3632,7 +3656,9 @@ function presentRemoteUnit(u){
    const now=performance.now(),dt=Math.max(0,Math.min(.07,(now-v.lastFrame)/1000));
    v.lastFrame=now;
    const since=Math.max(0,Math.min(.25,(now-v.updatedAt)/1000));
-   const age=Math.min(.17,since);
+   // Continue visual-only walking for up to 240ms of packet jitter.
+  // Never advance gameplay or predict a troop known to be stopped.
+  const age=u.walking?Math.min(.24,since):0;
    const alpha=1-Math.exp(-dt*13);
    const oldX=v.x,oldY=v.y;
    v.x+=(v.targetX+v.vx*age-v.x)*alpha;
