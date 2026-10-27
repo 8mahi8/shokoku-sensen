@@ -382,20 +382,21 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
 const hintStart=game.indexOf("function queueGuestCommandHint(");
 const hintEnd=game.indexOf("\nfunction drawPreview(){",hintStart);
 assert.ok(hintStart>0&&hintEnd>hintStart,"guest command hint renderer exists");
-let drawTime=1000,labels=[],paintArcs=0;
+let drawTime=1000,labels=[],paintArcs=0,captionPlates=0;
 const guestRole={isHost:false},hintState={phase:"battle"};
 const ctxMock={globalAlpha:1,save(){},restore(){},beginPath(){},arc(){paintArcs++;},
- stroke(){},fillText(value){labels.push(value)}};
-const hintsQa=new Function("NET","S","performance","ctx","Math",
+ stroke(){},fill(){},fillText(value){labels.push(value)}};
+const hintsQa=new Function("NET","S","performance","ctx","Math","H","rounded",
  "const GUEST_COMMAND_HINT_MS=650;let guestCommandHints=[],lastGuestHintPainted=0;\n"+
  game.slice(hintStart,hintEnd)+
  "\nreturn {queue:queueGuestCommandHint,draw:drawGuestCommandHints,read:()=>({items:guestCommandHints.slice(),painted:lastGuestHintPainted})};")(
- guestRole,hintState,{now:()=>drawTime},ctxMock,Math);
+ guestRole,hintState,{now:()=>drawTime},ctxMock,Math,660,()=>{captionPlates++;});
 hintsQa.queue(1100,320);
 drawTime=1016;hintsQa.draw(drawTime);
 assert.equal(hintsQa.read().painted,1,"queued guest tap paints on next available frame");
 assert.deepEqual(labels,["送信中"],"display explicitly says in transit, not successful summon");
 assert.ok(paintArcs>0,"visual cue draws on canvas without a DOM rebuild");
+assert.equal(captionPlates,1,"text caption uses a distinct contrast plate for readability");
 drawTime=1700;hintsQa.draw(drawTime);
 assert.equal(hintsQa.read().items.length,0,"queued visual cue expires in 650ms");
 for(let i=0;i<9;i++)hintsQa.queue(1070+i,315);
