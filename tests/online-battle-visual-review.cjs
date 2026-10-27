@@ -46,14 +46,18 @@ const round=n=>Math.round(n*10)/10;
  try{
   await new Promise(resolve=>server.listen(8776,"127.0.0.1",resolve));
   for(const profile of profiles){
-   const browser=await profile.engine.launch({headless:true});browsers.push(browser);
-   const context=await browser.newContext({
-    viewport:{width:profile.width,height:profile.height},hasTouch:true,
-    deviceScaleFactor:2,
-    ...(profile.video?{recordVideo:{dir:out,size:{width:profile.width,height:profile.height}}}:{})
-   });
    const profileScenes=profile.only?scenes.filter(s=>!s.trial&&profile.only.includes(s.id)):scenes;
    for(const scene of profileScenes){
+    // A fresh WEBKIT PROCESS per scene prevents accumulated bitmap / screenshot
+    // memory from surviving the previous 1194x834 DPR2 battles. The older
+    // single-context run crashed while taking the sixth scene screenshot.
+    console.log("VISUAL SCENE START",JSON.stringify({profile:profile.name,scene:scene.id,trial:scene.trial||1}));
+    const browser=await profile.engine.launch({headless:true});browsers.push(browser);
+    const context=await browser.newContext({
+     viewport:{width:profile.width,height:profile.height},hasTouch:true,
+     deviceScaleFactor:2,
+     ...(profile.video?{recordVideo:{dir:out,size:{width:profile.width,height:profile.height}}}:{})
+    });
     // A fresh page resets one-way DPR/quality adaptation so scenes are comparable.
     const page=await context.newPage(),errors=[],tag=profile.name+"-"+scene.id+"-t"+(scene.trial||1);
     const movie=page.video();
@@ -170,8 +174,8 @@ const round=n=>Math.round(n*10)/10;
      cachedTiles:measure.cachedTiles}));
     await page.close();
     if(movie)await movie.saveAs(path.join(out,tag+".webm"));
+    await context.close();await browser.close();browsers.pop();
    }
-   await context.close();await browser.close();browsers.pop();
   }
   fs.writeFileSync(path.join(out,"realistic-results.json"),JSON.stringify(allResults,null,2));
   assert.equal(allResults.length,scenes.length*2+6);
