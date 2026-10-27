@@ -2907,6 +2907,9 @@ function start(){
    },setBotControl:active=>{
     if(active){S.selected=null;S.drag=null;S.pointer=null;S.botThink=2.5;S.botPrepDone=false;}
     buildCards();updateHUD();
+   },alignLobbyCameraForSeat:()=>{
+    const target=ME()===1?300:980;
+    panCamera(target-S.cam.x,330-S.cam.y);
    },resetForLobby:()=>{
    resetWorld();S.phase="menu";S.remoteSprites=null;lastGuestHitch=null;
    $("start").disabled=false;

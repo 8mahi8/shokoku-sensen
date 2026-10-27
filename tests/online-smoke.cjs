@@ -7,9 +7,12 @@ assert.ok(net.includes('room=db.ref(ROOT+"/"+code);\\n game?.resetForLobby?.();'
  "this assertion just guards against a literal escaped newline in the Firebase source");
 const roomSetup=net.slice(net.indexOf("function setupRoom(code,isHost){"),net.indexOf("async function create(){"));
 assert.ok(roomSetup.indexOf('team=isHost?1:2;')>=0&&
- roomSetup.indexOf('game?.resetForLobby?.();')>roomSetup.indexOf('team=isHost?1:2;')&&
- roomSetup.indexOf('game?.resetForLobby?.();')<roomSetup.indexOf('attach(room.child("players")'),
- "joining a fresh room must reinitialize the correct seat camera before Firebase events");
+ roomSetup.indexOf('game?.alignLobbyCameraForSeat?.();')>roomSetup.indexOf('team=isHost?1:2;')&&
+ roomSetup.indexOf('game?.alignLobbyCameraForSeat?.();')<roomSetup.indexOf('attach(room.child("players")'),
+ "joining a room must align the seat camera before Firebase events");
+assert.ok(game.includes('alignLobbyCameraForSeat:()=>{')&&
+ game.includes('panCamera(target-S.cam.x,330-S.cam.y);'),
+ "seat camera correction must not trigger second match reset");
 for(const p of ["v3.js","online-net.js","online-game.js","gald-render.js","v3-art.js"]){
  new vm.Script(read(p),{filename:p});
 }

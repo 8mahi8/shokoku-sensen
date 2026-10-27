@@ -611,11 +611,10 @@ function setupRoom(code,isHost){
  roomCode=code;team=isHost?1:2;host=isHost;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;window.__onlineSeq=0;
  players=null;meta=null;phase="lobby";result=null;
  room=db.ref(ROOT+"/"+code);
- // resetLobby() clears team=0 before resetting the game to its default BLUE
- // camera. If the same tab then joins as RED, reinitialize AFTER assigning
- // its new seat, before any async Firebase room callback can paint a frame.
- // This is a lobby-only reset, not an extra battle reset or network message.
- game?.resetForLobby?.();
+ // resetLobby clears team=0 and the previous match is reset with BLUE
+ // camera. Align only the camera AFTER assigning the new team, BEFORE
+ // registering Firebase listeners. Never reroll decks or reset a second time.
+ game?.alignLobbyCameraForSeat?.();
  const openedRoom=room;
  if(connected)registerPresence().catch(setError);
  attach(room.child("players"),"value",snap=>{
@@ -4403,6 +4402,9 @@ function start(){
    },setBotControl:active=>{
     if(active){S.selected=null;S.drag=null;S.pointer=null;S.botThink=2.5;S.botPrepDone=false;}
     buildCards();updateHUD();
+   },alignLobbyCameraForSeat:()=>{
+    const target=ME()===1?300:980;
+    panCamera(target-S.cam.x,330-S.cam.y);
    },resetForLobby:()=>{
    resetWorld();S.phase="menu";S.remoteSprites=null;lastGuestHitch=null;
    $("start").disabled=false;
