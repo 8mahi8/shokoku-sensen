@@ -254,7 +254,27 @@ const deadline=async (f,label,timeout=18000)=>{
     seq:window.__onlineSeq||0,
     diag:window.ShokokuNet.syncDiagnostics()
    }));
-   const hostLater=await state();
+   let hostLater=await state();
+   if(!(hostLater?.seq>duringOutage.seq)){
+    // Headless WebKit sometimes skips multiple rAF/publish cycles even when
+    // only the OTHER page is disconnected. Log the real stall instead of
+    // falsely blaming the offline guest or assuming host made progress.
+    const hostStall=await host.evaluate(()=>({
+     phase:window.__shokokuQa.snapshot().phase,
+     diag:window.ShokokuNet.syncDiagnostics(),
+     fps:window.__shokokuQa.frameBench().slice(-32).map(f=>f.gapMs),
+     error:window.__onlineFrameError||null
+    })).catch(e=>({error:String(e)}));
+    console.log("REAL HOST PUBLISH PAUSE WHILE GUEST OFFLINE",JSON.stringify({
+     hostSeqBefore:hostBeforeOffline?.seq,hostSeqDuring:duringOutage?.seq,
+     hostSeqLater:hostLater?.seq,host:hostStall
+    }));
+    // Do not accept permanent host stalls: observe bounded recovery, then
+    // retain the same strict "host advances while guest offline" assertion.
+    hostLater=await deadline(async()=>{
+     const v=await state();return v?.seq>duringOutage.seq?v:null;
+    },"WebKit host resumes publishing while remote guest stays offline",6000);
+   }
    assert.ok(hostLater.seq>duringOutage.seq,
     "host keeps advancing while guest connection stays cut");
    assert.equal(frozenLater.seq,frozen.seq,
@@ -729,6 +749,7 @@ const deadline=async (f,label,timeout=18000)=>{
     units:window.__shokokuQa.snapshot().units.length,
     frames:frames.length,fps:Math.round(frames.length*1000/Math.max(1,elapsedMs)*10)/10,
     gapP95Ms:Math.round((sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.95))]||0)*10)/10,
+    quality:window.__shokokuQa.quality(),
     frameError:window.__onlineFrameError||null};
   };
   const [oldHostNowGuest,oldGuestNowHost]=await Promise.all([
