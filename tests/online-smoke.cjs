@@ -122,6 +122,10 @@ assert.ok(page.includes('id="newRoom"'));
  qa.paint();assert.deepEqual(applied,[2,4],'new round applies its own packet');
  callbacks.shift()();assert.deepEqual(applied,[2,4],'new callback cannot double apply');
  assert.ok(game.includes('NET.flushGuestBeforePaint?.();'),'paint loop hooks coalesced flush');
+ assert.ok(game.includes('if(was==="menu")panCamera(980-S.cam.x,330-S.cam.y);'),
+  "red guest snaps to its own deployment camera when new room begins");
+ assert.ok(!game.includes('if(was==="menu")cameraTo(980,330);'),
+  "old slow camera travel should not leave initial red taps invalid");
  assert.ok(game.indexOf('NET.flushGuestBeforePaint?.();')<game.indexOf('trackGuestFrameHitch(now-previous);'),
   'guest hitch diagnosis samples the latest applied state after prepaint flush');
  assert.ok(net.includes('registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,'),

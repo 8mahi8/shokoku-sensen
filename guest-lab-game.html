@@ -4397,7 +4397,11 @@ function start(){
     if(NET.guestBot&&data.phase==="battle"&&was!=="battle")S.botThink=3;
     $("overlay").classList.add("hidden");
     $("prepBanner").classList.toggle("visible",S.phase==="prep");
-    if(was==="menu")cameraTo(980,330);
+    // On the first remote snapshot the guest must see its OWN red deploy
+    // zone immediately. A smooth pan from the stale blue-room menu camera
+    // could let an early touch hit an invalid world position.
+    // Mid-match camera movement stays smoothly animated.
+    if(was==="menu")panCamera(980-S.cam.x,330-S.cam.y);
    }else if(data.phase==="result"){
     if(NET.hasResult()&&S.phase!=="result")end(NET.resultForMe(),NET.resultReason());
    }

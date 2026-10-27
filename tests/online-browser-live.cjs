@@ -713,7 +713,23 @@ const deadline=async (f,label,timeout=18000)=>{
     console.error("ROLE SWAP GUEST COMMAND TIMEOUT",JSON.stringify({client,meta}));
     throw error;
    });
-  await summon(host,2);
+  // A new red guest should already be aimed at the red deployment zone;
+  // use a fixed legal world position rather than a viewport percentage, so
+  // this actually verifies the touch-to-world coordinate transform.
+  await host.locator('button.card[data-id="infantry"]').click();
+  const tap=await host.evaluate(()=>{
+   const scene=window.__shokokuQa.snapshot(),rect=document.getElementById("fieldArea").getBoundingClientRect();
+   const worldX=1130,worldY=405,view=scene.view;
+   return {screenX:rect.left+view.ox+worldX*view.s,
+    screenY:rect.top+view.oy+worldY*view.s,
+    bounds:{left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom},
+    camera:scene.camera,view:scene.view};
+  });
+  assert.ok(tap.screenX>tap.bounds.left+10&&tap.screenX<tap.bounds.right-10&&
+   tap.screenY>tap.bounds.top+10&&tap.screenY<tap.bounds.bottom-10,
+   "red home deployment point must be on-screen as soon as guest starts: "+JSON.stringify(tap));
+  await host.mouse.click(tap.screenX,tap.screenY);
+  console.log("ROLE SWAP GUEST RED TAP",JSON.stringify({tap,recordVideo:qaRecordVideo}));
   const roleStateURL=urlDB+"/"+swapCode+"/state.json";
   const roleWorld=async()=>{
    const response=await fetch(roleStateURL);return response.ok?response.json():null;
@@ -721,7 +737,19 @@ const deadline=async (f,label,timeout=18000)=>{
   const redPublished=await deadline(async()=>{
    const packet=await roleWorld();
    return packet?.world?.units?.some(u=>u.team===2)?packet:null;
-  },"swapped red manual summon published by new host",23000);
+  },"swapped red manual summon published by new host",23000)
+   .catch(async error=>{
+    const [hostUi,guestUi,current,feedback,commands]=await Promise.all([
+     host.evaluate(()=>({net:window.ShokokuNet.syncDiagnostics(),scene:window.__shokokuQa.snapshot(),canSend:window.ShokokuNet.canSendCommand})).catch(e=>({error:String(e)})),
+     guest.evaluate(()=>({net:window.ShokokuNet.syncDiagnostics(),scene:window.__shokokuQa.snapshot()})).catch(e=>({error:String(e)})),
+     roleWorld().catch(()=>null),
+     fetch(urlDB+"/"+swapCode+"/feedback.json").then(r=>r.json()).catch(()=>null),
+     fetch(urlDB+"/"+swapCode+"/commands.json").then(r=>r.json()).catch(()=>null)
+    ]);
+    console.error("ROLE SWAP MANUAL RED TAP FAILURE",JSON.stringify({hostUi,guestUi,
+     server:{seq:current?.seq,units:current?.world?.units?.length,phase:current?.world?.phase},feedback,commands,tap}));
+    throw error;
+   });
   await deadline(async()=>await host.evaluate(()=>window.__onlineSeq||0)>=redPublished.seq,
    "swapped red guest receives its own host-confirmed summon",21000);
   // Same 14-unit gameplay scene as the initial role assignment. The FPS
