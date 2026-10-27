@@ -684,6 +684,19 @@ const deadline=async (f,label,timeout=18000)=>{
   },"swapped room both seats online",15000);
   assert.ok(swappedSeats.host.id!==swappedSeats.guest.id,
    "role swapped real Firebase room has two independent client IDs");
+  // The new team must own the correct camera BEFORE the first server battle
+  // snapshot, not just eventually after a lucky menu -> prep callback order.
+  const lobbyCameras=await Promise.all([host,guest].map(p=>p.evaluate(()=>({
+   camera:window.__shokokuQa.snapshot().camera,team:window.ShokokuNet.team,
+   phase:window.__shokokuQa.snapshot().phase
+  }))));
+  assert.equal(lobbyCameras[0].team,2);
+  assert.ok(lobbyCameras[0].camera.x>640,
+   "swapped red guest must face red deploy territory BEFORE start: "+JSON.stringify(lobbyCameras));
+  assert.equal(lobbyCameras[1].team,1);
+  assert.ok(lobbyCameras[1].camera.x<640,
+   "swapped blue host must face blue deploy territory BEFORE start: "+JSON.stringify(lobbyCameras));
+  console.log("ROLE SWAP LOBBY CAMERAS",JSON.stringify(lobbyCameras));
   await host.locator("#netReady").click();
   await guest.locator("#netReady").click();
   await deadline(async()=>await guest.locator("#netStart").isEnabled(),

@@ -3,6 +3,13 @@
 const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict");
 const read=p=>fs.readFileSync(p,"utf8");
 const net=read("online-net.js"),game=read("online-game.js");
+assert.ok(net.includes('room=db.ref(ROOT+"/"+code);\\n game?.resetForLobby?.();')===false,
+ "this assertion just guards against a literal escaped newline in the Firebase source");
+const roomSetup=net.slice(net.indexOf("function setupRoom(code,isHost){"),net.indexOf("async function create(){"));
+assert.ok(roomSetup.indexOf('team=isHost?1:2;')>=0&&
+ roomSetup.indexOf('game?.resetForLobby?.();')>roomSetup.indexOf('team=isHost?1:2;')&&
+ roomSetup.indexOf('game?.resetForLobby?.();')<roomSetup.indexOf('attach(room.child("players")'),
+ "joining a fresh room must reinitialize the correct seat camera before Firebase events");
 for(const p of ["v3.js","online-net.js","online-game.js","gald-render.js","v3-art.js"]){
  new vm.Script(read(p),{filename:p});
 }
