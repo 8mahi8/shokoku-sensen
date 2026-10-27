@@ -56,8 +56,11 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
    host.goto("http://127.0.0.1:8766/online.html?qa=1&perf=1"),
    guest.goto("http://127.0.0.1:8766/online-ipad.html?qa=1&perf=1")
   ]);
+  // Exercise production's low-FPS adaptive art mode, normally suppressed
+  // on localhost only to keep other graphical A/B tests comparable.
+  await guest.evaluate(()=>{window.__qaEnableCrowdedArtAdapt=true;});
   for(const p of [host,guest])
-   await wait(async()=>(await p.locator("#netStatus").innerText()).includes("接続OK"),"Firebase connected",35000);
+   await wait(async()=>>(await p.locator("#netStatus").innerText()).includes("接続OK"),"Firebase connected",35000);
   await host.locator("#netCreate").click();
   roomCode=await wait(async()=>{
    const c=(await host.locator("#netRoom").innerText()).trim();
@@ -100,6 +103,7 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
      maxGap:Math.round(p(gaps,1)),maxDraw:Math.round(p(draws,1)),
      maxFrameJs:Math.round(p(times,1)),
      maxNewCachedTiles:Math.max(0,...frames.map(x=>x.newCachedTiles||0)),
+     cacheTiles:window.__shokokuQa.spriteStats()?.tiles||0,
      gapOver250:gaps.filter(x=>x>=250).length,
      gapOver500:gaps.filter(x=>x>=500).length,
      gapOver1000:gaps.filter(x=>x>=1000).length,
@@ -196,6 +200,7 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
    guestWindowsOver1000ms:allSamples.filter(x=>x.guest.gapOver1000>0).length,
    guestMaxRenderWorkMs:Math.max(0,...allSamples.map(x=>x.guest.maxFrameJs)),
    guestMaxNewCachedTilesPerFrame:Math.max(0,...allSamples.map(x=>x.guest.maxNewCachedTiles)),
+   guestMaxCacheTilesSeen:Math.max(0,...allSamples.map(x=>x.guest.cacheTiles)),
    guestMaxSnapshotAgeMs:Math.max(0,...allSamples.map(x=>x.guest.applyAgeMs)),
    hostMaxPublishAgeMs:Math.max(0,...allSamples.map(x=>x.host.publishAgeMs)),
    hostMaxPublishRetries:Math.max(0,...allSamples.map(x=>x.host.publishRetries)),
@@ -224,6 +229,9 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
   assert.equal(pageErrors.length,0,"No JS uncaught errors");
   assert.ok(summary.guestMaxNewCachedTilesPerFrame<=2,
    "cache tiles must not be created more than twice per guest painting frame");
+  console.log("GUEST CACHE ADAPTATION",JSON.stringify({
+   maxTilesBuiltInFrame:summary.guestMaxNewCachedTilesPerFrame,
+   totalCachedTilesSeen:summary.guestMaxCacheTilesSeen}));
   console.log("PASS: full 300s real BOT-vs-BOT Firebase match with frame/network monitoring");
  }finally{
   for(const ctx of [hostContext,guestContext])if(ctx)await ctx.close().catch(()=>{});
