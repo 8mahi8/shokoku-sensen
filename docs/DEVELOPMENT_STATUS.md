@@ -365,3 +365,13 @@
 - [低FPS自動切替ONで実Firebase BOT 5分 #40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) **SUCCESS**。ゲストでは58ポーズの描画キャッシュが生成されたが、各フレームの新規タイル作成数は最大2。壁時計310.8秒・ゲーム内300秒で時間切れ決着、青45手/赤ゲスト32手、最多17兵士、JSエラー0、試験ルーム清掃成功。WebKitゲスト最大rAF間隔270ms、500ms以上0、JS描画最大34ms、SDK受信無応答最大219ms。初期のQA接続待ち構文ミスは修正済み。**新機能を現実のキャッシュ自動切替つき対戦で検証完了**。
 - ゲストフル録画約315秒から時間位置を分散させた静止画と戦闘シーンを直接目視し、確認した範囲で兵士の消失・画面崩壊を確認せず。ビデオはActionsのartifact ID 12728326226。
 - 最新実装の受入れ：smoke SUCCESS／WebKit cached art SUCCESS／同コードのiPad UI SUCCESS／WebKit HUD SUCCESS／ゲストラボ SUCCESS／実Firebase5分 SUCCESS。ただし**学校iPad Safari＋Google Sites埋込では今回版未試験**。既存Google Sites・main・Firebaseルール未変更。次工程は実機で旧安定版との体感比較、悪化すれば採用しない。[詳細](GUEST_CACHE_WARMUP_2026-10-27.md)。
+
+
+## 2026-10-27 続行分｜ゲストの手動タップ送信に視覚的な受付表示
+
+- **背景**：学校iPadでは大きなゲストフリーズはかなり改善したが、小さなカクつきと過去の「兵士をうまく出せない」の体感はまだある。原因は必ずしも回線だけでなく、正常送信後にホスト確定のスナップショットを待つ間の無反応表示も考慮。web.devのInteraction to Next Paintの早いフィードバック指針を参照。
+- **コードの変更**：[a10bf4ca](https://github.com/8mahi8/shokoku-sensen/commit/a10bf4cad89b5a548e7dac1fc707066b4dc26168) で、`NET.sendCommand` 成功直後にゲスト手動タップ座標へ小さなリング+「送信中」。[23e011db](https://github.com/8mahi8/shokoku-sensen/commit/23e011db6b8eb5e78d256d739291617ab4ef415f) でBOTを除外。[115733c4](https://github.com/8mahi8/shokoku-sensen/commit/115733c4daade064d82af60879e9b176f7155b77) で兵士と重ならない小さな文字台を付け視認性改善。650ms、最大4件、ロビー/再戦で消去、未送信・ホストのタップでは描かない。**送信中は「サーバーで召喚確定」ではない**。戦闘、Firebase通信、資源、AIは不変。学校版での効果は未測定。
+- **実ブラウザQA**：[WebKit/Chromiumゲストラボ #40494607883](https://github.com/8mahi8/shokoku-sensen/actions/runs/40494607883) **両環境SUCCESS**。ゲストiPad風画面のPointerEventで歩兵選択→x1150,y330タップ、ヒント描画、実Firebaseホストの正規歩兵uid2出現、ゲスト反映、650ms後表示消滅、ラウンド復帰まで確認。[最終smoke #40496620588](https://github.com/8mahi8/shokoku-sensen/actions/runs/40496620588) **SUCCESS**。改善後のラベルの実画像を確認する新QAは [#40496558862](https://github.com/8mahi8/shokoku-sensen/actions/runs/40496558862)。合格結果の確認まで未確定。
+- **以前の低FPS描画キャッシュ分散も保持**。実Firebase BOT戦 [#40494926691](https://github.com/8mahi8/shokoku-sensen/actions/runs/40494926691) はSUCCESS、ゲーム内147.3秒で決着、青18手赤13手、WebKitゲスト新タイル最大2枚、キャッシュ最大57枚、JSエラー0、Firebaseルーム清掃PASS。ゲスト描画間隔は最大512msを1回観測、**今回の入力表示は根本的なフレームカクつき改善とは別**。
+- **最新版の学校貼付候補はGoogle Driveへ保存済み**： [TXT](https://drive.google.com/file/d/18tAcUd-5pu3sc8vlCav1krNdgm6pbhLa/view?usp=drivesdk)／[HTML](https://drive.google.com/file/d/11WCZeSNQeDSqPvqxOMbcUlIFgMjjFQc5/view?usp=drivesdk)。各330,882バイト、GitHub `online-ipad.html` とblob SHA一致。元の学校Google Sites版、前の安定版、main、Firebaseルールは未変更。開発PR #22 Draftを継続。
+- **次の優先度**：実機で「ゲスト操作の送信可視化」が邪魔にならず伝わりやすいか評価。実際の通信ラグ/表示の500ms超カクつきについては引き続き別問題として数値・映像を取る。CIのWebKitを実機iPadと同じFPSと説明しない。[詳細](GUEST_INPUT_FEEDBACK_2026-10-27.md)。
