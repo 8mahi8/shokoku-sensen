@@ -252,3 +252,12 @@
 - **限界**：実際の試合中に500ms超の描画間隔が1件残る。SDK受信が止まっても常に1秒以内に表示更新する保証はない。ホスト側送信の一時停止、旧iPadの低FPS、Google Sites埋込iframeの負荷も残る。録画の主要場面を抽出し目視したが、実iPadで突発カクつき解消を保証しない。
 - 同SHAに対する [Online smoke #40354890270](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890270)、[WebKit HUD #40354890170](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890170)、[ブラウザ戦闘視覚 #40354890106](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890106)、[実Firebase 2ブラウザ #40354890228](https://github.com/8mahi8/shokoku-sensen/actions/runs/40354890228) はSUCCESS。キャラ絵QA #40354890060 とiPad UI #40354890119はジョブがcancelされたため、同SHAのジョブをそれぞれ再実行依頼済み（結果を確認するまで合格と書かない）。
 - 学校Sites用 `online-ipad.html`／`online-embed.html` は修正後 `online-net.js` を内包し、smokeの全文一致検証を通過。**学校Google Sites・main・Firebaseルールの変更なし**。開発PR #22はDraft。
+
+
+## 2026-10-27 再発防止：キャラ描画キャッシュ初回生成のフレームスパイク
+
+- [実装 b48081fb](https://github.com/8mahi8/shokoku-sensen/commit/b48081fb80b731fb1b0ff9e084b377be0d19014f) は、低FPS時のポーズタイル生成枚数を**毎フレーム最大2**へ分散し、キャッシュ待ちは通常のキャラ絵を描画する。既存のJS描画一般、CSS、HUD、RTDB送信間隔の実験とは別の**切替初回スパイク対策**。
+- [WebKitキャラ画像検証 #40488358769](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488358769) SUCCESS。10体の実ゲーム戦場で**新規2・2・2タイル／3フレーム**と分散、生成終了後10体は全員キャッシュ絵で表示。最初のフレームは7体、次は4体のキャラが通常のフルアートのままで欠落しない。72通りのキャッシュ絵で切れ・欠けなし、再戦で表示品質を初期状態へ戻す。
+- [smoke #40488504924](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488504924) SUCCESS。[通常BOT実Firebase #40488358990](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488358990) SUCCESS（ゲーム190.8秒、ゲストの最大rAF間隔278ms、0.5秒以上のフレーム停止0、JS例外なし、最大10体）。このBOT実戦はQAの仕様上、自動キャッシュ切替を無効にしていたので、タイル枚数上限の実戦根拠とは**扱わない**。
+- 本番同等のキャッシュ切替を有効化するBOT QA変更は [bed2b7d6](https://github.com/8mahi8/shokoku-sensen/commit/bed2b7d6691239d7ecef2b4e89e301287f8d652e)。最初のCIはQA文字列に `async()=>>` という構文誤りが入り起動前停止。ゲーム側の不具合ではない。修正版 [aee9710a](https://github.com/8mahi8/shokoku-sensen/commit/aee9710a2a3f474b847e30fb662d5fba5969a4cb) 後のrun [#40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) が対象。
+- **性能主張の境界**：異なる試合のmax rAF gap比較から改善率は推定しない。headless WebKitのrAFはiPad Safari実機のFPSではない。Canvas内JS処理で説明不能な長いギャップも残り、単発フレームスパイク以外のカクつきに対して根治は未証明。学校Google Sites版を上書きせず安定版を温存。

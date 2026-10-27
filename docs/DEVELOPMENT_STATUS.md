@@ -348,3 +348,13 @@
   - [同一コードのHTML試遊候補](https://drive.google.com/file/d/1diljznUmp5-hNv6H295QjajQGmIfOBB8/view?usp=drivesdk)（328,328 bytes、text/html）
   - 保存先は `Google Drive/学校ゲーム/小国戦線III`、旧安定版を**上書きせず**別名で保存。
 - **公開判断**：CIは合格したが、学校iPadにとって30FPS安全モードの自動復帰が本当に効果的かは**実機試遊待ち**。Google Sitesに今回版を勝手に貼り替えない。既存Google Sites版、main、Firebase設定は変更なし。次は本人が希望する場合に学校Google Sitesの別テストページに上記TXTのHTML全文を貼り、ホスト/ゲスト交代で体感比較。
+
+
+## 2026-10-27 続き｜ゲスト低FPS時の画像キャッシュ生成をフレーム分散
+
+- **根拠・方針**：本人の学校iPad評価では大きな停止はかなり改善した一方、時々少しカクつく。現行コードの`renderCrowdedUnit`は低FPS自動切替時に新規の姿勢タイルを同一フレーム内で多数作成する可能性があり、切替直後の負荷に着目。Canvas/HUD/CSSの過去実験は繰り返さない。[詳細調査とWebKit証拠](GUEST_CACHE_WARMUP_2026-10-27.md)。
+- **実装**：[commit b48081fb](https://github.com/8mahi8/shokoku-sensen/commit/b48081fb80b731fb1b0ff9e084b377be0d19014f) により、1フレームの新規キャラ姿勢タイルを**最大2枚**に限定。既存キャッシュは無制限に再利用し、不足時は従来のフルアートを描画。キャッシュができるまで兵士を消さない。二重のゲスト位置補間も避ける。ゲーム本体／単体HTML2種／ゲストラボを同期済み。戦闘、Firebase、資源、召喚、UI配置は変更なし。
+- **テスト**：[WebKitでのキャラ画像実描画 #40488358769](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488358769) SUCCESS。72キャラ絵バリエーションの枠外欠損なし。実10体対戦で必要な6ポーズを**2枚→2枚→2枚**と3フレームに分散し、生成待ちの兵士もフルアート表示を続けた。 [smoke #40488504924](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488504924) SUCCESS。
+- **実Firebase基本回帰**：[実BOT対BOT #40488358990](https://github.com/8mahi8/shokoku-sensen/actions/runs/40488358990) SUCCESS（試合内190.8秒で首都破壊、青20・赤18手、最多10体、JS例外なし、テストルーム削除確認、ゲストフレーム最大278ms）。ただし従来のlocalhost QAフラグにより、**自動キャッシュ切替がこの試合では無効**で、新タイル0枚。通常戦闘の保全確認であり新キャッシュ実戦の合格ではない。
+- **新規検査の設定**：[test bed2b7d6](https://github.com/8mahi8/shokoku-sensen/commit/bed2b7d6691239d7ecef2b4e89e301287f8d652e) にて長時間BOTのWebKitゲストだけ、本番と同じ低FPSキャッシュ自動切替を有効化し、生成タイル上限・総数を計測。初回run #40489289033 はテスト用接続確認の`async()=>`に`>`が1個重なる**テスト構文ミスで起動前に失敗**。 [commit aee9710a](https://github.com/8mahi8/shokoku-sensen/commit/aee9710a2a3f474b847e30fb662d5fba5969a4cb) で修正し、ブラウザテストの構文チェックを追加実施。最新実戦 [#40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) の完了結果は別途確認する。
+- **公開**：開発PR #22はDraft。既存Google Sites版、main、Firebaseルール、先にDriveへ保存した安定版は未変更。次は学校iPadで残る時々のカクつきについて、新旧試遊比較と一時的なキャッシュ切替の確認。実機性能改善率は未測定。
