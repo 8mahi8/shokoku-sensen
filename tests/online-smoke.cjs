@@ -350,27 +350,65 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  const cardStart=game.indexOf("function playCard(team,id,x,y){");
  const cardEnd=game.indexOf("\nfunction shieldMultiplier(",cardStart);
  assert.ok(cardStart>0&&cardEnd>cardStart);
- let dispatched=[],rebuild=0,selectedRefresh=0,hud=0,allowSend=true;
+ let dispatched=[],hints=[],rebuild=0,selectedRefresh=0,hud=0,allowSend=true;
  const gameState={selected:"scout"};
  const netStubs={isHost:false,sendCommand(c){if(!allowSend)return false;dispatched.push(c);return true}};
  const play=new Function("NET","ME","S","validTarget","canPay","buildCards","refreshSelectedCardClasses","updateHUD",
-  "isSpell","castSpell","deploy","CATALOG","duelStats",
+  "isSpell","castSpell","deploy","CATALOG","duelStats","queueGuestCommandHint",
   game.slice(cardStart,cardEnd)+";return playCard;")(
   netStubs,()=>2,gameState,()=>true,()=>true,
   ()=>rebuild++,()=>selectedRefresh++,()=>hud++,()=>false,()=>false,()=>false,
-  {scout:{cost:3},infantry:{cost:2}},null);
+  {scout:{cost:3},infantry:{cost:2}},null,(x,y)=>hints.push({x,y}));
  assert.equal(play(2,"scout",900,300),true);
  assert.equal(gameState.selected,null,"RED clears nonpermanent card immediately");
  assert.deepEqual(dispatched,[{id:"scout",x:900,y:300}]);
+  assert.deepEqual(hints,[{x:900,y:300}],"successful queued guest order receives local feedback");
  assert.equal(rebuild,0);assert.equal(selectedRefresh,1);assert.equal(hud,1);
  gameState.selected="infantry";
  assert.equal(play(2,"infantry",900,300),true);
  assert.equal(gameState.selected,"infantry","permanent infantry remains selected");
+  assert.equal(hints.length,2,"infantry queued order also gets immediate feedback");
  allowSend=false;gameState.selected="scout";
  assert.equal(play(2,"scout",900,300),false);
  assert.equal(gameState.selected,"scout","offline command does not pretend success");
+  assert.equal(hints.length,2,"failed transport must not show a queued-command hint");
 
- assert.ok(game.includes('S.hand[ME()].includes(oldSelected)&&S.left[ME()][oldSelected]>0'),
+ // Pure rendering contract: guest-only, visual-only, transient, and bounded.
+// A queued marker must not claim host confirmation or touch game state.
+const hintStart=game.indexOf("function queueGuestCommandHint(");
+const hintEnd=game.indexOf("\nfunction drawPreview(){",hintStart);
+assert.ok(hintStart>0&&hintEnd>hintStart,"guest command hint renderer exists");
+let drawTime=1000,labels=[],paintArcs=0;
+const guestRole={isHost:false},hintState={phase:"battle"};
+const ctxMock={globalAlpha:1,save(){},restore(){},beginPath(){},arc(){paintArcs++;},
+ stroke(){},fillText(value){labels.push(value)}};
+const hintsQa=new Function("NET","S","performance","ctx","Math",
+ "const GUEST_COMMAND_HINT_MS=650;let guestCommandHints=[],lastGuestHintPainted=0;\n"+
+ game.slice(hintStart,hintEnd)+
+ "\nreturn {queue:queueGuestCommandHint,draw:drawGuestCommandHints,read:()=>({items:guestCommandHints.slice(),painted:lastGuestHintPainted})};")(
+ guestRole,hintState,{now:()=>drawTime},ctxMock,Math);
+hintsQa.queue(1100,320);
+drawTime=1016;hintsQa.draw(drawTime);
+assert.equal(hintsQa.read().painted,1,"queued guest tap paints on next available frame");
+assert.deepEqual(labels,["送信中"],"display explicitly says in transit, not successful summon");
+assert.ok(paintArcs>0,"visual cue draws on canvas without a DOM rebuild");
+drawTime=1700;hintsQa.draw(drawTime);
+assert.equal(hintsQa.read().items.length,0,"queued visual cue expires in 650ms");
+for(let i=0;i<9;i++)hintsQa.queue(1070+i,315);
+assert.equal(hintsQa.read().items.length,4,"rapid guest taps cannot accumulate unbounded markers");
+guestRole.isHost=true;hintsQa.draw(drawTime);
+assert.equal(hintsQa.read().items.length,0,"host never keeps guest-only hints");
+hintsQa.queue(1150,310);
+assert.equal(hintsQa.read().items.length,0,"host never enqueues a guest marker");
+guestRole.isHost=false;hintState.phase="menu";hintsQa.queue(1150,310);
+hintsQa.draw(drawTime);
+assert.equal(hintsQa.read().items.length,0,"lobby and rematch remove pending visual hints");
+assert.ok(game.includes("guestCommandHints=[];lastGuestHintPainted=0;"),
+ "new round resets local queued markers");
+assert.ok(game.includes("drawGuestCommandHints(now);drawPreview()"),
+ "marker renders in battlefield space before regular tap preview");
+
+assert.ok(game.includes('S.hand[ME()].includes(oldSelected)&&S.left[ME()][oldSelected]>0'),
   "old card selection must be removed after host hand rotation");
  assert.ok(net.includes('get canSendCommand(){return !host&&!!room&&phase==="playing"&&connected'),
   "offline/invalid guest must not queue commands");
