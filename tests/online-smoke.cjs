@@ -1060,4 +1060,55 @@ return (time,appliedAt,sdkAt)=>{
  console.log("PASS: BOT-vs-BOT QA mirrors blue expert without changing normal gameplay");
 }
 
+
+{
+ const start=game.indexOf("function updateFortNavigation(){");
+ const stop=game.indexOf("\n// Avoid invalidating the entire card footer",start);
+ assert.ok(start>=0&&stop>start,"fort navigation code is extractable");
+ let mutations=0;
+ const classes=()=>{const entries=new Set();return {
+  contains:k=>entries.has(k),
+  toggle:(k,on)=>{mutations++;if(on)entries.add(k);else entries.delete(k)}
+ }};
+ const nodes=[0,1,2].map(()=>({
+  classList:classes(),attrs:{},state:{textContent:""}, 
+  querySelector(q){assert.equal(q,".fortState");return this.state},
+  getAttribute(k){return this.attrs[k]??null},
+  setAttribute(k,v){mutations++;this.attrs[k]=v}
+ }));
+ const nav={_hidden:true,querySelectorAll:()=>nodes,
+  get hidden(){return this._hidden},
+  set hidden(v){mutations++;this._hidden=v}};
+ const summary={_text:"",get textContent(){return this._text},
+  set textContent(v){mutations++;this._text=v}};
+ for(const node of nodes){
+  let value="";
+  node.state={get textContent(){return value},
+   set textContent(v){mutations++;value=v}};
+ }
+ const el=id=>id==="fortNav"?nav:id==="fortSummary"?summary:null;
+ const S={phase:"battle",forts:[{x:100,y:300,owner:1},{x:600,y:300,owner:0},{x:1100,y:300,owner:2}],units:[]};
+ const putHudFlag=(node,key,on)=>{if(node.classList.contains(key)!==on)node.classList.toggle(key,on)};
+ const update=new Function("$","S","putHudFlag",game.slice(start,stop)+"\nreturn updateFortNavigation;")(el,S,putHudFlag);
+ update();assert.equal(nav.hidden,false);assert.equal(summary.textContent,"基地 青1・赤1");
+ mutations=0;for(let i=0;i<20;i++)update();
+ assert.equal(mutations,0,"unchanged forts must cause zero DOM mutations");
+ S.units.push({hp:100,team:1,x:600,y:300},{hp:100,team:2,x:600,y:300});
+ update();assert.ok(nodes[1].classList.contains("contested"));
+ assert.equal(nodes[1].state.textContent,"争奪");
+ mutations=0;for(let i=0;i<20;i++)update();
+ assert.equal(mutations,0,"contested state must also remain DOM-stable");
+ S.forts[1].owner=2;S.units.pop();update();
+ assert.ok(nodes[1].classList.contains("owner-red"));
+ assert.ok(nodes[1].classList.contains("under-pressure"));
+ assert.equal(nodes[1].state.textContent,"警戒");
+ S.phase="menu";mutations=0;update();assert.equal(nav.hidden,true);
+ assert.equal(mutations,1,"hiding the fort nav changes only visibility");
+ mutations=0;update();assert.equal(mutations,0,"hidden menu HUD remains stable");
+ S.phase="battle";update();assert.equal(nav.hidden,false);
+ assert.ok(game.includes('putHudFlag($("announcement"),"visible",false);'),
+  "expired announcement must also avoid repeated class mutations");
+ console.log("PASS: fort navigation preserves battle, contested, warning, and hidden states without no-op DOM writes");
+}
+
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");

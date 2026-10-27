@@ -4160,8 +4160,10 @@ function closeGallery(){
 // Read-only objective overview; color matches the fixed blue/red HUD sides.
 function updateFortNavigation(){
  const nav=$("fortNav");
- nav.hidden=!(S.phase==="battle"||S.phase==="prep");
- if(nav.hidden||S.forts.length!==3)return;
+ const hide=!(S.phase==="battle"||S.phase==="prep");
+ // Avoid touching layout state on every 120ms HUD refresh when it is unchanged.
+ if(nav.hidden!==hide)nav.hidden=hide;
+ if(hide||S.forts.length!==3)return;
  let blue=0,red=0;
  const buttons=nav.querySelectorAll("button[data-fort]");
  for(let i=0;i<3;i++){
@@ -4174,10 +4176,12 @@ function updateFortNavigation(){
   const advancing=(fort.owner!==1&&blueNear)||(fort.owner!==2&&redNear);
   const owner=fort.owner===1?"青軍":fort.owner===2?"赤軍":"中立";
   const state=contested?"争奪":threatened?"警戒":advancing?"攻略":owner;
-  button.classList.toggle("owner-blue",fort.owner===1);
-  button.classList.toggle("owner-red",fort.owner===2);
-  button.classList.toggle("contested",contested);
-  button.classList.toggle("under-pressure",threatened);
+  // Skip no-op class mutations; Safari may still invalidate styles when
+  // classList.toggle(force) is invoked on every steady-state HUD refresh.
+  putHudFlag(button,"owner-blue",fort.owner===1);
+  putHudFlag(button,"owner-red",fort.owner===2);
+  putHudFlag(button,"contested",contested);
+  putHudFlag(button,"under-pressure",threatened);
   const label=button.querySelector(".fortState");
   if(label.textContent!==state)label.textContent=state;
   const description="第"+(i+1)+"前哨基地 "+owner+(contested?"、争奪中":threatened?"、敵接近":advancing?"、攻略中":"")+"。タップで確認";
@@ -4262,7 +4266,7 @@ function updateHUD(){
   putHudFlag(b,"depleted",S.left[ME()][id]<=0);
   putHudFlag(b,"selected",S.selected===id);
  }
- if(performance.now()>S.noticeUntil)$("announcement").classList.remove("visible");
+ if(performance.now()>S.noticeUntil)putHudFlag($("announcement"),"visible",false);
 }
 function cardDown(e,id){
  if(NET.guestBot){notice("BOT操作中。右上で手動に戻せます");return;}
