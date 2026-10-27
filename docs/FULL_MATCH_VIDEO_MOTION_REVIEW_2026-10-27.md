@@ -25,3 +25,14 @@
 - 録画ありのcancelledでは最後に`ROLE SWAP GUEST RED TAP`まで記録し、その後10分以上詳細ログがなくキャンセル。実ゲームがクラッシュした証拠はないがテストの無応答が残る。テスト側の**Firebase REST診断GET/ブラウザ状態読み出しを最大7秒に制限し**、`ROLE SWAP WAIT RED PUBLISH`と成功ログを追加。再実行結果を確認するまで解消とは判断しない。
 - 次の学校iPadで確認したいのは、同じHTMLを両iPadに貼った条件で「ゲストだけの瞬間的フリーズ」「タイトル3回タップのFPS／180ms以上カクつき時のSDK受信時刻」を比較すること。ただし本人へ不要な大量操作やデータ収集を求めず、普段どおり遊ぶ中で気になった場合だけ。
 - 新たな研究ログのFirestore/RTDB/Google Driveへの保存はしない。Google Sites本番、`main`、Firebase rulesには変更なし。
+
+## 追記｜録画ありを含む固定端末ロール交代3条件、実Firebaseですべて成功
+
+[GitHub Actions #40527496485](https://github.com/8mahi8/shokoku-sensen/actions/runs/40527496485) は**3ジョブともSUCCESS**。該当コードはゲーム [113e726](https://github.com/8mahi8/shokoku-sensen/commit/113e72683e95fefccb6d068d925e33995f4c1271)、無応答対策はテスト専用 [4a09dee](https://github.com/8mahi8/shokoku-sensen/commit/4a09dee2487ceef6a5cba4dab1d62506086296ad)。
+
+- `browser-live (yes,no)`：Chromiumホスト／WebKitゲストの**録画あり**が、赤軍手動タップ→新ホストRTDB seq6/赤軍2体→14体シーン→ゲスト反映まで完走。旧録画ありジョブの10分超無応答は今回の実行では再発せず。
+- `browser-live (no,no)`：同じブラウザ役割交換の**録画なし**も完走。
+- `browser-live (no,yes)`：WebKitホスト/WebKitゲストの**同一WebKit条件**も完走。入替後、旧ホスト→赤ゲスト7.4FPS、旧ゲスト→青ホスト7.0FPS（録画なし、Linux headless。学校Safari性能ではない）。
+- **全ジョブで**7ラウンド・6再戦・Firebase切断回復・BOTルーム・固定端末ロール入替・合法座標の赤軍手動召喚・新ホスト受理・部隊14体の描画と同期がPASS、使い捨てFirebase3ルームの削除確認も3/3。カクつきの実機根治を示すものではない。
+
+今回の成功は**テスト専用通信GETの期限設定とエラー時診断改善が実行を妨げないこと**を確認したもの。以前のキャンセルを「ゲームの不具合が完全に直った」とは呼ばない。学校で動いているGoogle Sites版・GitHub main・Firebase本番設定・Google Drive保存ファイルはいずれも変更なし。
