@@ -45,3 +45,14 @@
 ## ルールと今後
 - 学校のGoogle Sites公開版、`main`、Firebase RTDBルール、配布済みDriveファイルを変更しない。PR #22はDraft。
 - 次は実Firebase通し結果とゲスト録画でフレーム間隔・残り時間表示・兵士動作の変化を評価。最終的には本人が新コードをGoogle Sitesの**別テストページ**に貼り、学校iPad同士でホスト/ゲストを交代して評価。体感が悪化したら前版へ戻せるようにコミットを保持する。
+
+
+## 完了した実Firebase通し試験・録画レビュー（2026-10-27）
+
+- [実Firebase BOT vs BOT #40452985770](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985770) **SUCCESS**。Chromiumホスト、iPad相当のWebKitゲストが実際のBOTを動かして**試合時間300秒の時間切れ判定まで完走**、壁時計311.1秒。青BOT **51回**、赤ゲストBOT **32回**の有効な行動、同時最多22ユニット、JavaScript例外0件。実Firebase一時ルームの `CLEANUP confirmed` をジョブログで確認。
+- **通信側は今回特に安定**：WebKitゲストの受信イベント無応答最大414ms、5秒サンプルの戦況反映からの経過最大374ms、状態シリアル2286まで進行。長い受信停止によるREST照合は**0件**（回復機能が不要だった試合）。ホスト最終送信の経過最大315ms、送信リトライ0回。
+- **描画にはまだ残課題**：ゲスト最大フレーム間隔**686msが1回**（1000ms以上0）、ゲストJS描画処理最大36ms、ホスト最大フレーム間隔67ms。長い受信停止がない試合でも、ゲストWebKitの描画スケジューリングで単発のカクつきが起こりうる。
+- **録画確認**：GitHub Actions artifact `online-bot-vs-bot-real-match` の両視点フル動画を取得。ゲスト動画を20秒刻みの接触シートと19〜26秒付近の4FPS抽出で直接目視した。試合が進行し、ユニット移動・交戦・カード・残り時間が変化している。ひとつの静止画や粗いサンプリングだけで全秒間の滑らかさを保証しない。
+- [Online browser-live #40452985732](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985732) **SUCCESS**：実Firebaseの2ブラウザ対戦・回復/再戦経路。[Online battle visual #40452985821](https://github.com/8mahi8/shokoku-sensen/actions/runs/40452985821) **SUCCESS**：ビジュアル画面QA。
+- **比較の留保**：旧run #40354890152 は最大517ms、今回最大686msだが、旧試合は最高11体・試合内251秒、今回は最高22体・300秒と環境が異なるため、この数値だけで今回の修正が速く/遅くしたと判定しない。実際の学校iPadで「大きな停止は改善・小さなカクつきあり」という評価に対する、次候補の**実機の滑らかさ改善効果はまだ未検証**。
+- Google Sites用試遊候補HTMLのバイト列は [smoke #40453050856](https://github.com/8mahi8/shokoku-sensen/actions/runs/40453050856) の成果物から抽出して、Git blob SHA `0678eee311ff9f7260baec97e876b5669a21f40f` と一致を確認。旧安定版とは**別ファイル**として保管。Google Sites公開版・main・Firebase設定は変更なし。
