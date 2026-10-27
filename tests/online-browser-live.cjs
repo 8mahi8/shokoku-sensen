@@ -43,7 +43,8 @@ const deadline=async (f,label,timeout=18000)=>{
  throw Error("Timed out "+label+" "+(error?.message||""));
 };
 (async()=>{
- let browser,guestBrowser,hostCtx,guestCtx,code="",botCode="",pages=[];
+ let browser,guestBrowser,hostCtx,guestCtx,code="",botCode="",swapCode="",pages=[];
+ let standardBeforeSwap=null;
  try{
   await new Promise(r=>server.listen(8765,"127.0.0.1",r));
   browser=qaMatchedWebkit?await webkit.launch({headless:true}):
@@ -436,6 +437,10 @@ const deadline=async (f,label,timeout=18000)=>{
    assert.equal(hostLater.frameError,null,"Chromium host should not throw during "+scenario);
    assert.ok(hostLater.frameSamples>=5,"Chromium host must paint multiple frames after "+scenario);
    assert.equal(hostLater.phase,"battle","Chromium host must remain in battle during "+scenario);
+   if(scenario==="standard")standardBeforeSwap={
+    originalHost:{fps:hostLater.observedFps,gapP95Ms:hostLater.gapP95Ms,units:hostLater.count},
+    originalGuest:{fps:later.observedFps,gapP95Ms:later.gapP95Ms,units:later.count}
+   };
    console.log("REAL FIREBASE HOST GUEST PAIR",JSON.stringify({
     scenario,recordVideo:qaRecordVideo,
     host:{browser:qaMatchedWebkit?"WebKit":"Chromium",role:"host",units:hostLater.count,frames:hostLater.frameSamples,
@@ -629,6 +634,112 @@ const deadline=async (f,label,timeout=18000)=>{
    return seat===null||seat.online===false;
   },"owned BOT seat marked offline on host exit",9000);
   console.log("LIVE HOST BOT EXIT",JSON.stringify({code:botCode,guestSeatOffline:true}));
+  // Fixed-device role inversion: the old red guest creates a new room as
+  // blue host, and the old blue host joins as red guest. This verifies the
+  // *same browser pages* survive leaving/rejoining with changed roles, not
+  // merely matching two different browsers with their original role.
+  // A third disposable Firebase room is deleted in finally. Never touch a
+  // real player's match or change any game protocol/security rules.
+  console.log("LIVE ROLE SWAP START",JSON.stringify({recordVideo:qaRecordVideo,matchedWebkit:qaMatchedWebkit}));
+  await guest.locator("#netCreate").click();
+  swapCode=await deadline(async()=>{
+   const number=(await guest.locator("#netRoom").innerText()).trim();
+   return /^[0-9]{5}$/.test(number)?number:null;
+  },"old guest creates new room as blue host",17000);
+  await host.locator("#netJoinCode").fill(swapCode);
+  await host.locator("#netJoin").click();
+  await deadline(async()=>{
+   const roomNumber=(await host.locator("#netRoom").innerText()).trim();
+   const roles=await Promise.all([host,guest].map(p=>p.evaluate(()=>({
+    isHost:window.ShokokuNet.isHost,team:window.ShokokuNet.team,
+    canSend:window.ShokokuNet.canSendCommand
+   }))));
+   return roomNumber===swapCode&&!roles[0].isHost&&roles[0].team===2&&
+    roles[1].isHost&&roles[1].team===1;
+  },"same-device role swap and join",20000);
+  const swappedSeats=await deadline(async()=>{
+   const response=await fetch(urlDB+"/"+swapCode+"/players.json");
+   const seats=response.ok?await response.json():null;
+   return seats?.host?.online&&seats?.guest?.online?seats:null;
+  },"swapped room both seats online",15000);
+  assert.ok(swappedSeats.host.id!==swappedSeats.guest.id,
+   "role swapped real Firebase room has two independent client IDs");
+  await host.locator("#netReady").click();
+  await guest.locator("#netReady").click();
+  await deadline(async()=>await guest.locator("#netStart").isEnabled(),
+   "swapped host sees both players ready",17000);
+  await guest.locator("#netStart").click();
+  for(const [name,page] of [["swapped blue host",guest],["swapped red guest",host]]){
+   await deadline(async()=>page.locator("#overlay").evaluate(e=>e.classList.contains("hidden")),
+    name+" enters gameplay",25000);
+  }
+  // Manual red input must cross Firebase to the new host, and come back
+  // through that same page's WebKit/Chromium receiver after roles invert.
+  assert.equal(await host.evaluate(()=>window.ShokokuNet.canSendCommand),true,
+   "old host must now be an active remote-command guest");
+  await summon(host,2);
+  const roleStateURL=urlDB+"/"+swapCode+"/state.json";
+  const roleWorld=async()=>{
+   const response=await fetch(roleStateURL);return response.ok?response.json():null;
+  };
+  const redPublished=await deadline(async()=>{
+   const packet=await roleWorld();
+   return packet?.world?.units?.some(u=>u.team===2)?packet:null;
+  },"swapped red manual summon published by new host",23000);
+  await deadline(async()=>await host.evaluate(()=>window.__onlineSeq||0)>=redPublished.seq,
+   "swapped red guest receives its own host-confirmed summon",21000);
+  // Same 14-unit gameplay scene as the initial role assignment. The FPS
+  // comparison is informational, NOT an assertion about headless WebKit FPS.
+  const swapSeed=await guest.evaluate(()=>window.__shokokuQa.seedRealisticBattle("standard"));
+  assert.ok(swapSeed&&swapSeed.units===14&&swapSeed.actions.every(a=>a.ok),
+   "swapped host seeds actual legal-card standard battle");
+  const swapSeededState=await deadline(async()=>{
+   const packet=await roleWorld();
+   return packet?.world?.phase==="battle"&&packet.world.units?.length===14?packet:null;
+  },"role-swapped standard battle reaches RTDB",20000);
+  await deadline(async()=>await host.evaluate(()=>window.__onlineSeq||0)>=swapSeededState.seq,
+   "swapped remote client applies standard battle snapshot",23000);
+  await Promise.all([host,guest].map(page=>page.evaluate(()=>{
+   window.__shokokuQa.resetFrameBench();window.__qaPairStartedAt=performance.now();
+  })));
+  await delay(1900);
+  const readRoleWindow=()=>{
+   const frames=window.__shokokuQa.frameBench().filter(x=>x.phase==="battle");
+   const sorted=frames.map(x=>x.gapMs).filter(Number.isFinite).sort((a,b)=>a-b);
+   const elapsedMs=performance.now()-window.__qaPairStartedAt;
+   return {isHost:window.ShokokuNet.isHost,team:window.ShokokuNet.team,
+    phase:window.__shokokuQa.snapshot().phase,
+    seq:window.ShokokuNet.syncDiagnostics().seq,
+    units:window.__shokokuQa.snapshot().units.length,
+    frames:frames.length,fps:Math.round(frames.length*1000/Math.max(1,elapsedMs)*10)/10,
+    gapP95Ms:Math.round((sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.95))]||0)*10)/10,
+    frameError:window.__onlineFrameError||null};
+  };
+  const [oldHostNowGuest,oldGuestNowHost]=await Promise.all([
+   host.evaluate(readRoleWindow),guest.evaluate(readRoleWindow)
+  ]);
+  assert.equal(oldHostNowGuest.isHost,false,"former host must paint as guest");
+  assert.equal(oldGuestNowHost.isHost,true,"former guest must simulate as host");
+  assert.equal(oldHostNowGuest.team,2);assert.equal(oldGuestNowHost.team,1);
+  assert.equal(oldHostNowGuest.frameError,null);
+  assert.equal(oldGuestNowHost.frameError,null);
+  assert.ok(oldHostNowGuest.frames>=4&&oldGuestNowHost.frames>=4,
+   "both roles paint several frames after swapping browser roles");
+  assert.ok(oldHostNowGuest.seq>=swapSeededState.seq,
+   "role-swapped guest continues applying Firebase updates");
+  assert.equal(oldHostNowGuest.phase,"battle");
+  console.log("REAL FIREBASE FIXED-DEVICE ROLE CROSSOVER",JSON.stringify({
+   matchedWebkit:qaMatchedWebkit,recordVideo:qaRecordVideo,
+   standardBeforeSwap,oldHostNowGuest,oldGuestNowHost,
+   manualGuestCommandReceived:true,scenario:"standard"
+  }));
+  // Leave both sides so no old-host/old-guest role can leak into a later room.
+  await host.locator("#newRoom").click();
+  await guest.locator("#newRoom").click();
+  for(const page of [host,guest])await deadline(async()=>
+   (await page.locator("#netRoom").innerText()).trim()==="-----"&&
+   await page.locator("#netCreate").isEnabled(),
+   "role swapped clients return to room picker",8000);
   console.log("PASS: "+(qaMatchedWebkit?"WebKit host + WebKit guest":"Chromium host + WebKit guest")+
    " real Firebase 1v1, no research logging, recovery, rematches and new room "+code);
  }finally{
@@ -637,7 +748,7 @@ const deadline=async (f,label,timeout=18000)=>{
   if(guestCtx)try{await guestCtx.close()}catch{}
   if(browser)try{await browser.close()}catch{}
   if(guestBrowser)try{await guestBrowser.close()}catch{}
-  for(const tempCode of [code,botCode].filter(Boolean)){
+  for(const tempCode of [code,botCode,swapCode].filter(Boolean)){
    // Let onDisconnect presence operations finish before removing our own room.
    await delay(750);
    const u=urlDB+"/"+tempCode+".json";
