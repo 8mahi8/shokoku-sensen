@@ -13,6 +13,11 @@ on:
 jobs:
   ui:
     runs-on: ubuntu-24.04
+    # Playwright 1.56.1 browsers + Ubuntu dependencies already installed.
+    # Avoid the apt mirror download stalls seen in earlier WebKit/UI jobs.
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
     permissions:
       contents: read
     timeout-minutes: 10
@@ -22,7 +27,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
-      - run: npx playwright install --with-deps chromium
+      # Browser/dependencies supplied by the version-pinned container.
       - run: node tests/online-ipad-ui.cjs
       - run: node tests/online-offline-bot.cjs
       - uses: actions/upload-artifact@v4
