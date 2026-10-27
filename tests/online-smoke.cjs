@@ -166,6 +166,27 @@ const aged=animate(nextSnapshot);
 assert.ok(Number.isFinite(aged.walkPhase),"stalled visual gait stays finite");
 assert.ok(aged.walkPhase-afterPacket.walkPhase<=16*.31+1e-9,
  "gait progress per painted frame stays bounded after a long hitch");
+// Reproduce irregular 170-240ms network snapshots on a walking troop.
+let jitterNow=1000;
+const stJitter={remoteSprites:new Map([[7,{
+ x:100,y:25,targetX:100,targetY:25,vx:40,vy:0,updatedAt:1000,lastFrame:1000
+}]])};
+const presentJitter=new Function("NET","S","performance","Math",
+ presentSource+";return presentRemoteUnit")(
+ {isHost:false},stJitter,{now:()=>jitterNow},Math);
+const walker={uid:7,x:100,y:25,walkPhase:0,walking:true,attackAnim:0,flash:0};
+jitterNow=1170;presentJitter(walker);
+jitterNow=1200;const midJitter=presentJitter(walker);
+jitterNow=1220;const laterJitter=presentJitter(walker);
+assert.ok(laterJitter.x>midJitter.x+.02,
+ "guest moving troops keep motion when packet jitter exceeds 170ms");
+for(let i=0;i<60;i++){jitterNow+=16;presentJitter(walker);}
+assert.ok(stJitter.remoteSprites.get(7).x<=100+40*.24+1e-5,
+ "guest speculative walk position never exceeds 240ms of last velocity");
+const visualBeforeStop=stJitter.remoteSprites.get(7).x;
+jitterNow+=16;
+assert.ok(presentJitter({...walker,walking:false}).x<visualBeforeStop,
+ "authoritative stop cancels extrapolation");
 const stopped=animate({...nextSnapshot,walking:false});
 assert.equal(stopped.walkPhase,aged.walkPhase,"stopped unit keeps last visual stance");
 netStub.isHost=true;
@@ -712,6 +733,26 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
  qa.reset();
  assert.equal(calls.length,1,
   "initial 1px canvas startup must not trigger premature resizing");
+ // Exercise the real adaptive FPS governor with deterministic rAF timing.
+ const governorStart=game.indexOf("function adaptCanvasQuality(now){");
+ const governorEnd=game.indexOf("\nfunction fit(){",governorStart);
+ assert.ok(governorStart>0&&governorEnd>governorStart,
+  "adaptive FPS governor is present");
+ const makeGovernor=new Function("S","NET","document","fit",
+  game.slice(start,governorEnd)+
+  "\nreturn {tick:adaptCanvasQuality,quality:()=>({guestLowPower,guestQualityRecoveredAt})};");
+ const governor=makeGovernor({phase:"battle",view:{dpr:1,w:1100,h:700}},
+  {isHost:false},{hidden:false},()=>{});
+ for(let i=0;i<=135;i++)governor.tick(1000+i*29);
+ assert.equal(governor.quality().guestLowPower,true,
+  "34FPS initially triggers existing 30FPS guest safety fallback");
+ for(let i=0;i<=570;i++)governor.tick(5000+i*16.67);
+ assert.equal(governor.quality().guestLowPower,false,
+  "8.5s of recovered >=55FPS restores native render cadence");
+ assert.ok(governor.quality().guestQualityRecoveredAt>0);
+ for(let i=0;i<=190;i++)governor.tick(15200+i*27);
+ assert.equal(governor.quality().guestLowPower,false,
+  "20s hysteresis prevents immediate render quality oscillation");
  assert.ok(game.includes("resetAdaptiveCanvasForMatch();"),
   "actual resetWorld() must reset DPR quality and guest frame limiter");
  assert.ok(game.includes("if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;"),
