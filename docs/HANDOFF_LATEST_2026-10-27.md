@@ -6,7 +6,7 @@
 - Repository: https://github.com/8mahi8/shokoku-sensen
 - Development branch: `perf/online-guest-snapshot-diagnostics-20261020`
 - Draft PR #22: https://github.com/8mahi8/shokoku-sensen/pull/22
-- **この資料の執筆時HEAD: `cadad05680b8f7bc2c0254ea79db41e3476e8151`。次の作業前にHEAD/CIを再読込すること。**
+- **この資料の最終追記時ゲームコード: `c2ac17f63882d5a078d6781f3515cdcdc37a83e1`、QA修正: `e0883804c6502b802b466c28fab545731c5252d4`。次作業前にHEAD/CIを再読込すること。**
 - 進行台帳: [DEVELOPMENT_STATUS.md](DEVELOPMENT_STATUS.md)
 - 重複実験防止: [PERFORMANCE_EVIDENCE.md](PERFORMANCE_EVIDENCE.md)
 - 学校向け貼付手順: [ONLINE_1V1.md](ONLINE_1V1.md)
@@ -22,6 +22,17 @@
 4. Google Sites用 `online-ipad.html` と `online-embed.html`、分割ソース `online-game.js` `online-net.js`、必要な場合は `guest-lab-game.html` の同期を維持する。smokeにはHTML同一性テストあり。
 5. ゲストだけのラグを改善することが主眼。攻撃/資源/召喚のホスト権威、戦闘バランス、ホストのpublish間隔を根拠なく変えない。見た目だけの改善と本当の通信/処理速度改善を混同しない。
 6. 重複するCanvas/CSS/HUDの負荷実験は既に多数実施済み。`PERFORMANCE_EVIDENCE.md`を読む前に繰り返さない。headless WebKitのrAF値を学校の実iPad性能と同一視しない。
+
+## 2026-10-27 追加引継ぎ｜描画前反映・短いカクつき調査・CI安定化
+- **直近ゲーム変更:** [b949e8b](https://github.com/8mahi8/shokoku-sensen/commit/b949e8b2e739d97007eed75d3840130b91e8b151) はSDKの受信済み最新stateをゲームの描画rAFより前に適用する`flushGuestBeforePaint`を導入。二重反映防止・旧ラウンドの遅延callback隔離を含む。ラウンド/資源/host tick/Firebaseプロトコルは不変。[詳細](GUEST_PREPAINT_APPLY_2026-10-27.md)。
+- **短いカクつき診断:** [3cb80d3](https://github.com/8mahi8/shokoku-sensen/commit/3cb80d368fdbeff452049fed9b67ad6fefb9e8fc) で180ms以上のゲストrAF gapを検出し、local QAのみSDK・反映seq、REST・描画時間を同一フレームに記録。[c2ac17f](https://github.com/8mahi8/shokoku-sensen/commit/c2ac17f63882d5a078d6781f3515cdcdc37a83e1) で**描画前の最新状態反映が終わってから**停止時のseqを診断記録する順序へ修正。診断の誤読防止でありFPS改善の主張ではない。
+- **実Firebase長時間BOT:** [#40509005551](https://github.com/8mahi8/shokoku-sensen/actions/runs/40509005551) SUCCESS。300秒完走、青34手・赤33手、最大15体、最大ゲストrAF gap473ms/500ms超0、JSエラー0。WebKitゲストFPSは学校iPadを代表しない。
+- **CIのapt依存を解消:** [6d318d5](https://github.com/8mahi8/shokoku-sensen/commit/6d318d57e4c3e82931626b1c0b8aeea1e9e0cfa0) でPlaywright 1.56.1公式コンテナを採用、UbuntuパッケージDLによる12分超タイムアウトを回避。 [visual #40511464414](https://github.com/8mahi8/shokoku-sensen/actions/runs/40511464414) SUCCESS。
+- **CI自身の長時間無応答を改善:** [c2ac17f](https://github.com/8mahi8/shokoku-sensen/commit/c2ac17f63882d5a078d6781f3515cdcdc37a83e1) でWebKit通信QAに短い操作timeoutと場面別ログ、no-video条件では代表のdense戦のみ画像撮影を導入。テストの7ラウンド/再戦/切断復帰は省略しない。[#40516092601](https://github.com/8mahi8/shokoku-sensen/actions/runs/40516092601) の録画なしChromium/WebKit条件が**SUCCESS**（過去の長時間キャンセルが解消）、録画ありChromium/WebKit条件もSUCCESS。テスト用Firebaseルーム2件は削除確認。同一WebKit条件は最後のCI結果確認を要する。
+- **WebKit戦闘ビジュアルQA:** 最初の5つの合法な戦闘シーンの計測は成功したが、6つ目のスペル戦最初のスクリーンショットで`Target crashed`。ゲームJS例外ではないが原因は未確定。[e088380](https://github.com/8mahi8/shokoku-sensen/commit/e0883804c6502b802b466c28fab545731c5252d4) で**22場面をすべて保持したまま**1場面ごとにbrowser/contextを新規生成するQA改修を実装。次の[visual CI #40517254705](https://github.com/8mahi8/shokoku-sensen/actions/runs/40517254705)の完走を確認し、未完了なら成功としない。
+- **最新の進捗記録:** [今回の診断](GUEST_QA_TIMEOUT_RECOVERY_2026-10-27.md)、[ビジュアルQAの隔離](WEBKIT_VISUAL_QA_CONTEXT_ISOLATION_2026-10-27.md)、[5分実戦](PREPAINT_FIVE_MIN_VALIDATION_2026-10-27.md)。
+- **ユーザーからの最新の指示:** 「毎回最新版をGoogleドライブに保存しなくていい。俺が言った時に保存して」。今後は**明示された回だけ**Driveに保存し、それ以外の開発証拠はGitHubに記録する。Google Sites公開版も本人の貼付操作なしに変更しない。
+- **次の作業:** #40516092601の同一WebKit条件、#40516092866のBOT完走、#40516092678のiPad UI、#40517254705の分離ビジュアルQAの完走・ログ・実画像確認。残る軽いカクつきは学校での同一iPad・役割交代が最終採否。headlessでの4〜7FPSは同条件ホストも遅く、ゲスト役だけが原因と断定しない。
 
 ## 直近の学校実機フィードバック（ユーザーの正確な意図）
 - 2026-10-27、友達の「悪くもなく良くもなく」は**ゲームの面白さではなくゲスト側の通信・ラグについて**。
@@ -48,7 +59,7 @@
 1. **最初に最新GitHub HEAD・PR #22・Actions状態を再確認**（同時作業でHEADが進む場合あり）。#40496044137 WebKit/Chromium、#40496620588 smoke、実Firebase2ブラウザの未完/キャンセルを整理。必要なら最終HEADでテストを回し直し、ユーザーに誤って合格を約束しない。
 2. 新「送信中」ラベルを**同じCanvasフレームで保存したPNG**で目視し、背景ラベルが文字に被らないか、カード/UIに邪魔にならないか、兵士の操作を阻害しないか確認する。無駄な装飾の増加は避ける。
 3. 改善が必要なら小さく修正し、`online-game.js`／`online-ipad.html`／`online-embed.html`／`guest-lab-game.html`を揃える。smoke+WebKitゲスト実操作+実Firebase長時間対戦・相互ブラウザテストで検証。**動画とrAF/SDK適用の両方**を見て、画面の静止と通信停止を区別する。
-4. 可能であれば新しいGoogle Sites用TXT+HTMLを**別名で**Google Driveの `学校ゲーム/小国戦線III` に保存し読み戻し確認。以前保存済みの [滑らかさ改善TXT](https://drive.google.com/file/d/18DJ4UQqZRF0SuTVKmHXcUhrQg0BzmtHT/view) と [HTML](https://drive.google.com/file/d/1diljznUmp5-hNv6H295QjajQGmIfOBB8/view) は**今回の新機能導入前の版**である。既存ファイルを上書きしない。Google Sitesの公開コードを勝手に更新しない。
+4. **Google Driveへの保存は本人から明示的に「保存して」と言われた場合のみ。** 日常の開発ではGitHub開発ブランチ・CI artifact・docsに保存する。学校Google Sites公開版と既存Driveファイルは勝手に差し替えない。
 5. 引き継ぎの進捗を`docs/DEVELOPMENT_STATUS.md`等に追記。実機で確認が必要な点が明確になるまで自主開発を続けてよいが、誇大な改善主張を避ける。
 
 ## 長期目標・基準
