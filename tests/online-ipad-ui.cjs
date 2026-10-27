@@ -51,6 +51,25 @@ const server=http.createServer((req,res)=>{
     assert.ok(!errors.length,source+" javascript errors: "+errors.join("|"));
     await page.addStyleTag({content:"#onlinePanel{display:none!important}#overlay{display:none!important}"});
     await page.screenshot({path:"qa-ipad-screens/"+source.replace(".html","")+"-"+profile.name+".png",fullPage:false});
+    // Real UI check of the previously hidden, opt-in local diagnostics.
+    // Triple-click is used rather than adding any always-visible control.
+    if(source==="online-ipad.html"&&profile.name==="ipad-landscape"){
+     await page.evaluate(()=>{
+      const logo=document.querySelector("#logo");
+      for(let i=0;i<3;i++)logo.click();
+     });
+     await page.waitForFunction(()=>document.querySelector('[aria-label="通信・描画の診断"]')
+      ?.textContent.includes("描画モード"),null,{timeout:7500});
+     const panelText=await page.locator('[aria-label="通信・描画の診断"]').innerText();
+     assert.ok(panelText.includes("DPR ")&&panelText.includes("兵士通常"),
+      "existing hidden on-device diagnostics show render quality mode");
+     assert.ok(panelText.includes("Firebaseへ送信しません"),
+      "local panel makes the privacy boundary explicit");
+     await page.screenshot({path:"qa-ipad-screens/online-ipad-render-diagnostics-panel.png",
+      fullPage:false,timeout:12000});
+     console.log("PASS: opt-in render mode panel in tablet landscape",
+      JSON.stringify({modeLine:panelText.split("\\n").find(x=>x.includes("描画モード"))}));
+    }
     console.log("PASS:",source,profile.name,JSON.stringify({cards:m.cards.map(c=>Math.round(c.width)+"x"+Math.round(c.height)),field:Math.round(m.field.h),dpr:+m.dpr.toFixed(2)}));
     await ctx.close();
    }
