@@ -60,7 +60,7 @@ const percentile=(sorted,p)=>sorted.length?sorted[Math.min(sorted.length-1,Math.
   // on localhost only to keep other graphical A/B tests comparable.
   await guest.evaluate(()=>{window.__qaEnableCrowdedArtAdapt=true;});
   for(const p of [host,guest])
-   await wait(async()=>>(await p.locator("#netStatus").innerText()).includes("接続OK"),"Firebase connected",35000);
+   await wait(async()=>(await p.locator("#netStatus").innerText()).includes("接続OK"),"Firebase connected",35000);
   await host.locator("#netCreate").click();
   roomCode=await wait(async()=>{
    const c=(await host.locator("#netRoom").innerText()).trim();
