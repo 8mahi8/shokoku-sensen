@@ -2201,8 +2201,8 @@ function presentRemoteUnit(u){
  }
  return u;
 }
-function drawUnit(u){
- u=presentRemoteUnit(u);
+function drawUnit(u,alreadyPresented=false){
+ if(!alreadyPresented)u=presentRemoteUnit(u);
  if(window.KokokuArt){window.KokokuArt.drawUnit(ctx,u,S.clock);return;}
  const d=CLASSES[u.key],col=TEAM[u.team],isAir=!!d.flying;
  const bob=isAir?18+Math.sin(S.clock*4+u.drift)*4:3;
@@ -2299,6 +2299,10 @@ const CACHED_STRIDE_PEAK=Math.PI/(2*.76);
 const cachedHealthTop={infantry:82,scout:92,engineer:101,archer:88,
  suppress:97,sentinel:107,guardian:187,drone:100,tank:141};
 let useDenseSpriteCache=true,denseCacheBroken=false,denseSpritesRendered=0,fullSpritesRendered=0;
+// A low-FPS switch should not build every offscreen pose on the same paint.
+// Missing tiles retain their original full artwork until a later frame.
+let denseSpriteBuildsThisFrame=0;
+const DENSE_TILE_BUILDS_PER_FRAME=2;
 function cachedSprite(u,pose){
  const key=u.key+"/"+u.team+"/"+pose;
  if(denseSpriteCache.has(key))return denseSpriteCache.get(key);
@@ -2343,8 +2347,15 @@ function renderCrowdedUnit(u){
  // a different time from the real unit's legs (visual stutter).
  const pose=(u.attackAnim||0)>.12?3:!u.walking?0:
   Math.sin((u.walkPhase||0)*.76)>=0?1:2;
- const sprite=cachedSprite(u,pose);
- if(!sprite){fullSpritesRendered++;drawUnit(u);return;}
+ // Reuse warmed tiles freely, but allocate at most two new tiles per frame.
+ const key=u.key+"/"+u.team+"/"+pose;
+ const alreadyCached=denseSpriteCache.has(key);
+ const sprite=(alreadyCached||denseSpriteBuildsThisFrame<DENSE_TILE_BUILDS_PER_FRAME)?
+  cachedSprite(u,pose):null;
+ if(sprite&&!alreadyCached)denseSpriteBuildsThisFrame++;
+ if(!sprite){
+  fullSpritesRendered++;drawUnit(u,true);return;
+ }
  denseSpritesRendered++;
  // Small colored ground indicator separates friend and foe in overlapping crowds.
  ctx.strokeStyle=u.team===1?"#7fe4ffad":"#ff879bac";ctx.lineWidth=1.65;
@@ -2439,7 +2450,7 @@ function paintGrandArrival(now){
 let drawCullingEnabled=true;
 function draw(){
  const now=performance.now();observeGrandArrival(now);
- denseSpritesRendered=0;fullSpritesRendered=0;
+ denseSpritesRendered=0;fullSpritesRendered=0;denseSpriteBuildsThisFrame=0;
  const v=S.view,d=v.dpr;
  const minX=-v.ox/v.s,maxX=(v.w-v.ox)/v.s,minY=-v.oy/v.s,maxY=(v.h-v.oy)/v.s;
  const visible=(x,y,rx=155,above=225,below=85)=>
@@ -3037,7 +3048,10 @@ function start(){
   guestLastPaint=now;
   const paintStart=(perfPanel||qa)?performance.now():0;
   draw();
-  if(qa)datum.drawMs=performance.now()-paintStart;
+  if(qa){
+   datum.drawMs=performance.now()-paintStart;
+   datum.newCachedTiles=denseSpriteBuildsThisFrame;
+  }
   if(perfPanel)samplePerf(now,performance.now()-paintStart);
   }catch(error){
    // The interaction layer may remain alive after a Canvas exception.
