@@ -231,17 +231,20 @@ const timeout=async (fn,label,ms=30000)=>{
     "successfully queued guest summon must show exactly one local marker");
   assert.equal(queuedTap.markers.items[0].x,1150);
   assert.equal(queuedTap.markers.items[0].y,330);
-  const markerPaint=await timeout(async()=>page.evaluate(()=>{
+  // Capture the *same Canvas bitmap immediately* after the cue was
+  // painted. Playwright's locator.screenshot can start hundreds of ms
+  // later, after a 650ms transient label has legitimately faded away.
+  const cueFrame=await timeout(async()=>page.evaluate(()=>{
     const g=document.getElementById("guestFrame").contentWindow;
-    return g.__shokokuQa.guestCommandHints().lastPainted>0?true:null;
+    if(g.__shokokuQa.guestCommandHints().lastPainted<=0)return null;
+    const canvas=g.document.getElementById("field");
+    return canvas.toDataURL("image/png");
   }),"RED queued summon hint reaches a WebKit/Chromium paint",1800);
-  assert.equal(markerPaint,true,"visual cue is actually painted, not just stored in memory");
-  // Capture the actual guest Canvas while its submitted-command cue is up.
-  // This is QA evidence only; no screenshot or gameplay is sent to Firebase.
-  await page.frameLocator("#guestFrame").locator("#field").screenshot({
-    path:path.join(root,"qa-guest-lab","guest-command-queued-"+engine+".png"),
-    timeout:12000
-  });
+  assert.ok(cueFrame.startsWith("data:image/png;base64,"),
+    "real Canvas frame should be captured while cue is visible");
+  fs.mkdirSync(path.join(root,"qa-guest-lab"),{recursive:true});
+  fs.writeFileSync(path.join(root,"qa-guest-lab","guest-command-queued-"+engine+".png"),
+    Buffer.from(cueFrame.split(",")[1],"base64"));
   const commandConfirmed=await timeout(async()=>page.evaluate(startUid=>{
     const h=document.getElementById("hostFrame").contentWindow;
     const g=document.getElementById("guestFrame").contentWindow;
