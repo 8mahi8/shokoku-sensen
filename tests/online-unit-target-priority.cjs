@@ -1,0 +1,158 @@
+// Target priority + unitStep behavioral regression suite. No npm packages.
+"use strict";
+const assert=require("node:assert/strict"),fs=require("node:fs"),vm=require("node:vm"),path=require("node:path");
+const src=fs.readFileSync(path.join(__dirname,"..","online-game.js"),"utf8");
+function section(a,b){
+ const start=src.indexOf(a),end=src.indexOf(b,start+a.length);
+ assert.ok(start>=0&&end>start,"Missing live game source section "+a);
+ return src.slice(start,end);
+}
+const source=[
+ section("const CLASSES={","// School-friendly Google Sites HTML:"),
+ section("// Target traits are shared data-driven selectors.","function moveToward(u,x,y,dt){"),
+ section("function moveToward(u,x,y,dt){","function attackUnit(target,value){"),
+ section("function unitStep(dt){","function rate(){")
+].join("\n");
+const W=1280,H=660;
+const S={units:[],forts:[],capitals:[{team:1,hp:3000},{team:2,hp:3000}],tickCount:0,clock:0,elapsed:0};
+const shots=[];
+let API;
+const ctx={Math,S,W,H,MOTION:{windup:.44},duelStats:null,
+ dist:(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),
+ limit:(v,a,b)=>Math.max(a,Math.min(b,v)),
+ enemy:t=>3-t,capital:t=>S.capitals[t-1],
+ wallTarget:(c,y)=>({kind:"capital",ref:c,x:c.team===1?126:1154,y:Math.max(81,Math.min(578,y)),r:15}),
+ fire:(u,t)=>{shots.push({u,t});u.attack=API.CLASSES[u.key].cool;}
+};
+vm.createContext(ctx);
+vm.runInContext(source+"\n;globalThis.API={CLASSES,selectPriorityTargets,priorityFor,unitStep};",ctx);
+API=ctx.API;
+const actor=(key,team=1,x=300,y=200,uid=10)=>({
+ uid,key,team,x,y,anchorX:x,anchorY:y,homeY:y,
+ hp:API.CLASSES[key].hp,max:API.CLASSES[key].hp,
+ attack:0,flash:0,attackAnim:0,windup:0,walkPhase:0,facing:0
+});
+const fort=(x,y,owner=0)=>({x,y,owner,hp:12});
+function reset(){S.units=[];S.forts=[];S.tickCount=0;shots.length=0;}
+function test(name,fn){reset();fn();console.log("PASS "+name);}
+const chosen=u=>API.selectPriorityTargets(u);
+const moved=(u,dt=.1)=>{let x=u.x,y=u.y;API.unitStep(dt);return Math.hypot(u.x-x,u.y-y);};
+test("nine classes have explicit priority fields",()=>{
+ const vals={infantry:[2,1,2],archer:[2,0,2],scout:[3,3,1],engineer:[3,3,1],
+ sentinel:[1,0,2],suppress:[2,0,2],guardian:[1,0,2],drone:[2,0,2],tank:[2,0,2]};
+ assert.equal(Object.keys(API.CLASSES).length,9);
+ for(const [name,list] of Object.entries(vals)){
+  const p=API.CLASSES[name].targetPriority;
+  assert.deepEqual([p.castle,p.fort,p.unit],list);
+ }
+ assert.equal(API.CLASSES.guardian.targetPriority.largeUnit,3);
+ assert.equal(API.CLASSES.tank.targetPriority.largeUnit,3);
+});
+test("basic infantry ignores sight-only fort 1",()=>{
+ const a=actor("infantry");S.units=[a];S.forts=[fort(370,200)];
+ assert.equal(chosen(a).approach,null);assert.equal(chosen(a).attack,null);
+ S.forts[0].x=325;assert.equal(chosen(a).attack.kind,"fort");
+});
+test("basic infantry shoots unit 2 before closer fort 1",()=>{
+ const a=actor("infantry"),e=actor("infantry",2,329,200,11);
+ S.units=[a,e];S.forts=[fort(310,200)];
+ assert.equal(chosen(a).attack.ref,e);moved(a);assert.equal(shots[0].t.kind,"unit");
+});
+test("archer ignores fort entirely",()=>{
+ const a=actor("archer");S.units=[a];S.forts=[fort(310,200)];
+ assert.equal(chosen(a).attack,null);assert.equal(chosen(a).approach,null);
+});
+test("scout shoots fort 3 before enemy 1",()=>{
+ const a=actor("scout"),e=actor("infantry",2,325,200,11);
+ S.units=[a,e];S.forts=[fort(340,200)];
+ assert.equal(chosen(a).attack.kind,"fort");moved(a);
+ assert.equal(shots[0].t.kind,"fort");
+});
+test("scout retaliates while still moving to fort",()=>{
+ const a=actor("scout"),e=actor("infantry",2,325,200,11);
+ S.units=[a,e];S.forts=[fort(380,200)];
+ assert.equal(chosen(a).attack.ref,e);assert.equal(chosen(a).approach.kind,"fort");
+ assert.ok(moved(a)>0);assert.equal(shots[0].t.kind,"unit");
+});
+test("engineer same priority, different capture power",()=>{
+ const a=actor("engineer");S.units=[a];S.forts=[fort(380,200)];
+ assert.equal(chosen(a).approach.kind,"fort");
+ assert.equal(API.CLASSES.engineer.capture,2);
+});
+test("scout reselects closest of equal-priority castle and fort (no lock)",()=>{
+ const a=actor("scout",1,1080,320);S.units=[a];S.forts=[fort(1100,380)];
+ assert.equal(chosen(a).approach.kind,"fort");
+ S.forts[0].y=430;assert.equal(chosen(a).approach.kind,"capital");
+});
+test("scout does not chase sight-only enemy 1",()=>{
+ const a=actor("scout"),e=actor("infantry",2,370,200,11);
+ S.units=[a,e];assert.equal(chosen(a).approach,null);
+ assert.ok(moved(a)>0);
+});
+test("suppress uses nearest not hidden swarm score",()=>{
+ const a=actor("suppress"),near=actor("infantry",2,370,200,11),
+ far=actor("infantry",2,395,200,12),far2=actor("infantry",2,415,200,13);
+ S.units=[a,near,far,far2];assert.equal(chosen(a).attack.ref,near);
+});
+test("guard castle 1 in range only, not chased",()=>{
+ const a=actor("sentinel",1,1080,320);S.units=[a];
+ assert.equal(chosen(a).approach,null);
+ a.x=1130;assert.equal(chosen(a).attack.kind,"capital");
+ moved(a);assert.equal(shots[0].t.kind,"capital");
+});
+test("guard can chase targets within fixed anchor circle",()=>{
+ const a=actor("sentinel"),e=actor("infantry",2,480,200,11);
+ S.units=[a,e];a.x=510;
+ assert.equal(chosen(a).attack.ref,e);
+ e.x=600;assert.equal(chosen(a).approach,null);
+ assert.ok(moved(a)>0);assert.ok(a.x<510);
+});
+test("guard can defend in-range beyond anchor circle without pursuit",()=>{
+ const a=actor("sentinel"),e=actor("infantry",2,520,200,11);
+ a.x=500;S.units=[a,e];
+ assert.equal(chosen(a).attack.ref,e);assert.equal(chosen(a).approach,null);
+});
+test("guardian large priority 3 overrides closer infantry 2",()=>{
+ const a=actor("guardian"),small=actor("infantry",2,325,200,11),big=actor("tank",2,350,200,12);
+ S.units=[a,small,big];assert.equal(chosen(a).attack.ref,big);
+});
+test("guardian cannot hit airborne large",()=>{
+ const a=actor("guardian"),b=actor("tank",2,345,200,11);
+ API.CLASSES.largeAir={...API.CLASSES.drone,size:"large",flying:true};b.key="largeAir";
+ S.units=[a,b];assert.equal(chosen(a).attack,null);delete API.CLASSES.largeAir;
+});
+test("tank large 3 beats castle 2 when both in range",()=>{
+ const a=actor("tank",1,1130,320),b=actor("guardian",2,1050,320,11);
+ S.units=[a,b];assert.equal(chosen(a).attack.ref,b);
+});
+test("tank hits castle 2 while large 3 is out of range",()=>{
+ const a=actor("tank",1,1040,320),b=actor("guardian",2,850,320,11);
+ S.units=[a,b];assert.equal(chosen(a).attack.kind,"capital");
+});
+test("progress troop shoots rear enemy but will not turn around to chase",()=>{
+ const a=actor("infantry",1,350,200),e=actor("infantry",2,325,200,11);
+ S.units=[a,e];assert.equal(chosen(a).attack.ref,e);
+ e.x=255;assert.equal(chosen(a).approach,null);
+});
+test("own fort is no longer a candidate",()=>{
+ const a=actor("scout");S.units=[a];S.forts=[fort(380,200)];
+ assert.equal(chosen(a).approach.kind,"fort");
+ S.forts[0].owner=1;assert.equal(chosen(a).approach,null);
+});
+test("blue/red mirror symmetry",()=>{
+ const a=actor("guardian",1,300,200),e=actor("guardian",2,355,200,11);
+ S.units=[a,e];assert.equal(chosen(a).attack.ref,e);assert.equal(chosen(e).attack.ref,a);
+});
+test("specific largeUnit 0 overrides normal unit 2",()=>{
+ const a=actor("tank"),large=actor("guardian",2,350,200,11),small=actor("infantry",2,330,200,12);
+ S.units=[a,large,small];const p=API.CLASSES.tank.targetPriority;
+ p.largeUnit=0;assert.equal(chosen(a).attack.ref,small);
+ p.largeUnit=3;assert.equal(chosen(a).attack.ref,large);
+});
+test("future flyingUnit category works with no new AI",()=>{
+ const a=actor("archer"),air=actor("drone",2,400,200,11),ground=actor("infantry",2,340,200,12);
+ S.units=[a,air,ground];const p=API.CLASSES.archer.targetPriority;
+ p.flyingUnit=3;assert.equal(chosen(a).attack.ref,air);
+ delete p.flyingUnit;assert.equal(chosen(a).attack.ref,ground);
+});
+console.log("TARGET_PRIORITY_QA: 22 scenarios passed");
