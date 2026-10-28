@@ -155,4 +155,37 @@ test("future flyingUnit category works with no new AI",()=>{
  p.flyingUnit=3;assert.equal(chosen(a).attack.ref,air);
  delete p.flyingUnit;assert.equal(chosen(a).attack.ref,ground);
 });
-console.log("TARGET_PRIORITY_QA: 22 scenarios passed");
+test("new roster entry reuses common selector without unit-specific AI",()=>{
+ const clone=JSON.parse(JSON.stringify(API.CLASSES.archer));
+ API.CLASSES.futureSpecial={...clone,name:"Future Special",targetPriority:{
+  castle:0,fort:0,unit:0,largeUnit:3
+ }};
+ try{
+  const a=actor("futureSpecial"),normal=actor("infantry",2,320,200,11),
+   large=actor("guardian",2,350,200,12);
+  S.units=[a,normal,large];S.forts=[fort(310,200)];
+  assert.equal(chosen(a).attack.ref,large);
+  moved(a);assert.equal(shots[0].t.ref,large);
+ }finally{delete API.CLASSES.futureSpecial;}
+});
+test("new castle-only priority ignores other in-range threats",()=>{
+ const clone=JSON.parse(JSON.stringify(API.CLASSES.infantry));
+ API.CLASSES.futureCastle={...clone,name:"Future Castle",targetPriority:{
+  castle:3,fort:0,unit:0
+ }};
+ try{
+  const a=actor("futureCastle",1,1130,320),enemy=actor("infantry",2,1138,320,11);
+  S.units=[a,enemy];S.forts=[fort(1130,320)];
+  assert.equal(chosen(a).attack.kind,"capital");
+  moved(a);assert.equal(shots[0].t.kind,"capital");
+ }finally{delete API.CLASSES.futureCastle;}
+});
+test("all classes expose independent valid priorities",()=>{
+ for(const [id,d] of Object.entries(API.CLASSES)){
+  const p=d.targetPriority;
+  for(const k of ["castle","fort","unit"]){
+   assert.equal(Number.isInteger(p[k])&&p[k]>=0&&p[k]<=3,true,id+" "+k);
+  }
+ }
+});
+console.log("TARGET_PRIORITY_QA: 25 scenarios passed");
