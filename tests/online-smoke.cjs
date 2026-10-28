@@ -2,7 +2,7 @@
 "use strict";
 const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict");
 const read=p=>fs.readFileSync(p,"utf8");
-const net=read("online-net.js"),game=read("online-game.js");
+const net=read("online-net.js"),game=read("online-game.js"),art=read("v3-art.js");
 assert.ok(net.includes('room=db.ref(ROOT+"/"+code);\\n game?.resetForLobby?.();')===false,
  "this assertion just guards against a literal escaped newline in the Firebase source");
 const roomSetup=net.slice(net.indexOf("function setupRoom(code,isHost){"),net.indexOf("async function create(){"));
@@ -20,6 +20,7 @@ for(const p of ["online-embed.html","online-ipad.html"]){
  const html=read(p);
  assert.ok(html.includes(net.trim()),"Missing current online-net.js in "+p);
  assert.ok(html.includes(game.trim()),"Missing current online-game.js in "+p);
+ assert.ok(html.includes(art.trim()),"Missing current v3-art.js in "+p);
  const inline=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]);
  assert.ok(inline.length>=4,p+" inline scripts unexpectedly missing");
  for(const [index,script] of inline.entries())new vm.Script(script,{filename:p+"#script"+index});
