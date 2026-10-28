@@ -191,12 +191,15 @@ test("all classes expose independent valid priorities",()=>{
 
 test("later large deployment redirects guardian only on its next attack",()=>{
  const a=actor("guardian"),small=actor("infantry",2,325,200,11);
- S.units=[a,small];moved(a);assert.equal(shots.length,1);
- assert.equal(shots[0].t.ref,small);
+ S.units=[a,small];moved(a);
+ assert.equal(shots.filter(s=>s.u===a).length,1);
+ assert.equal(shots.find(s=>s.u===a).t.ref,small);
  const big=actor("tank",2,350,200,12);S.units.push(big);
  assert.equal(chosen(a).attack.ref,big);
- moved(a,.1);assert.equal(shots.length,1,"cooldown cannot retroactively retarget a fired hit");
- a.attack=0;moved(a);assert.equal(shots[1].t.ref,big);
+ moved(a,.1);
+ assert.equal(shots.filter(s=>s.u===a).length,1,"cooldown cannot retroactively retarget a fired hit");
+ a.attack=0;moved(a);
+ assert.equal(shots.filter(s=>s.u===a)[1].t.ref,big);
 });
 test("new closer target wins equal priority on next hit",()=>{
  const a=actor("archer"),first=actor("infantry",2,360,200,11);
