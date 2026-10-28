@@ -389,7 +389,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html","guest-lab-
 
 {
  const fortStart=game.indexOf("function getFort(u){");
- const fortEnd=game.indexOf("\nfunction nearbyEnemy(u){",fortStart);
+ const fortEnd=game.indexOf("\n// Target traits are shared data-driven selectors.",fortStart);
  assert.ok(fortStart>0&&fortEnd>fortStart);
  const fortSource=game.slice(fortStart,fortEnd);
  const fortState={difficulty:"normal",forts:[
