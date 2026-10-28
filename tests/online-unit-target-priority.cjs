@@ -37,10 +37,11 @@ function reset(){S.units=[];S.forts=[];S.tickCount=0;shots.length=0;}
 function test(name,fn){reset();fn();console.log("PASS "+name);}
 const chosen=u=>API.selectPriorityTargets(u);
 const moved=(u,dt=.1)=>{let x=u.x,y=u.y;API.unitStep(dt);return Math.hypot(u.x-x,u.y-y);};
-test("nine classes have explicit priority fields",()=>{
+test("baseline nine classes keep explicit priorities without a roster-size cap",()=>{
  const vals={infantry:[2,1,2],archer:[2,0,2],scout:[3,3,1],engineer:[3,3,1],
  sentinel:[1,0,2],suppress:[2,0,2],guardian:[1,0,2],drone:[2,0,2],tank:[2,0,2]};
- assert.equal(Object.keys(API.CLASSES).length,9);
+ assert.ok(Object.keys(API.CLASSES).length>=Object.keys(vals).length,
+  "future roster entries must not be rejected by an exact-nine test");
  for(const [name,list] of Object.entries(vals)){
   const p=API.CLASSES[name].targetPriority;
   assert.deepEqual([p.castle,p.fort,p.unit],list);
@@ -251,4 +252,33 @@ test("fort ownership changes immediately invalidate its targeting",()=>{
  S.forts[0].owner=1;assert.equal(chosen(a).approach,null);
  moved(a);assert.equal(shots.length,0);
 });
-console.log("TARGET_PRIORITY_QA: 34 scenarios passed");
+test("future progress unit uses shared pursuit without a dedicated code path",()=>{
+ API.CLASSES.futureProgress={...API.CLASSES.infantry,
+  name:"Future Progress",capture:0,targetPriority:{castle:0,fort:0,unit:2}};
+ try{
+  const a=actor("futureProgress"),e=actor("infantry",2,380,200,11);
+  S.units=[a,e];assert.equal(chosen(a).approach.ref,e);
+  assert.ok(moved(a)>0);assert.ok(a.x>300);
+ }finally{delete API.CLASSES.futureProgress;}
+});
+test("future capture unit uses shared fort targeting without a dedicated code path",()=>{
+ API.CLASSES.futureCapture={...API.CLASSES.engineer,
+  name:"Future Capture",targetPriority:{castle:3,fort:3,unit:1}};
+ try{
+  const a=actor("futureCapture");S.units=[a];S.forts=[fort(370,200)];
+  assert.equal(chosen(a).approach.kind,"fort");
+  assert.ok(moved(a)>0);assert.ok(a.x>300);
+ }finally{delete API.CLASSES.futureCapture;}
+});
+test("future guard unit reuses anchored pursuit and return without new AI",()=>{
+ API.CLASSES.futureGuard={...API.CLASSES.sentinel,
+  name:"Future Guard",targetPriority:{castle:1,fort:0,unit:2}};
+ try{
+  const a=actor("futureGuard"),e=actor("infantry",2,425,200,11);
+  S.units=[a,e];assert.equal(chosen(a).approach.ref,e);
+  moved(a);const chasedX=a.x;assert.ok(chasedX>300);
+  e.x=510;assert.equal(chosen(a).approach,null);
+  moved(a);assert.ok(a.x<chasedX);
+ }finally{delete API.CLASSES.futureGuard;}
+});
+console.log("TARGET_PRIORITY_QA: 37 scenarios passed");
