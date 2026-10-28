@@ -5,6 +5,7 @@ on:
       - 'online*'
       - 'tests/online-smoke.cjs'
       - 'tests/online-sim.cjs'
+      - 'tests/online-unit-target-priority.cjs'
       - '.github/workflows/online-smoke.yml'
   workflow_dispatch:
 jobs:
@@ -19,6 +20,8 @@ jobs:
           node-version: '22'
       - run: node tests/online-smoke.cjs
       - run: node tests/online-sim.cjs
+      - name: Check priority-based unit AI (22 scenarios)
+        run: node tests/online-unit-target-priority.cjs
       - name: Verify no automatic match collection in school build
         run: |
           ! grep -q 'ShokokuResearch' online-ipad.html
