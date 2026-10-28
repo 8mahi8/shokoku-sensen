@@ -40,3 +40,8 @@
 新AIのデータ設計 → 実装 → 37件のNode回帰 → **7場面×2ブラウザの戦闘実描画QA（今回）** → 学校実機のホスト/ゲスト、砦移動、後出し切替、密集時WebKit描画のA/B体感検証。Google Sites公開反映は本人判断。
 
 **実ブラウザ成功＝学校iPad最終完成ではない。** 残る表示遅延などが確認できた場合だけ、開発ブランチで最小修正を行う。
+
+## 最終CI確認（実装・キャラ・デッキ不変更）
+- Chromium／WebKitの両エンジンで7場面ずつ計14場面が再成功し、対象選択・HP変動・位置変化の**全データ一致を自動assert**： [実行 #40787107380](https://github.com/8mahi8/shokoku-sensen/actions/runs/40787107380) success、コードcommit `f307a9cfe9fe244a3b49263d3222c9fd51fbd441`。
+- 中間の[#40786994416](https://github.com/8mahi8/shokoku-sensen/actions/runs/40786994416) はテストローカル変数`chromium`がPlaywrightのimportと競合しただけで失敗。`chromiumResults`に改名し再実行成功。ゲーム処理の失敗ではない。
+- アート原本と学校HTML 2版の同期チェックを追加した[通常スモーク #40786706234](https://github.com/8mahi8/shokoku-sensen/actions/runs/40786706234)もsuccess。
