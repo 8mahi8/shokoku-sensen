@@ -276,7 +276,9 @@ test("future guard unit reuses anchored pursuit and return without new AI",()=>{
  try{
   const a=actor("futureGuard"),e=actor("infantry",2,425,200,11);
   S.units=[a,e];assert.equal(chosen(a).approach.ref,e);
-  moved(a);const chasedX=a.x;assert.ok(chasedX>300);
+  moved(a);assert.ok(a.x>300);
+  // After a longer pursuit, the unit is outside its 7px idle tolerance.
+  a.x=360;const chasedX=a.x;
   e.x=510;assert.equal(chosen(a).approach,null);
   moved(a);assert.ok(a.x<chasedX);
  }finally{delete API.CLASSES.futureGuard;}
