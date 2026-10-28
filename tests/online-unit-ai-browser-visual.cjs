@@ -39,7 +39,8 @@ function verify(id,b,a){
    assert.equal(b.attack,"unit:infantry");assert.equal(b.approach,null);
    assert.ok(a.enemyHp<b.enemyHp);assert.equal(a.x,b.x);break;
   case "scoutFortChoice":
-   assert.equal(b.approach,"fort");assert.ok(a.x>b.x);break;
+   assert.equal(b.approach,"fort");assert.ok(a.x>b.x);
+   assert.ok(a.fortHp<b.fortHp,"scout must eventually damage the chosen outpost");break;
   case "infantryFortIgnore":
    assert.equal(b.attack,null);assert.equal(b.approach,null);
    assert.ok(a.x>b.x);break;
@@ -81,6 +82,12 @@ function verify(id,b,a){
    await context.close();await browser.close();browsers.pop();
   }
   assert.equal(rows.length,14);
+  const chromium=rows.filter(r=>r.browser==="chromium");
+  const webkitRows=rows.filter(r=>r.browser==="webkit");
+  assert.deepEqual(chromium.map(r=>r.before),webkitRows.map(r=>r.before),
+   "both engines must choose the same priority candidates");
+  assert.deepEqual(chromium.map(r=>r.after),webkitRows.map(r=>r.after),
+   "both engines must reach identical tactical results after 15 ticks");
   fs.writeFileSync(path.join(out,"results.json"),JSON.stringify({
    rows,notes:["Deterministic offline QA-only positions; real game unitStep and Canvas",
     "Automatic battle tick paused during snapshot scenarios",
