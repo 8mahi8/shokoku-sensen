@@ -1,0 +1,33 @@
+name: Online unit AI browser visual QA
+on:
+  push:
+    paths:
+      - 'tests/online-unit-ai-browser-visual.cjs'
+      - '.github/workflows/online-unit-ai-browser-visual.yml'
+      - 'online-game.js'
+      - 'online-ipad.html'
+      - 'v3-art.js'
+  workflow_dispatch:
+jobs:
+  unit-ai-browser:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Observe seven unit AI decisions in Chromium and WebKit
+        run: node tests/online-unit-ai-browser-visual.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-ai-chromium-webkit-visual-evidence
+          path: qa-unit-ai-browser/
+          retention-days: 14
