@@ -33,7 +33,24 @@ assert.ok(classStart>0&&classEnd>classStart,"Online unit stat block missing");
 const initializeClasses=new Function("window",game.slice(classStart,classEnd)+";return CLASSES;");
 const originalClasses=initializeClasses({});
 const schoolKeys=Object.keys(originalClasses);
-assert.equal(schoolKeys.length,9,"Only nine playable unit types, no spells");
+// The initial nine remain a compatibility baseline, NOT a cap on future classes.
+// Every future unit must opt into the same data-driven targeting contract.
+const baselineUnitIds=["infantry","scout","engineer","archer","sentinel",
+ "suppress","guardian","drone","tank"];
+for(const id of baselineUnitIds)
+ assert.ok(schoolKeys.includes(id),"baseline unit missing: "+id);
+assert.ok(schoolKeys.length>=baselineUnitIds.length,
+ "new unit types may be added without changing this test");
+for(const [id,d] of Object.entries(originalClasses)){
+ const p=d.targetPriority;
+ assert.ok(p&&typeof p==="object",id+" must declare targetPriority");
+ for(const key of ["castle","fort","unit"])
+  assert.ok(Number.isInteger(p[key])&&p[key]>=0&&p[key]<=3,
+   id+" invalid target priority: "+key);
+ for(const [key,v] of Object.entries(p))
+  assert.ok(Number.isInteger(v)&&v>=0&&v<=3,id+" invalid optional priority "+key);
+}
+
 let defaultEditor=null;
 for(const pageName of ["online-ipad.html","online-embed.html"]){
  const html=read(pageName);
