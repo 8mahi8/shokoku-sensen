@@ -1545,15 +1545,15 @@ const MOTION={
  windup:.44
 };
 const CLASSES={
- infantry:{name:"基本歩兵",glyph:"♟",size:"small",cost:2,limit:Infinity,qty:2,hp:105,damage:15,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,note:"小型・占領・無制限"},
- scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:28,cool:1.05,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,note:"中型・高速・少数戦・占領"},
- engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:420,damage:34,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,note:"中型・高耐久・近接・占領"},
- archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,note:"小型・遠距離・対空"},
- sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:540,damage:62,cool:1.45,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
- suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:380,damage:50,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,note:"中型・密集対策・対空対応の範囲砲撃"},
- guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,note:"大型・対大型迎撃・強力な範囲衝撃波"},
- drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
- tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,note:"大型・長射程・対空対応の範囲重砲・対城200%"},
+ infantry:{name:"基本歩兵",glyph:"♟",size:"small",cost:2,limit:Infinity,qty:2,hp:105,damage:15,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,targetPriority:{castle:2,fort:1,unit:2},note:"小型・占領・無制限"},
+ scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:28,cool:1.05,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,targetPriority:{castle:3,fort:3,unit:1},note:"中型・高速・少数戦・占領"},
+ engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:420,damage:34,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,targetPriority:{castle:3,fort:3,unit:1},note:"中型・高耐久・近接・占領"},
+ archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,targetPriority:{castle:2,fort:0,unit:2},note:"小型・遠距離・対空"},
+ sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:540,damage:62,cool:1.45,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,targetPriority:{castle:1,fort:0,unit:2},note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
+ suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:380,damage:50,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,targetPriority:{castle:2,fort:0,unit:2},note:"中型・密集対策・対空対応の範囲砲撃"},
+ guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,targetPriority:{castle:1,fort:0,unit:2,largeUnit:3},note:"大型・対大型迎撃・強力な範囲衝撃波"},
+ drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
+ tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,targetPriority:{castle:2,fort:0,unit:2,largeUnit:3},note:"大型・長射程・対空対応の範囲重砲・対城200%"},
 };
 // School-friendly Google Sites HTML: optional, single visible HP / base damage
 // table at the VERY TOP of the pasted document. Only host applies combat
@@ -1806,51 +1806,67 @@ function getFort(u){
  options.sort((a,b)=>dist(a,u)-dist(b,u));
  return options[0];
 }
-function nearbyEnemy(u){
+// Target traits are shared data-driven selectors. New unit categories can be
+// added here without creating a new AI per character. First matching *configured*
+// trait wins; the base unit priority is used when no trait is configured.
+const TARGET_PRIORITY_TRAITS=[
+ ["largeUnit",v=>CLASSES[v.key].size==="large"],
+ ["flyingUnit",v=>!!CLASSES[v.key].flying]
+];
+function priorityFor(d,kind,ref){
+ const p=d.targetPriority;
+ if(kind==="unit"){
+  for(const [key,matches] of TARGET_PRIORITY_TRAITS){
+   if(Object.prototype.hasOwnProperty.call(p,key)&&matches(ref))return p[key];
+  }
+ }
+ return p[kind==="capital"?"castle":kind]??0;
+}
+// A single O(n) pass chooses targets without sorting, threat scores or sticky locks.
+// Attack candidates ALWAYS take precedence over sight-only pursuit candidates.
+// Movement legality (e.g. anchored guards and forward-only progress troops) is
+// kept separate from priority values; those rules are shared by each behavior.
+function selectPriorityTargets(u){
  const d=CLASSES[u.key],dir=u.team===1?1:-1,guard=d.behavior==="guard";
- const sight=guard?Math.min(d.vision,210):d.vision;
- let best=null,score=Infinity;
- // A defensive giant prioritizes an enemy giant inside its interception perimeter.
- if(u.key==="guardian"){
-  const heavies=S.units.filter(v=>v.team!==u.team&&v.hp>0&&CLASSES[v.key].size==="large"&&
-   dist(u,v)<=sight&&Math.hypot(v.x-u.anchorX,v.y-u.anchorY)<=240);
-  if(heavies.length){
-   heavies.sort((a,b)=>dist(u,a)-dist(u,b));
-   const v=heavies[0];u.lock=v.uid;
-   return {kind:"unit",ref:v,x:v.x,y:v.y,r:CLASSES[v.key].r};
-  }
+ let attack=null,approach=null,sequence=0;
+ function better(candidate,previous){
+  return !previous||candidate.priority>previous.priority||
+    (candidate.priority===previous.priority&&(
+      candidate.distance<previous.distance-1e-7||
+      (Math.abs(candidate.distance-previous.distance)<=1e-7&&candidate.order<previous.order)));
  }
- // Keep focus on a viable target instead of switching each frame.
- const previous=S.units.find(v=>v.uid===u.lock&&v.hp>0&&v.team!==u.team);
- if(previous&&(!CLASSES[previous.key].flying||d.hitAir)){
-  const dx=dir*(previous.x-u.x),distance=dist(previous,u);
-  if(distance<sight*1.16&&(guard||dx>=-Math.max(d.range+previous.r,35))){
-   if(!guard||Math.hypot(previous.x-u.anchorX,previous.y-u.anchorY)<=(CLASSES[previous.key].size==="large"?240:180)){
-    return {kind:"unit",ref:previous,x:previous.x,y:previous.y,r:CLASSES[previous.key].r};
-   }
+ function consider(kind,ref,x,y,r){
+  const priority=priorityFor(d,kind,ref);
+  if(priority<=0)return;
+  const distance=Math.hypot(x-u.x,y-u.y);
+  const target={kind,ref,x,y,r,priority,distance,order:sequence++};
+  if(distance<d.range+r){
+   if(better(target,attack))attack=target;
+   return;
   }
+  if(priority<2)return;
+  // Never walk backward to chase a passed troop or fort in progress modes.
+  if(!guard&&dir*(x-u.x)<0)return;
+  // Guard vision is ANCHORED to spawn, not to the moving unit.
+  if(guard){
+   if(kind!=="unit"||Math.hypot(x-u.anchorX,y-u.anchorY)>d.vision)return;
+  }else if(distance>d.vision)return;
+  if(better(target,approach))approach=target;
  }
- u.lock=null;
+ // Iterate in fixed order so exact distance/priority ties are deterministic.
  for(const v of S.units){
   if(v.team===u.team||v.hp<=0)continue;
   if(CLASSES[v.key].flying&&!d.hitAir)continue;
-  const dx=dir*(v.x-u.x),distance=dist(u,v);
-  if(distance>sight)continue;
-  // Progress troops ignore passers-by behind them; close enemies can be fought without pursuit.
-  if(!guard&&dx<-(d.range+CLASSES[v.key].r+5))continue;
-  if(guard&&Math.hypot(v.x-u.anchorX,v.y-u.anchorY)>180)continue;
-  const behindPenalty=!guard&&dx<0?35:0;
-  const groupValue=u.key==="suppress"?Math.min(6,S.units.filter(other=>other.team!==u.team&&other.hp>0&&dist(other,v)<d.splash).length)*24:0;
-  const candidate=distance+behindPenalty-(d.size==="large"&&CLASSES[v.key].size==="large"?24:0)-groupValue;
-  if(candidate<score){score=candidate;best={kind:"unit",ref:v,x:v.x,y:v.y,r:CLASSES[v.key].r};}
+  consider("unit",v,v.x,v.y,CLASSES[v.key].r);
  }
- const c=capital(enemy(u.team)),wall=wallTarget(c,u.y),wallDistance=Math.hypot(u.x-wall.x,u.y-wall.y);
- if(wallDistance<d.vision+28){
-  const candidate=wallDistance-20;
-  if(candidate<score){score=candidate;best=wall;}
+ if(d.capture>0){
+  for(const f of S.forts){
+   if(f.owner!==u.team)consider("fort",f,f.x,f.y,24);
+  }
  }
- if(best?.kind==="unit")u.lock=best.ref.uid;
- return best;
+ const castle=wallTarget(capital(enemy(u.team)),u.y);
+ consider("capital",castle.ref,castle.x,castle.y,castle.r);
+ return {attack,approach};
 }
 
 function moveToward(u,x,y,dt){
@@ -1950,7 +1966,8 @@ function unitStep(dt){
   const d=CLASSES[u.key];
   u.attack=Math.max(0,u.attack-dt);u.flash=Math.max(0,u.flash-dt);
   u.attackAnim=Math.max(0,(u.attackAnim||0)-dt);u.walking=false;
-  const foe=nearbyEnemy(u),fort=getFort(u);
+  const targets=selectPriorityTargets(u);
+  const foe=targets.attack||targets.approach;
   // QA-only: classify the REAL target choice made by the engine this tick.
   // This runs after target selection; it never changes combat targeting.
   const forecast=duelStats?.forecastAudit?.active;
@@ -1958,10 +1975,10 @@ function unitStep(dt){
     u.team===forecast.team&&d.behavior==="normal"&&forecast.uids.includes(u.uid)){
    const activity=foe?.kind==="unit"?"enemyTarget":
     foe?.kind==="capital"?"castleTarget":
-    fort&&Math.abs(fort.x-u.x)<245?"fortTarget":"approach";
+    foe?.kind==="fort"?"fortTarget":"approach";
    forecast.activity[activity]+=dt;
    forecast.activity.alive+=dt;
-   if(activity==="castleTarget"&&dist(u,foe)<d.range+foe.r)
+   if(activity==="castleTarget"&&targets.attack?.kind==="capital")
     forecast.activity.inCastleRange+=dt;
    const enemiesNear=S.units.some(v=>v.team!==u.team&&v.hp>0&&dist(u,v)<170);
    if(enemiesNear)forecast.activity.enemyNearby+=dt;
@@ -1970,34 +1987,28 @@ function unitStep(dt){
    if(activity==="fortTarget"&&forecast.firstFortTargetAt===null)
     forecast.firstFortTargetAt=S.elapsed-forecast.at;
   }
-  // Readable visual anticipation on the last fraction of an existing cooldown.
-  // It never delays an actual strike or changes target selection.
-  const inReach=foe&&dist(u,foe)<d.range+foe.r+9;
+  // Readable anticipation without changing combat timing or target selection.
+  const inReach=!!targets.attack;
   u.windup=inReach&&u.attack>0&&u.attack<MOTION.windup?1-u.attack/MOTION.windup:0;
+  if(targets.attack){
+   const target=targets.attack;
+   u.facing=Math.atan2(target.y-u.y,target.x-u.x);
+   if(u.attack<=0)fire(u,target);
+  }
   if(d.behavior==="guard"){
-   if(foe){
-    if(dist(u,foe)<d.range+foe.r){u.facing=Math.atan2(foe.y-u.y,foe.x-u.x);if(u.attack<=0)fire(u,foe);}
-    else moveToward(u,foe.x,foe.y,dt);
-   }else if(Math.hypot(u.x-u.anchorX,u.y-u.anchorY)>7)moveToward(u,u.anchorX,u.anchorY,dt);
+   if(!targets.attack&&targets.approach)
+    moveToward(u,targets.approach.x,targets.approach.y,dt);
+   else if(!targets.attack&&Math.hypot(u.x-u.anchorX,u.y-u.anchorY)>7)
+    moveToward(u,u.anchorX,u.anchorY,dt);
    continue;
   }
-  if(d.behavior==="capture"&&fort){
-   const immediate=foe&&foe.kind==="unit"&&dist(u,foe)<Math.max(d.range+foe.r,43);
-   if(immediate&&(u.key==="engineer"||u.key==="scout")){if(u.attack<=0)fire(u,foe);}
-   else if(dist(u,fort)<d.range+26){if(u.attack<=0)fire(u,{kind:"fort",ref:fort,x:fort.x,y:fort.y,r:24});}
-   else moveToward(u,fort.x,fort.y,dt);
+  // Capture runners can retaliate on the way to a fort/castle, without
+  // switching into enemy pursuit. Other progress troops stop to fire.
+  if(targets.approach&&(!targets.attack||(d.behavior==="capture"&&targets.attack.kind==="unit"))){
+   moveToward(u,targets.approach.x,targets.approach.y,dt);
    continue;
   }
-  if(foe){
-   if(dist(u,foe)<d.range+foe.r){u.facing=Math.atan2(foe.y-u.y,foe.x-u.x);if(u.attack<=0)fire(u,foe);}
-   else moveToward(u,foe.x,foe.y,dt);
-   continue;
-  }
-  if(fort&&Math.abs(fort.x-u.x)<245){
-   if(dist(u,fort)<d.range+26){if(u.attack<=0)fire(u,{kind:"fort",ref:fort,x:fort.x,y:fort.y,r:24});}
-   else moveToward(u,fort.x,fort.y,dt);
-   continue;
-  }
+  if(targets.attack)continue;
   const cap=capital(enemy(u.team)),wall=wallTarget(cap,u.homeY);
   moveToward(u,wall.x,wall.y,dt);
  }
