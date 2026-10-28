@@ -55,8 +55,7 @@ for(const [id,d] of Object.entries(originalClasses)){
 // renders a different character or places HP bars at NaN coordinates.
 const artSource=read("v3-art.js");
 function literalMap(source,label){
- const escaped=label.replace(/[.*+?^\$\{\}()|[\]\\]/g,"\\let defaultEditor=null;");
- const match=source.match(new RegExp("const "+escaped+"=\\{([\\s\\S]*?)\\};"));
+ const match=source.match(new RegExp("const "+label+"=\\{([\\s\\S]*?)\\};"));
  assert.ok(match,"Missing visual/animation registry "+label);
  return new Function("return ({"+match[1]+"});")();
 }
