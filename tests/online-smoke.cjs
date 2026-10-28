@@ -79,7 +79,7 @@ assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
  "Published modular online.html keeps its original balanced defaults");
 
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=12')&&page.includes('./online-game.js?v=17'),
+assert.ok(page.includes('./online-net.js?v=12')&&page.includes('./online-game.js?v=18'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
