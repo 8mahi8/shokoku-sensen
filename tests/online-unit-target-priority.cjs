@@ -188,4 +188,64 @@ test("all classes expose independent valid priorities",()=>{
   }
  }
 });
-console.log("TARGET_PRIORITY_QA: 25 scenarios passed");
+
+test("later large deployment redirects guardian only on its next attack",()=>{
+ const a=actor("guardian"),small=actor("infantry",2,325,200,11);
+ S.units=[a,small];moved(a);assert.equal(shots.length,1);
+ assert.equal(shots[0].t.ref,small);
+ const big=actor("tank",2,350,200,12);S.units.push(big);
+ assert.equal(chosen(a).attack.ref,big);
+ moved(a,.1);assert.equal(shots.length,1,"cooldown cannot retroactively retarget a fired hit");
+ a.attack=0;moved(a);assert.equal(shots[1].t.ref,big);
+});
+test("new closer target wins equal priority on next hit",()=>{
+ const a=actor("archer"),first=actor("infantry",2,360,200,11);
+ S.units=[a,first];moved(a);assert.equal(shots[0].t.ref,first);
+ const closer=actor("infantry",2,320,200,12);S.units.push(closer);
+ a.attack=0;moved(a);assert.equal(shots[1].t.ref,closer);
+});
+test("in-range priority 1 can interrupt sight-only priority 3",()=>{
+ const a=actor("scout"),e=actor("infantry",2,324,200,11);
+ S.units=[a,e];S.forts=[fort(380,200)];
+ assert.equal(chosen(a).attack.ref,e);
+ assert.equal(chosen(a).approach.kind,"fort");
+ moved(a);assert.equal(shots[0].t.ref,e);
+});
+test("capture uses its own vision instead of remote fort lock",()=>{
+ const a=actor("scout");S.units=[a];S.forts=[fort(416,200)];
+ assert.equal(chosen(a).approach,null);
+ S.forts[0].x=414;assert.equal(chosen(a).approach.kind,"fort");
+});
+test("guard uses original anchor circle even after its own displacement",()=>{
+ const a=actor("sentinel"),e=actor("infantry",2,120,200,11);
+ a.x=490;S.units=[a,e];
+ assert.equal(chosen(a).attack,null);
+ assert.equal(chosen(a).approach.ref,e);
+ moved(a);assert.ok(a.x<490);
+});
+test("guard stops pursuit outside its anchor circle and returns",()=>{
+ const a=actor("sentinel"),e=actor("infantry",2,500,200,11);
+ a.x=430;S.units=[a,e];
+ assert.equal(chosen(a).attack,null);
+ assert.equal(chosen(a).approach,null);
+ moved(a);assert.ok(a.x<430);
+});
+test("guard returns to anchor after its enemy is defeated",()=>{
+ const a=actor("sentinel"),e=actor("infantry",2,455,200,11);
+ a.x=400;e.hp=0;S.units=[a,e];
+ assert.equal(chosen(a).attack,null);
+ assert.equal(chosen(a).approach,null);
+ moved(a);assert.ok(a.x<400);assert.equal(shots.length,0);
+});
+test("red progress troops do not turn back toward passed enemies",()=>{
+ const a=actor("infantry",2,900,200),e=actor("infantry",1,990,200,11);
+ S.units=[a,e];assert.equal(chosen(a).approach,null);
+ moved(a);assert.ok(a.x<900);
+});
+test("fort ownership changes immediately invalidate its targeting",()=>{
+ const a=actor("engineer");S.units=[a];S.forts=[fort(375,200)];
+ assert.equal(chosen(a).approach.kind,"fort");
+ S.forts[0].owner=1;assert.equal(chosen(a).approach,null);
+ moved(a);assert.equal(shots.length,0);
+});
+console.log("TARGET_PRIORITY_QA: 34 scenarios passed");
