@@ -51,6 +51,34 @@ for(const [id,d] of Object.entries(originalClasses)){
   assert.ok(Number.isInteger(v)&&v>=0&&v<=3,id+" invalid optional priority "+key);
 }
 
+// A new roster entry needs explicit visual wiring; otherwise the fallback
+// renders a different character or places HP bars at NaN coordinates.
+const artSource=read("v3-art.js");
+function literalMap(source,label){
+ const escaped=label.replace(/[.*+?^\$\{\}()|[\]\\]/g,"\\let defaultEditor=null;");
+ const match=source.match(new RegExp("const "+escaped+"=\\{([\\s\\S]*?)\\};"));
+ assert.ok(match,"Missing visual/animation registry "+label);
+ return new Function("return ({"+match[1]+"});")();
+}
+const motion=literalMap(game,"MOTION");
+const colors=literalMap(artSource,"UNIT_COLORS");
+const scales=literalMap(artSource,"UNIT_SCALE");
+const heights=literalMap(artSource,"BODY_HEIGHT");
+const spriteMatch=artSource.match(/const SPRITES=\{([^}]+)\};/);
+assert.ok(spriteMatch,"Missing character sprite registry");
+const spriteIds=new Set(spriteMatch[1].split(",").map(s=>s.trim()));
+for(const id of schoolKeys){
+ assert.ok(Number.isFinite(motion.attack[id])&&motion.attack[id]>0,
+  id+" missing positive attack animation duration");
+ assert.ok(spriteIds.has(id),id+" has no explicit unit art");
+ assert.ok(Array.isArray(colors[id])&&colors[id].length===2,
+  id+" has no card portrait colors");
+ assert.ok(Number.isFinite(scales[id])&&scales[id]>0,
+  id+" has no unit drawing scale");
+ assert.ok(Number.isFinite(heights[id])&&heights[id]>0,
+  id+" has no HP-bar body height");
+}
+
 let defaultEditor=null;
 for(const pageName of ["online-ipad.html","online-embed.html"]){
  const html=read(pageName);
