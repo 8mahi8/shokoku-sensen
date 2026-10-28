@@ -20,7 +20,7 @@ jobs:
           node-version: '22'
       - run: node tests/online-smoke.cjs
       - run: node tests/online-sim.cjs
-      - name: Check priority-based unit AI (34 scenarios)
+      - name: Check priority-based unit AI (37 scenarios)
         run: node tests/online-unit-target-priority.cjs
       - name: Verify no automatic match collection in school build
         run: |
