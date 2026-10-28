@@ -82,11 +82,11 @@ function verify(id,b,a){
    await context.close();await browser.close();browsers.pop();
   }
   assert.equal(rows.length,14);
-  const chromium=rows.filter(r=>r.browser==="chromium");
+  const chromiumResults=rows.filter(r=>r.browser==="chromium");
   const webkitRows=rows.filter(r=>r.browser==="webkit");
-  assert.deepEqual(chromium.map(r=>r.before),webkitRows.map(r=>r.before),
+  assert.deepEqual(chromiumResults.map(r=>r.before),webkitRows.map(r=>r.before),
    "both engines must choose the same priority candidates");
-  assert.deepEqual(chromium.map(r=>r.after),webkitRows.map(r=>r.after),
+  assert.deepEqual(chromiumResults.map(r=>r.after),webkitRows.map(r=>r.after),
    "both engines must reach identical tactical results after 15 ticks");
   fs.writeFileSync(path.join(out,"results.json"),JSON.stringify({
    rows,notes:["Deterministic offline QA-only positions; real game unitStep and Canvas",
