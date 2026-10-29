@@ -24,8 +24,10 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>!!window.ShokokuDeck?.eligible()?.length);
     await page.evaluate(()=>window.ShokokuDeck.open());
     await page.locator("#deckEditor").waitFor({state:"visible"});
+     const poolCount=await page.evaluate(()=>window.ShokokuDeck.eligible().length-10);
+     assert.ok(poolCount>=5,"Stage-1 cards must remain available after pool expansion");
     assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
-    assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+    assert.equal(await page.locator("#deckPool .deckTile").count(),poolCount);
     for(const id of ["duelist","crusher","ranger_engineer","interceptor","ground_bomber"])
      assert.equal(await page.locator('#deckPool .deckTile[data-card-id="'+id+'"]').count(),1,"missing real new character "+id);
     // Use the existing battle-card dialog (the new card preview), not
@@ -58,12 +60,12 @@ const server=http.createServer((req,res)=>{
     await page.locator("#deckPool .deckTile[data-card-id=duelist]").click();
     await page.locator("#deckSelected .deckTile[data-card-id=scout]").click();
     assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=duelist]").count(),1,"real character swapping in");
-    assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+    assert.equal(await page.locator("#deckPool .deckTile").count(),poolCount);
     const postSwap=await page.evaluate(()=>[...document.querySelectorAll("#deckEditor .deckTile")]
      .map(tile=>[tile.dataset.cardId,tile.querySelector("canvas").dataset.qaPortraitIdentity]));
     assert.deepEqual(postSwap.slice().sort((a,b)=>a[0].localeCompare(b[0])),
      preSwap.slice().sort((a,b)=>a[0].localeCompare(b[0])),
-     "touch swap must reuse all 15 card portraits instead of rebuilding Canvas");
+     "touch swap must reuse all eligible card portraits instead of rebuilding Canvas");
 
     // Reverse-order selection: chose the existing card FIRST, then the candidate.
     // Use genuine touch input on both engines and preserve portrait identity.
@@ -81,7 +83,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator("#cardInfoOverlay").isVisible(),false);
     assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=crusher]").count(),1);
     assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
-    assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+    assert.equal(await page.locator("#deckPool .deckTile").count(),poolCount);
     assert.equal(await page.locator("#deckEditor .deckTile.pending").count(),0);
     const reverseSwap=await page.evaluate(()=>[...document.querySelectorAll("#deckEditor .deckTile")]
      .map(tile=>[tile.dataset.cardId,tile.querySelector("canvas").dataset.qaPortraitIdentity]));
