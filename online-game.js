@@ -73,9 +73,10 @@ const CATALOG={...CLASSES,...SPELLS};
 const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
 const DECK_IDS=["scout","engineer","archer","barrage","sentinel","suppress","guardian","ward","drone","tank"];
 const HAND_SIZE=4;
+window.ShokokuDeck?.configure(CATALOG);
 // Randomized each round, then rotated without replacement.
-function shuffledDeck(){
- const d=DECK_IDS.slice();
+function shuffledDeck(ids=DECK_IDS){
+ const d=ids.slice();
  for(let i=d.length-1;i>0;i--){
   const j=Math.floor(Math.random()*(i+1));
   [d[i],d[j]]=[d[j],d[i]];
@@ -84,7 +85,8 @@ function shuffledDeck(){
 }
 const isSpell=id=>Object.prototype.hasOwnProperty.call(SPELLS,id);
 const hasCard=(team,id)=>id==="infantry"||S.hand[team].includes(id);
-const availableCard=(team,id)=>S.left[team][id]>0&&hasCard(team,id);
+const availableCard=(team,id)=>S.left[team][id]>0&&hasCard(team,id)&&
+ (id==="infantry"||!S.activeDecks||S.activeDecks[team]?.includes(id));
 function advanceHand(team,id){
  if(id==="infantry")return;
  const hand=S.hand[team],idx=hand.indexOf(id);
@@ -106,7 +108,7 @@ const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60
 const GUEST_COMMAND_HINT_MS=650;
 let guestCommandHints=[],lastGuestHintPainted=0;
 const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
- energy:[0,8,8],observedEnergy:[0,8,8],left:[null,{},{}],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
+ energy:[0,8,8],observedEnergy:[0,8,8],left:[null,{},{}],activeDecks:[null,DECK_IDS.slice(),DECK_IDS.slice()],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
  uid:0,botThink:0,botPrepDone:false,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(){
@@ -114,16 +116,24 @@ function resetWorld(){
  S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];qaRaceBudgetPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
- // Both teams draw their own shuffled cycle from the same card pool.
- // Reroll a matching opening order so the two sides never start identically.
+ // The host's locked decks are the only source for an online match.
+ const locked=NET.isOnline&&NET.isHost?NET.matchDecks:null;
+ if(NET.isOnline&&NET.isHost&&(!locked||!window.ShokokuDeck?.validate(locked.hostDeckIds)||
+  !window.ShokokuDeck?.validate(locked.guestDeckIds)))
+  throw Error("対戦用デッキが確定していません");
+ const teams=locked?{1:locked.hostDeckIds,2:locked.guestDeckIds}:null;
+ S.activeDecks=[null,teams?teams[1].slice():DECK_IDS.slice(),teams?teams[2].slice():DECK_IDS.slice()];
+ // Both teams draw their own shuffled cycle; don't force an identical opening order.
  let blueOpening="";
  for(const team of [1,2]){
   for(const [id,d] of Object.entries(CATALOG))S.left[team][id]=d.limit;
-  let deck=shuffledDeck();
+  const source=S.activeDecks[team];
+  let deck=shuffledDeck(source);
   if(team===1)blueOpening=deck.slice(0,HAND_SIZE).join(",");
-  else{
+  else if(source.length===S.activeDecks[1].length&&
+    source.every(id=>S.activeDecks[1].includes(id))){
    for(let attempt=0;attempt<8&&deck.slice(0,HAND_SIZE).join(",")===blueOpening;attempt++)
-    deck=shuffledDeck();
+    deck=shuffledDeck(source);
    if(deck.slice(0,HAND_SIZE).join(",")===blueOpening)deck.push(deck.shift());
   }
   S.hand[team]=deck.slice(0,HAND_SIZE);
