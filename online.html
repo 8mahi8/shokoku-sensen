@@ -247,6 +247,43 @@ body.soloMode #difficulties{display:flex!important}
 #guestBotLive[hidden]{display:none!important}
 @media(max-height:530px){#guestBotLive{top:43px;padding:5px 8px;font-size:10px}}
 @media(max-width:580px){#onlineDialog{padding:14px}#networkBar{top:34px;max-width:98%;font-size:9px}}
+
+/* Deck builder: a separate editor, never a crowded battle-card HUD. */
+#deckLobbyRow[hidden]{display:none!important}
+#deckLobbyRow{background:#0d3543;border:1px solid #47798e;border-radius:12px;margin:10px 0;padding:9px;display:flex;align-items:center;justify-content:space-between;gap:9px}
+#deckLobbySummary{font-size:13px;font-weight:850;color:#e8f2ed}
+#deckOpen,#deckSave,#deckCancel,#deckReset{border:1px solid #7caeb9;border-radius:10px;background:#23536a;color:#eef8f5;padding:9px 13px;min-height:44px;font-weight:800;touch-action:manipulation}
+#deckOpen:disabled,#deckSave:disabled{opacity:.5}
+#deckEditor{position:fixed;inset:0;z-index:10020;overflow:auto;overscroll-behavior:contain;background:#071a23f7;padding:12px;color:#eaf6ee;touch-action:pan-y}
+#deckEditor.hidden{display:none!important}
+#deckEditorPanel{max-width:1140px;min-height:min(94dvh,740px);margin:auto;border:1px solid #527e92;background:#132c3a;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+#deckEditorHead,#deckEditorFoot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#deckEditorHead h2{font-size:21px;margin:0}
+#deckCount{font-size:14px;color:#f2d99b;font-weight:900}
+#deckBody{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;min-height:0;flex:1}
+.deckSection{background:#0d2330;border:1px solid #3c697b;border-radius:12px;padding:10px;min-width:0}
+.deckSection h3{margin:0 0 8px;font-size:14px;color:#cfe7e5}
+#deckSelected{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+#deckPool{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.deckCell{min-width:0;display:flex;flex-direction:column;gap:4px}
+.deckTile{position:relative;width:100%;min-height:86px;border:1px solid #7295a1;background:#1a3b4b;border-radius:9px;color:#eef9f9;padding:4px;display:flex;flex-direction:column;align-items:stretch;gap:2px;touch-action:manipulation}
+.deckTile.chosen{border-color:#c0c68b}.deckTile.pending{outline:3px solid #ffdc88}
+.deckPortrait{width:100%;height:auto;max-height:60px;object-fit:contain;border-radius:5px}
+.deckCost{position:absolute;top:5px;left:5px;background:#132938de;border:1px solid #ebcc7d;border-radius:12px;padding:1px 6px;font-weight:900;font-size:12px}
+.deckName{font-size:11px;font-weight:900;line-height:1.2;min-height:2.4em;overflow-wrap:anywhere}
+.deckMark{font-size:9px;color:#f3d69a}
+.deckDetail{min-height:40px;width:100%;background:#274858;border:1px solid #6696aa;border-radius:8px;color:#e6f8f7;font-size:11px;touch-action:manipulation}
+#deckNotice{font-size:12px;color:#f0d798;min-height:2.6em}
+#deckInfo{font-size:11px;color:#bcdee6;min-height:1.8em}
+#deckSummary{font-size:12px;color:#cbe0de}
+#deckEditorFoot{border-top:1px solid #3f6979;padding-top:10px}
+#deckEditorFoot .deckActions{display:flex;gap:8px;flex-wrap:wrap}
+#deckSave{background:#21684e;border-color:#94d8af}
+#deckCancel{background:#314651}
+@media(max-width:800px){#deckBody{grid-template-columns:1fr}#deckSelected{grid-template-columns:repeat(5,minmax(0,1fr))}#deckPool{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-height:560px){#deckEditorPanel{padding:8px;gap:6px}#deckBody{gap:7px}#deckSelected{gap:4px}#deckEditorHead h2{font-size:16px}.deckSection{padding:6px}}
+@media(max-width:490px){#deckSelected{grid-template-columns:repeat(3,minmax(0,1fr))}#deckPool{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 </style>
 </head>
 <body>
@@ -327,10 +364,11 @@ body.soloMode #difficulties{display:flex!important}
 </div></div>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-<script src="./online-net.js?v=12"></script>
+<script src="./online-deck.js?v=1"></script>
+<script src="./online-net.js?v=14"></script>
 <script src="./gald-render.js?v=1"></script>
 <script src="./v3-art.js?v=7"></script>
-<script src="./online-game.js?v=18"></script>
+<script src="./online-game.js?v=19"></script>
 <div id="networkBar" class="hidden" aria-live="polite"></div>
 <button id="guestBotLive" type="button" hidden aria-pressed="false">BOT操作へ</button>
 <div id="onlinePanel" role="dialog" aria-label="オンライン対戦ルーム">
@@ -338,6 +376,7 @@ body.soloMode #difficulties{display:flex!important}
   <p>学校のiPad・Safari対応の1vs1。ルーム番号を共有して一緒に対戦しよう。</p>
   <div id="netRoomInfo">5桁の番号で友達と対戦</div>
   <div id="netRoom">-----</div><div id="netSeat">参加前</div>
+  <div id="deckLobbyRow" hidden><span id="deckLobbySummary">自分のデッキ：10 / 10種類</span><button id="deckOpen" type="button">デッキを見る・編集</button></div>
   <div class="netControls"><button id="netCreate">ルームを作成</button><button id="netShare" disabled>番号をコピー</button></div>
   <div class="netControls"><input id="netJoinCode" type="text" inputmode="numeric" maxlength="5" placeholder="12345" aria-label="5桁のルーム番号"><button id="netJoin">ルームに参加</button></div>
   <div class="netControls"><button id="netReady" disabled>準備完了</button><button id="netStart" hidden disabled>対戦スタート</button></div>
@@ -354,6 +393,19 @@ body.soloMode #difficulties{display:flex!important}
    </div>
   <div id="netStatus" role="status">Firebaseに接続中…</div>
   <div class="netTip">通信できなくても「BOTと練習する」で1人プレイ可能。<br>2台テスト時は参加端末でBOT操作をONにすると自動準備・自動召喚。ホストは青軍、参加側は赤軍です。</div>
+ </div>
+</div>
+
+<div id="deckEditor" class="hidden" role="dialog" aria-modal="true" aria-labelledby="deckEditorTitle" aria-hidden="true">
+ <div id="deckEditorPanel">
+  <div id="deckEditorHead"><div><h2 id="deckEditorTitle">デッキ編集</h2><span id="deckCount">10 / 10種類</span></div><button id="deckCancel" type="button">戻る・変更を破棄</button></div>
+  <div>基本歩兵は常設カード。異なる10種類を選んで対戦するよ。</div>
+  <div id="deckBody">
+   <section class="deckSection"><h3>採用中の10種類</h3><div id="deckSelected"></div></section>
+   <section class="deckSection"><h3>交換候補・カード一覧</h3><div id="deckNotice"></div><div id="deckPool"></div></section>
+  </div>
+  <div id="deckInfo" aria-live="polite"></div>
+  <div id="deckEditorFoot"><div id="deckSummary"></div><div class="deckActions"><button id="deckReset" type="button">標準に戻す</button><button id="deckSave" type="button">決定して戻る</button></div></div>
  </div>
 </div>
 </body></html>
