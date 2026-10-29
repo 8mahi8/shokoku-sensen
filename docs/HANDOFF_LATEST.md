@@ -1,6 +1,6 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
-**更新：2026-10-30 JST / Stage 2 追加能力の実装・検証フェーズ**  
+**更新：2026-10-30 JST / Stage 3 新大型＋疾風号令の実装完了・学校試遊候補の検証フェーズ**  
 **合図：ユーザーが「小国戦争開発引き継いで」「小国戦線の開発引き継いで」と言ったら、このファイルを開いて、GitHub最新HEADとコードを読み、自律的に再開する。**  
 **この文書が引き継ぎの入口であり、GitHubの他の年月日付きHANDOFFより優先。** 過去の手順が現在の本人の意思と矛盾する場合は、新しい本人決定と実際のコードを優先する。変更するたびに**この同一パスを更新**し、毎回ユーザーに長い引き継ぎ文を作らせない。
 
@@ -203,6 +203,17 @@
 - ステージ3実装後の`online-game.js`と`v3-art.js`、開発版独立HTML`online-ipad.html`/`online-embed.html`は同期済。**[最新単体HTML付きのOnline 1v1 smoke #40939477430](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939477430) SUCCESS**（単体HTML `--check`、構文、デッキ、原作キャラ/Stage1/Stage2/Stage3回帰含む）。**[cached character art QA #40939477427](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939477427) SUCCESS**。
 - iPad UI visual QA #40939463574、unit AI browser visual QA #40939463653、Stage2 real Firebase two-seat E2E #40939463611 は成功（新大型を中心にした専用シナリオは未実施）。旧Stage1 unit AI real Firebase E2E #40939463493 は**失敗**、理由はゴーレム/戦車を旧HP1400/1100と断定するテスト条件が残っていたため。修正したテスト`tests/online-unit-ai-firebase-e2e.cjs`は新HP1300/1000に更新し、[再実行 #40939857067](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939857067) を開始。結果は最新GitHub Actionsで確認すること。
 - 学校iPad実機およびStage3専用の新カードオンライン2席・発動後4秒バフ両席表示は未検証。main/stable/Google Sites学校配布・Firebase Rulesは変更せず。
+
+## 2.17 2026-10-30｜本人「学校で遊べるぐらいまで任せた」：Stage 3 実Firebase新カード検証成功
+
+- **ユーザーの今回のゴール**：学校のiPadで友達が遊べる完成度まで主体的に開発・検証。**学校のGoogle Sitesの稼働中HTMLを変更する許可ではない**。main/stable/Firebase Rulesは触らない。貼付用候補の`online-ipad.html`/`online-embed.html`は既に開発ブランチで最新4ソース＋19体・4スペルの`SHOKOKU_UNIT_STATS`と同期済。
+- **Stage 3固有の実Firebase2席E2Eを追加**：`tests/online-unit-ai-firebase-e2e.cjs`へ`stage3KaijuGale`シーンを追加。ローカルホストChromiumの実`unitStep`・`castSpell`・`NET.maybePublish`で怪獣を召喚し、敵兵が近距離にいても砦4を最優先、怪獣自身に疾風号令が付与、円内の味方だけ付与、円内の敵は未付与、WebKitゲストに同一バフが届く、味方が元の円外へ移っても残存、バフが4秒後に消える、砦HP12を4発で占領して両席に反映、敵兵は占領までHP105のままで反撃されない、を検証。実データはFirebase RTDB一時ルームへ流し、終了時に削除。公開用のゲームコードへQAフックを埋め込んでいない（**テスト実行時にローカル提供コードへ注入するのみ**）。
+- **最新専用CI**：[Stage-1 unit AI real Firebase E2E #40940768545](https://github.com/8mahi8/shokoku-sensen/actions/runs/40940768545) **completed/success**、旧8ケース＋Stage 3新ケース＝9ケース。実際のログに`PASS GUEST AI WORLD stage3KaijuGale`／`PASS LIVE AI stage3KaijuGale`あり。WebKitゲストとChromiumホストの画面スクリーンショットをartifactに保存済。**これは実ブラウザーと実Firebaseの成功で、物理iPad Safari実機合格ではない**。
+- **既存総合CI（Stage3コードのSHA 20136208/6c63e43cベース）**：[Online 1v1 smoke #40939477430](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939477430) success（ビルド --check・静的構文・デッキ・戦闘/バランス回帰）、[BOT vs BOT full match #40939477447](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939477447) success、[cached character art QA #40939477427](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939477427) success、[WebKit matched HUD #40939477587](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939477587) success。[iPad UI visual QA #40939463574](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939463574) success、[Stage2 real Firebase 2-seat E2E #40939463611](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939463611) success、[online two-browser live QA #40939463666](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939463666) success。最新のゲーム本体コード自体はこれらの成功版から変えておらず、その後はテスト専用・資料更新だけ。
+- **旧テストの失敗は解消済み**：重撃砕兵vsゴーレムの旧HP固定値を更新した`tests/online-unit-ai-firebase-e2e.cjs`の既存8ケースは [#40939857067](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939857067) success。追加のStage3ケースも上記 #40940768545 でsuccess。旧失敗ログを現行バグとして報告しない。
+- **受入判定**：開発版は**学校に貼る候補としての自動検証ゲートに到達**。未確認は物理的な学校iPadの実機Safari・実際の学校Google Sites埋め込み下での2席の表示/タップ/長時間の体感。これらはユーザーによる現地の実機プレイが必要。ゲーム内バランスの数値は本人が一旦了承しており、試遊前に独断再調整しない。
+- **配布候補**：`online-embed.html`（Google SitesへのHTML直接貼付の原稿）、`online-ipad.html`（同仕様のiPad向け単体）。どちらも**開発ブランチの候補**で、学校側の稼働版には反映していない。Google Driveへの移管はユーザーが依頼したときのみ。
+- **次の仕事**：ユーザーが学校で2台のiPadから接続し、怪獣と疾風号令を実際に召喚／使用して操作性・ラグ・見た目を評価。気になった点や通信不具合があればログ/スクリーンショットを確認して最小修正。許可なく学校版を更新しない。
 
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
