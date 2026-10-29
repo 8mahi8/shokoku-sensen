@@ -66,7 +66,7 @@ const checks=[
  ["duelist","sentinel","right",308,3.2],
  ["crusher","engineer","left",324,5.3],
  ["crusher","sentinel","left",212,5.3],
- ["crusher","guardian","right",950,6.15],
+ ["crusher","guardian","right",850,6.15],
  ["ranger_engineer","scout","left",48,8.4],
  ["ranger_engineer","engineer","right",150,11.2],
  ["interceptor","scout","left",27,5.75],
@@ -88,7 +88,7 @@ if(process.argv.includes("--json")){
  console.log(JSON.stringify({assumptions:"1 unit each, stationary, t0 first attack, no range/move/splash secondaries",duels:data},null,2));
 }else{
  console.log("Stage 1 theoretical 1v1 analysis — unit vs unit; first hit t=0; no movement/range gap");
- console.log("Sentinel uses V1.2 proposed 440HP/1.60s. Actual game is unchanged.");
+ console.log("Calculations use the currently deployed CLASSES (including Stage 3 heavy HP).");
  console.log("| Prototype | Existing opponent (1 unit) | Winner | Winner remaining HP | Time (s) |");
  console.log("|---|---|---|---:|---:|");
  for(const [id,p] of Object.entries(proposal)){
