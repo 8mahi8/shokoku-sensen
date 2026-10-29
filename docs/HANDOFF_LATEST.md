@@ -63,7 +63,7 @@
 
 - **新規ブラウザー QA**：`tests/online-stage2-browser-visual.cjs` と `.github/workflows/online-stage2-browser-visual.yml` を開発ブランチに追加。ローカルHTMLの**メモリー上**だけへ検査メソッドを追加し、既存の `online-game.js` や学校のHTMLは編集しない。
 - 追加した6シーン × Chromium/WebKit 2エンジン（計12シーン）は [GitHub Actions #40912068320](https://github.com/8mahi8/shokoku-sensen/actions/runs/40912068320) で **completed / success**。確認項目：新4ユニットと子兵の両陣営 Canvas `KokokuArt.drawUnit` 呼出、貫通10体・主55／後続33、投石固定着弾1.1秒と対空、突貫爆撃機の接触条件、ロボ31秒までに8体、引力2.5秒の拘束・復帰。テスト中の新ユニットは実 `playCard` 経由で合法召喚、戦闘には実 `fire`/`unitStep`/`spellStep`、描画には実 `draw` を使用。一方、敵配置・時刻は QA 固定入力であり、**実Firebaseの通信や学校iPadの試験ではない**。PNGを人の目で評価したと主張しない。
-- **新規オンラインQA**：`tests/online-stage2-firebase-e2e.cjs` と `.github/workflows/online-stage2-firebase-e2e.yml` を追加。既存の実2ブラウザー E2E を土台に、両席が第2段階4ユニット＋引力をデッキ選択して各カードを合法使用し、ホスト確定世界の Firebase `spells.zones` に `gravity` が公開され、再戦でもデッキが保持されることを試す。**実Firebaseホスト／WebKitゲストで20件の合法カード使用・両席の第2段階カード5種類・再戦まで、Actions [#40912734104](https://github.com/8mahi8/shokoku-sensen/actions/runs/40912734104) は completed / success。ログ上は仮ルーム削除HTTP 200。** この初回E2Eで確認した `gravity` はホストがFirebaseへ公開した事実で、ゲスト側で効果を受信したとまで断定しない。その追加検査（本番ソース変更なしのlocalhost WebKit読み取り）をコミット `c24d6840734b999a9849afb229a6c5c5836155ae` に加え、[Actions #40913125099](https://github.com/8mahi8/shokoku-sensen/actions/runs/40913125099) で再実行中。**最終合否は要確認**。
+- **新規オンラインQA**：`tests/online-stage2-firebase-e2e.cjs` と `.github/workflows/online-stage2-firebase-e2e.yml` を追加。既存の実2ブラウザー E2E を土台に、両席が第2段階4ユニット＋引力をデッキ選択して各カードを合法使用し、ホスト確定世界の Firebase `spells.zones` に `gravity` が公開され、再戦でもデッキが保持されることを試す。**実Firebaseホスト／WebKitゲストで20件の合法カード使用・両席の第2段階カード5種類・再戦まで、Actions [#40912734104](https://github.com/8mahi8/shokoku-sensen/actions/runs/40912734104) は completed / success。ログ上は仮ルーム削除HTTP 200。** この初回E2Eで確認した `gravity` はホストがFirebaseへ公開した事実で、ゲスト側で効果を受信したとまで断定しない。その追加検査（本番ソース変更なしのlocalhost WebKit読み取り）をコミット `c24d6840734b999a9849afb229a6c5c5836155ae` に追加した。**[Actions #40913125099](https://github.com/8mahi8/shokoku-sensen/actions/runs/40913125099) は completed / success**。双方が新4ユニット＋引力を実際のUIで使用し、ホスト確定worldの `gravity` がFirebaseを通じて**WebKitゲスト側の `S.spells.zones` へ適用**されたことを検証。実行ログ：合法カード操作20件、`PASS: 20 Stage-2 deck actions, real guest gravity sync and rematch`、再戦用デッキ保持、テストルーム削除HTTP 200。
 - 学校Google Sites、main、stable、GitHub Pages公開用main、Firebase Rules、既存Driveファイルは**変更なし**。Stage 2新能力のゲーム本体性能と既存ユニットAIも変更なし。
 - **次のゲート：** Firebase E2Eの最終ログ確認・必要なテスト修正→実戦での新能力同期（特に遠投投石の `incoming` や引力の `zones`）→物理iPadでホスト／ゲスト双方のUI/実FPS/召喚・被弾・再戦を確認。実機は最後まで未検証として扱う。
 
@@ -94,7 +94,7 @@ node tests/online-balance-theory.cjs > /dev/null
 
 ## 4. 次のロードマップと受入ゲート
 
-- **現在地：Stage 2の設計確定 → 開発ブランチへの機能実装・アート・単体HTML反映済み → 自動回帰一部確認済み → CI/実ブラウザ/実Firebase/学校iPad試遊は未完。**
+- **現在地：Stage 2設計確定 → 新4ユニット＋引力の開発ブランチ実装・アート・単体HTML同期 → 旧エンジン回帰および新12シーンChromium/WebKitブラウザーQA合格 → 実Firebaseの2席・両陣営5カード使用／引力ゲスト受信／再戦E2E合格 → 物理iPad試遊と投石の実戦incoming同期など細部QAは未完。**
 - **次の実務：** Stage 2最新HEADのCI・ブラウザ表示・2席オンライン同期と戦闘、特に**貫通の複数敵、投石の固定着弾と対空、突貫爆撃機の接触条件、31秒のロボ生成、引力終了後に既存AIへ戻る挙動**を重点的に確かめる。前担当のStage 2 QAは抽出テストなので、見た目の品質も確認すること。
 - **学校試遊版の扱い：** 開発版ファイルを生成・改善してよいが、本人が明示的に依頼するまで、**稼働中の学校Google Sites・main・stable・Firebase Rulesは変えない**。実際に公開していないものを「もう学校で遊べる」と言い切らない。
 - **バランス調整の再開条件：** 友達との試遊で問題が発見されたとき、または本人が明示的に調整依頼したときだけ。旧レポートの疑いだけを根拠に再調整しない。
