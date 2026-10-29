@@ -5,6 +5,7 @@ on:
       - 'online*'
       - 'tests/online-smoke.cjs'
       - 'tests/online-deck.cjs'
+      - 'tests/online-stage1-combat.cjs'
       - 'tests/online-balance-theory.cjs'
       - 'tools/build-online-bundles.cjs'
       - 'tests/online-sim.cjs'
@@ -29,7 +30,7 @@ jobs:
       - run: node tests/online-sim.cjs
       - name: Quantitative pre-implementation 1v1 balance sanity check
         run: node tests/online-balance-theory.cjs > /dev/null
-      - name: Check priority-based unit AI (37 scenarios)
+      - name: Check priority-based unit AI (42 scenarios)
         run: node tests/online-unit-target-priority.cjs
       - name: Verify no automatic match collection in school build
         run: |
