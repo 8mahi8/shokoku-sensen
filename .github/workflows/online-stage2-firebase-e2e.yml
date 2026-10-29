@@ -1,0 +1,29 @@
+name: Online Stage-2 real Firebase two-seat E2E
+on:
+  push:
+    paths:
+      - 'tests/online-stage2-firebase-e2e.cjs'
+      - '.github/workflows/online-stage2-firebase-e2e.yml'
+      - 'online-game.js'
+      - 'online-deck.js'
+      - 'online-net.js'
+      - 'online-ipad.html'
+      - 'online.html'
+  workflow_dispatch:
+jobs:
+  stage2-firebase:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Play Stage-2 cards across real Firebase host/guest and rematch
+        run: node tests/online-stage2-firebase-e2e.cjs
