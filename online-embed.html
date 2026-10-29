@@ -4509,7 +4509,7 @@ function drawUnit(u,alreadyPresented=false){
 }
 function drawUnitStatuses(u){
  if(!u.statusEffects?.some(e=>e.key==="gale"&&e.remaining>0))return;
- const y=u.y-CLASSES[u.key].r-18;
+ const y=u.y-(u.key==="kaiju"?180:u.key==="guardian"?196:u.key==="tank"?150:CLASSES[u.key].r+55);
  ctx.save();ctx.lineWidth=2.5;ctx.strokeStyle="#a8f6b6";
  ctx.beginPath();ctx.arc(u.x,y,7,-Math.PI*.65,Math.PI*.65);ctx.stroke();
  ctx.fillStyle="#b8ffc1";ctx.beginPath();ctx.moveTo(u.x-3,y+3);
@@ -4599,7 +4599,7 @@ const BIG_W=282,BIG_H=278,BIG_AX=136,BIG_AY=210;
 // The old (.4,3.2) both sampled POSITIVE leg swing, causing a stiff gait.
 const CACHED_STRIDE_PEAK=Math.PI/(2*.76);
 const cachedHealthTop={infantry:82,scout:92,engineer:101,archer:88,
- suppress:97,sentinel:107,guardian:187,drone:100,tank:141};
+ suppress:97,sentinel:107,guardian:187,drone:100,tank:141,kaiju:166};
 let useDenseSpriteCache=true,denseCacheBroken=false,denseSpritesRendered=0,fullSpritesRendered=0;
 // A low-FPS switch should not build every offscreen pose on the same paint.
 // Missing tiles retain their original full artwork until a later frame.
@@ -4640,7 +4640,7 @@ function renderCrowdedUnit(u){
   Number.isFinite(u.hitAt)&&S.clock>=u.hitAt&&S.clock-u.hitAt<.3);
  if(!useDenseSpriteCache||denseCacheBroken||preserveMoment||
    S.units.length<(lowFpsCrowdedSprites?6:(!NET.isHost&&guestLowPower?28:40))||
-   ((u.key==="guardian"||u.key==="tank")&&!guestSimplifyVisuals()&&!lowFpsCrowdedSprites)||
+   ((u.key==="guardian"||u.key==="tank"||u.key==="kaiju")&&!guestSimplifyVisuals()&&!lowFpsCrowdedSprites)||
    !window.KokokuArt){
   fullSpritesRendered++;drawUnit(u);return;
  }
