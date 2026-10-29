@@ -215,6 +215,19 @@
 - **配布候補**：`online-embed.html`（Google SitesへのHTML直接貼付の原稿）、`online-ipad.html`（同仕様のiPad向け単体）。どちらも**開発ブランチの候補**で、学校側の稼働版には反映していない。Google Driveへの移管はユーザーが依頼したときのみ。
 - **次の仕事**：ユーザーが学校で2台のiPadから接続し、怪獣と疾風号令を実際に召喚／使用して操作性・ラグ・見た目を評価。気になった点や通信不具合があればログ/スクリーンショットを確認して最小修正。許可なく学校版を更新しない。
 
+## 2.18 2026-10-30｜最終再検証済Google Sites貼付用を本人Google Driveに保存
+
+- **本人依頼**：学校で使う前にもう一度デバッグと整合確認、問題なければGoogle Driveへ貼付用ファイルを保存。学校で稼働中の実埋め込みコードの更新は指示されておらず、**今回も変更していない**。
+- **ビルドと受入ゲート**：GitHub開発ブランチに`.github/workflows/school-stage3-release-candidate.yml`を追加。**[School Stage 3 release-candidate HTML verification #40971602587](https://github.com/8mahi8/shokoku-sensen/actions/runs/40971602587) completed/success**。固定SHA `fff3c7ec8a30d84829efa07bef2922d8f550e70d` で単体HTML2種の`--check`、online-smoke/deck/stage1+2-combat/priority-4 AI/solo sim/balance theory/stage3 all-cost比較、HTML内4モジュール・怪獣6コストHP1000、疾風号令、ゴーレム1300、戦車1000、受動収集コードなし、を実物から検証。
+- **実オンラインStage3の根拠**：直前の[Firebase＋WebKit 9ケース #40940768545](https://github.com/8mahi8/shokoku-sensen/actions/runs/40940768545) completed/success。怪獣の砦4突進占領・敵兵非反撃、疾風号令の発動瞬間のみ付与・円外へ移動後も持続・4秒失効、両席受信を確認済。過去の旧HPテスト失敗は後発の成功で解消。
+- **Driveへの保存実績（実確認）**：本人所有の`小国戦線III`フォルダ `1brr7JaupWk_kHMKVoI9gIkei3XrJGY2S` に**2ファイルを新規アップロード**し、Google Driveメタデータを読み戻して両方`380369`bytes・同フォルダ所属・非共有と確認。中身は同一SHA256 `786091db3acea49b59f45c8c4c89394b345cd220ad419e5afc11b30c19c49e5f` で、上記GitHub Actionsが検査して出力した同一HTML。
+  - **貼付用TXT（主）**：`小国戦線III_学校GoogleSites貼付用_Stage3_20261030.txt` — https://drive.google.com/file/d/1S3jPUJ3wQEVJc5Fp7OxYttBnX8oRhM0e/view
+  - **試遊用HTML（同内容）**：`小国戦線III_学校試遊_Stage3_20261030.html` — https://drive.google.com/file/d/1CsDOvPByxSavDcXPuYjsgvyCFl9eNnzs/view
+  - **Actionsアーカイブ（控え）**：artifact `SchoolSites-Stage3-verified-20261030` にTXT＋HTML＋貼付案内＋SHA256SUMS。 https://github.com/8mahi8/shokoku-sensen/actions/runs/40971602587
+- **使用方法**：学校Google Sitesの「埋め込む」→「埋め込みコード」で**TXTのHTML全文**を貼る。ZIPを貼るのではない。本人から実際の学校埋め込み版の更新を依頼されていないので反映はしていない。
+- **未確認**：学校実iPad SafariとGoogle Sitesの実際の埋め込み環境で2台の対戦・長時間連戦・体感ラグ。**ブラウザCI成功と実機合格を混同しない**。この候補の元ゲームコードは前回のQA成功から不変更で、今回新たな欠陥は確認されなかった。試遊で発見されれば再現・最小修正する。
+- **次**：本人が学校で貼り替える時にこの固定版を使用→iPad2席で実試遊→問題があればフィードバック。学校版やFirebase Rulesは本人の明示的な依頼なしに変更しない。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
