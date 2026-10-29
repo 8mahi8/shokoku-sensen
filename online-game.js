@@ -2444,6 +2444,10 @@ function drawUnit(u,alreadyPresented=false){
  case "drone":
   ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-10,-15);ctx.lineTo(-9,-4);ctx.lineTo(-9,4);ctx.lineTo(-10,15);ctx.closePath();ctx.fill();ctx.stroke();
   ctx.fillStyle="#f5d8a0";ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill();break;
+ case "kaiju":
+  ctx.beginPath();ctx.moveTo(-24,7);ctx.lineTo(-24,-16);ctx.lineTo(-12,-30);
+  ctx.lineTo(13,-29);ctx.lineTo(24,-13);ctx.lineTo(27,11);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.strokeStyle="#ffe7ab";ctx.beginPath();ctx.moveTo(8,-14);ctx.lineTo(21,-14);ctx.stroke();break;
  case "tank":
   rounded(ctx,-25,-19,50,38,8);ctx.fill();ctx.stroke();
   ctx.fillStyle="#14353f";rounded(ctx,-6,-11,33,22,4);ctx.fill();
@@ -2455,6 +2459,14 @@ function drawUnit(u,alreadyPresented=false){
   ctx.fillStyle=col;ctx.fillRect(u.x-20,u.y-bob-d.r-14,40*Math.max(0,u.hp/u.max),5);
  }
  if(isAir){ctx.strokeStyle="#d6eae560";ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(u.x,u.y-bob+5);ctx.lineTo(u.x,u.y);ctx.stroke();ctx.setLineDash([]);}
+}
+function drawUnitStatuses(u){
+ if(!u.statusEffects?.some(e=>e.key==="gale"&&e.remaining>0))return;
+ const y=u.y-CLASSES[u.key].r-18;
+ ctx.save();ctx.lineWidth=2.5;ctx.strokeStyle="#a8f6b6";
+ ctx.beginPath();ctx.arc(u.x,y,7,-Math.PI*.65,Math.PI*.65);ctx.stroke();
+ ctx.fillStyle="#b8ffc1";ctx.beginPath();ctx.moveTo(u.x-3,y+3);
+ ctx.lineTo(u.x+1,y-5);ctx.lineTo(u.x+5,y+3);ctx.closePath();ctx.fill();ctx.restore();
 }
 function drawSpellFields(now){
  for(const zone of S.spells.zones){
@@ -2551,7 +2563,7 @@ function cachedSprite(u,pose){
  if(denseSpriteCache.has(key))return denseSpriteCache.get(key);
  if(denseCacheBroken||!window.KokokuArt?.drawUnit)return null;
  try{
-  const big=u.key==="guardian"||u.key==="tank";
+  const big=u.key==="guardian"||u.key==="tank"||u.key==="kaiju";
   const ax=big?BIG_AX:FAST_AX,ay=big?BIG_AY:FAST_AY;
   const tile=document.createElement("canvas");
   tile.width=big?BIG_W:FAST_W;tile.height=big?BIG_H:FAST_H;
@@ -2603,7 +2615,7 @@ function renderCrowdedUnit(u){
  // Small colored ground indicator separates friend and foe in overlapping crowds.
  ctx.strokeStyle=u.team===1?"#7fe4ffad":"#ff879bac";ctx.lineWidth=1.65;
  ctx.beginPath();ctx.ellipse(u.x,u.y+1,Math.max(14,CLASSES[u.key].r+6),7,0,0,Math.PI*2);ctx.stroke();
- const big=u.key==="guardian"||u.key==="tank";
+ const big=u.key==="guardian"||u.key==="tank"||u.key==="kaiju";
  const px=Math.round(u.x-(big?BIG_AX:FAST_AX));
  const py=Math.round(u.y-(big?BIG_AY:FAST_AY));
  // One short crossfade when emergency caching first activates. The
@@ -2648,7 +2660,7 @@ function observeGrandArrival(now){
   return;
  }
  for(const u of S.units){
-  if(u.key!=="guardian"&&u.key!=="tank" || grandSeen.has(u.uid))continue;
+  if(u.key!=="guardian"&&u.key!=="tank"&&u.key!=="kaiju" || grandSeen.has(u.uid))continue;
   grandSeen.add(u.uid);
   // The new UID is authoritative. Avoid comparing local and remote clocks:
   // a guest who waited in a room may be many seconds ahead of the host.
@@ -2706,7 +2718,10 @@ function draw(){
  for(const c of S.capitals)if(visible(WALL_FACE[c.team],H/2,115,H/2,H/2))drawCapital(c);
  const objects=[];
  for(const p of S.forts)if(visible(p.x,p.y,60,100,55))objects.push({y:p.y+20,draw:()=>drawFort(p)});
- for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>renderCrowdedUnit(u)});
+ for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>{
+  renderCrowdedUnit(u);
+  drawUnitStatuses(u);
+ }});
  for(const gone of S.deaths){
   // The guest receives death echoes only in occasional state snapshots.
   // Advance the *artwork* clock locally, never mutating combat/death data.
