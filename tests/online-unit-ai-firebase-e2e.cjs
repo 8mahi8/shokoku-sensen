@@ -174,14 +174,14 @@ async function prepareDeck(page){
     assert.equal(initial.approach,"unit:infantry");
     const chased=await poll(async()=>{
      const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
-     return v.subject.x>initial.subject.x+9?v:false;
+     return v.subject.x>initial.subject.x+25?v:false;
     },"guard chases target inside spawn circle",6500);
     await host.evaluate(()=>window.__shokokuQa.aiFirebaseChange("leaveAnchor"));
     verified=await poll(async()=>{
      const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
-     return v.subject.x<chased.subject.x-8&&v.approach===null?v:false;
+     return v.subject.x<=initial.subject.x+8&&v.approach===null?v:false;
     },"guard stops chasing and returns to anchor",6500);
-    assert.ok(verified.subject.x<chased.subject.x);
+    assert.ok(verified.subject.x<chased.subject.x-12, "the guard genuinely returned after pursuit");
    }else if(id==="guardianRetarget"){
     assert.equal(initial.attack,"unit:tank",
      "guardian must prefer large tank despite nearer infantry");
