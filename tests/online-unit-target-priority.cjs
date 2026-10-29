@@ -325,4 +325,57 @@ test("stage-one generalist heavy hitter targets nearer small before distant larg
  S.units=[a,small,big];
  assert.equal(chosen(a).attack.ref,small);
 });
-console.log("TARGET_PRIORITY_QA: 42 scenarios passed");
+// Priority 4 extends the shared selector without adding a new behavior mode
+// or changing the existing 0-3 units. Test a synthetic future capture kaiju.
+function withObjective(fn){
+ API.CLASSES.qaObjective={...API.CLASSES.engineer,
+  name:"QA Objective",range:38,vision:520,
+  targetPriority:{castle:2,fort:4,unit:2}};
+ try{fn();}finally{delete API.CLASSES.qaObjective;}
+}
+test("priority 4 distant fort overrides in-range enemy 2 without retaliation",()=>withObjective(()=>{
+ const a=actor("qaObjective",1,300,200),e=actor("infantry",2,323,200,11);
+ S.units=[a,e];S.forts=[fort(410,200)];
+ const c=chosen(a);
+ assert.equal(c.attack,null,"sighted objective must suppress lower-priority attack");
+ assert.equal(c.approach.kind,"fort");
+ assert.ok(moved(a)>0);assert.ok(a.x>300);
+ assert.equal(shots.filter(x=>x.u===a).length,0,"do not retaliate along the way");
+}));
+test("priority 4 in-range fort beats closer enemy 2",()=>withObjective(()=>{
+ const a=actor("qaObjective",1,300,200),e=actor("infantry",2,316,200,11);
+ S.units=[a,e];S.forts=[fort(329,200)];
+ assert.equal(chosen(a).attack.kind,"fort");
+ moved(a);assert.equal(shots[0].t.kind,"fort");
+}));
+test("priority 4 does not see targets beyond its configured vision",()=>withObjective(()=>{
+ const a=actor("qaObjective",1,300,200),e=actor("infantry",2,319,200,11);
+ S.units=[a,e];S.forts=[fort(940,200)];
+ assert.equal(chosen(a).attack.ref,e);
+ moved(a);assert.equal(shots[0].t.ref,e);
+}));
+test("priority 4 fort ownership change restores ordinary enemy attack",()=>withObjective(()=>{
+ const a=actor("qaObjective",1,300,200),e=actor("infantry",2,321,200,11);
+ S.units=[a,e];S.forts=[fort(405,200)];
+ assert.equal(chosen(a).attack,null);
+ S.forts[0].owner=1;
+ assert.equal(chosen(a).attack.ref,e);
+ moved(a);assert.equal(shots[0].t.ref,e);
+}));
+test("priority 4 pursuit works symmetrically for the red team",()=>withObjective(()=>{
+ const a=actor("qaObjective",2,900,200),e=actor("infantry",1,880,200,11);
+ S.units=[a,e];S.forts=[fort(780,200)];
+ assert.equal(chosen(a).attack,null);
+ assert.equal(chosen(a).approach.kind,"fort");
+ moved(a);assert.ok(a.x<900);assert.equal(shots.filter(x=>x.u===a).length,0);
+}));
+test("priority 3 remains attack-first even against farther priority 3",()=>withObjective(()=>{
+ const a=actor("qaObjective",1,300,200),e=actor("infantry",2,321,200,11);
+ S.units=[a,e];S.forts=[fort(405,200)];
+ const priority=API.CLASSES.qaObjective.targetPriority;
+ priority.fort=3;
+ assert.equal(chosen(a).attack.ref,e);
+ assert.equal(chosen(a).approach.kind,"fort");
+ moved(a);assert.equal(shots[0].t.ref,e);
+}));
+console.log("TARGET_PRIORITY_QA: 48 scenarios passed");
