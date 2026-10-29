@@ -6,6 +6,7 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs"),http=require("node:http"),path=require("node:path");
 const {chromium,webkit}=require("playwright");
 const root=process.cwd(),BASE="https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1";
+const out=path.join(root,"qa-unit-ai-firebase");fs.mkdirSync(out,{recursive:true});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const poll=async(fn,label,timeout=14000)=>{
  const end=Date.now()+timeout;let latest;
@@ -83,6 +84,12 @@ function aiFirebaseChange(action){
  NET.maybePublish(true);
  return window.__shokokuQa.aiFirebaseState();
 }
+function aiFirebaseGuestState(){
+ return {phase:S.phase,elapsed:S.elapsed,
+  units:S.units.map(u=>({uid:u.uid,key:u.key,team:u.team,hp:u.hp,x:u.x,y:u.y})),
+  forts:S.forts.map(f=>({x:f.x,y:f.y,owner:f.owner,hp:f.hp})),
+  frameError:window.__onlineFrameError||null};
+}
 const anchor="window.__shokokuQa={";
 const moduleFile=fs.readFileSync(path.join(root,"online-game.js"),"utf8");
 assert.equal(moduleFile.split(anchor).length,2,"unique QA insertion anchor");
@@ -90,6 +97,9 @@ const hook="\n aiFirebaseSetup:("+aiFirebaseSetup.toString()+"),"+
  "\n aiFirebaseState:("+aiFirebaseState.toString()+"),"+
  "\n aiFirebaseChange:("+aiFirebaseChange.toString()+"),";
 const modifiedModule=moduleFile.replace(anchor,anchor+hook);
+const guestHtml=fs.readFileSync(path.join(root,"online-ipad.html"),"utf8");
+assert.equal(guestHtml.split(anchor).length,2,"unique guest QA insertion anchor");
+const modifiedGuest=guestHtml.replace(anchor,anchor+"\n aiFirebaseGuestState:("+aiFirebaseGuestState.toString()+"),");
 const server=http.createServer((req,res)=>{
  try{
   const route=decodeURIComponent(req.url.split("?")[0]);
@@ -100,6 +110,7 @@ const server=http.createServer((req,res)=>{
    "text/javascript; charset=utf-8":"text/html; charset=utf-8",
    "Cache-Control":"no-store"});
   if(route==="/online-game.js"){res.end(modifiedModule);return;}
+  if(route==="/online-ipad.html"){res.end(modifiedGuest);return;}
   fs.createReadStream(file).pipe(res);
  }catch(e){res.writeHead(500);res.end("error");}
 });
@@ -211,6 +222,40 @@ async function prepareDeck(page){
     const matching=g.units.some(u=>u.uid===h.units.find(w=>w.key===initial.subject.key&&w.team===expectedSide)?.uid);
     return matching&&Math.abs(g.elapsed-h.elapsed)<3;
    },"guest sees AI result "+id,16000);
+   await poll(async()=>{
+    const h=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
+    const g=await guest.evaluate(()=>window.__shokokuQa.aiFirebaseGuestState());
+    if(g.phase!=="battle"||g.frameError||!h.subject)return false;
+    const unit=g.units.find(u=>u.uid===h.subject.uid);
+    if(!unit||unit.key!==h.subject.key||Math.abs(unit.x-h.subject.x)>25)return false;
+    if(h.fort){
+     const gf=g.forts.find(v=>v.x===h.fort.x&&v.y===h.fort.y);
+     if(!gf||gf.owner!==h.fort.owner)return false;
+    }
+    if(id==="rangerCapture"||id==="redRangerCapture"){
+     if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.hp<105))return false;
+    }
+    if(id==="guardReturn"){
+     if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.x>610))return false;
+    }
+    if(id==="guardianRetarget"){
+     if(!(g.units.find(u=>u.uid===initial.other.uid)?.hp<105))return false;
+    }
+    if(id==="bomberSplash"){
+     if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.hp<105))return false;
+     if(!(g.units.find(u=>u.uid===initial.other.uid)?.hp<105))return false;
+     if(g.units.find(u=>u.uid===initial.air.uid)?.hp!==120)return false;
+    }
+    return true;
+   },"WebKit guest receives actual AI HP / fort state "+id,12000);
+   console.log("PASS GUEST AI WORLD",id);
+   await guest.evaluate(({x,y})=>window.__shokokuQa.setCamera(x,y),
+    {x:initial.subject.x,y:initial.subject.y});
+   await host.evaluate(({x,y})=>window.__shokokuQa.setCamera(x,y),
+    {x:initial.subject.x,y:initial.subject.y});
+   await sleep(420);
+   await guest.screenshot({path:path.join(out,"webkit-guest-"+id+".png"),timeout:16000});
+   await host.screenshot({path:path.join(out,"chromium-host-"+id+".png"),timeout:16000});
    results.push({scenario:id,initial,verified});
    console.log("PASS LIVE AI",JSON.stringify({id,initialTarget:initial.attack||initial.approach,
     finalTarget:verified.attack||verified.approach,final:verified}));
