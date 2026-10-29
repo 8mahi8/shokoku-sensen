@@ -47,6 +47,18 @@
 - 実Firebase/旧安定版/ゲストfps等の**過去のCI成功は第2段階の新能力が成功した証拠ではない**。録画を実際に見ていない場合は見たことにしない。
 - iPadでのゲスト側ラグとホスト/ゲスト表示差、学校Google Sites埋め込みの実機挙動は重要な残課題。既存の研究・証拠は`docs/HANDOFF_LATEST_2026-10-27.md`・`docs/PERFORMANCE_EVIDENCE.md`にあるが、再調査の前に読むこと。
 
+## 2.1 2026-10-30｜次担当引き継ぎ直後のCI調査と最小修正
+
+- 本担当は最新開発HEAD、PR #22、AGENTS.md、Stage 2/デッキ実装引き継ぎ、実コード、GitHub Actionsを読んだ。初回確認時HEADは `a90d643e95c8be75450cf5a6ef843d6197c1a72c`。実作業対象は引き続き同一開発ブランチ。main・stable・学校Google Sites・GitHub Pages公開用main・Firebase Rules・Driveには触れていない。
+- Stage 2コードについて `64c4e764` の **Online 1v1 smoke はsuccess**（[run #40906675915](https://github.com/8mahi8/shokoku-sensen/actions/runs/40906675915)）。ただしこれはNode系smokeの成功であり、Stage 2の新能力を使った実Firebase2席・iPad Safariの合格ではない。
+- `d7a3785f` で落ちた3本のブラウザー系CIを**実ログから確認**。デッキE2E [#40906657928](https://github.com/8mahi8/shokoku-sensen/actions/runs/40906657928)・デッキ表示 [#40906657755](https://github.com/8mahi8/shokoku-sensen/actions/runs/40906657755) はStage 2カード追加後も未採用プールを旧仕様の「5枚」と固定期待したことによる `10 !== 5`。ユニットAI表示 [#40906657617](https://github.com/8mahi8/shokoku-sensen/actions/runs/40906657617) は本人承認の遠距離工兵 `capture:2` を旧 `1` と期待した `10 !== 11`。いずれも観測された失敗点は**テスト側の古い固定値**であり、ゲームAIやバランスを変える根拠ではない。
+- 開発ブランチで3テストのみ更新：`f6c87b7631ca2db6e6669a0533e4408d74117d28`（候補枚数を `eligible().length-10` へ）、`0c94856aa6120335cce11bd9cf5f7ef8779c8db2`（UIの候補枚数を動的化し全カード絵Canvas維持を確認）、`2f490257c6c3897874fa77360279aae345345cfc`（遠距離工兵の砦HP減少2を期待）。**戦闘コード・カード性能・既存AI・本番環境を一切変更していない**。
+- 初回更新時点では修正後の Actions 3本が**実行中／合否未確定**：
+  - [デッキ2席E2E #40910397653](https://github.com/8mahi8/shokoku-sensen/actions/runs/40910397653)
+  - [デッキUI Chromium/WebKit #40910404735](https://github.com/8mahi8/shokoku-sensen/actions/runs/40910404735)
+  - [ユニットAI Chromium/WebKit #40910414865](https://github.com/8mahi8/shokoku-sensen/actions/runs/40910414865)
+- **次の担当はまず上記3 CIの最終結果・失敗ログを取り直す。** 成功するまで「通過」と書かない。これらは主にStage 1のカードとAIの回帰で、Stage 2全能力の実ブラウザー戦闘・Firebase2席同期・物理iPad試遊の代用ではない。Stage 2専用の試遊シーン/合法配置テストを次に追加して検証すること。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
