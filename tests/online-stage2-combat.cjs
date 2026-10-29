@@ -129,6 +129,17 @@ test("kamikaze detonates on contact but not upon being killed by another unit",(
  ctx.hitUnit(b,150);
  assert.ok(b.hp<=0);assert.equal(S.effects.length,effects+1,"only ordinary defeat effect");
 });
+test("contact bomber approaches until hitboxes touch instead of exploding at sight-range edge",()=>{
+ const attacker=unit("kamikaze",1,300,300),victim=unit("infantry",2,336,300);
+ S.units=[attacker,victim];
+ // Acquisition threshold is 28 + target radius 12; physical collision is 17 + 12.
+ assert.equal(API.selectPriorityTargets(attacker).attack.ref,victim);
+ API.unitStep(.1);
+ assert.equal(attacker.hp,115,"not exploded before physical contact");
+ assert.ok(attacker.x>300,"bomber moves toward target rather than freezing within acquisition range");
+ for(let i=0;i<8&&attacker.hp>0;i++)API.unitStep(.1);
+ assert.ok(attacker.hp<=0,"bomb detonates after actual contact");
+});
 test("summoner creates robots at 2,4,6,11,16,21,26,31 seconds and stops at eight",()=>{
  const a=unit("mech_summoner",1,300,300);S.units=[a];
  let t=0;
