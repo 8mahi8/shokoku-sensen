@@ -141,6 +141,14 @@
 - **関連CI**：同じ最新CSSを含むcommit `284d56ce` に対して [Online 1v1 smoke #40925811782](https://github.com/8mahi8/shokoku-sensen/actions/runs/40925811782) success。前コミットのデッキE2E/Stage2 Firebase/iPad UI等でも同じCSS版に関するrunがsuccess。**ただしGoogle Sites上の実iPadでの実操作は未検証**。
 - **次**：残るUI問題を実機で観察。新キャラ/スペル追加のデッキ操作が成立することの自動確認は済み。ユーザーの希望である**追加大型1体＋追加スペル1個**は現在未設計・未実装の予約タスクのまま、能力/費用/バランスを本人と決める。その後学校試遊用候補を更新する。開発PR #22はDraft、main/stable/学校公開版/Firebase Rules/Google Drive未変更。
 
+## 2.10 2026-10-30｜本人指定の新大型「砦へ進む怪獣」と優先度4
+
+- **本人と進めている正式な設計方向**：砦攻撃型の怪獣（仮）を追加する。敵兵から攻撃されても、敵兵が射程内でも反撃・追撃せず、敵砦へ進み続け、砦を直接攻撃して**占領する**。単なる砦機能停止・破壊案は選ばない。ダメージは通常どおり受ける。「疾風号令」（味方移動速度上昇）は好意的な採用候補だが倍率等は未決定。新大型カード/スペル本体・バランス・アートはいずれも**まだ未実装・ユーザーとの設計相談中**。
+- **本人が明示的に指定した新共通優先度4**：索敵範囲内に優先度4の移動候補がいるときは、たとえ優先度1〜3の敵が射程内にいても**4へ向かう**。既存0〜3の攻撃射程優先ルールは変更しない。現在の `online-game.js` `selectPriorityTargets` には `if(approach?.priority===4&&(!attack||attack.priority<4))attack=null;` を入れた。**4が視界外・後方で追跡不可能な場合は例外発動なし**。4が射程内ならその4を攻撃。怪獣固有の強制砦全域索敵を勝手に追加しない。
+- **検証結果**：`tests/online-unit-target-priority.cjs` を42→48ケースへ増強。テスト専用 `qaObjective` に `fort:4,unit:2,castle:2` を与え、「砦へ接近中は射程内の敵2に攻撃しない」「射程内の砦4は攻撃」「砦4が視界外なら従来攻撃」「占領者変更で4を解除」「赤側の左右対称」「砦3では旧攻撃優先」といった6ケース。既存全員は対象優先度0〜3を維持した。単体HTML `online-ipad.html`/`online-embed.html` に同じAIを再インライン化し、Workflow名も48ケースへ更新。
+- **Actions**：[Online 1v1 smoke #40931886644](https://github.com/8mahi8/shokoku-sensen/actions/runs/40931886644) は **completed / success**。standalone bundle `--check`・従来オンラインデッキ/戦闘/シミュレーション/優先度48ケースを含む。学校iPad実機での試遊は未実施。**学校Google Sites、main、stable、Firebase Rules、Google Drive、旧AI/既存カード性能は未変更**。
+- **次の設計論点**：怪獣が砦を「常に目標として認識する」ための索敵範囲（全域索敵か現行visionか）、すべての砦を占領後の行動（敵城攻撃か待機）、後方で奪い返された砦へ戻るか（現行進撃型は戻らない）、砦攻撃力/体力/速度/コスト/使用回数、怪獣のシルエット。これらをユーザーと一緒に決める。コードの新ユニットは正式な仕様が固まってから追加。設計メモ：`docs/STAGE3_FORT_KAIJU_AND_GALE_DESIGN_2026-10-30.md`。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
