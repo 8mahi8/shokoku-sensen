@@ -108,8 +108,8 @@ function verifyStage(id,b,a){
    assert.ok(a.enemyHp<=0,"150-power crush kills infantry");
    assert.equal(a.otherHp,b.otherHp,"no unrequested splash or large targeting");break;
   case "ranger_engineer":
-   assert.equal(b.attack,"fort");assert.equal(a.fortHp,11);
-   assert.equal(a.enemyHp,b.enemyHp,"capture 3 beats unit 1");break;
+   assert.equal(b.attack,"fort");assert.equal(a.fortHp,10);
+   assert.equal(a.enemyHp,b.enemyHp,"capture priority 3 beats unit priority 1; fort capture power is now 2");break;
   case "interceptor":
    assert.equal(b.approach,"unit:infantry");assert.ok(a.x>b.x);break;
   case "ground_bomber":
