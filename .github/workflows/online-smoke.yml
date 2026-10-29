@@ -5,6 +5,7 @@ on:
       - 'online*'
       - 'tests/online-smoke.cjs'
       - 'tests/online-deck.cjs'
+      - 'tests/online-balance-theory.cjs'
       - 'tests/online-sim.cjs'
       - 'tests/online-unit-target-priority.cjs'
       - '.github/workflows/online-smoke.yml'
@@ -23,6 +24,8 @@ jobs:
       - name: Check deck catalog, 10 unique cards, and storage fallback
         run: node tests/online-deck.cjs
       - run: node tests/online-sim.cjs
+      - name: Quantitative pre-implementation 1v1 balance sanity check
+        run: node tests/online-balance-theory.cjs > /dev/null
       - name: Check priority-based unit AI (37 scenarios)
         run: node tests/online-unit-target-priority.cjs
       - name: Verify no automatic match collection in school build
