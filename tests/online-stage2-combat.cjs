@@ -180,4 +180,18 @@ test("summoner respects per-side 65-unit cap and retries when slot opens",()=>{
  S.units.pop();API.unitStep(.1);
  assert.equal(a.summonCount,1);assert.equal(S.units.length,65);
 });
+test("stage3 kaiju objective and gale status",()=>{
+ const a=unit("kaiju",1,300,300),e=unit("infantry",2,329,300);
+ S.units=[a,e];S.forts=[{x:430,y:300,hp:12,owner:2}];
+ assert.equal(API.selectPriorityTargets(a).attack,null);
+ API.unitStep(.1);assert.ok(a.x>300);assert.equal(e.hp,105);
+ S.hand[1]=["gale"];S.activeDecks[1]=["gale"];
+ assert.equal(API.castSpell(1,"gale",a.x,a.y),true);
+ assert.equal(a.statusEffects[0].remaining,4);
+ assert.equal(e.statusEffects,undefined);
+ a.x=550;API.unitStep(.1);
+ assert.ok(a.statusEffects[0].remaining<4);
+ for(let i=0;i<41;i++)API.unitStep(.1);
+ assert.ok(!a.statusEffects.length);
+});
 console.log("STAGE2_COMBAT_QA: registered cards, pierce, delayed area, self-destruct, castle contact, eight timed robots and gravity PASS");
