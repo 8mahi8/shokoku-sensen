@@ -2078,7 +2078,7 @@ const CLASSES={
  interceptor:{name:"迅速迎撃騎兵",glyph:"➶",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:38,cool:1.15,range:33,vision:215,speed:47,r:16,behavior:"guard",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:1,fort:0,unit:2},note:"中型・召喚位置中心の索敵円内で高速迎撃し帰還"},
  ground_bomber:{name:"対地爆撃翼",glyph:"✦",size:"medium",cost:5,limit:4,qty:1,hp:230,damage:55,cool:1.90,range:105,vision:167,speed:23,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,projectile:true,splash:67,splashScale:.60,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。地上の敵兵に範囲爆撃、空中の敵には反撃不可"},
  // Stage 2: all new combat specials are data-driven; existing target AI is unchanged.
- piercer:{name:"貫通射手",glyph:"➳",size:"medium",cost:3,limit:5,qty:1,hp:170,damage:55,cool:1.85,range:165,vision:205,speed:18,r:14,behavior:"normal",capture:0,hitAir:false,attackMode:"pierce",pierceCount:10,pierceScale:.6,pierceWidth:14,targetPriority:{castle:2,fort:0,unit:2},note:"中型・直線貫通。主対象55、後続は60%、最大10体。対空不可"},
+ piercer:{name:"貫通射手",glyph:"➳",size:"medium",cost:3,limit:5,qty:1,hp:170,damage:55,cool:1.85,range:165,vision:205,speed:18,r:14,behavior:"normal",capture:0,hitAir:false,projectile:true,attackMode:"pierce",pierceCount:10,pierceScale:.6,pierceWidth:14,targetPriority:{castle:2,fort:0,unit:2},note:"中型・直線貫通。主対象55、後続は60%、最大10体。対空不可"},
  catapult:{name:"遠投投石器",glyph:"◈",size:"large",cost:8,limit:3,qty:1,hp:700,damage:115,cool:4.5,range:215,vision:255,speed:12,r:25,behavior:"normal",capture:0,hitAir:true,attackMode:"delayedArea",impactDelay:1.1,splash:85,splashScale:1,castleOnContact:true,targetPriority:{castle:0,fort:0,unit:2},note:"大型・1.1秒後に半径85へ115、飛行にも命中。城は接触時のみ攻撃"},
  kamikaze:{name:"突貫爆撃機",glyph:"➤",size:"medium",cost:4,limit:4,qty:1,hp:115,damage:150,cool:1,range:28,vision:180,speed:36,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,attackMode:"contactBlast",splash:78,splashScale:.75,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。敵への接触で自爆、周囲地上兵112.5。撃墜時は不発"},
  mech_summoner:{name:"機械召喚師",glyph:"⚙",size:"medium",cost:5,limit:3,qty:1,hp:340,damage:15,cool:1.9,range:65,vision:115,speed:15,r:18,behavior:"guard",capture:0,hitAir:false,summons:"small_machine",summonTimes:[2,4,6,11,16,21,26,31],targetPriority:{castle:0,fort:0,unit:1},note:"中型・迎撃。2/4/6秒、その後5秒ごとに小型機を最大8体生産"},
@@ -2501,6 +2501,8 @@ function fire(u,target){
   // Lock the TARGET POSITION when the stone is released, never homing.
   S.spells.incoming.push({kind:"catapult",team:u.team,x:target.x,y:target.y,
    r:d.splash,time:d.impactDelay,total:d.impactDelay,damage:d.damage});
+  S.projectiles.push({x:u.x,y:u.y-58,tx:target.x,ty:target.y-12,
+   t:d.impactDelay,max:d.impactDelay,team:u.team,kind:"catapult"});
   return; // No immediate damage.
  }
  if(d.attackMode==="contactBlast"){
@@ -4732,12 +4734,13 @@ function draw(){
   const remaining=guestVisualTimeRemaining(shot.t,now);
   if(remaining<=0)continue;
   const f=1-remaining/shot.max;
-  const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f;
+  const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f-
+   (shot.kind==="catapult"?Math.sin(f*Math.PI)*65:0);
   if(!visible(x,y,35,45,45))continue;
-  const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
+  const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="catapult"?28:shot.kind==="piercer"?21:shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
   ctx.save();ctx.globalAlpha=Math.min(1,remaining/.09);
-  ctx.strokeStyle=shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
-  ctx.lineWidth=shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
+  ctx.strokeStyle=shot.kind==="catapult"?"#ffda90":shot.kind==="piercer"?"#b2e9ff":shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
+  ctx.lineWidth=shot.kind==="catapult"?9:shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
   ctx.shadowColor=ctx.strokeStyle;
   ctx.shadowBlur=guestSimplifyVisuals()?0:shot.kind==="tank"?15:10;
   ctx.lineCap="round";
