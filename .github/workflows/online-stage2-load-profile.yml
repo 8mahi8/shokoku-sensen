@@ -1,0 +1,30 @@
+name: Online Stage-2 high-density load profile
+on:
+  push:
+    paths:
+      - 'tests/online-stage2-load-profile.cjs'
+      - '.github/workflows/online-stage2-load-profile.yml'
+  workflow_dispatch:
+jobs:
+  stage2-high-density:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    permissions:
+      contents: read
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Compare matched 20-unit legacy versus Stage-2 combat load
+        run: node tests/online-stage2-load-profile.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shokoku-stage2-twenty-unit-load-profile
+          path: qa-stage2-load-profile/
+          retention-days: 14
