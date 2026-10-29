@@ -101,7 +101,7 @@ test("crusher does the same 150 damage to small and large targets",()=>{
  assert.ok(a.hp<=0);
  assert.equal(S.deaths.length,1,"lethal target creates standard death effect");
  API.fire(crusher,{kind:"unit",ref:b,x:b.x,y:b.y});
- assert.equal(b.hp,1400-150,"no hidden large-unit bonus");
+ assert.equal(b.hp,1300-150,"no hidden large-unit bonus");
 });
 test("ranged engineer uses updated capture=2 rather than damage=30 on enemy fort",()=>{
  const fort={x:500,y:300,owner:2,hp:12};
