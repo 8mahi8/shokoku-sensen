@@ -103,13 +103,13 @@ test("crusher does the same 150 damage to small and large targets",()=>{
  API.fire(crusher,{kind:"unit",ref:b,x:b.x,y:b.y});
  assert.equal(b.hp,1400-150,"no hidden large-unit bonus");
 });
-test("ranged engineer uses capture=1 rather than damage=30 on enemy fort",()=>{
+test("ranged engineer uses updated capture=2 rather than damage=30 on enemy fort",()=>{
  const fort={x:500,y:300,owner:2,hp:12};
  S.forts=[fort];
  const engineer=unit("ranger_engineer",1,450,300);
  API.fire(engineer,{kind:"fort",ref:fort,x:500,y:300});
- assert.equal(fort.hp,11);
- for(let i=0;i<11;i++)API.fire(engineer,{kind:"fort",ref:fort,x:500,y:300});
+ assert.equal(fort.hp,10);
+ for(let i=0;i<5;i++)API.fire(engineer,{kind:"fort",ref:fort,x:500,y:300});
  assert.equal(fort.owner,1);
  assert.equal(fort.hp,12,"captured fort resets to full 12");
 });
@@ -117,7 +117,7 @@ test("red ranged engineer can recapture the same neutral fort",()=>{
  const fort={x:700,y:300,owner:1,hp:12};
  const engineer=unit("ranger_engineer",2,740,300);
  API.fire(engineer,{kind:"fort",ref:fort,x:700,y:300});
- assert.equal(fort.hp,11);
+ assert.equal(fort.hp,10);
 });
 test("ground bomber hits ground splash, never a flying bystander or ally",()=>{
  const direct=unit("infantry",2,500,300),secondary=unit("infantry",2,550,300,3);
