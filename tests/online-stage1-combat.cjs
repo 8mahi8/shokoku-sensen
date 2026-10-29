@@ -17,7 +17,7 @@ const S={phase:"battle",clock:3,elapsed:0,energy:[0,12,12],
 const notices=[],results=[];
 let API;
 const scope={
- window:{},S,Math,POST_HP:12,CASTLE_DAMAGE:1,
+ window:{},S,Math,W:1280,H:660,POST_HP:12,CASTLE_DAMAGE:1,
  dist:(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),
  limit:(v,a,b)=>Math.max(a,Math.min(b,v)),
  rand:(a,b)=>(a+b)/2,ME:()=>0,notice:s=>notices.push(s),
