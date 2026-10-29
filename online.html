@@ -276,7 +276,7 @@ body.soloMode #difficulties{display:flex!important}
 #deckNotice{font-size:12px;color:#f0d798;min-height:2.6em}
 #cardInfoOverlay.deckInfoOpen{z-index:10030}
 #deckSummary{font-size:12px;color:#cbe0de}
-#deckEditorFoot{border-top:1px solid #3f6979;padding-top:10px}
+#deckEditorFoot{position:sticky;bottom:0;z-index:2;border-top:1px solid #3f6979;padding:10px 6px max(10px,env(safe-area-inset-bottom,0px));background:#132c3a;box-shadow:0 -8px 14px #071a23b3;border-radius:0 0 10px 10px}
 #deckEditorFoot .deckActions{display:flex;gap:8px;flex-wrap:wrap}
 #deckSave{background:#21684e;border-color:#94d8af}
 #deckCancel{background:#314651}
