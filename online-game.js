@@ -297,13 +297,17 @@ function spellStep(dt){
    let hits=0;
    for(const u of S.units){
     if(u.hp<=0||u.team===shot.team)continue;
-    if(Math.hypot(u.x-shot.x,u.y-shot.y)<shot.r){hitUnit(u,SPELLS.barrage.damage);hits++;}
+    if(Math.hypot(u.x-shot.x,u.y-shot.y)<=shot.r){
+     hitUnit(u,shot.kind==="catapult"?shot.damage:SPELLS.barrage.damage);
+     hits++;
+    }
    }
    S.effects.push({x:shot.x,y:shot.y,t:.52,max:.52,team:shot.team,r:shot.r,type:"barrage"});
-   if(shot.team===1&&hits>=3)notice("範囲砲撃が敵兵"+hits+"体に命中！");
+   if(shot.team===1&&hits>=3)notice((shot.kind==="catapult"?"投石":"範囲砲撃")+"が敵兵"+hits+"体に命中！");
   }
  }
  S.spells.incoming=S.spells.incoming.filter(x=>x.time>0);
+ applyGravity(dt);
  for(const zone of S.spells.zones)zone.time-=dt;
  S.spells.zones=S.spells.zones.filter(x=>x.time>0);
 }
@@ -393,7 +397,47 @@ function selectPriorityTargets(u){
  return {attack,approach};
 }
 
+// Battlefield displacement is a separate layer; target priorities and normal AI stay unchanged.
+function gravityZoneFor(u){
+ if(CLASSES[u.key].flying)return null;
+ return S.spells.zones.find(z=>z.kind==="gravity"&&z.team!==u.team&&z.time>0&&
+  Math.hypot(z.x-u.x,z.y-u.y)<=z.r)||null;
+}
+function applyGravity(dt){
+ for(const u of S.units){
+  if(u.hp<=0)continue;
+  const zone=gravityZoneFor(u);
+  if(!zone)continue;
+  const dx=zone.x-u.x,dy=zone.y-u.y,distance=Math.hypot(dx,dy);
+  if(distance<=.01)continue; // Reached the center: movement remains held.
+  const speed=SPELLS.gravity.speeds[CLASSES[u.key].size];
+  const distanceStep=Math.min(distance,speed*Math.min(dt,zone.time));
+  u.x=limit(u.x+dx/distance*distanceStep,28,W-28);
+  u.y=limit(u.y+dy/distance*distanceStep,43,H-43);
+  u.walking=distanceStep>.03;
+ }
+}
+function spawnSmallMachine(parent){
+ const kind="small_machine",d=CLASSES[kind];
+ if(S.units.filter(u=>u.team===parent.team&&u.hp>0).length>=65)return false;
+ const dir=parent.team===1?1:-1;
+ const x=limit(parent.x-dir*27,30,W-30),y=limit(parent.y+((parent.summonCount||0)%3-1)*22,46,H-45);
+ S.units.push({uid:++S.uid,key:kind,team:parent.team,x,y,anchorX:x,anchorY:y,homeY:y,
+  hp:d.hp,max:d.hp,attack:rand(0,.65),facing:dir===1?0:Math.PI,flash:0,
+  attackAnim:0,attackAnimMax:MOTION.attack[kind],windup:0,hitAt:-100,
+  spawnAt:S.clock,spawnDuration:MOTION.spawn[d.size],
+  lock:null,walkPhase:rand(0,6.28),walking:false,drift:rand(0,Math.PI*2)});
+ return true;
+}
+function castleContactTarget(u){
+ const d=CLASSES[u.key];
+ if(!d.castleOnContact)return null;
+ const enemyCastle=capital(enemy(u.team));
+ const wall=wallTarget(enemyCastle,u.y);
+ return Math.abs(u.x-wall.x)<=d.r+wall.r+1&&u.y>=WALL_TOP&&u.y<=WALL_BOTTOM?wall:null;
+}
 function moveToward(u,x,y,dt){
+ if(gravityZoneFor(u))return; // External force suppresses voluntary movement only.
  const forward=u.team===1?1:-1;
  // Offensive troops never walk backward after a fast rider passes them.
  if(CLASSES[u.key].behavior!=="guard")x=forward===1?Math.max(u.x,x):Math.min(u.x,x);
@@ -431,6 +475,30 @@ function fire(u,target){
  u.attackAnimMax=MOTION.attack[u.key];
  u.attackAnim=u.attackAnimMax;
  u.windup=0;
+ // Shared special attack modes do not alter target selection.
+ if(d.attackMode==="delayedArea"&&target.kind==="unit"){
+  // Lock the TARGET POSITION when the stone is released, never homing.
+  S.spells.incoming.push({kind:"catapult",team:u.team,x:target.x,y:target.y,
+   r:d.splash,time:d.impactDelay,total:d.impactDelay,damage:d.damage});
+  return; // No immediate damage.
+ }
+ if(d.attackMode==="contactBlast"){
+  if(target.kind==="unit"&&ref.hp>0){
+   attackUnit(ref,d.damage);
+   for(const v of S.units){
+    if(v===ref||v.team===u.team||v.hp<=0||CLASSES[v.key].flying)continue;
+    if(Math.hypot(v.x-target.x,v.y-target.y)<=d.splash)
+     attackUnit(v,d.damage*d.splashScale);
+   }
+  }else if(target.kind==="capital"){
+   ref.hp=Math.max(0,ref.hp-d.damage*CASTLE_DAMAGE);
+   if(ref.hp<=0)end(u.team===1?"win":"lose","首都が破壊された！");
+  }
+  S.effects.push({x:target.x,y:target.y,t:.5,max:.5,team:u.team,r:d.splash,type:"barrage"});
+  // Self-destruct ONLY after successfully contacting a target, not on being shot down.
+  hitUnit(u,u.hp/Math.max(.01,shieldMultiplier(u.team,u.x,u.y))+1);
+  return;
+ }
  const impactLife=d.size==="large"?.42:.33;
  S.effects.push({x:target.x,y:target.y,t:impactLife,max:impactLife,team:u.team,r:d.splash||16,type:u.key});
  if(d.projectile||["archer","suppress","drone","tank"].includes(u.key)){
@@ -476,6 +544,24 @@ function fire(u,target){
  }else if(target.kind==="unit"){
   if(ref.hp<=0)return;
   attackUnit(ref,d.damage,u);
+  if(d.attackMode==="pierce"){
+   const dx=target.x-u.x,dy=target.y-u.y,reach=Math.hypot(dx,dy);
+   if(reach>1e-6){
+    const vx=dx/reach,vy=dy/reach;
+    const candidates=[];
+    for(const v of S.units){
+     if(v===ref||v.hp<=0||v.team===u.team||CLASSES[v.key].flying)continue;
+     const ox=v.x-u.x,oy=v.y-u.y,along=ox*vx+oy*vy;
+     const sideways=Math.abs(ox*vy-oy*vx);
+     // Secondary targets must lie beyond the main target on its firing ray.
+     if(along<=reach||along>d.range+CLASSES[v.key].r||sideways>d.pierceWidth)continue;
+     candidates.push({v,along});
+    }
+    candidates.sort((a,b)=>a.along-b.along||a.v.uid-b.v.uid);
+    for(const target of candidates.slice(0,d.pierceCount-1))
+     attackUnit(target.v,d.damage*d.pierceScale);
+   }
+  }
   if(d.splash){
    for(const v of S.units){
     if(v.hp<=0||v===ref||v.team===u.team||CLASSES[v.key].flying)continue;
@@ -490,6 +576,14 @@ function unitStep(dt){
   const d=CLASSES[u.key];
   u.attack=Math.max(0,u.attack-dt);u.flash=Math.max(0,u.flash-dt);
   u.attackAnim=Math.max(0,(u.attackAnim||0)-dt);u.walking=false;
+  if(d.summons){
+   u.summonElapsed=(u.summonElapsed||0)+dt;
+   while((u.summonCount||0)<d.summonTimes.length&&
+     u.summonElapsed+1e-8>=d.summonTimes[u.summonCount||0]){
+    if(!spawnSmallMachine(u))break; // Preserve pending summon while the team is full.
+    u.summonCount=(u.summonCount||0)+1;
+   }
+  }
   const targets=selectPriorityTargets(u);
   const foe=targets.attack||targets.approach;
   // QA-only: classify the REAL target choice made by the engine this tick.
@@ -518,6 +612,13 @@ function unitStep(dt){
    const target=targets.attack;
    u.facing=Math.atan2(target.y-u.y,target.x-u.x);
    if(u.attack<=0)fire(u,target);
+  }
+  // The castle=0 priority stays unchanged; a catapult can hit only on contact.
+  // Soldiers in ordinary attack range always take precedence.
+  const touchingCastle=!targets.attack?castleContactTarget(u):null;
+  if(touchingCastle){
+   if(u.attack<=0)fire(u,touchingCastle);
+   continue;
   }
   if(d.behavior==="guard"){
    if(!targets.attack&&targets.approach)
