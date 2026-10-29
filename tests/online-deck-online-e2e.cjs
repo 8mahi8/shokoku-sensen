@@ -30,7 +30,7 @@ const server=http.createServer((req,res)=>{
   host=await hb.newPage({viewport:{width:1024,height:650}});
   guest=await gb.newPage({viewport:{width:1024,height:650},hasTouch:true});
   for(const [label,page] of [["host",host],["guest",guest]])page.on("pageerror",e=>issues.push(label+": "+e.message));
-  await Promise.all([host.goto("http://127.0.0.1:8783/online.html"),guest.goto("http://127.0.0.1:8783/online-ipad.html")]);
+  await Promise.all([host.goto("http://127.0.0.1:8783/online.html?qa=1"),guest.goto("http://127.0.0.1:8783/online-ipad.html?qa=1")]);
   for(const page of [host,guest])
    await wait(async()=>(await page.locator("#netStatus").innerText()).includes("接続OK"),"RTDB ready");
   await host.locator("#netCreate").click();
@@ -76,6 +76,15 @@ const server=http.createServer((req,res)=>{
   assert.ok(!locked.lockedDecks.guestDeckIds.includes("tank"));
   assert.equal(new Set(locked.lockedDecks.hostDeckIds).size,10);
   assert.equal(new Set(locked.lockedDecks.guestDeckIds).size,10);
+  await wait(async()=>host.evaluate(()=>window.__shokokuDeckQa?.activeDecks()?.[1]?.includes("duelist")),
+   "host in-game selected deck");
+  await wait(async()=>guest.evaluate(()=>window.__shokokuDeckQa?.activeDecks()?.[2]?.includes("ground_bomber")),
+   "guest in-game selected deck");
+  const hostDeck=await host.evaluate(()=>window.__shokokuDeckQa.activeDecks());
+  const guestDeck=await guest.evaluate(()=>window.__shokokuDeckQa.activeDecks());
+  assert.ok(hostDeck[1].includes("duelist")&&!hostDeck[1].includes("scout"));
+  assert.ok(guestDeck[2].includes("ground_bomber")&&!guestDeck[2].includes("tank"));
+  assert.deepEqual(hostDeck[2],guestDeck[2],"host and guest see the same locked red deck");
   console.log("PASS: two-browser Firebase independently edited 10-unique decks with real new cards");
   await host.evaluate(()=>window.ShokokuNet.finish({result:"win",reason:"deck QA"}));
   await wait(async()=>(await meta())?.status==="finished","finish reaches server");
@@ -95,6 +104,8 @@ const server=http.createServer((req,res)=>{
   const rematchDecks=(await meta()).lockedDecks;
   assert.ok(rematchDecks.hostDeckIds.includes("duelist"),"host deck persisted into rematch");
   assert.ok(rematchDecks.guestDeckIds.includes("ground_bomber"),"guest deck persisted into rematch");
+  await wait(async()=>guest.evaluate(()=>window.__shokokuDeckQa?.activeDecks()?.[2]?.includes("ground_bomber")),
+   "guest in-game rematch deck stays custom");
   assert.deepEqual(issues,[],"page errors");
   console.log("PASS: Firebase rematch retains 10 selections but requires fresh READY and fresh locked round");
  }finally{
