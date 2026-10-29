@@ -33,12 +33,12 @@ assert(spells.ward.cost===3&&spells.gravity.duration===2.5,"spell baseline chang
 
 const kaiju={
  name:"砦進撃怪獣（仮案）",size:"large",cost:6,limit:2,qty:1,
- hp:1150,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,
+ hp:1000,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,
  behavior:"capture",capture:3,hitAir:false,flying:false,
  targetPriority:{fort:4,castle:2,unit:1}
 };
 const gale={
- name:"疾風号令（仮案）",cost:3,limit:3,radius:125,duration:4,
+ name:"疾風号令（本人了承）",cost:3,limit:3,radius:125,duration:4,
  speedMultiplier:1.5,eligible:"allied units (ground and flying), voluntary move only",
  zone:"snapshot targets on cast; buff follows each unit for four seconds"
 };
@@ -99,6 +99,13 @@ const oneVsAll=Object.fromEntries(entries.map(([id,d])=>[id,Object.fromEntries(
  entries.map(([target,other])=>[target,fightOne(d,other)]))]));
 const cardsVsAll=Object.fromEntries(entries.map(([id,d])=>[id,Object.fromEntries(
  entries.map(([target,other])=>[target,fightCards(d,other)]))]));
+// Preserve a 1150-HP baseline for explicit before/after checks; this is
+// not a second production card and is not included in all-vs-all roster.
+const oldKaiju={...kaiju,hp:1150};
+const hpRevision=Object.fromEntries(entries.filter(([id])=>id!=="kaiju").map(([id,d])=>[id,{
+  before:fightOne(oldKaiju,d),after:fightOne(kaiju,d),
+  cardBefore:fightCards(oldKaiju,d),cardAfter:fightCards(kaiju,d)
+}]));
 const kaijuOne=Object.fromEntries(entries.filter(([id])=>id!=="kaiju").map(([id,d])=>[id,fightOne(kaiju,d)]));
 const kaijuCards=Object.fromEntries(entries.filter(([id])=>id!=="kaiju").map(([id,d])=>[id,fightCards(kaiju,d)]));
 const stats=Object.fromEntries(entries.map(([id,d])=>[id,{
@@ -120,7 +127,7 @@ const model={
  secondary:"card qty vs card qty; t0 simultaneous; target first living soldier; no splash, flying immunity, on-contact death, child spawning, range, movement or AI",
  warning:"All costs compared; results are not predictions of combat against special cards.",
  },
- kaiju, gale,
+ kaiju, gale, hpRevision,
  fort:{hp:fortHp,capturePerHit:kaiju.capture,requiredHits:fortHits,
  attackTimeFromFirstHit:round((fortHits-1)*kaiju.cool),
  fromBlueSpawn244ToFort410Travel:round((410-244)/kaiju.speed),
@@ -190,7 +197,17 @@ statusProto.step(slowFixture,1);
 assert.equal(statusProto.speed(slowFixture),20,"all modifiers eventually expire");
 assert.equal(gale.duration,4);
 assert.equal(kaiju.cost,6);
+assert.equal(kaiju.hp,1000,"latest user-selected monster HP");
 assert.equal(kaiju.vision,220);
+assert.equal(kaijuCards.crusher.winner,"a");
+assert.equal(kaijuCards.crusher.remainingHp,100);
+assert.equal(kaijuCards.guardian.winner,"b");
+assert.equal(kaijuCards.guardian.remainingHp,824);
+assert.equal(kaijuCards.tank.winner,"b");
+assert.equal(kaijuCards.tank.remainingHp,452);
+assert.equal(hpRevision.guardian.before.remainingHp,752);
+assert.equal(hpRevision.guardian.after.remainingHp,824);
+assert.equal(kaijuCards.archer.remainingHp,860);
 assert.equal(Object.keys(kaijuOne).length,Object.keys(existing).length);
 assert.equal(Object.keys(kaijuCards).length,Object.keys(existing).length);
 assert.equal(kaijuOne.guardian.winner,"b");
