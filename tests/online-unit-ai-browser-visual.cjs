@@ -11,7 +11,55 @@ let html=fs.readFileSync(path.join(root,"online-ipad.html"),"utf8");
 const anchor="window.__shokokuQa={";
 assert.equal(html.split(anchor).length,2,"unique localhost QA anchor");
 const hook="\n unitAiSetup:(id)=>{\n  // QA-only deterministic unit placement, never included in the shipped HTML.\n  const initial=window.__shokokuQa.seedRealisticBattle(\"light\");\n  if(initial?.units!==10)throw Error(\"offline realistic battle setup failed\");\n  S.phase=\"inspect\"; // paint continues; automatic host ticks stop\n  S.botThink=999999;S.units=[];S.forts=[];S.effects=[];S.deaths=[];\n  S.projectiles=[];S.spells.incoming=[];S.spells.zones=[];\n  S.uid=0;S.clock=100;\n  S.cam.x=id===\"scoutFortChoice\"?1020:id===\"redNoBacktrack\"?860:440;\n  S.cam.tx=S.cam.x;S.cam.y=330;S.cam.ty=330;clampCamera();\n  const add=(key,team,x,y,opts={})=>{\n   const d=CLASSES[key];\n   const u={uid:++S.uid,key,team,x,y,anchorX:opts.anchorX??x,\n    anchorY:opts.anchorY??y,homeY:y,hp:d.hp,max:d.hp,\n    attack:opts.attack??0,attackAnim:0,attackAnimMax:MOTION.attack[key],\n    flash:0,windup:0,hitAt:-100,spawnAt:-100,spawnDuration:.4,\n    lock:null,walkPhase:0,walking:false,drift:0,facing:team===1?0:Math.PI};\n   S.units.push(u);return u;\n  };\n  let a,e,other;\n  switch(id){\n   case \"scoutInterrupt\":\n    a=add(\"scout\",1,300,300);e=add(\"infantry\",2,325,300,{attack:999});\n    S.forts.push({x:379,y:300,owner:0,hp:12});break;\n   case \"guardianLarge\":\n    a=add(\"guardian\",1,300,300);e=add(\"tank\",2,350,300,{attack:999});\n    other=add(\"infantry\",2,325,300,{attack:999});break;\n   case \"guardReturn\":\n    a=add(\"sentinel\",1,400,320,{anchorX:300,anchorY:320});\n    e=add(\"infantry\",2,520,320,{attack:999});break;\n   case \"guardOutsideSelfDefense\":\n    a=add(\"sentinel\",1,480,320,{anchorX:300,anchorY:320});\n    e=add(\"infantry\",2,520,320,{attack:999});break;\n   case \"scoutFortChoice\":\n    a=add(\"scout\",1,1080,320);\n    S.forts.push({x:1100,y:385,owner:0,hp:12});break;\n   case \"infantryFortIgnore\":\n    a=add(\"infantry\",1,300,320);\n    S.forts.push({x:370,y:320,owner:0,hp:12});break;\n   case \"redNoBacktrack\":\n    a=add(\"infantry\",2,900,320);\n    e=add(\"infantry\",1,960,320,{attack:999});break;\n   default:throw Error(\"unknown scenario \"+id);\n  }\n  window.__aiSubject=a;window.__aiEnemy=e;window.__aiOther=other;\n  const t=selectPriorityTargets(a);\n  const label=v=>!v?null:v.kind===\"unit\"?\"unit:\"+v.ref.key:v.kind;\n  return {attack:label(t.attack),approach:label(t.approach),x:a.x,\n   enemyHp:e?.hp??null,otherHp:other?.hp??null,fortHp:S.forts[0]?.hp??null};\n },\n unitAiAdvance:(count)=>{\n  if(!Number.isInteger(count)||count<1||count>60)throw Error(\"bad step count\");\n  const a=window.__aiSubject,e=window.__aiEnemy;\n  for(let n=0;n<count;n++){S.clock+=1/30;unitStep(1/30);}\n  return {x:a.x,enemyHp:e?.hp??null,otherHp:window.__aiOther?.hp??null,\n   fortHp:S.forts[0]?.hp??null,frameError:window.__onlineFrameError||null};\n },\n";
-html=html.replace(anchor,anchor+hook);
+
+// Five stage-one units use the shipping renderer and real shared combat logic.
+// The injected hook exists only in this localhost-served QA copy of the HTML.
+const stageHook=String.raw`
+ stageOneSetup:(id)=>{
+  window.__shokokuQa.unitAiSetup("scoutInterrupt");
+  S.units=[];S.forts=[];S.effects=[];S.deaths=[];S.projectiles=[];S.uid=0;S.clock=100;
+  S.cam.x=440;S.cam.tx=440;S.cam.y=330;S.cam.ty=330;clampCamera();
+  const add=(key,team,x,y)=>{
+   const d=CLASSES[key];
+   const u={uid:++S.uid,key,team,x,y,anchorX:x,anchorY:y,homeY:y,hp:d.hp,max:d.hp,
+    attack:team===1?0:999,attackAnim:0,attackAnimMax:MOTION.attack[key],
+    flash:0,windup:0,hitAt:-100,spawnAt:-100,spawnDuration:.4,
+    lock:null,walkPhase:0,walking:false,drift:0,facing:team===1?0:Math.PI};
+   S.units.push(u);return u;
+  };
+  let a,e,other,air;
+  switch(id){
+   case "duelist":a=add(id,1,300,300);e=add("infantry",2,325,300);break;
+   case "crusher":
+    a=add(id,1,300,300);e=add("infantry",2,331,300);
+    other=add("guardian",2,350,300);break;
+   case "ranger_engineer":
+    a=add(id,1,300,300);e=add("infantry",2,330,300);
+    S.forts.push({x:380,y:300,owner:0,hp:12});break;
+   case "interceptor":
+    a=add(id,1,300,300);e=add("infantry",2,450,300);break;
+   case "ground_bomber":
+    a=add(id,1,300,300);e=add("infantry",2,375,300);
+    other=add("infantry",2,395,300);air=add("drone",2,390,300);break;
+   default:throw Error("unknown stage-one unit "+id);
+  }
+  window.__stageSubject=a;window.__stageEnemy=e;
+  window.__stageOther=other;window.__stageAir=air;
+  const t=selectPriorityTargets(a),label=v=>!v?null:v.kind==="unit"?"unit:"+v.ref.key:v.kind;
+  return {attack:label(t.attack),approach:label(t.approach),x:a.x,
+   enemyHp:e?.hp??null,otherHp:other?.hp??null,airHp:air?.hp??null,
+   fortHp:S.forts[0]?.hp??null};
+ },
+ stageOneAdvance:(count)=>{
+  if(!Number.isInteger(count)||count<1||count>60)throw Error("bad stage-one step count");
+  for(let i=0;i<count;i++){S.clock+=1/30;unitStep(1/30);}
+  return {x:window.__stageSubject.x,enemyHp:window.__stageEnemy.hp,
+   otherHp:window.__stageOther?.hp??null,airHp:window.__stageAir?.hp??null,
+   fortHp:S.forts[0]?.hp??null,frameError:window.__onlineFrameError||null};
+ },
+`;
+
+html=html.replace(anchor,anchor+hook+stageHook);
 const server=http.createServer((req,res)=>{
  const route=decodeURIComponent(req.url.split("?")[0]);
  const file=path.resolve(root,"."+route);
@@ -49,6 +97,30 @@ function verify(id,b,a){
  }
  assert.equal(a.frameError,null);
 }
+
+const stageScenarios=["duelist","crusher","ranger_engineer","interceptor","ground_bomber"];
+function verifyStage(id,b,a){
+ switch(id){
+  case "duelist":
+   assert.equal(b.attack,"unit:infantry");assert.ok(a.enemyHp<b.enemyHp);break;
+  case "crusher":
+   assert.equal(b.attack,"unit:infantry");
+   assert.ok(a.enemyHp<=0,"150-power crush kills infantry");
+   assert.equal(a.otherHp,b.otherHp,"no unrequested splash or large targeting");break;
+  case "ranger_engineer":
+   assert.equal(b.attack,"fort");assert.equal(a.fortHp,11);
+   assert.equal(a.enemyHp,b.enemyHp,"capture 3 beats unit 1");break;
+  case "interceptor":
+   assert.equal(b.approach,"unit:infantry");assert.ok(a.x>b.x);break;
+  case "ground_bomber":
+   assert.equal(b.attack,"unit:infantry");
+   assert.equal(a.enemyHp,b.enemyHp-55);
+   assert.equal(a.otherHp,b.otherHp-33);
+   assert.equal(a.airHp,b.airHp,"splash must not hit drone");break;
+ }
+ assert.equal(a.frameError,null);
+}
+
 (async()=>{
  const browsers=[],rows=[];
  try{
@@ -79,9 +151,21 @@ function verify(id,b,a){
     rows.push({browser:name,scene:id,before,after});
     console.log("UNIT_AI_SCENE",JSON.stringify({browser:name,scene:id,before,after}));
    }
+
+   for(const id of stageScenarios){
+    const before=await page.evaluate(v=>window.__shokokuQa.stageOneSetup(v),id);
+    const after=await page.evaluate(()=>window.__shokokuQa.stageOneAdvance(20));
+    verifyStage(id,before,after);
+    await page.waitForTimeout(150);
+    await page.screenshot({path:path.join(out,name+"-stage1-"+id+".png"),
+     animations:"disabled",timeout:20000});
+    assert.deepEqual(errors,[],name+" stage-one "+id+" browser errors");
+    rows.push({browser:name,scene:"stage1-"+id,before,after});
+    console.log("STAGE1_SCENE",JSON.stringify({browser:name,id,before,after}));
+   }
    await context.close();await browser.close();browsers.pop();
   }
-  assert.equal(rows.length,14);
+  assert.equal(rows.length,24);
   const chromiumResults=rows.filter(r=>r.browser==="chromium");
   const webkitRows=rows.filter(r=>r.browser==="webkit");
   assert.deepEqual(chromiumResults.map(r=>r.before),webkitRows.map(r=>r.before),
@@ -92,7 +176,7 @@ function verify(id,b,a){
    rows,notes:["Deterministic offline QA-only positions; real game unitStep and Canvas",
     "Automatic battle tick paused during snapshot scenarios",
     "Not an actual physical iPad or live Firebase guest test"]},null,2));
-  console.log("PASS: 14 Chromium/WebKit visual AI scenes with combat outcomes");
+  console.log("PASS: 24 Chromium/WebKit visual AI scenes including five real stage-one units per engine");
  }finally{
   for(const b of browsers)try{await b.close()}catch(_){}
   await new Promise(resolve=>server.close(resolve));
