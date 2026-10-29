@@ -20,7 +20,7 @@ const poll=async(fn,label,timeout=14000)=>{
 // private closure. They cannot be called from public Google Sites or CDN HTML.
 function aiFirebaseSetup(id){
  if(!NET.isHost||NET.isSolo||S.phase!=="battle")throw Error("not live host battle");
- const supported=["rangerCapture","redRangerCapture","guardReturn","guardSelfDefense","guardianRetarget","crusherNoLarge","duelistFast","bomberSplash"];
+ const supported=["rangerCapture","redRangerCapture","guardReturn","guardSelfDefense","guardianRetarget","crusherNoLarge","duelistFast","bomberSplash","stage3KaijuGale"];
  if(!supported.includes(id))throw Error("invalid fixture");
  S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.uid=0;S.tickCount=0;
  S.spells={incoming:[],zones:[]};S.botThink=999999;S.botPrepDone=true;
@@ -60,6 +60,14 @@ function aiFirebaseSetup(id){
  }else if(id==="duelistFast"){
   subject=make("duelist",1,300,320);
   enemy=make("infantry",2,325,320,{hold:true});
+ }else if(id==="stage3KaijuGale"){
+  fort=S.forts[0];fort.owner=2;
+  subject=make("kaiju",1,300,190);
+  enemy=make("infantry",2,327,190,{hold:true});
+  other=make("sentinel",1,320,220,{hold:true});
+  S.energy[1]=12;S.hand[1]=["gale"];S.queue[1]=[];
+  S.activeDecks[1]=["gale"];S.left[1].gale=3;
+  if(!castSpell(1,"gale",300,190))throw Error("gale fixture failed to cast");
  }else if(id==="bomberSplash"){
   subject=make("ground_bomber",1,300,320);
   enemy=make("infantry",2,385,320,{hold:true});
@@ -77,7 +85,7 @@ function aiFirebaseState(){
  const subject=pick(f.subject),enemy=pick(f.enemy),other=pick(f.other),air=pick(f.air);
  const target=subject?selectPriorityTargets(subject):{attack:null,approach:null};
  const label=t=>!t?null:t.kind==="unit"?"unit:"+t.ref.key:t.kind;
- const compact=u=>u?{uid:u.uid,key:u.key,x:u.x,y:u.y,hp:u.hp}:null;
+ const compact=u=>u?{uid:u.uid,key:u.key,x:u.x,y:u.y,hp:u.hp,statusEffects:u.statusEffects||[]}:null;
  const fort=f.fortIndex===null?null:S.forts[f.fortIndex];
  return {fixture:f.id,phase:S.phase,elapsed:S.elapsed,
   subject:compact(subject),enemy:compact(enemy),other:compact(other),
@@ -96,7 +104,7 @@ function aiFirebaseChange(action){
 }
 function aiFirebaseGuestState(){
  return {phase:S.phase,elapsed:S.elapsed,
-  units:S.units.map(u=>({uid:u.uid,key:u.key,team:u.team,hp:u.hp,x:u.x,y:u.y})),
+  units:S.units.map(u=>({uid:u.uid,key:u.key,team:u.team,hp:u.hp,x:u.x,y:u.y,statusEffects:u.statusEffects||[]})),
   forts:S.forts.map(f=>({x:f.x,y:f.y,owner:f.owner,hp:f.hp})),
   frameError:window.__onlineFrameError||null};
 }
@@ -171,7 +179,7 @@ async function prepareDeck(page){
    const b=await guest.evaluate(()=>window.__shokokuQa?.snapshot().phase);
    return a==="battle"&&b==="battle";
   },"both clients in live battle",35000);
-  for(const id of ["rangerCapture","redRangerCapture","guardReturn","guardSelfDefense","guardianRetarget","crusherNoLarge","duelistFast","bomberSplash"]){
+  for(const id of ["rangerCapture","redRangerCapture","guardReturn","guardSelfDefense","guardianRetarget","crusherNoLarge","duelistFast","bomberSplash","stage3KaijuGale"]){
    const priorSeq=await guest.evaluate(()=>window.__onlineSeq||0);
    const initial=await host.evaluate(name=>window.__shokokuQa.aiFirebaseSetup(name),id);
    assert.equal(initial.fixture,id);
