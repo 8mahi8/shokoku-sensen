@@ -22,6 +22,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
+      - name: Allow Git to read checkout inside Playwright container
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Verify archived school-approved source exists
         run: git cat-file -e 99a0d1d0cc18a987aefe0ab99dc1f7993160fe25:online-ipad.html
       - name: Compare stable and candidate on matched real legal battles
