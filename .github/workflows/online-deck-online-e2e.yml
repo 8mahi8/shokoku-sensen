@@ -1,0 +1,26 @@
+name: Online deck ready and rematch E2E
+on:
+  push:
+    paths:
+      - 'online-deck.js'
+      - 'online-net.js'
+      - 'online-game.js'
+      - 'online-ipad.html'
+      - 'online.html'
+      - 'tests/online-deck-online-e2e.cjs'
+      - '.github/workflows/online-deck-online-e2e.yml'
+  workflow_dispatch:
+jobs:
+  end-to-end:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: node tests/online-deck-online-e2e.cjs
