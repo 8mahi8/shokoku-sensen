@@ -2,7 +2,7 @@
 "use strict";
 const fs=require("node:fs"),vm=require("node:vm"),assert=require("node:assert/strict");
 const read=p=>fs.readFileSync(p,"utf8");
-const net=read("online-net.js"),game=read("online-game.js"),art=read("v3-art.js");
+const net=read("online-net.js"),game=read("online-game.js"),art=read("v3-art.js"),deck=read("online-deck.js");
 assert.ok(net.includes('room=db.ref(ROOT+"/"+code);\\n game?.resetForLobby?.();')===false,
  "this assertion just guards against a literal escaped newline in the Firebase source");
 const roomSetup=net.slice(net.indexOf("function setupRoom(code,isHost){"),net.indexOf("async function create(){"));
@@ -13,12 +13,13 @@ assert.ok(roomSetup.indexOf('team=isHost?1:2;')>=0&&
 assert.ok(game.includes('alignLobbyCameraForSeat:()=>{')&&
  game.includes('panCamera(target-S.cam.x,330-S.cam.y);'),
  "seat camera correction must not trigger second match reset");
-for(const p of ["v3.js","online-net.js","online-game.js","gald-render.js","v3-art.js"]){
+for(const p of ["v3.js","online-deck.js","online-net.js","online-game.js","gald-render.js","v3-art.js"]){
  new vm.Script(read(p),{filename:p});
 }
 for(const p of ["online-embed.html","online-ipad.html"]){
  const html=read(p);
  assert.ok(html.includes(net.trim()),"Missing current online-net.js in "+p);
+ assert.ok(html.includes(deck.trim()),"Missing current online-deck.js in "+p);
  assert.ok(html.includes(game.trim()),"Missing current online-game.js in "+p);
  assert.ok(html.includes(art.trim()),"Missing current v3-art.js in "+p);
  const inline=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>m[1]);
@@ -123,8 +124,24 @@ for(const pageName of ["online-ipad.html","online-embed.html"]){
 assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
  "Published modular online.html keeps its original balanced defaults");
 
+
+// The editor is a catalog consumer; gameplay owns the authoritative match deck.
+assert.ok(deck.includes('const COUNT=10')&&deck.includes('new Set(ids).size===COUNT'),
+ "Deck editor must enforce 10 distinct card IDs");
+assert.ok(game.includes('window.ShokokuDeck?.configure(CATALOG)'),
+ "Game roster must feed the editor without a duplicate card table");
+assert.ok(game.includes('S.activeDecks')&&game.includes('NET.matchDecks'),
+ "Host must seed each side from its own locked selection");
+assert.ok(net.includes('lockedDecks')&&net.includes('validLockedDecks'),
+ "Online start must atomically lock both validated decks");
+for(const path of ["online.html","online-ipad.html","online-embed.html"]){
+ const html=read(path);
+ for(const id of ["deckEditor","deckSelected","deckPool","deckOpen","deckSave","deckLobbyRow"])
+  assert.ok(html.includes('id="'+id+'"'),path+" lacks "+id);
+}
+
 const page=read("online.html");
-assert.ok(page.includes('./online-net.js?v=12')&&page.includes('./online-game.js?v=18'),
+assert.ok(page.includes('./online-deck.js?v=1')&&page.includes('./online-net.js?v=14')&&page.includes('./online-game.js?v=19'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
@@ -215,7 +232,7 @@ assert.ok(game.includes("denseSpriteBuildsThisFrame=0;\n const v=S.view,d=v.dpr;
  "new-tile budget resets at start of each frame");
 assert.ok(game.includes("fullSpritesRendered++;drawUnit(u,true);return;"),
  "cached art misses keep original full-resolution art without duplicate guest interpolation");
-const shuffled=game.match(/function shuffledDeck\(\)\{[\s\S]*?\n\}/);
+const shuffled=game.match(/function shuffledDeck\(ids=DECK_IDS\)\{[\s\S]*?\n\}/);
 assert.ok(shuffled,'Fisher-Yates shuffle function present');
 const keys=['scout','engineer','archer','barrage','sentinel','suppress','guardian','ward','drone','tank'];
 const createDeck=new Function('DECK_IDS','Math',shuffled[0]+';return shuffledDeck()');
@@ -226,8 +243,8 @@ for(let i=0;i<64;i++){
  orders.add(d.join(','));
 }
 assert.ok(orders.size>=3,'Shuffled decks must vary across matches');
-assert.ok(game.includes('let deck=shuffledDeck()'),'Each team gets its own shuffled deck');
-assert.ok(game.includes('for(const team of [1,2])')&&game.indexOf('let deck=shuffledDeck()')>game.indexOf('for(const team of [1,2])'),'Shuffle must happen inside the team initialization loop');
+assert.ok(game.includes('let deck=shuffledDeck(source)'),'Each team gets its own shuffled deck');
+assert.ok(game.includes('for(const team of [1,2])')&&game.indexOf('let deck=shuffledDeck(source)')>game.indexOf('for(const team of [1,2])'),'Shuffle must happen inside the team initialization loop');
 assert.ok(game.includes('blueOpening=deck.slice(0,HAND_SIZE).join(",")'),'Host opening is captured');
 assert.ok(game.includes('deck.slice(0,HAND_SIZE).join(",")===blueOpening'),'Guest identical opening is rerolled');
 assert.ok(game.includes('S.hand[team]=deck.slice(0,HAND_SIZE)')&&game.includes('S.queue[team]=deck.slice(HAND_SIZE)'),'Team draw uses independent deck and queue');
