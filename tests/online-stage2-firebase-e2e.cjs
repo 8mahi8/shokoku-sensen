@@ -18,7 +18,43 @@ const guestSource=fs.readFileSync(path.join(root,"online-ipad.html"),"utf8");
 const qaAnchor="window.__shokokuQa={";
 assert.equal(guestSource.split(qaAnchor).length,2,"single QA hook anchor");
 const guestHtml=guestSource.replace(qaAnchor,
- qaAnchor+"stage2Zones:()=>S.spells.zones.map(z=>({...z})),");
+ qaAnchor+"stage2Zones:()=>S.spells.zones.map(z=>({...z})),"+
+ "stage2Incoming:()=>S.spells.incoming.map(z=>({...z})),"+
+ "stage2ProbeUnits:()=>S.units.filter(u=>u.key==='catapult'||u.key==='guardian'||u.key==='mech_summoner'||u.key==='small_machine').map(u=>({uid:u.uid,key:u.key,hp:u.hp,summonCount:u.summonCount||0})),");
+const hostGameSource=fs.readFileSync(path.join(root,"online-game.js"),"utf8");
+assert.equal(hostGameSource.split(qaAnchor).length,2,"host must have a single QA hook anchor");
+// The staged fixture exists ONLY in this localhost test, never in shipped game files.
+// Exercise production fire/unitStep/spellStep, then real RTDB snapshots for guest.
+const hostGameHtml=hostGameSource.replace(qaAnchor,qaAnchor+`
+ stage2WireFixture:()=>{
+  if(!NET.isHost||S.phase!=="battle")return null;
+  const make=(key,team,x,y)=>{
+   const d=CLASSES[key];
+   return {uid:++S.uid,key,team,x,y,anchorX:x,anchorY:y,homeY:y,
+    hp:d.hp,max:d.hp,attack:0,facing:team===1?0:Math.PI,flash:0,
+    attackAnim:0,attackAnimMax:MOTION.attack[key],windup:0,hitAt:-100,
+    spawnAt:S.clock-2,spawnDuration:.5,lock:null,walkPhase:0,walking:false,drift:0};
+  };
+  const shooter=make("catapult",1,580,150);
+  const target=make("guardian",2,760,150);
+  const summoner=make("mech_summoner",1,115,570);
+  S.units.push(shooter,target,summoner);
+  // Real delayedArea attack creates a normal 1.1-second production incoming shot.
+  fire(shooter,{kind:"unit",ref:target,x:target.x,y:target.y,r:CLASSES.guardian.r});
+  NET.maybePublish(true);
+  return {shooter:shooter.uid,target:target.uid,summoner:summoner.uid,
+    hpBefore:target.hp,impact:{x:target.x,y:target.y},delay:CLASSES.catapult.impactDelay};
+ },
+ stage2WireStatus:(ids)=>{
+  const find=id=>S.units.find(u=>u.uid===id);
+  const target=find(ids.target),summoner=find(ids.summoner);
+  return {phase:S.phase,elapsed:S.elapsed,targetHp:target?.hp,
+   summonerAlive:!!summoner&&summoner.hp>0,
+   spawned:summoner?.summonCount||0,children:S.units.filter(u=>u.key==="small_machine"&&u.team===1).length,
+   incoming:S.spells.incoming.filter(s=>s.kind==="catapult").map(s=>({...s}))};
+ },
+ `);
+
 const server=http.createServer((req,res)=>{
  const filepath=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
  if(!filepath.startsWith(root+path.sep)||!fs.existsSync(filepath)||!fs.statSync(filepath).isFile()){
@@ -26,6 +62,7 @@ const server=http.createServer((req,res)=>{
  }
  res.writeHead(200,{"content-type":filepath.endsWith(".js")?"text/javascript; charset=utf-8":"text/html; charset=utf-8","cache-control":"no-store"});
  if(req.url.split("?")[0]==="/online-ipad.html"){res.end(guestHtml);return;}
+ if(req.url.split("?")[0]==="/online-game.js"){res.end(hostGameHtml);return;}
  fs.createReadStream(filepath).pipe(res);
 });
 (async()=>{
@@ -202,6 +239,73 @@ const server=http.createServer((req,res)=>{
    return true;
   },"Firebase holds real Stage-2 units from both players",20000);
   console.log("PASS: authoritative Stage-2 RTDB",JSON.stringify(battleEvidence));
+
+  // After legal Stage-2 card exercise, stage a controlled shot+summoner on
+  // the same LIVE disposable Firebase match. No shipping source is modified.
+  // This isolates visual transport and 31s child schedule from battle RNG.
+  const fixture=await host.evaluate(()=>window.__shokokuQa.stage2WireFixture());
+  assert.ok(fixture&&fixture.delay===1.1,"real catapult must have a 1.1s flight");
+  const readState=async()=>{
+   const response=await fetch(BASE+"/"+code+"/state.json");
+   if(!response.ok)throw Error("DB "+response.status);
+   return (await response.json())?.world;
+  };
+  let publishedShot=null,receivedShot=null;
+  await wait(async()=>{
+   const w=await readState();
+   const incoming=Array.isArray(w?.spells?.incoming)?w.spells.incoming:
+    Object.values(w?.spells?.incoming||{});
+   publishedShot=incoming.find(q=>q.kind==="catapult"&&q.x===fixture.impact.x&&q.y===fixture.impact.y);
+   return publishedShot;
+  },"catapult incoming published to real Firebase",2300);
+  await wait(async()=>{
+   receivedShot=await guest.evaluate(point=>window.__shokokuQa.stage2Incoming()
+    .find(q=>q.kind==="catapult"&&q.x===point.x&&q.y===point.y),fixture.impact);
+   return receivedShot;
+  },"guest sees real catapult warning before impact",2500);
+  assert.equal(receivedShot.damage,115);
+  assert.equal(receivedShot.total,1.1);
+  console.log("PASS: real Firebase catapult incoming guest delivery",
+   JSON.stringify({impact:fixture.impact,guestRemaining:receivedShot.time}));
+  // Production 30Hz combat must lower the same target's authoritative HP.
+  await wait(async()=>{
+   const local=await host.evaluate(ids=>window.__shokokuQa.stage2WireStatus(ids),fixture);
+   return local.targetHp<fixture.hpBefore;
+  },"catapult landing damages authoritative target",5500);
+  await wait(async()=>{
+   const remote=await guest.evaluate(ids=>window.__shokokuQa.stage2ProbeUnits()
+    .find(u=>u.uid===ids.target),fixture);
+   return remote?.hp<fixture.hpBefore;
+  },"WebKit guest sees delayed catapult damage",5500);
+  // Real-time summoning without time skipping. The eight timestamps are
+  // 2/4/6/11/16/21/26/31s; observe count and remote parent while time moves.
+  const childSamples=[];
+  let previousCount=0;
+  const started=Date.now();
+  while(Date.now()-started<40500){
+   const local=await host.evaluate(ids=>window.__shokokuQa.stage2WireStatus(ids),fixture);
+   if(local.spawned>previousCount){
+    childSamples.push({spawned:local.spawned,elapsed:local.elapsed,
+      secondsSinceFixture:Math.round((Date.now()-started)/100)/10});
+    previousCount=local.spawned;
+   }
+   assert.equal(local.phase,"battle","live QA round must continue");
+   assert.ok(local.summonerAlive,"QA summoner must survive the full schedule");
+   if(local.spawned===8)break;
+   await sleep(450);
+  }
+  assert.equal(previousCount,8,"all eight scheduled children must spawn at real 30Hz");
+  await wait(async()=>{
+   const child=await guest.evaluate(id=>window.__shokokuQa.stage2ProbeUnits()
+    .find(u=>u.uid===id),fixture.summoner);
+   return child?.summonCount===8;
+  },"WebKit guest receives all eight child-spawn updates",8000);
+  const guestChildren=await guest.evaluate(()=>window.__shokokuQa.stage2ProbeUnits()
+   .filter(u=>u.key==="small_machine").length);
+  assert.ok(guestChildren>0,"guest must display surviving generated child units");
+  console.log("PASS: real-time 31s mechanical summoner and WebKit guest snapshot",
+   JSON.stringify({childSamples,guestChildren}));
+
   assert.deepEqual(issues,[],"no page errors during real live-card battle");
   console.log("PASS: 20 Stage-2 deck actions, real guest gravity sync and rematch");
   // End via an explicit QA result so the test need not wait five real minutes.
