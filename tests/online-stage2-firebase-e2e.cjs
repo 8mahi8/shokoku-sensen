@@ -13,12 +13,19 @@ const wait=async(fn,label,ms=30000)=>{
  }
  throw Error("Timeout "+label+(latest?" / "+latest.message:""));
 };
+// Localhost-only guest readback; no production HTML or game logic changes.
+const guestSource=fs.readFileSync(path.join(root,"online-ipad.html"),"utf8");
+const qaAnchor="window.__shokokuQa={";
+assert.equal(guestSource.split(qaAnchor).length,2,"single QA hook anchor");
+const guestHtml=guestSource.replace(qaAnchor,
+ qaAnchor+"stage2Zones:()=>S.spells.zones.map(z=>({...z})),");
 const server=http.createServer((req,res)=>{
  const filepath=path.resolve(root,"."+decodeURIComponent(req.url.split("?")[0]));
  if(!filepath.startsWith(root+path.sep)||!fs.existsSync(filepath)||!fs.statSync(filepath).isFile()){
   res.writeHead(404);res.end("missing");return;
  }
  res.writeHead(200,{"content-type":filepath.endsWith(".js")?"text/javascript; charset=utf-8":"text/html; charset=utf-8","cache-control":"no-store"});
+ if(req.url.split("?")[0]==="/online-ipad.html"){res.end(guestHtml);return;}
  fs.createReadStream(filepath).pipe(res);
 });
 (async()=>{
@@ -150,6 +157,9 @@ const server=http.createServer((req,res)=>{
        const world=(await rsp.json())?.world;
        return world?.spells?.zones?.some(z=>z.kind==="gravity"&&z.team===side);
       },"authoritative gravity spell published for "+side,9000);
+      await wait(async()=>guest.evaluate(team=>
+       window.__shokokuQa.stage2Zones().some(z=>z.kind==="gravity"&&z.team===team),side),
+       "WebKit guest received gravity zone from host "+side,9000);
      }else{
       await wait(async()=>(await host.evaluate(({team,key})=>
        window.__shokokuQa.snapshot().units.some(u=>u.team===team&&u.key===key),
@@ -193,7 +203,7 @@ const server=http.createServer((req,res)=>{
   },"Firebase holds real Stage-2 units from both players",20000);
   console.log("PASS: authoritative Stage-2 RTDB",JSON.stringify(battleEvidence));
   assert.deepEqual(issues,[],"no page errors during real live-card battle");
-  console.log("PASS: 20 authentic combat placements, all five Stage-2 classes on both sides, real guest touch→Firebase→host→guest");
+  console.log("PASS: 20 Stage-2 deck actions, real guest gravity sync and rematch");
   // End via an explicit QA result so the test need not wait five real minutes.
   // This tests finishing/rematch protocol, NOT natural victory balance.
   await host.evaluate(()=>window.ShokokuNet.finish({result:"win",reason:"deck QA"}));
