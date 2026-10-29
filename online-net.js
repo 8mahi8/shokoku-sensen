@@ -292,7 +292,7 @@ function setupRoom(code,isHost){
   // Short lobby transitions may be skipped: detect new rounds by number.
   const newRound=Number(priorRound)>0&&Number(meta?.round)>Number(priorRound);
   if(newRound||(meta?.status==="lobby"&&before==="finished")){
-   phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;lastFeedbackSeq=0;
+   phase="lobby";result=null;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;lastFeedbackSeq=0;
    lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
@@ -320,14 +320,14 @@ function setupRoom(code,isHost){
   }
   if(meta?.status==="finished"&&before!=="finished"){
    phase="finished";
-   if(!host&&result)game?.showResult?.(result);
+   if(!host&&resultMatchesRound())game?.showResult?.(result);
   }
   updateUI();
  });
  attach(room.child("result"),"value",snap=>{
   if(room!==openedRoom)return;
   result=snap.val();
-  if(result&&!host&&meta?.status==="finished")game?.showResult?.(result);
+  if(resultMatchesRound()&&!host&&meta?.status==="finished")game?.showResult?.(result);
  });
  if(host){
   attach(room.child("commands"),"child_added",async snap=>{
@@ -590,18 +590,21 @@ function finish(data){
  phase="finished";
  // Force publish the final world before closing, so the guest sees the last HP.
  const world=packGuestWorld(game.world()).world;
- const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
+ const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset,
+  round=meta?.round||1;
  room.update({
-  state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
-  result:{winner,reason:data.reason,capitalHp:world.capitals.map(c=>c.hp),at},
+  state:{seq:++seq,round,world:{...world,phase:"result"},at},
+  result:{winner,round,reason:data.reason,capitalHp:world.capitals.map(c=>c.hp),at},
   "meta/status":"finished"
  }).catch(setError);
 }
-function resultForMe(){return !result||result.winner===0?"draw":result.winner===team?"win":"lose"}
-function hasResult(){return !!result}
-function resultReason(){return result?.reason||"対戦終了"}
+function resultMatchesRound(){return !!result&&Number.isInteger(result.round)&&
+  result.round===meta?.round;}
+function resultForMe(){return !resultMatchesRound()||result.winner===0?"draw":result.winner===team?"win":"lose"}
+function hasResult(){return resultMatchesRound()}
+function resultReason(){return resultMatchesRound()?result.reason:"対戦終了"}
 function resultCapitalHp(){
- const h=result?.capitalHp;
+ const h=resultMatchesRound()?result.capitalHp:null;
  return h&&Number.isFinite(h[0])&&Number.isFinite(h[1])?[h[0],h[1]]:null;
 }
 async function rematch(){

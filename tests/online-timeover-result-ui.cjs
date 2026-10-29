@@ -102,6 +102,9 @@ const wait=async(fn,label,timeout=20000)=>{
   await wait(async()=>(await host.locator("#dialogTitle").innerText())==="勝利！"&&
    (await guest.locator("#dialogTitle").innerText())==="敗北",
    "castle result on both devices",16000);
+  assert.match(await host.locator("#dialogText").innerText(),/首都が破壊された/);
+  assert.match(await guest.locator("#dialogText").innerText(),/首都が破壊された/,
+   "guest must show the CURRENT round result, not stale prior time-up");
   const hostText=await host.locator("#rules").innerText(),
         guestText=await guest.locator("#rules").innerText();
   assert.match(hostText,/自軍首都：2700 \/ 3000/);
