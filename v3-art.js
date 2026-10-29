@@ -12,6 +12,7 @@ const PALETTES={
 const UNIT_COLORS={
  infantry:["#4d99b8","#294c75"],scout:["#efcc79","#346e89"],engineer:["#d7a963","#3b6574"],archer:["#a784dc","#435d8f"],
  suppress:["#e8a16a","#5b5c83"],sentinel:["#8ca6d5","#303e63"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"],
+ duelist:["#d1a2e1","#554988"],crusher:["#d68b74","#68424e"],ranger_engineer:["#8fc8ad","#315b72"],interceptor:["#e6c17d","#436a89"],ground_bomber:["#b9cf79","#426787"],
  barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"]
 };
 function path(g,points,fill,stroke=INK,lineWidth=2.4){
@@ -220,7 +221,76 @@ function tank(g,p,s){
  crystal(g,1,-38,9,p.glow);
  path(g,[[-34,-28],[-29,-37],[-26,-24]],p.accent,null);
 }
-const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank};
+
+/* Five stage-one units use the same Canvas pose renderer and palette as the
+ * nine original units. Distinct silhouettes, not a placeholder infantry copy.
+ * When adding future characters, add a sprite function and registry metadata. */
+function duelist(g,p,s){
+ const {step,hit,windup}=s;
+ limb(g,-10,-21+step*2,10,21,p.deep);limb(g,4,-21-step*2,11,21,p.deep);
+ path(g,[[-16,-44],[-9,-53],[12,-50],[19,-35],[10,-18],[-15,-20]],p.primary,INK,2.8);
+ path(g,[[-12,-42],[-26,-52],[-22,-26]],p.cloth,INK,2.2);
+ chest(g,2,-34,p,5);helm(g,1,-56,p);
+ line(g,[[-9,-35],[-22+hit*8,-25],[0+hit*16,-60]],METAL,5);
+ line(g,[[11,-34],[29+hit*11,-22],[48+hit*16,-49]],METAL,5);
+ line(g,[[0+hit*16,-60],[4+hit*16,-71]],p.glow,3.5);
+ line(g,[[48+hit*16,-49],[53+hit*16,-58]],p.glow,3.5);
+ if(windup>0.1)oval(g,28,-36,4,4,p.accent,null);
+}
+function crusher(g,p,s){
+ const {step,hit,windup}=s;
+ limb(g,-18,-21+step*2,17,23,"#53616a");limb(g,5,-21-step*2,17,23,"#53616a");
+ path(g,[[-26,-50],[-19,-58],[21,-57],[31,-43],[22,-19],[-23,-18]],p.primary,INK,3.4);
+ round(g,-21,-48,42,26,6,p.deep,INK,3);chest(g,0,-34,p,9);
+ round(g,-15,-71,28,24,6,"#455766",INK,3);line(g,[[-4,-60],[8,-60]],p.glow,3);
+ const swing=-windup*.48+hit*.48;
+ g.save();g.translate(14,-37);g.rotate(swing);
+ line(g,[[0,0],[44,-35]],METAL,8);
+ round(g,35,-72,30,38,6,"#8c9aa6",INK,3.6);
+ line(g,[[38,-63],[57,-63]],p.accent,4);crystal(g,50,-52,7,p.glow);
+ g.restore();
+}
+function ranger_engineer(g,p,s){
+ const {step,hit}=s;
+ limb(g,-12,-18+step*2,12,20,"#365669");limb(g,3,-18-step*2,13,20,"#365669");
+ path(g,[[-19,-49],[-11,-57],[16,-54],[22,-40],[16,-20],[-16,-20]],p.primary,INK,2.9);
+ chest(g,2,-37,p,6);helm(g,0,-58,p,"#2c5c6d");
+ // A long-distance capture launcher with a flag-like marker.
+ round(g,13,-43,44,11,4,"#77969a",INK,2.7);
+ line(g,[[18,-38],[63+hit*8,-38]],p.accent,3.5);
+ path(g,[[63+hit*8,-44],[74+hit*8,-38],[63+hit*8,-32]],p.glow,INK,1.5);
+ line(g,[[-18,-36],[-18,-79]],METAL,3);
+ path(g,[[-17,-76],[3,-68],[-17,-59]],p.glow,INK,2);
+}
+function interceptor(g,p,s){
+ const {step,hit,t}=s;
+ // Fast armored wheel-mount: distinguish from the capture scout by shield/dual fins.
+ oval(g,-22,0,12,10,"#263a48","#0d2635",2.7);oval(g,21,0,12,10,"#263a48","#0d2635",2.7);
+ oval(g,-22,0,5,5,p.glow,null);oval(g,21,0,5,5,p.glow,null);
+ path(g,[[-33,-12],[-8,-26],[20,-19],[32,-8],[21,4],[-25,3]],p.deep,INK,3);
+ path(g,[[-25,-24],[-38,-37],[-17,-30]],p.accent,INK,2);
+ limb(g,-6,-24,10,13,p.deep);
+ path(g,[[-10,-54],[-3,-63],[12,-58],[18,-38],[0,-30]],p.primary,INK,2.6);
+ helm(g,2,-62,p);chest(g,6,-42,p,5);
+ path(g,[[-16,-54],[-22,-65],[-10,-75],[0,-65],[-2,-47]],p.accent,INK,2.4);
+ line(g,[[15,-42],[42+hit*10,-40]],METAL,4.5);
+ path(g,[[50+hit*10,-40],[39+hit*10,-47],[39+hit*10,-33]],p.glow,INK,2);
+ if(Math.sin(t*6)>0)line(g,[[-38,-6],[-50,-6]],p.glow,2);
+}
+function ground_bomber(g,p,s){
+ const {hit,t}=s;
+ const hover=Math.sin(t*5)*2;
+ path(g,[[-45,-38],[-16,-53],[5,-51],[44,-35],[28,-24],[-28,-26]],p.primary,INK,3);
+ path(g,[[-51,-42],[-32,-60],[-17,-49],[-30,-31]],p.deep,INK,2.6);
+ path(g,[[49,-41],[30,-60],[16,-48],[29,-30]],p.deep,INK,2.6);
+ oval(g,0,-44+hover,19,18,"#354957",INK,3);
+ oval(g,0,-44+hover,11,12,p.accent,INK,2.4);
+ crystal(g,1,-44+hover,7,p.glow);
+ path(g,[[-14,-28],[-8,-7],[9,-7],[15,-28]],"#6b7c81",INK,3);
+ oval(g,0,-10,10,5,p.glow,null);
+ if(hit>.1){line(g,[[-9,-5],[-17,8]],p.accent,3);line(g,[[9,-5],[17,8]],p.accent,3);}
+}
+const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber};
 function paint(g,key,team,clock=0,unit={}){
  const p=PALETTES[team]||PALETTES[1];
  const moving=!!unit.walking;
@@ -254,14 +324,16 @@ function paint(g,key,team,clock=0,unit={}){
  }
  g.restore();
 }
-const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.73,drone:1.08,tank:1.79};
-const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73};
+const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.73,drone:1.08,tank:1.79,
+ duelist:.98,crusher:1.13,ranger_engineer:1.00,interceptor:1.06,ground_bomber:1.10};
+const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73,
+ duelist:80,crusher:93,ranger_engineer:82,interceptor:86,ground_bomber:66};
 // Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
  // The Gald sprite cache replaces only the guardian artwork. Retain the
  // original Canvas guardian as a safe fallback while loading or on error.
  if(u.key==="guardian"&&window.GaldArt?.drawUnit(g,u,clock))return;
- const flying=u.key==="drone",heavy=u.key==="guardian"||u.key==="tank";
+ const flying=u.key==="drone"||u.key==="ground_bomber",heavy=u.key==="guardian"||u.key==="tank";
  const bob=flying?20+Math.sin(clock*4+(u.drift||0))*4:0;
  const size=UNIT_SCALE[u.key]||.95;
  const recoil=Math.max(0,(u.attackAnim||0)/(u.attackAnimMax||.34));
