@@ -285,7 +285,7 @@ test("future guard unit reuses anchored pursuit and return without new AI",()=>{
 });
 test("stage-one roster has five distinct data-only behavior configurations",()=>{
  const expected={duelist:["normal",0,145,22,.55],crusher:["normal",0,460,150,2.65],
-  ranger_engineer:["capture",1,300,30,1.4],interceptor:["guard",0,195,38,1.15],
+  ranger_engineer:["capture",2,300,30,1.4],interceptor:["guard",0,195,38,1.15],
   ground_bomber:["normal",0,230,55,1.9]};
  for(const [id,[behavior,capture,hp,damage,cool]] of Object.entries(expected)){
   const c=API.CLASSES[id];
