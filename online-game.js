@@ -36,7 +36,8 @@ const MOTION={
  defeat:{small:.59,medium:.81,large:1.16},
  attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
   sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84,
-  duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68},
+  duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68,
+  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42},
  windup:.44
 };
 const CLASSES={
@@ -52,9 +53,16 @@ const CLASSES={
  // Stage 1: five new combat classes; all use the existing shared target AI.
  duelist:{name:"双剣兵",glyph:"⚔",size:"medium",cost:3,limit:6,qty:1,hp:145,damage:22,cool:.55,range:29,vision:120,speed:30,r:14,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・高速連撃の近接兵。HPは低め、占領不可"},
  crusher:{name:"重撃砕兵",glyph:"✹",size:"medium",cost:5,limit:4,qty:1,hp:460,damage:150,cool:2.65,range:44,vision:155,speed:17,r:19,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・汎用重撃。大型特効なし、強烈な一撃と長い攻撃間隔"},
- ranger_engineer:{name:"遠距離工兵",glyph:"⚑",size:"medium",cost:4,limit:5,qty:1,hp:300,damage:30,cool:1.40,range:95,vision:175,speed:17,r:15,behavior:"capture",capture:1,hitAir:false,projectile:true,targetPriority:{castle:3,fort:3,unit:1},note:"中型・遠くから砦を削る占領兵。砦への攻撃は1ずつ"},
+ ranger_engineer:{name:"遠距離工兵",glyph:"⚑",size:"medium",cost:4,limit:5,qty:1,hp:300,damage:30,cool:1.40,range:95,vision:175,speed:17,r:15,behavior:"capture",capture:2,hitAir:false,projectile:true,targetPriority:{castle:3,fort:3,unit:1},note:"中型・遠くから砦を占領。砦への攻撃は2ずつ"},
  interceptor:{name:"迅速迎撃騎兵",glyph:"➶",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:38,cool:1.15,range:33,vision:215,speed:47,r:16,behavior:"guard",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:1,fort:0,unit:2},note:"中型・召喚位置中心の索敵円内で高速迎撃し帰還"},
  ground_bomber:{name:"対地爆撃翼",glyph:"✦",size:"medium",cost:5,limit:4,qty:1,hp:230,damage:55,cool:1.90,range:105,vision:167,speed:23,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,projectile:true,splash:67,splashScale:.60,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。地上の敵兵に範囲爆撃、空中の敵には反撃不可"},
+ // Stage 2: all new combat specials are data-driven; existing target AI is unchanged.
+ piercer:{name:"貫通射手",glyph:"➳",size:"medium",cost:3,limit:5,qty:1,hp:170,damage:55,cool:1.85,range:165,vision:205,speed:18,r:14,behavior:"normal",capture:0,hitAir:false,attackMode:"pierce",pierceCount:10,pierceScale:.6,pierceWidth:14,targetPriority:{castle:2,fort:0,unit:2},note:"中型・直線貫通。主対象55、後続は60%、最大10体。対空不可"},
+ catapult:{name:"遠投投石器",glyph:"◈",size:"large",cost:8,limit:3,qty:1,hp:700,damage:115,cool:4.5,range:215,vision:255,speed:12,r:25,behavior:"normal",capture:0,hitAir:true,attackMode:"delayedArea",impactDelay:1.1,splash:85,splashScale:1,castleOnContact:true,targetPriority:{castle:0,fort:0,unit:2},note:"大型・1.1秒後に半径85へ115、飛行にも命中。城は接触時のみ攻撃"},
+ kamikaze:{name:"突貫爆撃機",glyph:"➤",size:"medium",cost:4,limit:4,qty:1,hp:115,damage:150,cool:1,range:28,vision:180,speed:36,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,attackMode:"contactBlast",splash:78,splashScale:.75,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。敵への接触で自爆、周囲地上兵112.5。撃墜時は不発"},
+ mech_summoner:{name:"機械召喚師",glyph:"⚙",size:"medium",cost:5,limit:3,qty:1,hp:340,damage:15,cool:1.9,range:65,vision:115,speed:15,r:18,behavior:"guard",capture:0,hitAir:false,summons:"small_machine",summonTimes:[2,4,6,11,16,21,26,31],targetPriority:{castle:0,fort:0,unit:1},note:"中型・迎撃。2/4/6秒、その後5秒ごとに小型機を最大8体生産"},
+ // Internal child: never place in a deck, summon directly or display in the card gallery.
+ small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:85,damage:14,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
 };
 // School-friendly Google Sites HTML: optional, single visible HP / base damage
 // table at the VERY TOP of the pasted document. Only host applies combat
@@ -71,10 +79,11 @@ if(schoolStats&&typeof schoolStats==="object"){
    CLASSES[id].damage=edit.damage;
  }
 }
-const IDS=Object.keys(CLASSES);
+const IDS=Object.keys(CLASSES).filter(id=>!CLASSES[id].internalOnly);
 const SPELLS={
  barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
- ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"}
+ ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"},
+ gravity:{name:"引力",glyph:"◎",cost:3,limit:3,radius:125,duration:2.5,speeds:{small:100,medium:70,large:35},note:"2.5秒間敵地上兵を吸引・移動拘束。攻撃は可能"}
 };
 const CATALOG={...CLASSES,...SPELLS};
 const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
@@ -194,7 +203,7 @@ function cardFailure(team,id){
  return isSpell(id)?"戦場内を指定してね":"自軍の召喚範囲に置いてね";
 }
 function deploy(team,id,x,y){
- if(!CLASSES[id]||!canPay(team,id)||!canPlace(team,x,y))return false;
+ if(!CLASSES[id]||CLASSES[id].internalOnly||!canPay(team,id)||!canPlace(team,x,y))return false;
  const d=CLASSES[id], count=S.units.filter(u=>u.team===team&&u.hp>0).length;
  if(count+d.qty>65){if(team===1)notice("部隊が多すぎる。少し減るまで待とう");return false;}
  S.energy[team]=Math.max(0,S.energy[team]-d.cost);
@@ -234,8 +243,8 @@ function castSpell(team,id,x,y){
  S.energy[team]=Math.max(0,S.energy[team]-d.cost);
  S.left[team][id]--;
  advanceHand(team,id);
- if(id==="barrage")S.spells.incoming.push({team,x,y,r:d.radius,time:d.delay,total:d.delay});
- else S.spells.zones.push({team,x,y,r:d.radius,time:d.duration,total:d.duration});
+ if(id==="barrage")S.spells.incoming.push({kind:"barrage",team,x,y,r:d.radius,time:d.delay,total:d.delay});
+ else S.spells.zones.push({kind:id,team,x,y,r:d.radius,time:d.duration,total:d.duration});
  if(team===ME()){S.selected=null;buildCards();updateHUD();}
  return true;
 }
@@ -263,7 +272,7 @@ function playCard(team,id,x,y){
  return ok;
 }
 function shieldMultiplier(team,x,y){
- return S.spells.zones.some(z=>z.team===team&&z.time>0&&Math.hypot(z.x-x,z.y-y)<=z.r)?SPELLS.ward.mult:1;
+ return S.spells.zones.some(z=>(z.kind===undefined||z.kind==="ward")&&z.team===team&&z.time>0&&Math.hypot(z.x-x,z.y-y)<=z.r)?SPELLS.ward.mult:1;
 }
 function hitUnit(u,power){
  if(u.hp<=0)return;
