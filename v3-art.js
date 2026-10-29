@@ -13,8 +13,8 @@ const UNIT_COLORS={
  infantry:["#4d99b8","#294c75"],scout:["#efcc79","#346e89"],engineer:["#d7a963","#3b6574"],archer:["#a784dc","#435d8f"],
  suppress:["#e8a16a","#5b5c83"],sentinel:["#8ca6d5","#303e63"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"],
  duelist:["#d1a2e1","#554988"],crusher:["#d68b74","#68424e"],ranger_engineer:["#8fc8ad","#315b72"],interceptor:["#e6c17d","#436a89"],ground_bomber:["#b9cf79","#426787"],
- piercer:["#96cbdf","#3c5c8f"],catapult:["#bb9a73","#564858"],kamikaze:["#ecb779","#963c65"],mech_summoner:["#72c5b9","#3a6577"],small_machine:["#a7d5ca","#365977"],
- barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"],gravity:["#886add","#2a427b"]
+ piercer:["#96cbdf","#3c5c8f"],catapult:["#bb9a73","#564858"],kamikaze:["#ecb779","#963c65"],mech_summoner:["#72c5b9","#3a6577"],small_machine:["#a7d5ca","#365977"],kaiju:["#6a997e","#344c67"],
+ barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"],gravity:["#886add","#2a427b"],gale:["#6aca8b","#367b86"]
 };
 function path(g,points,fill,stroke=INK,lineWidth=2.4){
  g.beginPath();points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();
@@ -344,6 +344,25 @@ function mech_summoner(g,p,s){
  round(g,22,-48,13,21,4,p.accent,INK,2);
  if(hit>0)crystal(g,31,-30,4,p.glow);
 }
+// Original low, heavy fortress beast with a side-view horn and armored back.
+function kaiju(g,p,s){
+ const walk=s.step*3;
+ path(g,[[-25,-37],[-49,-45],[-52,-28],[-36,-19],[-25,-19]],"#54765f",INK,3);
+ path(g,[[-49,-44],[-65,-62],[-61,-31],[-52,-28]],p.accent,INK,2.4);
+ for(const x of [-27,-7,18]){
+  const lift=walk*(x<0?1:-1);
+  round(g,x-12,-22+lift,22,25,6,"#385562",INK,3);
+  round(g,x-16,-1+lift,27,8,4,"#466f6a",INK,2);
+ }
+ path(g,[[-36,-49],[-22,-70],[6,-72],[29,-60],[40,-42],[30,-20],[-31,-22]],"#5e897c",INK,3.8);
+ path(g,[[-29,-61],[-21,-88],[-8,-67],[0,-93],[13,-67],[20,-80],[25,-57]],"#d0c18e",INK,2.6);
+ path(g,[[11,-67],[31,-78],[48,-64],[48,-43],[35,-32],[17,-42]],"#6a9a89",INK,3.3);
+ path(g,[[34,-65],[58+s.hit*5,-74],[47,-50]],"#dfd49b",INK,2.5);
+ oval(g,29,-54,5,4,"#1c2a32",p.glow,1.8);
+ line(g,[[37,-39],[47,-37]],"#234744",3);
+ path(g,[[-25,-38],[-9,-50],[7,-39],[16,-28],[-12,-25]],"#315665",INK,2.7);
+ crystal(g,-4,-44,7,p.glow);
+}
 function small_machine(g,p,s){
  const step=s.step,hit=s.hit;
  for(const x of [-9,8])limb(g,x-6,-12+(x<0?step:-step),11,15,"#354754");
@@ -354,7 +373,7 @@ function small_machine(g,p,s){
  path(g,[[25+hit*7,-26],[35+hit*7,-19],[25+hit*7,-12]],p.accent,INK,1.5);
  line(g,[[0,-39],[4,-46]],p.accent,2);
 }
-const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber,piercer,catapult,kamikaze,mech_summoner,small_machine};
+const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber,piercer,catapult,kamikaze,mech_summoner,small_machine,kaiju};
 function paint(g,key,team,clock=0,unit={}){
  const p=PALETTES[team]||PALETTES[1];
  const moving=!!unit.walking;
@@ -390,16 +409,16 @@ function paint(g,key,team,clock=0,unit={}){
 }
 const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.73,drone:1.08,tank:1.79,
  duelist:.98,crusher:1.13,ranger_engineer:1.00,interceptor:1.06,ground_bomber:1.10,
- piercer:1.06,catapult:1.66,kamikaze:1.02,mech_summoner:1.09,small_machine:.72};
+ piercer:1.06,catapult:1.66,kamikaze:1.02,mech_summoner:1.09,small_machine:.72,kaiju:1.62};
 const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73,
  duelist:80,crusher:93,ranger_engineer:82,interceptor:86,ground_bomber:66,
- piercer:85,catapult:100,kamikaze:72,mech_summoner:94,small_machine:54};
+ piercer:85,catapult:100,kamikaze:72,mech_summoner:94,small_machine:54,kaiju:96};
 // Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
  // The Gald sprite cache replaces only the guardian artwork. Retain the
  // original Canvas guardian as a safe fallback while loading or on error.
  if(u.key==="guardian"&&window.GaldArt?.drawUnit(g,u,clock))return;
- const flying=u.key==="drone"||u.key==="ground_bomber",heavy=u.key==="guardian"||u.key==="tank";
+ const flying=u.key==="drone"||u.key==="ground_bomber",heavy=u.key==="guardian"||u.key==="tank"||u.key==="kaiju";
  const bob=flying?20+Math.sin(clock*4+(u.drift||0))*4:0;
  const size=UNIT_SCALE[u.key]||.95;
  const recoil=Math.max(0,(u.attackAnim||0)/(u.attackAnimMax||.34));
@@ -480,6 +499,10 @@ function paintSpell(g,key,team,w,h){
   path(g,[[-35,-34],[-10,-15],[10,-5],[15,8],[1,17],[-15,14],[-20,-4]],"#ef864e","#572c43",2.8);
   path(g,[[-19,-19],[6,-9],[20,2],[20,12],[7,20],[-8,12],[-10,-4]],"#ffc373","#fff0bf",2);
   crystal(g,12,7,10,"#fff2bb");
+ }else if(key==="gale"){
+  oval(g,0,0,38,26,"#8fffc528","#c5ffe1",3);
+  for(const offset of [-18,0,18])line(g,[[-41,offset],[6,offset-8],[35,offset-17]],"#c8ffce",4);
+  path(g,[[5,16],[23,-7],[38,5]],"#8affba",INK,2.2);
  }else if(key==="gravity"){
   oval(g,0,0,37,29,"#a879ff22","#d6c8ff",3);
   for(let i=0;i<3;i++){
@@ -515,7 +538,7 @@ function drawPortrait(canvas,key,team=1){
  g.fillStyle="#071f3140";g.beginPath();g.ellipse(w*.54,h*.86,32,8,0,0,TAU);g.fill();
  if(key==="guardian"&&window.GaldArt?.drawPortrait(g,w,h,team)){
   // High-quality Gald sprite is ready.
- }else if(key==="barrage"||key==="ward"||key==="gravity")paintSpell(g,key,team,w,h);
+ }else if(key==="barrage"||key==="ward"||key==="gravity"||key==="gale")paintSpell(g,key,team,w,h);
  else{
   g.save();g.translate(w*.51,h*.97);
   const artScale=Math.min(w/128,h/72)*.78;
@@ -526,5 +549,5 @@ function drawPortrait(canvas,key,team=1){
  g.fillStyle="#ffffff35";round(g,8,8,3,16,1,g.fillStyle,null);
  g.restore();
 }
-window.KokokuArt={drawUnit,drawPortrait,version:"1.1-gald"};
+window.KokokuArt={drawUnit,drawPortrait,version:"1.2-stage3-kaiju-gale"};
 })();
