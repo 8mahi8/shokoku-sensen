@@ -393,7 +393,7 @@ body.soloMode #difficulties{display:flex!important}
 </div></div>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-<script>
+<script data-shokoku-inline="online-deck.js">
 /* 小国戦線III: player deck draft and small-touch iPad editor. */
 (()=>{
 "use strict";
@@ -530,7 +530,7 @@ document.addEventListener("DOMContentLoaded",bind);
 window.ShokokuDeck={configure,validate,eligible,current,standard,repair,open,close,setLocked,renderLobby,resetDraft};
 })();
 </script>
-<script>
+<script data-shokoku-inline="online-net.js">
 /* 小国戦線 III 1vs1 — Firebase RTDB transport, isolated from BRAWL rooms.
  * No game rules here. The host alone ticks battles and validates guest actions.
  * This is friend-play networking, not a tamper-proof or anti-cheat backend.
@@ -1387,7 +1387,7 @@ window.GaldArt={drawUnit,drawPortrait,isReady:()=>!!atlases,getFrameIndex:active
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
 })();
 </script>
-<script>
+<script data-shokoku-inline="v3-art.js">
 /* 小国戦線 III — キャラクターアート v1
  * 完全にプログラムで描画するオリジナル2Dキャラ。外部画像・有料生成・依存ライブラリ不要。
  * 描画のみを担当し、HP/速度/射程/AIなど戦闘ルールには干渉しません。
@@ -1844,9 +1844,8 @@ function drawPortrait(canvas,key,team=1){
 }
 window.KokokuArt={drawUnit,drawPortrait,version:"1.1-gald"};
 })();
-
 </script>
-<script>
+<script data-shokoku-inline="online-game.js">
 "use strict";
 /* 小国戦線 III — one-screen fortress card battler. No external dependencies. */
 (() => {
