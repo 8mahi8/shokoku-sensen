@@ -1,0 +1,30 @@
+name: Online natural full 1v1 Firebase match
+on:
+  push:
+    paths:
+      - 'tests/online-full-match-natural-firebase-e2e.cjs'
+      - '.github/workflows/online-full-match-natural-firebase-e2e.yml'
+  workflow_dispatch:
+jobs:
+  natural-full-match:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 9
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Verify natural human-vs-human online match through real victory or time-up
+        run: node tests/online-full-match-natural-firebase-e2e.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: online-natural-full-match-evidence
+          path: qa-natural-full-match/
+          retention-days: 14
