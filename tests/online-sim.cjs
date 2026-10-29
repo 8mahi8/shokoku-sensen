@@ -200,7 +200,10 @@ const settle=async()=>{for(let i=0;i<15;i++)await Promise.resolve()};
  // The skipped short lobby event must not keep the guest's old seq cursor.
  host.api.finish({result:"win",reason:"next game rollover"});await settle();
  const hostResets=host.game.resets,guestResets=guest.game.resets;
- await new Ref("shokokuRooms1v1/"+code+"/meta").update({round:3,status:"playing"});
+ const previousLock=read("shokokuRooms1v1/"+code+"/meta/lockedDecks");
+ assert.ok(previousLock,"second round must have a valid locked deck");
+ await new Ref("shokokuRooms1v1/"+code+"/meta").update({round:3,status:"playing",
+  lockedDecks:{...previousLock,round:3}});
  await settle();
  assert.equal(host.game.resets,hostResets+1,"host resets on round number change");
  assert.equal(guest.game.resets,guestResets+1,"guest resets without intermediate lobby notification");
