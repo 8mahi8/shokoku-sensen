@@ -928,8 +928,7 @@ async function join(){
   // winning clientId before it is allowed to submit a deck or ready up.
   const seated=await ref.child("meta").transaction(old=>{
    if(!old||old.status!=="lobby"||old.version!==ROOM_VERSION||old.round!==latest.round)return;
-   if(old.deckLobby?.guest?.seatId&&old.deckLobby.guest.seatId!==clientId&&
-      old.deckLobby.guest.ready)return;
+   // players/guest was reserved by this client; a departed seat may be replaced.
    return {...old,deckLobby:{...old.deckLobby,guest:{
     seatId:clientId,round:old.round,revision:0,ready:false,deckIds:window.ShokokuDeck.current()}}};
   },undefined,false);
