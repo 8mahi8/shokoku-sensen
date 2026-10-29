@@ -1,0 +1,34 @@
+name: Online Stage-2 combat browser visual QA
+on:
+  push:
+    paths:
+      - 'tests/online-stage2-browser-visual.cjs'
+      - '.github/workflows/online-stage2-browser-visual.yml'
+      - 'online-game.js'
+      - 'online-ipad.html'
+      - 'v3-art.js'
+      - 'online-deck.js'
+  workflow_dispatch:
+jobs:
+  stage2-browser:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Verify Stage-2 units and gravity using Chromium/WebKit Canvas
+        run: node tests/online-stage2-browser-visual.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage2-chromium-webkit-combat-visual-evidence
+          path: qa-stage2-browser/
+          retention-days: 14
