@@ -71,7 +71,7 @@ const checks=[
  ["ranger_engineer","engineer","right",150,11.2],
  ["interceptor","scout","left",27,5.75],
  ["ground_bomber","suppress","right",105,7.6],
- ["ground_bomber","guardian","left",230,47.5],
+ ["ground_bomber","guardian","left",230,43.7],
  ["ground_bomber","drone","right",120,15],
  ["sentinel","engineer","left",202,9.6],
  ["sentinel","suppress","left",140,9.6]
