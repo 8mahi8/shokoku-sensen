@@ -198,6 +198,12 @@
 - **詳細な最新引き継ぎ**：`docs/STAGE3_IMPLEMENTATION_HANDOFF_2026-10-30.md`。それ以前の V1〜V4 設計資料に「新カード未実装」「本体HPは旧値」と書かれていてもそれは**過去時点の記録**。**現行は実装済の開発ブランチコードを優先**。
 - **次の価値ある仕事**：最新のCI/WebKit、実Firebase2席、実試遊に近い新カード・スペルの表示・同期・砦占領を確認し、見つかった実不具合だけ修正。学校Google Sites実稼働HTML、main、stable、Firebase Rules、Driveは未変更。
 
+## 2.16 2026-10-30｜Stage 3最新HTML/WebKit・旧AIテストの追加確認
+
+- ステージ3実装後の`online-game.js`と`v3-art.js`、開発版独立HTML`online-ipad.html`/`online-embed.html`は同期済。**[最新単体HTML付きのOnline 1v1 smoke #40939477430](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939477430) SUCCESS**（単体HTML `--check`、構文、デッキ、原作キャラ/Stage1/Stage2/Stage3回帰含む）。**[cached character art QA #40939477427](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939477427) SUCCESS**。
+- iPad UI visual QA #40939463574、unit AI browser visual QA #40939463653、Stage2 real Firebase two-seat E2E #40939463611 は成功（新大型を中心にした専用シナリオは未実施）。旧Stage1 unit AI real Firebase E2E #40939463493 は**失敗**、理由はゴーレム/戦車を旧HP1400/1100と断定するテスト条件が残っていたため。修正したテスト`tests/online-unit-ai-firebase-e2e.cjs`は新HP1300/1000に更新し、[再実行 #40939857067](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939857067) を開始。結果は最新GitHub Actionsで確認すること。
+- 学校iPad実機およびStage3専用の新カードオンライン2席・発動後4秒バフ両席表示は未検証。main/stable/Google Sites学校配布・Firebase Rulesは変更せず。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
