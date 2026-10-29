@@ -1,0 +1,34 @@
+name: Online stable vs Stage-2 matched WebKit A/B
+on:
+  push:
+    paths:
+      - 'tests/online-stable-vs-stage2-ab.cjs'
+      - '.github/workflows/online-stable-vs-stage2-ab.yml'
+  workflow_dispatch:
+jobs:
+  identical-scenes:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Verify archived school-approved source exists
+        run: git cat-file -e 99a0d1d0cc18a987aefe0ab99dc1f7993160fe25:online-ipad.html
+      - name: Compare stable and candidate on matched real legal battles
+        run: node tests/online-stable-vs-stage2-ab.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stable-vs-stage2-matched-webkit-ab-evidence
+          path: qa-stable-vs-stage2/
+          retention-days: 14
