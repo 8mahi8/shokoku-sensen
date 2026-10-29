@@ -587,7 +587,9 @@ function updateUI(){
  $("netJoin").disabled=inRoom;
  $("netReady").disabled=!inRoom||!seatValid||!connected||!peerOnline||meta?.status!=="lobby"||
   (!mine?.ready&&!window.ShokokuDeck?.validate(window.ShokokuDeck.current()));
- const deckRow=$("deckLobbyRow");if(deckRow)deckRow.hidden=!(inRoom&&meta?.status==="lobby");
+ // Deck editor is also available from the room picker, so solo matches can
+ // use the same saved draft as friend 1v1 before joining a room.
+ const deckRow=$("deckLobbyRow");if(deckRow)deckRow.hidden=inRoom&&meta?.status!=="lobby";
  const myReady=!!mine?.ready&&mine.seatId===clientId&&mine.round===meta?.round;
  $("netReady").textContent=myReady?"準備OK ✓｜解除":"準備完了";
  window.ShokokuDeck?.setLocked(myReady);
@@ -1973,13 +1975,16 @@ function resetWorld(matchStart=false){
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
  S.left=[null,{},{}];S.hand=[null,[],[]];S.queue=[null,[],[]];S.spells={incoming:[],zones:[]};
  // The host's locked decks are the only source for an online match.
- const locked=matchStart&&NET.isOnline&&NET.isHost?NET.matchDecks:null;
+ const locked=matchStart&&NET.isOnline?NET.matchDecks:null;
  if(matchStart&&NET.isOnline&&NET.isHost&&(!locked||!window.ShokokuDeck?.validate(locked.hostDeckIds)||
   !window.ShokokuDeck?.validate(locked.guestDeckIds)))
   throw Error("対戦用デッキが確定していません");
  const teams=locked?{1:locked.hostDeckIds,2:locked.guestDeckIds}:null;
  const ownDraft=!locked&&matchStart&&window.ShokokuDeck?.validate(window.ShokokuDeck.current())?window.ShokokuDeck.current():DECK_IDS;
- S.activeDecks=[null,teams?teams[1].slice():ownDraft.slice(),teams?teams[2].slice():DECK_IDS.slice()];
+ // When the guest joins, its local 10-card selection belongs to RED, never BLUE.
+ // Prefer the host-validated locked decks for both seats, including guest HUD.
+ S.activeDecks=[null,teams?teams[1].slice():NET.isOnline&&!NET.isHost?DECK_IDS.slice():ownDraft.slice(),
+  teams?teams[2].slice():NET.isOnline&&!NET.isHost?ownDraft.slice():DECK_IDS.slice()];
  // Both teams draw their own shuffled cycle; don't force an identical opening order.
  let blueOpening="";
  for(const team of [1,2]){
@@ -4796,6 +4801,14 @@ function samplePerf(now,drawMs){
   ?{samples:[],prevTotalMs:0,skipDrawing:false}:null;
 function start(){
  resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
+ // Expose read-only deck diagnostics in local browser QA only, never in school.
+ if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&
+    new URLSearchParams(location.search).has("qa"))
+  window.__shokokuDeckQa={
+   activeDecks:()=>[null,...S.activeDecks.slice(1).map(v=>v.slice())],
+   playable:(team,id)=>availableCard(team,id),
+   hand:team=>S.hand[team].slice()
+  };
  NET.registerGame({
   begin,setDifficulty:level=>{
     if(["easy","normal","hard"].includes(level)){
@@ -4827,6 +4840,12 @@ function start(){
    if(NET.isHost||!data||!(seq>(window.__onlineSeq||0)))return;
    const was=S.phase,localClock=S.clock;
    const oldSelected=S.selected,oldCam=S.cam;
+   // A guest may receive its first world snapshot before the match callback.
+   // Reconcile its eligibility against the locked rosters, not default cards.
+   const remoteDecks=NET.matchDecks;
+   if(remoteDecks&&window.ShokokuDeck?.validate(remoteDecks.hostDeckIds)&&
+      window.ShokokuDeck?.validate(remoteDecks.guestDeckIds))
+    S.activeDecks=[null,remoteDecks.hostDeckIds.slice(),remoteDecks.guestDeckIds.slice()];
    for(const field of ["prep","seconds","elapsed","clock","energy","left",
     "forts","capitals","uid","speed"]){
     if(data[field]!==undefined&&data[field]!==null)S[field]=data[field];
