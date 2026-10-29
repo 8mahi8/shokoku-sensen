@@ -25,7 +25,18 @@ const server=http.createServer((req,res)=>{
     await page.evaluate(()=>window.ShokokuDeck.open());
     await page.locator("#deckEditor").waitFor({state:"visible"});
     assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
-    assert.equal(await page.locator("#deckPool .deckTile").count(),0);
+    assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+    for(const id of ["duelist","crusher","ranger_engineer","interceptor","ground_bomber"])
+     assert.equal(await page.locator('#deckPool .deckTile[data-card-id="'+id+'"]').count(),1,"missing real new character "+id);
+    await page.locator("#deckPool .deckTile[data-card-id=duelist]").click();
+    await page.locator("#deckSelected .deckTile[data-card-id=scout]").click();
+    assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=duelist]").count(),1,"real character swapping in");
+    assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+    // Cancel must not mutate persisted deck; a future editor open begins from draft.
+    await page.locator("#deckCancel").click();
+    await page.evaluate(()=>window.ShokokuDeck.open());
+    assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=scout]").count(),1,"cancel rolls back");
+
     assert.equal(await page.locator("#deckCount").innerText(),"10 / 10種類");
     assert.equal(await page.locator("#deckSave").isEnabled(),true);
     await page.screenshot({path:path.join(out,engine+"-default.png")});
