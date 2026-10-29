@@ -41,7 +41,9 @@ function guestPlayableWorld(){
 function updateUI(){
  const inRoom=!!room,guest=!!players?.guest?.online;
  const currentSeat=host?"host":"guest",mine=meta?.deckLobby?.[currentSeat];
- const ready=!!meta?.deckLobby?.host?.ready&&!!meta?.deckLobby?.guest?.ready;
+ const ready=!!meta?.deckLobby?.host?.ready&&!!meta?.deckLobby?.guest?.ready&&
+  meta.deckLobby.host.seatId===players?.host?.id&&
+  meta.deckLobby.guest.seatId===players?.guest?.id;
  const ownBot=hostBotSeat();
  const seat=host?"host":"guest",other=host?"guest":"host";
  const seatValid=!inRoom||players?.[seat]?.id===clientId,peerOnline=!!players?.[other]?.online;
@@ -50,7 +52,9 @@ function updateUI(){
  $("netRoomInfo").textContent=inRoom?("ルーム "+roomCode+" ／ "+(host?"青軍":"赤軍")+(guest?" ／ 2人参加":" ／ 友達を待っています")):"5桁の番号で友達と対戦";
  $("netCreate").disabled=inRoom;
  $("netJoin").disabled=inRoom;
- $("netReady").disabled=!inRoom||!seatValid||!connected||!peerOnline||meta?.status!=="lobby";
+ $("netReady").disabled=!inRoom||!seatValid||!connected||!peerOnline||meta?.status!=="lobby"||
+  (!mine?.ready&&!window.ShokokuDeck?.validate(window.ShokokuDeck.current()));
+ const deckRow=$("deckLobbyRow");if(deckRow)deckRow.hidden=!(inRoom&&meta?.status==="lobby");
  const myReady=!!mine?.ready&&mine.seatId===clientId&&mine.round===meta?.round;
  $("netReady").textContent=myReady?"準備OK ✓｜解除":"準備完了";
  window.ShokokuDeck?.setLocked(myReady);
