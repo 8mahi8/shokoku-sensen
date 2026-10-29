@@ -31,7 +31,7 @@ jobs:
       - run: node tests/online-sim.cjs
       - name: Quantitative pre-implementation 1v1 balance sanity check
         run: node tests/online-balance-theory.cjs > /dev/null
-      - name: Check priority-based unit AI (42 scenarios)
+      - name: Check priority-based unit AI (48 scenarios)
         run: node tests/online-unit-target-priority.cjs
       - name: Stage 1 and Stage 2 real battle extraction regressions
         run: |
