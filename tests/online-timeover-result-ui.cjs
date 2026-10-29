@@ -99,9 +99,14 @@ const wait=async(fn,label,timeout=20000)=>{
    (await guest.evaluate(()=>window.__shokokuQa.snapshot().phase))==="battle",
    "round-two battle",35000);
   assert.equal(await host.evaluate(()=>window.__shokokuQa.resultCastleQa()),true);
+  // After a rematch the hidden result dialog may retain LAST ROUND's
+  // title/text until the new result listener arrives. Wait for the actual
+  // current-round reason, not just the old identical win/lose title.
   await wait(async()=>(await host.locator("#dialogTitle").innerText())==="勝利！"&&
-   (await guest.locator("#dialogTitle").innerText())==="敗北",
-   "castle result on both devices",16000);
+   (await guest.locator("#dialogTitle").innerText())==="敗北"&&
+   (await guest.locator("#dialogText").innerText()).includes("首都が破壊された")&&
+   (await guest.locator("#rules").innerText()).includes("自軍首都：0 / 3000"),
+   "new round castle result and terminal HP on both devices",18000);
   assert.match(await host.locator("#dialogText").innerText(),/首都が破壊された/);
   assert.match(await guest.locator("#dialogText").innerText(),/首都が破壊された/,
    "guest must show the CURRENT round result, not stale prior time-up");
