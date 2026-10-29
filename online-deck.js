@@ -61,7 +61,15 @@ function newTile(id,inDeck){
 function showInfo(id){
  const card=catalog[id];if(!card)return;
  const parts=["消費 "+card.cost,"使用上限 "+(Number.isFinite(card.limit)?card.limit+"回":"無制限")];
- if(card.hp!==undefined)parts.push("HP "+card.hp,"攻撃 "+card.damage,card.hitAir?"対空可能":"対空不可",card.capture?"占領可能":"占領不可");
+ if(card.hp!==undefined){
+  const behavior={normal:"進撃",capture:"占領",guard:"迎撃"}[card.behavior]||"進撃";
+  parts.push(behavior,card.flying?"飛行":"地上", "1回"+(card.qty||1)+"体",
+   "HP "+card.hp,"攻撃 "+card.damage,"攻撃間隔 "+card.cool+"秒",
+   "射程 "+card.range,"速度 "+card.speed,card.hitAir?"対空可能":"対空不可",
+   card.capture?"占領力 "+card.capture:"占領不可");
+  if(card.splash)parts.push("範囲攻撃 "+card.splash);
+  if(card.note)parts.push(card.note);
+ }
  else parts.push("スペル",card.note||"");
  const info=$("deckInfo");info.textContent=card.name+"｜"+parts.join(" ・ ");
 }
@@ -84,7 +92,7 @@ function render(){
  const full=working.length===COUNT;
  $("deckCount").textContent=working.length+" / "+COUNT+"種類";
  $("deckNotice").textContent=pending?"交換する採用カードをタップしてください":eligible().length===COUNT?
-  "現在は全10種類を採用中。新しいカードが追加されると入れ替えできます。":"未採用カードをタップ→交換したい採用カードをタップ";
+  "現在は全10種類を採用中。新しいカードが追加されると入れ替えできます。":"未採用カードをタップ → 外したい採用カードをタップで交換。性能を見るボタンで比較できます";
  $("deckInfo").textContent="";
  $("deckSave").disabled=!full||!validate(working);
  const avg=working.reduce((s,id)=>s+(Number(catalog[id]?.cost)||0),0)/COUNT;
@@ -111,7 +119,7 @@ function setLocked(value){
 }
 function renderLobby(){
  const button=$("deckOpen"),summary=$("deckLobbySummary");if(!button||!summary)return;
- summary.textContent="自分のデッキ："+draft.length+" / "+COUNT+"種類";
+ summary.textContent="自分のデッキ："+draft.length+" / "+COUNT+"種類（候補"+eligible().length+"種類）";
  button.disabled=locked;
  button.textContent=locked?"編成確定済み":"デッキを見る・編集";
 }
