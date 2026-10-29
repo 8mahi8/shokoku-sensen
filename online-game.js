@@ -35,7 +35,8 @@ const MOTION={
  spawn:{small:.55,medium:.78,large:1.06},
  defeat:{small:.59,medium:.81,large:1.16},
  attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
-  sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84},
+  sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84,
+  duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68},
  windup:.44
 };
 const CLASSES={
@@ -43,11 +44,17 @@ const CLASSES={
  scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:28,cool:1.05,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,targetPriority:{castle:3,fort:3,unit:1},note:"中型・高速・少数戦・占領"},
  engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:5,qty:1,hp:420,damage:34,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,targetPriority:{castle:3,fort:3,unit:1},note:"中型・高耐久・近接・占領"},
  archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,targetPriority:{castle:2,fort:0,unit:2},note:"小型・遠距離・対空"},
- sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:540,damage:62,cool:1.45,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,targetPriority:{castle:1,fort:0,unit:2},note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
+ sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:440,damage:62,cool:1.60,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,targetPriority:{castle:1,fort:0,unit:2},note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
  suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:380,damage:50,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,targetPriority:{castle:2,fort:0,unit:2},note:"中型・密集対策・対空対応の範囲砲撃"},
  guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,targetPriority:{castle:1,fort:0,unit:2,largeUnit:3},note:"大型・対大型迎撃・強力な範囲衝撃波"},
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
  tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,targetPriority:{castle:2,fort:0,unit:2,largeUnit:3},note:"大型・長射程・対空対応の範囲重砲・対城200%"},
+ // Stage 1: five new combat classes; all use the existing shared target AI.
+ duelist:{name:"双剣兵",glyph:"⚔",size:"medium",cost:3,limit:6,qty:1,hp:145,damage:22,cool:.55,range:29,vision:120,speed:30,r:14,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・高速連撃の近接兵。HPは低め、占領不可"},
+ crusher:{name:"重撃砕兵",glyph:"✹",size:"medium",cost:5,limit:4,qty:1,hp:460,damage:150,cool:2.65,range:44,vision:155,speed:17,r:19,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・汎用重撃。大型特効なし、強烈な一撃と長い攻撃間隔"},
+ ranger_engineer:{name:"遠距離工兵",glyph:"⚑",size:"medium",cost:4,limit:5,qty:1,hp:300,damage:30,cool:1.40,range:95,vision:175,speed:17,r:15,behavior:"capture",capture:1,hitAir:false,projectile:true,targetPriority:{castle:3,fort:3,unit:1},note:"中型・遠くから砦を削る占領兵。砦への攻撃は1ずつ"},
+ interceptor:{name:"迅速迎撃騎兵",glyph:"➶",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:38,cool:1.15,range:33,vision:215,speed:47,r:16,behavior:"guard",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:1,fort:0,unit:2},note:"中型・召喚位置中心の索敵円内で高速迎撃し帰還"},
+ ground_bomber:{name:"対地爆撃翼",glyph:"✦",size:"medium",cost:5,limit:4,qty:1,hp:230,damage:55,cool:1.90,range:105,vision:167,speed:23,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,projectile:true,splash:67,splashScale:.60,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。地上の敵兵に範囲爆撃、空中の敵には反撃不可"},
 };
 // School-friendly Google Sites HTML: optional, single visible HP / base damage
 // table at the VERY TOP of the pasted document. Only host applies combat
@@ -122,7 +129,8 @@ function resetWorld(matchStart=false){
   !window.ShokokuDeck?.validate(locked.guestDeckIds)))
   throw Error("対戦用デッキが確定していません");
  const teams=locked?{1:locked.hostDeckIds,2:locked.guestDeckIds}:null;
- S.activeDecks=[null,teams?teams[1].slice():DECK_IDS.slice(),teams?teams[2].slice():DECK_IDS.slice()];
+ const ownDraft=!locked&&matchStart&&window.ShokokuDeck?.validate(window.ShokokuDeck.current())?window.ShokokuDeck.current():DECK_IDS;
+ S.activeDecks=[null,teams?teams[1].slice():ownDraft.slice(),teams?teams[2].slice():DECK_IDS.slice()];
  // Both teams draw their own shuffled cycle; don't force an identical opening order.
  let blueOpening="";
  for(const team of [1,2]){
@@ -413,11 +421,11 @@ function fire(u,target){
  u.windup=0;
  const impactLife=d.size==="large"?.42:.33;
  S.effects.push({x:target.x,y:target.y,t:impactLife,max:impactLife,team:u.team,r:d.splash||16,type:u.key});
- if(["archer","suppress","drone","tank"].includes(u.key)){
+ if(d.projectile||["archer","suppress","drone","tank"].includes(u.key)){
   S.projectiles.push({x:u.x,y:u.y-36,tx:target.x,ty:target.y-(target.kind==="unit"?34:8),
    t:u.key==="tank"?.56:.40,max:u.key==="tank"?.56:.40,team:u.team,kind:u.key});
  }
- if(["guardian","engineer","infantry","scout"].includes(u.key)&&S.effects.length<220){
+ if((d.meleeFx||["guardian","engineer","infantry","scout"].includes(u.key))&&S.effects.length<220){
   S.effects.push({x:u.x,y:u.y-30,t:.18,max:.18,team:u.team,r:19,type:"slash"});
  }
  if(target.kind==="fort"){
@@ -1797,6 +1805,22 @@ function botExpertAction(team=2){
  for(const id of ["scout","engineer","archer","suppress","drone","sentinel","tank","guardian"]){
   const y=id==="scout"||id==="engineer"||id==="tank"?fort?.y??laneY:laneY;
   if(spawn(id,y,id==="archer"||id==="suppress"?60:35))return true;
+ }
+ // Generic fallback: future catalog units in the locked hand must never
+ // become BOT-dead cards merely because they lack a legacy named heuristic.
+ // Keep existing expert rules first, then score remaining affordable cards.
+ const generic=S.hand[team].filter(id=>CLASSES[id]&&canPay(team,id));
+ if(generic.length){
+  const cap=generic.filter(id=>CLASSES[id].capture>0);
+  const guards=generic.filter(id=>CLASSES[id].behavior==="guard");
+  const candidates=(needFort&&cap.length?cap:urgent&&guards.length?guards:generic);
+  candidates.sort((a,b)=>(
+   (CLASSES[b].hp/Math.max(1,CATALOG[b].cost)+CLASSES[b].damage/CLASSES[b].cool)-
+   (CLASSES[a].hp/Math.max(1,CATALOG[a].cost)+CLASSES[a].damage/CLASSES[a].cool)
+  ));
+  const id=candidates[0];
+  if(spawn(id,CLASSES[id].capture>0?fort?.y??laneY:laneY,
+    CLASSES[id].range>80?60:35))return true;
  }
  if((power>=10||urgent)&&spawn("infantry",laneY,35))return true;
  return false;
