@@ -406,7 +406,9 @@ async function join(){
   }
   // Seat reservation is separate from the lobby transaction: bind the exact
   // winning clientId before it is allowed to submit a deck or ready up.
-  const seated=await ref.child("meta").transaction(old=>{
+  const seated=await ref.child("meta").transaction(cached=>{
+   // RTDB may start with an empty local cache; server retries a stale proposal.
+   const old=cached||latest;
    if(!old||old.status!=="lobby"||old.version!==ROOM_VERSION||old.round!==latest.round)return;
    // players/guest was reserved by this client; a departed seat may be replaced.
    return {...old,deckLobby:{...old.deckLobby,guest:{
@@ -432,7 +434,8 @@ async function toggleHostBot(){
   if(!tx.committed||room!==current||meta?.status!=="lobby")
    throw Error("BOTの参加状態が変わりました。ルームを確認してください");
   // A BOT seat must own a valid deck in the same authoritative lobby as READY.
-  const botMeta=await current.child("meta").transaction(old=>{
+  const botMeta=await current.child("meta").transaction(cached=>{
+   const old=cached||meta;
    if(!old||old.status!=="lobby"||old.version!==ROOM_VERSION)return;
    const next={...old.deckLobby};
    if(remove)delete next.guest;
@@ -499,7 +502,8 @@ async function ready(){
  }
  $("netReady").disabled=true;
  try{
-  const result=await current.child("meta").transaction(state=>{
+  const result=await current.child("meta").transaction(cached=>{
+   const state=cached||meta;
    if(!state||state.status!=="lobby"||state.version!==ROOM_VERSION||
       state.round!==expectedRound)return;
    const seatRecord=state.deckLobby?.[seat];
@@ -519,7 +523,8 @@ async function startMatch(){
  if(hostId!==clientId||!guestId)return;
  $("netStart").disabled=true;
  try{
-  const result=await current.child("meta").transaction(state=>{
+  const result=await current.child("meta").transaction(cached=>{
+   const state=cached||meta;
    if(!state||state.status!=="lobby"||state.version!==ROOM_VERSION||
       state.round!==expectedRound)return;
    const a=state.deckLobby?.host,b=state.deckLobby?.guest;
@@ -608,7 +613,8 @@ async function rematch(){
  const current=room,oldRound=meta.round;
  try{
   $("start").disabled=true;
-  const changed=await current.child("meta").transaction(old=>{
+  const changed=await current.child("meta").transaction(cached=>{
+   const old=cached||meta;
    if(!old||old.status!=="finished"||old.round!==oldRound)return;
    const nextRound=oldRound+1,deckLobby={};
    for(const seat of ["host","guest"]){
