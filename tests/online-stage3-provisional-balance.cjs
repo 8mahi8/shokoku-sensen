@@ -30,6 +30,15 @@ const spells=objectAt("const SPELLS=");
 const existing=Object.fromEntries(Object.entries(classes).filter(([,d])=>!d.internalOnly));
 assert(Object.keys(existing).length>=18,"expected actual stage 2 roster");
 assert(spells.ward.cost===3&&spells.gravity.duration===2.5,"spell baseline changed: review candidate");
+// Approved 2026-10-30 design-only HP changes, deliberately NOT modifying actual CLASSES:
+// Guardian 1400->1300, Tank 1100->1000; everything else stays as in online-game.js.
+assert.equal(existing.guardian.hp,1400,"live guardian HP changed; review approved delta");
+assert.equal(existing.tank.hp,1100,"live tank HP changed; review approved delta");
+const approvedExisting={
+ ...existing,
+ guardian:{...existing.guardian,hp:1300},
+ tank:{...existing.tank,hp:1000}
+};
 
 const kaiju={
  name:"砦進撃怪獣（仮案）",size:"large",cost:6,limit:2,qty:1,
@@ -46,7 +55,8 @@ assert.equal(kaiju.targetPriority.fort,4);
 assert.equal(kaiju.targetPriority.castle,2);
 assert.equal(kaiju.targetPriority.unit,1);
 
-const all={...existing,kaiju};
+const all={...approvedExisting,kaiju};
+const beforeAll={...existing,kaiju};
 const entries=Object.entries(all);
 const round=v=>Number.isFinite(v)?Math.round(v*100)/100:null;
 function fightOne(a,b){
@@ -95,6 +105,20 @@ function fightCards(a,b){
  }
  throw Error("card iteration overflow");
 }
+const hpAdjustment={};
+for(const id of ["guardian","tank"]){
+ const previous=existing[id],approved=approvedExisting[id];
+ hpAdjustment[id]={previousHp:previous.hp,approvedHp:approved.hp,opponents:{}};
+ for(const [otherId,opponent] of Object.entries(all)){
+  const beforeOpponent=beforeAll[otherId];
+  hpAdjustment[id].opponents[otherId]={
+   oneBefore:fightOne(previous,beforeOpponent),
+   oneAfter:fightOne(approved,opponent),
+   cardBefore:fightCards(previous,beforeOpponent),
+   cardAfter:fightCards(approved,opponent)
+  };
+ }
+}
 const oneVsAll=Object.fromEntries(entries.map(([id,d])=>[id,Object.fromEntries(
  entries.map(([target,other])=>[target,fightOne(d,other)]))]));
 const cardsVsAll=Object.fromEntries(entries.map(([id,d])=>[id,Object.fromEntries(
@@ -127,7 +151,7 @@ const model={
  secondary:"card qty vs card qty; t0 simultaneous; target first living soldier; no splash, flying immunity, on-contact death, child spawning, range, movement or AI",
  warning:"All costs compared; results are not predictions of combat against special cards.",
  },
- kaiju, gale, hpRevision,
+ kaiju, gale, hpRevision, hpAdjustment,
  fort:{hp:fortHp,capturePerHit:kaiju.capture,requiredHits:fortHits,
  attackTimeFromFirstHit:round((fortHits-1)*kaiju.cool),
  fromBlueSpawn244ToFort410Travel:round((410-244)/kaiju.speed),
@@ -202,11 +226,19 @@ assert.equal(kaiju.vision,220);
 assert.equal(kaijuCards.crusher.winner,"a");
 assert.equal(kaijuCards.crusher.remainingHp,100);
 assert.equal(kaijuCards.guardian.winner,"b");
-assert.equal(kaijuCards.guardian.remainingHp,824);
+assert.equal(hpAdjustment.guardian.previousHp,1400);
+assert.equal(hpAdjustment.guardian.approvedHp,1300);
+assert.ok(hpAdjustment.guardian.opponents.kaiju.oneBefore.remainingHp!==hpAdjustment.guardian.opponents.kaiju.oneAfter.remainingHp,
+ "guardian vs kaiju should change");
+assert.equal(kaijuCards.guardian.winner,"b");
 assert.equal(kaijuCards.tank.winner,"b");
-assert.equal(kaijuCards.tank.remainingHp,452);
-assert.equal(hpRevision.guardian.before.remainingHp,752);
-assert.equal(hpRevision.guardian.after.remainingHp,824);
+assert.equal(hpAdjustment.tank.previousHp,1100);
+assert.equal(hpAdjustment.tank.approvedHp,1000);
+assert.ok(hpAdjustment.tank.opponents.kaiju.oneBefore.remainingHp!==hpAdjustment.tank.opponents.kaiju.oneAfter.remainingHp,
+ "tank vs kaiju should change");
+assert.equal(kaijuCards.tank.winner,"b");
+assert.equal(hpRevision.guardian.before.winner,"b");
+assert.equal(hpRevision.guardian.after.winner,"b");
 assert.equal(kaijuCards.archer.remainingHp,860);
 assert.equal(Object.keys(kaijuOne).length,Object.keys(existing).length);
 assert.equal(Object.keys(kaijuCards).length,Object.keys(existing).length);
@@ -219,10 +251,18 @@ assert.equal(model.fort.attackTimeFromFirstHit,6.75);
 if(process.argv.includes("--json"))console.log(JSON.stringify(model,null,2));
 else{
  console.log("Stage 3 preimplementation balance: kaiju "+kaiju.cost+" cost, "+kaiju.hp+" hp, "+kaiju.damage+"/"+kaiju.cool+"s, "+kaiju.qty+" per card");
- console.log("Real existing roster (no edits): "+Object.keys(existing).length+" cards; all "+entries.length+" including candidate.");
+ console.log("Actual roster unchanged in online-game.js: "+Object.keys(existing).length+" cards; 2 approved HP changes only in design: guardian 1400->1300, tank 1100->1000; "+entries.length+" with candidate.");
+ for(const id of ["guardian","tank"]){
+  console.log("Approved "+id+" HP "+hpAdjustment[id].previousHp+"->"+hpAdjustment[id].approvedHp);
+  for(const opponent of ["kaiju","guardian","tank","crusher","catapult","archer","infantry"]){
+   const v=hpAdjustment[id].opponents[opponent];
+   console.log(" "+id+" vs "+opponent+" one BEFORE:"+v.oneBefore.winner+"/"+v.oneBefore.remainingHp+"/"+v.oneBefore.time+" AFTER:"+v.oneAfter.winner+"/"+v.oneAfter.remainingHp+"/"+v.oneAfter.time
+   +" card BEFORE:"+v.cardBefore.winner+"/"+v.cardBefore.remainingHp+"/"+v.cardBefore.time+" AFTER:"+v.cardAfter.winner+"/"+v.cardAfter.remainingHp+"/"+v.cardAfter.time);
+  }
+ }
  console.log("Fort "+fortHp+"HP / capture "+kaiju.capture+" = "+fortHits+" hits, "+model.fort.attackTimeFromFirstHit+"s after first attack.");
  console.log("VS existing roster (primary 1v1 / secondary card-vs-card, no special mechanics):");
- for(const [id,d] of Object.entries(existing)){
+ for(const [id,d] of Object.entries(approvedExisting)){
   const one=kaijuOne[id],card=kaijuCards[id];
   console.log(id+" ["+d.name+"] cost "+d.cost+" qty "+d.qty+
    "  1v1:"+one.winner+" HP:"+one.remainingHp+" s:"+one.time+
@@ -235,5 +275,5 @@ else{
    " maximum extra x"+boosts[id].idealExtra+
    " buffed-on-cast extra x"+boosts[id].castSnapshotExtra);
  }
- console.log("STAGE3_DESIGN_BALANCE_QA: PASS (all "+entries.length+" x "+entries.length+" one-unit AND card duels)");
+ console.log("STAGE3_DESIGN_BALANCE_QA: PASS (all "+entries.length+" x "+entries.length+" one-unit AND card duels; approved guardian/tank before-after across all costs)");
 }
