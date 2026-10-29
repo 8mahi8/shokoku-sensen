@@ -262,7 +262,7 @@ else{
  }
  console.log("Fort "+fortHp+"HP / capture "+kaiju.capture+" = "+fortHits+" hits, "+model.fort.attackTimeFromFirstHit+"s after first attack.");
  console.log("VS existing roster (primary 1v1 / secondary card-vs-card, no special mechanics):");
- for(const [id,d] of Object.entries(approvedExisting)){
+ for(const [id,d] of Object.entries(approvedExisting).filter(([id])=>id!=="kaiju")){
   const one=kaijuOne[id],card=kaijuCards[id];
   console.log(id+" ["+d.name+"] cost "+d.cost+" qty "+d.qty+
    "  1v1:"+one.winner+" HP:"+one.remainingHp+" s:"+one.time+
