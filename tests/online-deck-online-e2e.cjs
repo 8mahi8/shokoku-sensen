@@ -46,10 +46,18 @@ const server=http.createServer((req,res)=>{
    if(!response.ok)throw Error("DB "+response.status);
    return response.json();
   };
-  for(const page of [host,guest]){
+  // Different, legal decks prove the new 5 cards are real selections, not
+  // merely decorative catalog tiles. Guest uses the standalone iPad HTML.
+  for(const [page,newId,oldId] of [[host,"duelist","scout"],[guest,"ground_bomber","tank"]]){
    await page.locator("#deckOpen").click();
    assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
+   assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+   await page.locator('#deckPool .deckTile[data-card-id="'+newId+'"]').click();
+   await page.locator('#deckSelected .deckTile[data-card-id="'+oldId+'"]').click();
+   assert.equal(await page.locator('#deckSelected .deckTile[data-card-id="'+newId+'"]').count(),1);
    await page.locator("#deckSave").click();
+   const saved=await page.evaluate(()=>window.ShokokuDeck.current());
+   assert.equal(saved.length,10);assert.ok(saved.includes(newId));assert.ok(!saved.includes(oldId));
   }
   await guest.locator("#netReady").click();
   await host.locator("#netReady").click();
@@ -61,7 +69,14 @@ const server=http.createServer((req,res)=>{
     state.lockedDecks?.guestDeckIds?.length===10&&
     await host.locator("#onlinePanel").isHidden()&&await guest.locator("#onlinePanel").isHidden();
   },"match starts with ten cards each");
-  console.log("PASS: two-browser Firebase 10-unique deck lock and actual start");
+  const locked=await meta();
+  assert.ok(locked.lockedDecks.hostDeckIds.includes("duelist"));
+  assert.ok(!locked.lockedDecks.hostDeckIds.includes("scout"));
+  assert.ok(locked.lockedDecks.guestDeckIds.includes("ground_bomber"));
+  assert.ok(!locked.lockedDecks.guestDeckIds.includes("tank"));
+  assert.equal(new Set(locked.lockedDecks.hostDeckIds).size,10);
+  assert.equal(new Set(locked.lockedDecks.guestDeckIds).size,10);
+  console.log("PASS: two-browser Firebase independently edited 10-unique decks with real new cards");
   await host.evaluate(()=>window.ShokokuNet.finish({result:"win",reason:"deck QA"}));
   await wait(async()=>(await meta())?.status==="finished","finish reaches server");
   await host.evaluate(()=>window.ShokokuNet.rematch());
@@ -77,6 +92,9 @@ const server=http.createServer((req,res)=>{
   await wait(async()=>host.locator("#netStart").isEnabled(),"round two ready");
   await host.locator("#netStart").click();
   await wait(async()=>(await meta())?.lockedDecks?.round===2,"round two locked");
+  const rematchDecks=(await meta()).lockedDecks;
+  assert.ok(rematchDecks.hostDeckIds.includes("duelist"),"host deck persisted into rematch");
+  assert.ok(rematchDecks.guestDeckIds.includes("ground_bomber"),"guest deck persisted into rematch");
   assert.deepEqual(issues,[],"page errors");
   console.log("PASS: Firebase rematch retains 10 selections but requires fresh READY and fresh locked round");
  }finally{
