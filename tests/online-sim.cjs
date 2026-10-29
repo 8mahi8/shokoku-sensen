@@ -80,7 +80,11 @@ function client(){
   return dom.get(id);
  };
  const document={getElementById:get,querySelectorAll:()=>[],body:{classList:{add(){},remove(){},toggle(){}}},addEventListener(name,fn){callbacks[name]=fn}};
- const context={window:{crypto:webcrypto,firebase},crypto:webcrypto,document,firebase,
+ const deckIds=["scout","engineer","archer","barrage","sentinel","suppress","guardian","ward","drone","tank"];
+ const deckApi={current:()=>deckIds.slice(),standard:()=>deckIds.slice(),
+  validate:ids=>Array.isArray(ids)&&ids.length===10&&new Set(ids).size===10&&
+   ids.every(id=>deckIds.includes(id)),setLocked:()=>{},renderLobby:()=>{}};
+ const context={window:{crypto:webcrypto,firebase,ShokokuDeck:deckApi},crypto:webcrypto,document,firebase,
   console,Date,Math,Uint32Array,Promise,URL,URLSearchParams,performance:{now:()=>virtualNow},
   navigator:{clipboard:{writeText:async()=>{}}},location:{reload(){refreshCount++},hostname:"localhost",search:""},setTimeout,clearTimeout,
   fetch:async url=>{
