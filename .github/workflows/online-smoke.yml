@@ -6,6 +6,7 @@ on:
       - 'tests/online-smoke.cjs'
       - 'tests/online-deck.cjs'
       - 'tests/online-balance-theory.cjs'
+      - 'tools/build-online-bundles.cjs'
       - 'tests/online-sim.cjs'
       - 'tests/online-unit-target-priority.cjs'
       - '.github/workflows/online-smoke.yml'
@@ -20,6 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Ensure school HTML bundle stays synchronized with game and character art
+        run: node tools/build-online-bundles.cjs --check
       - run: node tests/online-smoke.cjs
       - name: Check deck catalog, 10 unique cards, and storage fallback
         run: node tests/online-deck.cjs
