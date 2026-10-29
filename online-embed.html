@@ -1129,12 +1129,19 @@ async function rematch(){
   }
   return;
  }
- if(meta?.status!=="finished")return;
- const current=room,oldRound=meta.round;
+ // The finish update can reach REST before its SDK event reaches this tab.
+ // Accept the synchronous phase set by finish(), then read authoritative meta
+ // before attempting a new-round transaction.
+ if(meta?.status!=="finished"&&phase!=="finished")return;
+ const current=room;
  try{
   $("start").disabled=true;
+  const verified=(await current.child("meta").once("value")).val();
+  if(!verified||verified.status!=="finished"||verified.version!==ROOM_VERSION)
+   throw Error("試合終了を同期しています。もう一度再戦を押してください");
+  const oldRound=verified.round;
   const changed=await current.child("meta").transaction(cached=>{
-   const old=cached||meta;
+   const old=cached?.status==="finished"?cached:verified;
    if(!old||old.status!=="finished"||old.round!==oldRound)return;
    const nextRound=oldRound+1,deckLobby={};
    for(const seat of ["host","guest"]){
