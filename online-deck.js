@@ -35,6 +35,13 @@ function persist(){
 function configure(cards){
  catalog=cards||{};
  draft=load();
+ // A catalog reset may change names/portraits for existing IDs. Reuse
+ // DOM during ordinary edits, but never show old data after reconfigure.
+ if(editorOpen){
+  $("deckSelected")?.replaceChildren();
+  $("deckPool")?.replaceChildren();
+  render();
+ }
  renderLobby();
 }
 function current(){return draft.slice();}
@@ -49,13 +56,25 @@ function newTile(id,inDeck){
  const name=document.createElement("span");name.className="deckName";name.textContent=data.name;
  const mark=document.createElement("span");mark.className="deckMark";mark.textContent=inDeck?"採用中":"追加候補";
  button.append(canvas,cost,name,mark);
- button.addEventListener("click",()=>choose(id,inDeck));
+ // The tile can move between selected and pool without recreating its Canvas.
+ button.addEventListener("click",()=>choose(id,!!working?.includes(id)));
  const detail=document.createElement("button");
  detail.type="button";detail.className="deckDetail";detail.textContent="性能を見る";
  detail.setAttribute("aria-label",data.name+"の能力を見る");
  detail.addEventListener("click",()=>showInfo(id));
  const cell=document.createElement("div");cell.className="deckCell";cell.append(button,detail);
  if(window.KokokuArt?.drawPortrait)window.KokokuArt.drawPortrait(canvas,id,1);
+ return cell;
+}
+// Update role/selection of an existing tile while preserving its portrait
+// Canvas and event listener. A two-tap swap does not redraw all 15 portraits.
+function updateTile(cell,id,inDeck){
+ const tile=cell.querySelector(".deckTile"),data=catalog[id];
+ tile.classList.toggle("chosen",inDeck);
+ tile.classList.toggle("pending",pending===id);
+ tile.setAttribute("aria-pressed",String(inDeck));
+ tile.setAttribute("aria-label",data.name+" コスト"+data.cost+(inDeck?" 採用中":" 未採用"));
+ cell.querySelector(".deckMark").textContent=inDeck?"採用中":"追加候補";
  return cell;
 }
 function showInfo(id){
@@ -86,9 +105,17 @@ function choose(id,inDeck){
 function render(){
  if(!editorOpen||!working)return;
  const selected=$("deckSelected"),pool=$("deckPool");
- selected.replaceChildren();pool.replaceChildren();
- for(const id of working)selected.append(newTile(id,true));
- for(const id of eligible().filter(id=>!working.includes(id)))pool.append(newTile(id,false));
+ // Preserve the existing 15 Canvas elements and portraits across taps.
+ // Only a genuinely new card (e.g. after a future roster extension)
+ // requires a new portrait draw.
+ const previous=new Map([...selected.children,...pool.children].map(cell=>
+  [cell.querySelector(".deckTile")?.dataset.cardId,cell]));
+ const tile=(id,inDeck)=>{
+  const existing=previous.get(id);
+  return existing?updateTile(existing,id,inDeck):newTile(id,inDeck);
+ };
+ selected.replaceChildren(...working.map(id=>tile(id,true)));
+ pool.replaceChildren(...eligible().filter(id=>!working.includes(id)).map(id=>tile(id,false)));
  const full=working.length===COUNT;
  $("deckCount").textContent=working.length+" / "+COUNT+"種類";
  $("deckNotice").textContent=pending?"交換する採用カードをタップしてください":eligible().length===COUNT?
