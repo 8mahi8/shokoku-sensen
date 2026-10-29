@@ -30,11 +30,11 @@ for(const p of ["online-embed.html","online-ipad.html"]){
 // School HTML balance editor must be at the top of both pasteable bundles.
 // It must drive actual CLASSES HP/base-damage numbers, not display-only labels.
 const classStart=game.indexOf("const CLASSES={");
-const classEnd=game.indexOf("const IDS=Object.keys(CLASSES);",classStart);
+const classEnd=game.indexOf("const IDS=Object.keys(CLASSES)",classStart);
 assert.ok(classStart>0&&classEnd>classStart,"Online unit stat block missing");
 const initializeClasses=new Function("window",game.slice(classStart,classEnd)+";return CLASSES;");
 const originalClasses=initializeClasses({});
-const schoolKeys=Object.keys(originalClasses);
+const schoolKeys=Object.keys(originalClasses).filter(id=>!originalClasses[id].internalOnly);
 // The initial nine remain a compatibility baseline, NOT a cap on future classes.
 // Every future unit must opt into the same data-driven targeting contract.
 const baselineUnitIds=["infantry","scout","engineer","archer","sentinel",
@@ -68,7 +68,7 @@ const heights=literalMap(artSource,"BODY_HEIGHT");
 const spriteMatch=artSource.match(/const SPRITES=\{([^}]+)\};/);
 assert.ok(spriteMatch,"Missing character sprite registry");
 const spriteIds=new Set(spriteMatch[1].split(",").map(s=>s.trim()));
-for(const id of schoolKeys){
+for(const id of Object.keys(originalClasses)){
  assert.ok(Number.isFinite(motion.attack[id])&&motion.attack[id]>0,
   id+" missing positive attack animation duration");
  assert.ok(spriteIds.has(id),id+" has no explicit unit art");
