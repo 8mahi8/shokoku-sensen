@@ -1,0 +1,81 @@
+name: School Stage 3 release-candidate HTML verification
+on:
+  push:
+    paths:
+      - '.github/workflows/school-stage3-release-candidate.yml'
+      - 'online-embed.html'
+      - 'online-ipad.html'
+      - 'online-game.js'
+      - 'v3-art.js'
+      - 'online-net.js'
+      - 'online-deck.js'
+      - 'tools/build-online-bundles.cjs'
+  workflow_dispatch:
+jobs:
+  verify-and-package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact standalone source synchronization
+        run: node tools/build-online-bundles.cjs --check
+      - name: Repeat full online unit, AI, deck and combat smoke
+        run: |
+          node tests/online-smoke.cjs
+          node tests/online-deck.cjs
+          node tests/online-stage1-combat.cjs
+          node tests/online-stage2-combat.cjs
+          node tests/online-unit-target-priority.cjs
+          node tests/online-sim.cjs
+          node tests/online-balance-theory.cjs > /dev/null
+          node tests/online-stage3-provisional-balance.cjs --json > /tmp/stage3-balances.json
+      - name: Inspect actual School Sites HTML and source values
+        run: |
+          node - <<'JS'
+          const fs=require('fs'),assert=require('assert');
+          const html=fs.readFileSync('online-embed.html','utf8');
+          const ipad=fs.readFileSync('online-ipad.html','utf8');
+          for(const doc of [html,ipad]){
+            assert(doc.startsWith('<!doctype html>'));
+            assert.equal((doc.match(/data-shokoku-inline=/g)||[]).length,4);
+            for(const str of [
+              'kaiju:{name:"砦進撃怪獣"',
+              'targetPriority:{fort:4,castle:2,unit:1}',
+              'gale:{name:"疾風号令"',
+              'applyStatusEffect(u,{key:"gale",stat:"moveSpeed"',
+              'guardian        : { hp: 1300',
+              'tank            : { hp: 1000',
+              'kaiju           : { hp: 1000'
+            ])assert(doc.includes(str),'Missing from School HTML: '+str);
+          }
+          assert(!html.includes('ShokokuResearch'),'No passive research logging');
+          console.log('SCHOOL_RC_HTML_QA PASS - inline modules, game parameters, statuses');
+          JS
+      - name: Package verified Google Sites paste source
+        run: |
+          cp online-embed.html "小国戦線III_学校GoogleSites貼付用_Stage3_20261030.txt"
+          cp online-embed.html "小国戦線III_学校試遊_Stage3_20261030.html"
+          {
+            echo '小国戦線III — Stage 3 学校Google Sites貼り付け用'
+            echo 'このZIPにはHTML全文と同じ内容の .txt が入っています。'
+            echo 'Google Sites > 埋め込む > 埋め込みコード へ .txt の中身を全文貼り付けてください。'
+            echo 'このZIPをそのまま貼り付けるのではありません。'
+            echo '既存の学校版は自動では書き換わりません。'
+            printf 'GitHub開発ブランチ検証コミット: '
+            git rev-parse HEAD
+            echo '学校iPad Safari実機・学校Google Sites配布先での動作は別途試遊確認が必要です。'
+          } > README_学校GoogleSitesへの貼り付け方.txt
+          sha256sum "小国戦線III_学校GoogleSites貼付用_Stage3_20261030.txt" "小国戦線III_学校試遊_Stage3_20261030.html" > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SchoolSites-Stage3-verified-20261030
+          path: |
+            小国戦線III_学校GoogleSites貼付用_Stage3_20261030.txt
+            小国戦線III_学校試遊_Stage3_20261030.html
+            README_学校GoogleSitesへの貼り付け方.txt
+            SHA256SUMS.txt
+          retention-days: 90
