@@ -4,6 +4,7 @@ on:
     paths:
       - 'online*'
       - 'tests/online-smoke.cjs'
+      - 'tests/online-deck.cjs'
       - 'tests/online-sim.cjs'
       - 'tests/online-unit-target-priority.cjs'
       - '.github/workflows/online-smoke.yml'
@@ -19,6 +20,8 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/online-smoke.cjs
+      - name: Check deck catalog, 10 unique cards, and storage fallback
+        run: node tests/online-deck.cjs
       - run: node tests/online-sim.cjs
       - name: Check priority-based unit AI (37 scenarios)
         run: node tests/online-unit-target-priority.cjs
