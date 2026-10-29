@@ -303,7 +303,7 @@ body.soloMode #difficulties{display:flex!important}
 .deckMark{font-size:9px;color:#f3d69a}
 .deckDetail{min-height:40px;width:100%;background:#274858;border:1px solid #6696aa;border-radius:8px;color:#e6f8f7;font-size:11px;touch-action:manipulation}
 #deckNotice{font-size:12px;color:#f0d798;min-height:2.6em}
-#deckInfo{font-size:11px;color:#bcdee6;min-height:1.8em}
+#cardInfoOverlay.deckInfoOpen{z-index:10030}
 #deckSummary{font-size:12px;color:#cbe0de}
 #deckEditorFoot{border-top:1px solid #3f6979;padding-top:10px}
 #deckEditorFoot .deckActions{display:flex;gap:8px;flex-wrap:wrap}
@@ -399,7 +399,7 @@ body.soloMode #difficulties{display:flex!important}
 "use strict";
 const COUNT=10,DEFAULT=["scout","engineer","archer","barrage","sentinel","suppress","guardian","ward","drone","tank"];
 const KEY="shokoku-deck-v1";
-let catalog={},draft=DEFAULT.slice(),working=null,pending=null,locked=false,editorOpen=false;
+let catalog={},draft=DEFAULT.slice(),working=null,pending=null,locked=false,editorOpen=false,detailReturnFocus=null;
 const $=id=>document.getElementById(id);
 const eligible=()=>Object.keys(catalog).filter(id=>id!=="infantry"&&catalog[id]?.deckEligible!==false);
 function validate(ids){
@@ -457,7 +457,7 @@ function newTile(id,inDeck){
  const detail=document.createElement("button");
  detail.type="button";detail.className="deckDetail";detail.textContent="性能を見る";
  detail.setAttribute("aria-label",data.name+"の能力を見る");
- detail.addEventListener("click",()=>showInfo(id));
+ detail.addEventListener("click",()=>showInfo(id,detail));
  const cell=document.createElement("div");cell.className="deckCell";cell.append(button,detail);
  if(window.KokokuArt?.drawPortrait)window.KokokuArt.drawPortrait(canvas,id,1);
  return cell;
@@ -473,30 +473,79 @@ function updateTile(cell,id,inDeck){
  cell.querySelector(".deckMark").textContent=inDeck?"採用中":"追加候補";
  return cell;
 }
-function showInfo(id){
- const card=catalog[id];if(!card)return;
- const parts=["消費 "+card.cost,"使用上限 "+(Number.isFinite(card.limit)?card.limit+"回":"無制限")];
- if(card.hp!==undefined){
-  const behavior={normal:"進撃",capture:"占領",guard:"迎撃"}[card.behavior]||"進撃";
-  parts.push(behavior,card.flying?"飛行":"地上", "1回"+(card.qty||1)+"体",
-   "HP "+card.hp,"攻撃 "+card.damage,"攻撃間隔 "+card.cool+"秒",
-   "射程 "+card.range,"速度 "+card.speed,card.hitAir?"対空可能":"対空不可",
-   card.capture?"占領力 "+card.capture:"占領不可");
-  if(card.splash)parts.push("範囲攻撃 "+card.splash);
-  if(card.note)parts.push(card.note);
+// Reuse the battle card detail dialog, which is already designed for
+// iPad portrait art + readable two-column stats; no second modal to maintain.
+function showInfo(id,returnFocus){
+ if(!editorOpen)return;
+ const data=catalog[id];if(!data)return;
+ const isSpell=data.hp===undefined;
+ const size={small:"小型",medium:"中型",large:"大型"}[data.size]||"ユニット";
+ const behavior={normal:"進撃",capture:"占領",guard:"迎撃"}[data.behavior]||"進撃";
+ const count=Number.isFinite(data.limit)?data.limit+" 回":"無制限";
+ $("cardInfoName").textContent=data.name;
+ $("cardInfoRole").textContent=isSpell?"スペル":size+" · "+behavior+" · "+(data.flying?"飛行":"地上");
+ const stats=isSpell?[
+  ["消費資源",data.cost],["使用回数",count],["効果半径",data.radius??"—"],
+  ["持続・着弾時間",data.delay!==undefined?data.delay+" 秒":data.duration!==undefined?data.duration+" 秒":"—"]
+ ]:[
+  ["消費資源",data.cost],["使用上限",count],
+  ["1回の召喚数",(data.qty||1)+" 体"],["HP",data.hp],
+  ["攻撃力",data.damage],["射程",data.range],
+  ["移動速度",data.speed],["攻撃間隔",data.cool+" 秒"],
+  ["砦占領力",data.capture||"なし"],["対空攻撃",data.hitAir?"可能":"不可"]
+ ];
+ if(!isSpell&&data.splash)stats.push(
+  ["範囲攻撃半径",data.splash],
+  ["巻き込み攻撃力",Math.round(data.damage*(data.splashScale??.57))]);
+ if(!isSpell&&data.siege)stats.push(
+  ["対城ダメージ",Math.round(data.damage*data.siege)+"（"+data.siege+"倍）"]);
+ if(!isSpell&&data.behavior==="guard")stats.push(["行動方針","召喚位置付近で迎撃"]);
+ const list=$("cardInfoStats");list.replaceChildren();
+ for(const [label,value] of stats){
+  const row=document.createElement("div");row.className="infoStat";
+  const name=document.createElement("span");name.textContent=label;
+  const stat=document.createElement("strong");stat.textContent=String(value);
+  row.append(name,stat);list.append(row);
  }
- else parts.push("スペル",card.note||"");
- const info=$("deckInfo");info.textContent=card.name+"｜"+parts.join(" ・ ");
+ $("cardInfoNote").textContent=data.note||"";
+ const portrait=$("cardInfoPortrait");
+ portrait.getContext("2d")?.clearRect(0,0,portrait.width,portrait.height);
+ if(window.KokokuArt?.drawPortrait)window.KokokuArt.drawPortrait(portrait,id,1);
+ const overlay=$("cardInfoOverlay");
+ detailReturnFocus=returnFocus;
+ $("deckEditor").setAttribute("aria-hidden","true");
+ overlay.classList.add("deckInfoOpen");
+ overlay.classList.remove("hidden");
+ $("cardInfoClose").focus();
+}
+function closeInfo(){
+ const overlay=$("cardInfoOverlay");
+ if(!overlay?.classList.contains("deckInfoOpen"))return;
+ overlay.classList.add("hidden");
+ overlay.classList.remove("deckInfoOpen");
+ $("deckEditor").setAttribute("aria-hidden",editorOpen?"false":"true");
+ const target=detailReturnFocus;detailReturnFocus=null;
+ if(editorOpen&&target?.isConnected)target.focus();
 }
 function choose(id,inDeck){
- if(locked||!editorOpen)return;
- if(!inDeck){pending=pending===id?null:id;render();return;}
- if(pending&&pending!==id){
-  const idx=working.indexOf(id);
-  if(idx>=0){working[idx]=pending;pending=null;render();}
-  return;
+ if(locked||!editorOpen||!working)return;
+ // Either selection order works: selected -> candidate or candidate -> selected.
+ // The current working deck, rather than the original tile role, is authoritative.
+ const selected=working.includes(id);
+ if(pending===id){pending=null;render();return;}
+ if(pending){
+  const firstSelected=working.includes(pending);
+  if(firstSelected!==selected){
+   const removeId=firstSelected?pending:id;
+   const addId=firstSelected?id:pending;
+   const index=working.indexOf(removeId);
+   if(index>=0&&!working.includes(addId)){
+    working[index]=addId;pending=null;render();return;
+   }
+  }
  }
- showInfo(id);
+ // A tap in the same section simply changes which card is highlighted.
+ pending=id;render();
 }
 function render(){
  if(!editorOpen||!working)return;
@@ -514,9 +563,10 @@ function render(){
  pool.replaceChildren(...eligible().filter(id=>!working.includes(id)).map(id=>tile(id,false)));
  const full=working.length===COUNT;
  $("deckCount").textContent=working.length+" / "+COUNT+"種類";
- $("deckNotice").textContent=pending?"交換する採用カードをタップしてください":eligible().length===COUNT?
-  "現在は全10種類を採用中。新しいカードが追加されると入れ替えできます。":"未採用カードをタップ → 外したい採用カードをタップで交換。性能を見るボタンで比較できます";
- $("deckInfo").textContent="";
+ $("deckNotice").textContent=pending?
+  (working.includes(pending)?"交換する未採用カードをタップしてください":"交換する採用カードをタップしてください"):
+  eligible().length===COUNT?"現在は全10種類を採用中。新しいカードが追加されると入れ替えできます。":
+  "採用中・未採用のどちらからでもタップ → 反対側のカードをタップで交換。もう一度押すと選択解除。";
  $("deckSave").disabled=!full||!validate(working);
  const avg=working.reduce((s,id)=>s+(Number(catalog[id]?.cost)||0),0)/COUNT;
  $("deckSummary").textContent="平均コスト "+avg.toFixed(1)+" ｜ 対空 "+working.filter(id=>catalog[id]?.hitAir).length+
@@ -531,6 +581,7 @@ function open(){
 }
 function close(save=false){
  if(!editorOpen)return;
+ closeInfo();
  if(save&&validate(working)){draft=working.slice();persist();renderLobby();}
  working=null;pending=null;editorOpen=false;
  $("deckEditor").classList.add("hidden");$("deckEditor").setAttribute("aria-hidden","true");
@@ -552,6 +603,16 @@ function bind(){
  $("deckCancel")?.addEventListener("click",()=>close(false));
  $("deckSave")?.addEventListener("click",()=>close(true));
  $("deckReset")?.addEventListener("click",()=>{working=standard();pending=null;render();});
+ // Battle-mode close also hides the shared overlay; ensure deck focus is restored.
+ $("cardInfoClose")?.addEventListener("click",closeInfo);
+ $("cardInfoOverlay")?.addEventListener("click",e=>{
+  if(e.target===e.currentTarget)closeInfo();
+ });
+ document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("cardInfoOverlay")?.classList.contains("deckInfoOpen")){
+   e.preventDefault();closeInfo();
+  }
+ });
 }
 document.addEventListener("DOMContentLoaded",bind);
 window.ShokokuDeck={configure,validate,eligible,current,standard,repair,open,close,setLocked,renderLobby,resetDraft};
@@ -852,7 +913,7 @@ function setupRoom(code,isHost){
   // Short lobby transitions may be skipped: detect new rounds by number.
   const newRound=Number(priorRound)>0&&Number(meta?.round)>Number(priorRound);
   if(newRound||(meta?.status==="lobby"&&before==="finished")){
-   phase="lobby";seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;lastFeedbackSeq=0;
+   phase="lobby";result=null;seq=0;commandSeq=0;lastGuestSeq=0;lastRemoteSeq=0;lastSend=0;lastFeedbackSeq=0;
    lastPayloadChars=0;lastEncodeMs=0;lastAckMs=0;lastApplyMs=0;coalescedPackets=0;publishRetries=0;publishFailures=0;
    appliedGaps=[];appliedPackets=0;lastRemoteAppliedAt=0;lastSyncReadAt=0;syncWarning=false;
    lastStateEventAt=0;lastStateEventSeq=0;lastRestReadSeq=0;lastRestReadAt=0;lastApplyError="";
@@ -880,14 +941,14 @@ function setupRoom(code,isHost){
   }
   if(meta?.status==="finished"&&before!=="finished"){
    phase="finished";
-   if(!host&&result)game?.showResult?.(result);
+   if(!host&&resultMatchesRound())game?.showResult?.(result);
   }
   updateUI();
  });
  attach(room.child("result"),"value",snap=>{
   if(room!==openedRoom)return;
   result=snap.val();
-  if(result&&!host&&meta?.status==="finished")game?.showResult?.(result);
+  if(resultMatchesRound()&&!host&&meta?.status==="finished")game?.showResult?.(result);
  });
  if(host){
   attach(room.child("commands"),"child_added",async snap=>{
@@ -1150,16 +1211,23 @@ function finish(data){
  phase="finished";
  // Force publish the final world before closing, so the guest sees the last HP.
  const world=packGuestWorld(game.world()).world;
- const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
+ const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset,
+  round=meta?.round||1;
  room.update({
-  state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
-  result:{winner,reason:data.reason,at},
+  state:{seq:++seq,round,world:{...world,phase:"result"},at},
+  result:{winner,round,reason:data.reason,capitalHp:world.capitals.map(c=>c.hp),at},
   "meta/status":"finished"
  }).catch(setError);
 }
-function resultForMe(){return !result||result.winner===0?"draw":result.winner===team?"win":"lose"}
-function hasResult(){return !!result}
-function resultReason(){return result?.reason||"対戦終了"}
+function resultMatchesRound(){return !!result&&Number.isInteger(result.round)&&
+  result.round===meta?.round;}
+function resultForMe(){return !resultMatchesRound()||result.winner===0?"draw":result.winner===team?"win":"lose"}
+function hasResult(){return resultMatchesRound()}
+function resultReason(){return resultMatchesRound()?result.reason:"対戦終了"}
+function resultCapitalHp(){
+ const h=resultMatchesRound()?result.capitalHp:null;
+ return h&&Number.isFinite(h[0])&&Number.isFinite(h[1])?[h[0],h[1]]:null;
+}
 async function rematch(){
  if(solo){game?.begin();return;}
  if(!room||!connected)return;
@@ -1248,7 +1316,7 @@ const api={
   get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},
  get canSendCommand(){return !host&&!!room&&phase==="playing"&&connected&&players?.guest?.id===clientId},
  get soloDifficulty(){return soloDifficulty},
- registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
+ registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resultCapitalHp,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;
@@ -3809,8 +3877,13 @@ function end(result,reason){
  const titles={win:"勝利！",lose:"敗北",draw:"引き分け"};
  $("dialogTitle").textContent=titles[result]||"対戦終了";
  $("dialogText").textContent=reason+"　前哨基地と初期配置を変えると展開も大きく変わるよ。";
- $("rules").innerHTML="自軍首都："+Math.ceil(capital(ME()).hp)+" / "+START_HP+
- "<br>敵軍首都："+Math.ceil(capital(3-ME()).hp)+" / "+START_HP+
+ // Result and final world arrive on different Firebase listeners. Always use
+ // the terminal HP attached to the result, not an earlier guest snapshot.
+ const finalHp=NET.resultCapitalHp?.();
+ const displayHp=side=>Math.ceil(Number.isFinite(finalHp?.[side-1])&&
+  finalHp[side-1]>=0?finalHp[side-1]:capital(side).hp);
+ $("rules").innerHTML="自軍首都："+displayHp(ME())+" / "+START_HP+
+ "<br>敵軍首都："+displayHp(3-ME())+" / "+START_HP+
  "<br>残り時間："+(typeof reason==="string"&&reason.startsWith("時間切れ")?"00:00":numTime(S.seconds))+
  "<br>"+(NET.isSolo?"オフライン BOT対戦":"1vs1 オンライン対戦");
  $("start").textContent=NET.isSolo?"BOTと再戦":NET.isHost?"同じルームで再戦":"再戦する（ホスト待ち）";
@@ -6081,7 +6154,7 @@ start();
    <section class="deckSection"><h3>採用中の10種類</h3><div id="deckSelected"></div></section>
    <section class="deckSection"><h3>交換候補・カード一覧</h3><div id="deckNotice"></div><div id="deckPool"></div></section>
   </div>
-  <div id="deckInfo" aria-live="polite"></div>
+  
   <div id="deckEditorFoot"><div id="deckSummary"></div><div class="deckActions"><button id="deckReset" type="button">標準に戻す</button><button id="deckSave" type="button">決定して戻る</button></div></div>
  </div>
 </div>
