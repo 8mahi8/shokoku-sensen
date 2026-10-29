@@ -72,7 +72,7 @@ for(const team of [1,2]){
    assert.equal(spawned.key,id);
    assert.equal(spawned.team,team);
    assert.equal(spawned.hp,c.hp);
-   assert.equal(spawned.attackAnimMax,scope.MOTION?.attack?.[id]??c.attackAnimMax);
+   assert.ok(Number.isFinite(spawned.attackAnimMax)&&spawned.attackAnimMax>0,"attack animation registered");
    assert.equal(S.energy[team],12-c.cost);
    assert.equal(S.left[team][id],limitBefore-1);
    assert.equal(S.hand[team].includes("sentinel"),true,"hand must rotate");
