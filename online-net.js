@@ -8,7 +8,7 @@ const FIREBASE_DB_URL="https://mygame-df915-default-rtdb.firebaseio.com/";
 const ROOT="shokokuRooms1v1";
 const $=id=>document.getElementById(id);
 const token=()=>{const a=new Uint32Array(2);if(window.crypto?.getRandomValues)crypto.getRandomValues(a);else throw Error("安全な乱数が使えません");return Array.from(a,x=>x.toString(36)).join("-");};
-const clientId=token(), ROOM_VERSION=2;
+const clientId=token(), ROOM_VERSION=3;
 let db=null,room=null,roomCode="",game=null,team=0,host=false,seq=0,commandSeq=0,lastGuestSeq=0;
 let connected=false,players=null,meta=null,result=null,phase="none",lastSend=0,watchers=[],disconnectOp=null,botDisconnectOp=null,guestSyncHeartbeat=null;
 let lastRemoteSeq=0,serverOffset=0,presencePending=false,solo=false,guestBot=false,soloDifficulty='normal',guestBotSwitchPending=false,hostBotSwitchPending=false;
@@ -39,7 +39,9 @@ function guestPlayableWorld(){
  return !host&&lastRemoteSeq>0&&(state?.phase==="prep"||state?.phase==="battle");
 }
 function updateUI(){
- const inRoom=!!room,guest=!!players?.guest?.online,ready=!!players?.host?.ready&&!!players?.guest?.ready;
+ const inRoom=!!room,guest=!!players?.guest?.online;
+ const currentSeat=host?"host":"guest",mine=meta?.deckLobby?.[currentSeat];
+ const ready=!!meta?.deckLobby?.host?.ready&&!!meta?.deckLobby?.guest?.ready;
  const ownBot=hostBotSeat();
  const seat=host?"host":"guest",other=host?"guest":"host";
  const seatValid=!inRoom||players?.[seat]?.id===clientId,peerOnline=!!players?.[other]?.online;
@@ -49,7 +51,9 @@ function updateUI(){
  $("netCreate").disabled=inRoom;
  $("netJoin").disabled=inRoom;
  $("netReady").disabled=!inRoom||!seatValid||!connected||!peerOnline||meta?.status!=="lobby";
- $("netReady").textContent=host&&players?.host?.ready||!host&&players?.guest?.ready?"準備OK ✓":"準備完了";
+ const myReady=!!mine?.ready&&mine.seatId===clientId&&mine.round===meta?.round;
+ $("netReady").textContent=myReady?"準備OK ✓｜解除":"準備完了";
+ window.ShokokuDeck?.setLocked(myReady);
  $("netStart").hidden=!host;
  $("netStart").disabled=!host||!ready||!peerOnline||!seatValid||meta?.status!=="lobby"||!connected;
  $("netShare").disabled=!inRoom;
@@ -297,8 +301,11 @@ function setupRoom(code,isHost){
   if(meta?.status==="playing"&&(before!=="playing"||newRound)){
    phase="playing";lastRemoteAppliedAt=performance.now();
    if(host){
-    onlinePanel(false);game?.begin();
-    maybePublish(true);
+    if(!validLockedDecks(meta?.lockedDecks,meta?.round)){
+     show("デッキ確定データが不正です。再戦ロビーで準備し直してください");return;
+    }
+    onlinePanel(false);
+    try{game?.begin();maybePublish(true);}catch(e){setError(e);onlinePanel(true);}
    }else{
     if(guestPlayableWorld())onlinePanel(false);
     else{onlinePanel(true);show("戦況を同期しています…");}
@@ -362,7 +369,8 @@ async function create(){
    const ref=db.ref(ROOT+"/"+code);
    const now=Date.now()+serverOffset;
    const proposed={
-    meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now},
+    meta:{version:ROOM_VERSION,status:"lobby",round:1,createdAt:now,
+     deckLobby:{host:{seatId:clientId,round:1,revision:0,ready:false,deckIds:window.ShokokuDeck.current()}}},
     players:{host:{id:clientId,ready:false,online:true,joinedAt:now}}
    };
    const result=await ref.transaction(old=>{
@@ -392,6 +400,19 @@ async function join(){
    await ref.child("players/guest").transaction(old=>old?.id===clientId?null:undefined,undefined,false);
    throw Error("試合が先に開始されました。別のルームに参加してください");
   }
+  // Seat reservation is separate from the lobby transaction: bind the exact
+  // winning clientId before it is allowed to submit a deck or ready up.
+  const seated=await ref.child("meta").transaction(old=>{
+   if(!old||old.status!=="lobby"||old.version!==ROOM_VERSION||old.round!==latest.round)return;
+   if(old.deckLobby?.guest?.seatId&&old.deckLobby.guest.seatId!==clientId&&
+      old.deckLobby.guest.ready)return;
+   return {...old,deckLobby:{...old.deckLobby,guest:{
+    seatId:clientId,round:old.round,revision:0,ready:false,deckIds:window.ShokokuDeck.current()}}};
+  },undefined,false);
+  if(!seated.committed){
+   await ref.child("players/guest").transaction(old=>old?.id===clientId?null:undefined,undefined,false);
+   throw Error("入室中にロビーが更新されました。もう一度参加してください");
+  }
   setupRoom(code,false);
  }catch(e){setError(e)}
 }
@@ -407,6 +428,16 @@ async function toggleHostBot(){
   },undefined,false);
   if(!tx.committed||room!==current||meta?.status!=="lobby")
    throw Error("BOTの参加状態が変わりました。ルームを確認してください");
+  // A BOT seat must own a valid deck in the same authoritative lobby as READY.
+  const botMeta=await current.child("meta").transaction(old=>{
+   if(!old||old.status!=="lobby"||old.version!==ROOM_VERSION)return;
+   const next={...old.deckLobby};
+   if(remove)delete next.guest;
+   else next.guest={seatId:botId,round:old.round,revision:0,ready:true,
+    deckIds:window.ShokokuDeck.standard()};
+   return {...old,deckLobby:next};
+  },undefined,false);
+  if(!botMeta.committed)throw Error("BOTデッキの準備に失敗しました");
   if(!remove){
    game?.setDifficulty?.(soloDifficulty);
    // If the host tab vanishes, do not leave a fake guest occupying the room.
@@ -432,7 +463,7 @@ async function toggleGuestBot(){
   guestBot=next;
   game?.setBotControl?.(guestBot);
   updateUI();
-  if(guestBot&&meta?.status==="lobby"&&!players?.guest?.ready&&connected)await ready();
+  if(guestBot&&meta?.status==="lobby"&&!meta?.deckLobby?.guest?.ready&&connected)await ready();
   show(guestBot?"BOT操作ON。ホストが開始すると自動召喚します":"手動操作に戻しました");
  }catch(e){setError(e)}
  finally{guestBotSwitchPending=false;updateUI();}
@@ -447,25 +478,59 @@ function startSolo(){
  $("networkBar").textContent="OFFLINE｜青軍 vs BOT赤軍";
  game?.begin();
 }
+function validLockedDecks(value,round){
+ return !!value&&value.round===round&&value.version===ROOM_VERSION&&
+  window.ShokokuDeck?.validate(value.hostDeckIds)&&
+  window.ShokokuDeck?.validate(value.guestDeckIds)&&
+  typeof value.hostSeatId==="string"&&typeof value.guestSeatId==="string";
+}
 async function ready(){
- if(!room||meta?.status!=="lobby")return;
+ if(!room||meta?.status!=="lobby"||!connected)return;
+ const current=room,seat=host?"host":"guest",me=players?.[seat];
+ const expectedRound=meta?.round,expectedSeat=clientId;
+ if(me?.id!==expectedSeat){show("参加者情報が一致しません");return;}
+ const old=meta?.deckLobby?.[seat],nextReady=!(old?.ready&&old.seatId===expectedSeat);
+ const chosen=window.ShokokuDeck?.current();
+ if(nextReady&&!window.ShokokuDeck?.validate(chosen)){
+  show("デッキは重複なしの10種類で完成させてください");return;
+ }
+ $("netReady").disabled=true;
  try{
-  const seat=host?"host":"guest",me=players?.[seat];
-  if(me?.id!==clientId)throw Error("参加者情報が一致しません");
-  await room.child("players/"+seat+"/ready").set(!me.ready);
- }catch(e){setError(e)}
+  const result=await current.child("meta").transaction(state=>{
+   if(!state||state.status!=="lobby"||state.version!==ROOM_VERSION||
+      state.round!==expectedRound)return;
+   const seatRecord=state.deckLobby?.[seat];
+   if(seatRecord?.seatId!==expectedSeat)return;
+   const ids=nextReady?chosen:seatRecord.deckIds;
+   if(!window.ShokokuDeck.validate(ids))return;
+   return {...state,deckLobby:{...state.deckLobby,[seat]:{
+    ...seatRecord,seatId:expectedSeat,round:expectedRound,
+    revision:(seatRecord.revision||0)+1,ready:nextReady,deckIds:ids}}};
+  },undefined,false);
+  if(!result.committed)throw Error("準備中に参加情報が変わりました。やり直してください");
+ }catch(e){setError(e)}finally{updateUI();}
 }
 async function startMatch(){
- if(!host||!room||meta?.status!=="lobby"||!players?.host?.ready||!players?.guest?.ready||!players?.guest?.online||!connected)return;
+ if(!host||!room||meta?.status!=="lobby"||!connected||!players?.guest?.online)return;
+ const current=room,expectedRound=meta.round,hostId=players?.host?.id,guestId=players?.guest?.id;
+ if(hostId!==clientId||!guestId)return;
+ $("netStart").disabled=true;
  try{
-  const result=await room.child("meta").transaction(old=>{
-   if(!old||old.status!=="lobby")return;
-   return {...old,status:"playing",startedAt:Date.now()};
+  const result=await current.child("meta").transaction(state=>{
+   if(!state||state.status!=="lobby"||state.version!==ROOM_VERSION||
+      state.round!==expectedRound)return;
+   const a=state.deckLobby?.host,b=state.deckLobby?.guest;
+   if(!a?.ready||!b?.ready||a.seatId!==hostId||b.seatId!==guestId||
+      a.round!==expectedRound||b.round!==expectedRound||
+      !window.ShokokuDeck.validate(a.deckIds)||!window.ShokokuDeck.validate(b.deckIds))return;
+   const lockedDecks={round:expectedRound,version:ROOM_VERSION,
+    hostSeatId:hostId,guestSeatId:guestId,
+    hostDeckIds:a.deckIds.slice(),guestDeckIds:b.deckIds.slice()};
+   return {...state,status:"playing",startedAt:Date.now(),lockedDecks};
   },undefined,false);
-  if(!result.committed)throw Error("開始状態が変わりました");
- }catch(e){setError(e)}
+  if(!result.committed)throw Error("対戦開始前に準備状態が変わりました。確認してください");
+ }catch(e){setError(e)}finally{updateUI();}
 }
-
 function sendCommand(c){
  if(host||!room||phase!=="playing"||!connected||players?.guest?.id!==clientId)return false;
  if(!c||typeof c.id!=="string"||!Number.isFinite(c.x)||!Number.isFinite(c.y))return false;
@@ -528,8 +593,6 @@ function resultReason(){return result?.reason||"対戦終了"}
 async function rematch(){
  if(solo){game?.begin();return;}
  if(!room||!connected)return;
- // A RED guest choosing "rematch" must stay in the existing Firebase seat.
- // Only the BLUE host advances the round. No new room or extra RTDB write.
  if(!host){
   if(meta?.status==="finished"){
    $("start").disabled=true;
@@ -539,13 +602,24 @@ async function rematch(){
   return;
  }
  if(meta?.status!=="finished")return;
+ const current=room,oldRound=meta.round;
  try{
   $("start").disabled=true;
-  await room.update({
-   "meta/status":"lobby","meta/startedAt":null,"meta/round":(meta.round||1)+1,
-   "players/host/ready":false,"players/guest/ready":hostBotSeat(),
-   state:null,result:null,commands:null,feedback:null
-  });
+  const changed=await current.child("meta").transaction(old=>{
+   if(!old||old.status!=="finished"||old.round!==oldRound)return;
+   const nextRound=oldRound+1,deckLobby={};
+   for(const seat of ["host","guest"]){
+    const rec=old.deckLobby?.[seat];
+    if(!rec)continue;
+    const bot=seat==="guest"&&hostBotSeat();
+    deckLobby[seat]={...rec,round:nextRound,ready:bot,revision:0,
+     deckIds:bot?window.ShokokuDeck.standard():rec.deckIds};
+   }
+   return {...old,status:"lobby",startedAt:null,round:nextRound,
+    deckLobby,lockedDecks:null};
+  },undefined,false);
+  if(!changed.committed)throw Error("再戦の状態が変わりました");
+  await current.update({state:null,result:null,commands:null,feedback:null});
  }catch(e){setError(e)}finally{$("start").disabled=false;}
 }
 function resetLobby(){
@@ -591,6 +665,7 @@ function resetLobby(){
 }
 const api={
  get team(){return solo?1:team},get isHost(){return host||solo},
+ get matchDecks(){return !solo&&meta?.status==="playing"?meta?.lockedDecks:null},
   get isOnline(){return !solo},get isSolo(){return solo},get guestBot(){return guestBot},
   get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},
  get canSendCommand(){return !host&&!!room&&phase==="playing"&&connected&&players?.guest?.id===clientId},
