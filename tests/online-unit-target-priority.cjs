@@ -9,6 +9,7 @@ function section(a,b){
 }
 const source=[
  section("const CLASSES={","// School-friendly Google Sites HTML:"),
+ section("// Lightweight per-unit timed statuses, shared by future buffs and debuffs.","function castSpell(team,id,x,y){"),
  section("// Target traits are shared data-driven selectors.","function moveToward(u,x,y,dt){"),
  section("function gravityZoneFor(u){","function attackUnit(target,value){"),
  section("function unitStep(dt){","function rate(){")
