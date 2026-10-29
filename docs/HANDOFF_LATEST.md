@@ -116,7 +116,12 @@
 **ユーザー最新依頼**：「任せた。学校で試す前に**スペルを1個ぐらいと大型も1体ぐらい追加したい**から、**後でやろう**」。
 - **今はStage 2の実戦検証を優先**。その後で本人と追加1スペル＋追加1大型の役割・仕様・バランスを設計して実装し、学校テストより前の試遊候補へ入れる意向。**まだ詳細仕様も数値も確定していない**ため、この回では新カードを実装しない、勝手に効果/数値を決めない。
 - **次の順序**：（1）現行 Stage 2 の通信・アニメ・召喚31秒・性能差の検証 →（2）必要な不具合修正（合意済み旧AI/バランス維持）→（3）新スペル1枚・大型1体の設計を本人と相談 →（4）実装／戦闘・画面・Firebase・長時間テスト →（5）本人が次回学校で実機試遊する際に新開発版を比較評価。
-- **2026-10-30 テスト追加**：`tests/online-stage2-firebase-e2e.cjs` にlocalhost QA専用のプローブを追加（本体/HTML/バランスは無変更）。使い捨てRTDBルームで既存の**両陣営全新カード20手**検証後、元のproduction `fire` が発射した投石器1.1秒 `incoming` がFirebaseへ送信されゲストWebKitにも表示されること、着弾HPが両端で変わること、31秒経過で機械召喚師8回子兵生成・ゲストが累積8回を受信したことを追加検証する。QA fixtureは**テストサーバーが一時的に返すlocalhostスクリプト**だけであり、実ゲームの通常コードを変更しない。[CI #40923202349](https://github.com/8mahi8/shokoku-sensen/actions/runs/40923202349) の最終結果を確認してから成功/失敗を確定。失敗時はまずログ・fixtureの問題とゲーム本体のバグを切り分ける。
+- **2026-10-30 テスト追加**：`tests/online-stage2-firebase-e2e.cjs` にlocalhost QA専用のプローブを追加（本体/HTML/バランスは無変更）。使い捨てRTDBルームで既存の**両陣営全新カード20手**検証後、元のproduction `fire` が発射した投石器1.1秒 `incoming` がFirebaseへ送信されゲストWebKitにも表示されること、着弾HPが両端で変わること、31秒経過で機械召喚師8回子兵生成・ゲストが累積8回を受信したことを追加検証する。QA fixtureは**テストサーバーが一時的に返すlocalhostスクリプト**だけであり、実ゲームの通常コードを変更しない。[CI #40923202349](https://github.com/8mahi8/shokoku-sensen/actions/runs/40923202349) は **completed / SUCCESS**。実ジョブログで以下を確認：
+  - `PASS: two-browser Firebase independently edited 10-unique decks with real new cards`。合法新カード操作20件、両陣営の戦況世界がRTDBに反映。
+  - `PASS: real Firebase catapult incoming guest delivery`、固定着弾座標 `(760,150)` の `kind=catapult` 警告を1.1秒のproduction `fire` で生成し、実Firebaseの `spells.incoming` とゲストWebKit上で直接読取。受信時残時間 `0.967秒`、115ダメージと `total=1.1` のassert通過。**実着弾によるホスト対象HP減少とゲスト対象HP減少もassert通過**。
+  - `PASS: real-time 31s mechanical summoner and WebKit guest snapshot`。production `unitStep` の実時間進行で生成累計1→8を8サンプル確認。最終ゲーム経過 `elapsed=40.667s`（fixture開始後約31sゲーム時間）、ゲスト側の同一親ユニット `summonCount=8` assert通過、ゲスト画面に生存する `small_machine` 計11体（以前の合法召喚分も含む）。機械召喚師のタイミングは本人指定 `2/4/6/11/16/21/26/31秒` を既存単体テストが検証済み。今回のE2Eはその**実時間の完遂とゲスト同期**を補強。
+  - `PASS: Firebase rematch retains 10 selections but requires fresh READY and fresh locked round`、`QA TEMP ROOM CLEANUP 200`。JS pageerrorの断定テストも通過。
+  - **範囲の限界**：投石と新規召喚師はローカルホストのQA一時コードで固定位置へ配置した人工的な追加場面だが、**発射・着弾・ロボ生成・ホスト権威RTDB通信・ゲストapplyは実ゲーム本体を直接使用**。全ての自然対戦で同様の動きを保証するものではない。画面録画による美観・学校のiPad実機・新能力を最大数重ねたラグは今回のテスト対象外。
 - 以前の10/28の学校でラグ合格した `stable/school-ipad-20261028-99a0d1d` は保持。最初から本番公開するのでなく、**学校iPad/Google Sites側で開発版が快適か再評価**してから本人が採用判断。PR #22はDraftのまま。学校公開版/main/stable/Firebase Rules/Google Drive未変更。
 
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
