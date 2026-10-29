@@ -59,6 +59,14 @@
   - [ユニットAI Chromium/WebKit #40910414865 — success](https://github.com/8mahi8/shokoku-sensen/actions/runs/40910414865)
 - **次の工程はStage 2専用の実ブラウザ／Firebase2席E2Eの実装と確認。** ここで通過した3本は主にStage 1のカード・既存AIの回帰であり、貫通射手／遠投投石器／突貫爆撃機／機械召喚師／引力の**実ブラウザ戦闘・通信同期の合格証拠ではない**。物理iPadはなお未測定。Stage 2専用の合法配置・着弾・召喚・スペル同期の検証を加え、表示映像を見ずに「完成」と宣言しない。
 
+## 2.2 2026-10-30｜Stage 2 実ブラウザー QA・新規 Firebase E2E
+
+- **新規ブラウザー QA**：`tests/online-stage2-browser-visual.cjs` と `.github/workflows/online-stage2-browser-visual.yml` を開発ブランチに追加。ローカルHTMLの**メモリー上**だけへ検査メソッドを追加し、既存の `online-game.js` や学校のHTMLは編集しない。
+- 追加した6シーン × Chromium/WebKit 2エンジン（計12シーン）は [GitHub Actions #40912068320](https://github.com/8mahi8/shokoku-sensen/actions/runs/40912068320) で **completed / success**。確認項目：新4ユニットと子兵の両陣営 Canvas `KokokuArt.drawUnit` 呼出、貫通10体・主55／後続33、投石固定着弾1.1秒と対空、突貫爆撃機の接触条件、ロボ31秒までに8体、引力2.5秒の拘束・復帰。テスト中の新ユニットは実 `playCard` 経由で合法召喚、戦闘には実 `fire`/`unitStep`/`spellStep`、描画には実 `draw` を使用。一方、敵配置・時刻は QA 固定入力であり、**実Firebaseの通信や学校iPadの試験ではない**。PNGを人の目で評価したと主張しない。
+- **新規オンラインQA**：`tests/online-stage2-firebase-e2e.cjs` と `.github/workflows/online-stage2-firebase-e2e.yml` を追加。既存の実2ブラウザー E2E を土台に、両席が第2段階4ユニット＋引力をデッキ選択して各カードを合法使用し、ホスト確定世界の Firebase `spells.zones` に `gravity` が公開され、再戦でもデッキが保持されることを試す。**結果は Actions [#40912734104](https://github.com/8mahi8/shokoku-sensen/actions/runs/40912734104) の最新状態を取り直してから判断。初回資料更新時は実行中、未合格。**
+- 学校Google Sites、main、stable、GitHub Pages公開用main、Firebase Rules、既存Driveファイルは**変更なし**。Stage 2新能力のゲーム本体性能と既存ユニットAIも変更なし。
+- **次のゲート：** Firebase E2Eの最終ログ確認・必要なテスト修正→実戦での新能力同期（特に遠投投石の `incoming` や引力の `zones`）→物理iPadでホスト／ゲスト双方のUI/実FPS/召喚・被弾・再戦を確認。実機は最後まで未検証として扱う。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
