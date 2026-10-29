@@ -611,7 +611,12 @@ function unitStep(dt){
   if(targets.attack){
    const target=targets.attack;
    u.facing=Math.atan2(target.y-u.y,target.x-u.x);
-   if(u.attack<=0)fire(u,target);
+   // A flying contact bomber must actually touch the hitbox. Ordinary
+   // range acquisition is not enough to trigger a premature explosion.
+   if(d.attackMode==="contactBlast"&&
+      Math.hypot(target.x-u.x,target.y-u.y)>d.r+target.r){
+    moveToward(u,target.x,target.y,dt);
+   }else if(u.attack<=0)fire(u,target);
   }
   // The castle=0 priority stays unchanged; a catapult can hit only on contact.
   // Soldiers in ordinary attack range always take precedence.
