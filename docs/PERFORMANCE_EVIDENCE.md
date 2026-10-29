@@ -267,3 +267,13 @@
 
 - [BOT実戦 #40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) **SUCCESS**。低FPS自動切替をlocalhostでも明示ONにし、実FirebaseのChromiumホスト＋WebKitゲストで**ゲーム時間300秒を完走**。青45手/赤32手、最多17体、JSエラー0、ルーム清掃確認。WebKitゲストのキャッシュタイルは最大58枚、新規ビルドは**描画1フレーム最大2枚**。ゲスト最大フレームギャップ270ms、500ms以上0、JS描画最大34ms、SDK受信経過最大219ms、スナップショット適用から最大225ms。生成上限が**実戦中に実際に守られた**直接証拠。
 - artifact `online-bot-vs-bot-real-match` ID 12728326226 のゲストフル録画315秒/960×672を回収。20〜295秒の12場面と112〜125秒の交戦を画像・映像で目視。該当場面に明らかなキャラ欠落なし。ただし学校iPadとは異なるLinux headless WebKit。**性能改善率は試合条件の異なる旧実戦と比較して断言しない**。
+
+## 2026-10-30｜Stage 2・実Firebase戦闘映像と継続観測（新カード20回・36秒）
+
+- **対象CI**：[Online Stage-2 sustained match observation #40918829528](https://github.com/8mahi8/shokoku-sensen/actions/runs/40918829528) は `completed/success`。開発ブランチ専用の `tests/online-stage2-match-observation.cjs` と `.github/workflows/online-stage2-match-observation.yml` を追加。学校公開版・main/stable・Firebase Rules・対戦AI・キャラ数値は変更していない。
+- **試合条件と限界**：Chromiumホスト（`online.html`）＋WebKitゲスト（`online-ipad.html`）、同じ実Firebase一時ルーム、実タップで両陣営のデッキから各10回カード使用（合計20回）、**序盤の資源だけQA補充**。その後は本物の30Hzホスト戦闘処理とFirebase状態配信のまま**36秒ほど継続観測**。開始時約20体、観測中のピークは24体（両端の同時観測で確認）、終了時9体。最終勝敗までを自然決着させたフルマッチではなく、実戦中の連続ストレス試験。ルームは終了時に HTTP 200 で削除。
+- **映像を実際に確認**：GitHub Actionsの録画WebM（約64秒）からゲーム中17〜61秒の12時点を抜き出して確認し、同じ試合のホスト／ゲスト各6枚のスクリーンショットを左右に並べて確認。両画面で投石器・爆撃機・子兵・円形のスペル効果・交戦位置の変化を視認。極端な画面崩壊やゲストの長時間停止は見当たらず。ただし画質／動きの「滑らかさ」は別。
+- **実測**：連続観測の終了時点、直近約1000フレームの `gapMs`：Chromiumホスト p50=16.7ms / p95=16.7ms / 最大50ms、WebKitゲスト p50=31ms / p95=81ms / p99=103ms / 最大302ms。ゲストは100ms超の長い間隔が12回、250ms超が1回。CanvasのJS `drawMs` p95はホスト1.1ms、ゲスト7ms。WebKitで**描画間隔のばらつき・見た目のカクつきが残る**。これらはGitHub Actions上のヘッドレス＋ゲスト動画録画あり条件であり、学校iPad FPSとは呼ばない。
+- **通信比較**：ゲスト `seq` は観測36秒ほどで265進み、両者の `elapsed` 増分は35.73秒／35.74秒。21サンプルでホスト−ゲスト試合経過時間差は平均約0.15秒、最大約0.27秒。両席に同じ `uid` があるユニットの位置ずれp95は各サンプル最大7.5ワールド座標。Firebaseのゲスト更新速度は観測中約6.7〜8.9回/秒、受信済み世界の経過時間は中央値約72ms、最大約209ms。**通信断・ゲスト側の試合時計停止は観測されない**が、ネットワーク遅延の確定診断にはこの片条件だけでなくネットワーク/SDK対照が必要。
+- **解釈**：今回の強い観測事実は「通信状態は進み続けるが、ゲストのWebKitでフレーム生成が不均一」。しかし Chromiumホスト/WebKitゲストでブラウザエンジンが異なるため、**ゲスト役自体が遅いとは確定不可**。既存の同条件WebKit同士比較（本資料 #39772223658）では両端の描画が遅かった。過去に不採用としたCSS/Canvas/HUDの思いつき修正を再実行せず、学校の同型iPad2台で役割交代＋実体感を最終判定とする。
+- **再現と証拠**：`node tests/online-stage2-match-observation.cjs`（Playwright 1.56.1・Node22・実Firebase到達可能なActions環境）。成果物はWorkflow artifact `stage2-sustained-match-screenshots-video-lag` の `metrics.json`、`host-*.png`、`guest-*.png`、`*.webm`。動画の25fpsエンコード値をゲームFPSと混同しないこと。
