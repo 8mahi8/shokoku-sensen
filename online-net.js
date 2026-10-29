@@ -54,7 +54,9 @@ function updateUI(){
  $("netJoin").disabled=inRoom;
  $("netReady").disabled=!inRoom||!seatValid||!connected||!peerOnline||meta?.status!=="lobby"||
   (!mine?.ready&&!window.ShokokuDeck?.validate(window.ShokokuDeck.current()));
- const deckRow=$("deckLobbyRow");if(deckRow)deckRow.hidden=!(inRoom&&meta?.status==="lobby");
+ // Deck editor is also available from the room picker, so solo matches can
+ // use the same saved draft as friend 1v1 before joining a room.
+ const deckRow=$("deckLobbyRow");if(deckRow)deckRow.hidden=inRoom&&meta?.status!=="lobby";
  const myReady=!!mine?.ready&&mine.seatId===clientId&&mine.round===meta?.round;
  $("netReady").textContent=myReady?"準備OK ✓｜解除":"準備完了";
  window.ShokokuDeck?.setLocked(myReady);
