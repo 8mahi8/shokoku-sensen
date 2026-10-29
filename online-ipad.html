@@ -21,9 +21,9 @@ window.SHOKOKU_UNIT_STATS = {
   archer          : { hp:   95, damage:  20 }, // 魔導射手
   sentinel        : { hp:  440, damage:  62 }, // 迎撃衛士
   suppress        : { hp:  380, damage:  50 }, // 制圧機兵
-  guardian        : { hp: 1400, damage: 115 }, // 守護ゴーレム
+  guardian        : { hp: 1300, damage: 115 }, // 守護ゴーレム
   drone           : { hp:  120, damage:  18 }, // 浮遊ドローン
-  tank            : { hp: 1100, damage: 110 }, // 魔導重戦車
+  tank            : { hp: 1000, damage: 110 }, // 魔導重戦車
   duelist         : { hp:  145, damage:  22 }, // 双剣兵
   crusher         : { hp:  460, damage: 150 }, // 重撃砕兵
   ranger_engineer : { hp:  300, damage:  30 }, // 遠距離工兵
@@ -33,6 +33,7 @@ window.SHOKOKU_UNIT_STATS = {
   catapult        : { hp:  700, damage: 115 }, // 遠投投石器
   kamikaze        : { hp:  115, damage: 150 }, // 突貫爆撃機
   mech_summoner   : { hp:  340, damage:  15 }, // 機械召喚師
+  kaiju           : { hp: 1000, damage:  72 }, // 砦進撃怪獣
 };
 </script>
 <!-- ================== ★ 調整はここまで ★ ================== -->
@@ -1502,8 +1503,8 @@ const UNIT_COLORS={
  infantry:["#4d99b8","#294c75"],scout:["#efcc79","#346e89"],engineer:["#d7a963","#3b6574"],archer:["#a784dc","#435d8f"],
  suppress:["#e8a16a","#5b5c83"],sentinel:["#8ca6d5","#303e63"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"],
  duelist:["#d1a2e1","#554988"],crusher:["#d68b74","#68424e"],ranger_engineer:["#8fc8ad","#315b72"],interceptor:["#e6c17d","#436a89"],ground_bomber:["#b9cf79","#426787"],
- piercer:["#96cbdf","#3c5c8f"],catapult:["#bb9a73","#564858"],kamikaze:["#ecb779","#963c65"],mech_summoner:["#72c5b9","#3a6577"],small_machine:["#a7d5ca","#365977"],
- barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"],gravity:["#886add","#2a427b"]
+ piercer:["#96cbdf","#3c5c8f"],catapult:["#bb9a73","#564858"],kamikaze:["#ecb779","#963c65"],mech_summoner:["#72c5b9","#3a6577"],small_machine:["#a7d5ca","#365977"],kaiju:["#6a997e","#344c67"],
+ barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"],gravity:["#886add","#2a427b"],gale:["#6aca8b","#367b86"]
 };
 function path(g,points,fill,stroke=INK,lineWidth=2.4){
  g.beginPath();points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();
@@ -1833,6 +1834,25 @@ function mech_summoner(g,p,s){
  round(g,22,-48,13,21,4,p.accent,INK,2);
  if(hit>0)crystal(g,31,-30,4,p.glow);
 }
+// Original low, heavy fortress beast with a side-view horn and armored back.
+function kaiju(g,p,s){
+ const walk=s.step*3;
+ path(g,[[-25,-37],[-49,-45],[-52,-28],[-36,-19],[-25,-19]],"#54765f",INK,3);
+ path(g,[[-49,-44],[-65,-62],[-61,-31],[-52,-28]],p.accent,INK,2.4);
+ for(const x of [-27,-7,18]){
+  const lift=walk*(x<0?1:-1);
+  round(g,x-12,-22+lift,22,25,6,"#385562",INK,3);
+  round(g,x-16,-1+lift,27,8,4,"#466f6a",INK,2);
+ }
+ path(g,[[-36,-49],[-22,-70],[6,-72],[29,-60],[40,-42],[30,-20],[-31,-22]],"#5e897c",INK,3.8);
+ path(g,[[-29,-61],[-21,-88],[-8,-67],[0,-93],[13,-67],[20,-80],[25,-57]],"#d0c18e",INK,2.6);
+ path(g,[[11,-67],[31,-78],[48,-64],[48,-43],[35,-32],[17,-42]],"#6a9a89",INK,3.3);
+ path(g,[[34,-65],[58+s.hit*5,-74],[47,-50]],"#dfd49b",INK,2.5);
+ oval(g,29,-54,5,4,"#1c2a32",p.glow,1.8);
+ line(g,[[37,-39],[47,-37]],"#234744",3);
+ path(g,[[-25,-38],[-9,-50],[7,-39],[16,-28],[-12,-25]],"#315665",INK,2.7);
+ crystal(g,-4,-44,7,p.glow);
+}
 function small_machine(g,p,s){
  const step=s.step,hit=s.hit;
  for(const x of [-9,8])limb(g,x-6,-12+(x<0?step:-step),11,15,"#354754");
@@ -1843,7 +1863,7 @@ function small_machine(g,p,s){
  path(g,[[25+hit*7,-26],[35+hit*7,-19],[25+hit*7,-12]],p.accent,INK,1.5);
  line(g,[[0,-39],[4,-46]],p.accent,2);
 }
-const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber,piercer,catapult,kamikaze,mech_summoner,small_machine};
+const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber,piercer,catapult,kamikaze,mech_summoner,small_machine,kaiju};
 function paint(g,key,team,clock=0,unit={}){
  const p=PALETTES[team]||PALETTES[1];
  const moving=!!unit.walking;
@@ -1879,16 +1899,16 @@ function paint(g,key,team,clock=0,unit={}){
 }
 const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.73,drone:1.08,tank:1.79,
  duelist:.98,crusher:1.13,ranger_engineer:1.00,interceptor:1.06,ground_bomber:1.10,
- piercer:1.06,catapult:1.66,kamikaze:1.02,mech_summoner:1.09,small_machine:.72};
+ piercer:1.06,catapult:1.66,kamikaze:1.02,mech_summoner:1.09,small_machine:.72,kaiju:1.62};
 const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73,
  duelist:80,crusher:93,ranger_engineer:82,interceptor:86,ground_bomber:66,
- piercer:85,catapult:100,kamikaze:72,mech_summoner:94,small_machine:54};
+ piercer:85,catapult:100,kamikaze:72,mech_summoner:94,small_machine:54,kaiju:96};
 // Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
  // The Gald sprite cache replaces only the guardian artwork. Retain the
  // original Canvas guardian as a safe fallback while loading or on error.
  if(u.key==="guardian"&&window.GaldArt?.drawUnit(g,u,clock))return;
- const flying=u.key==="drone"||u.key==="ground_bomber",heavy=u.key==="guardian"||u.key==="tank";
+ const flying=u.key==="drone"||u.key==="ground_bomber",heavy=u.key==="guardian"||u.key==="tank"||u.key==="kaiju";
  const bob=flying?20+Math.sin(clock*4+(u.drift||0))*4:0;
  const size=UNIT_SCALE[u.key]||.95;
  const recoil=Math.max(0,(u.attackAnim||0)/(u.attackAnimMax||.34));
@@ -1969,6 +1989,10 @@ function paintSpell(g,key,team,w,h){
   path(g,[[-35,-34],[-10,-15],[10,-5],[15,8],[1,17],[-15,14],[-20,-4]],"#ef864e","#572c43",2.8);
   path(g,[[-19,-19],[6,-9],[20,2],[20,12],[7,20],[-8,12],[-10,-4]],"#ffc373","#fff0bf",2);
   crystal(g,12,7,10,"#fff2bb");
+ }else if(key==="gale"){
+  oval(g,0,0,38,26,"#8fffc528","#c5ffe1",3);
+  for(const offset of [-18,0,18])line(g,[[-41,offset],[6,offset-8],[35,offset-17]],"#c8ffce",4);
+  path(g,[[5,16],[23,-7],[38,5]],"#8affba",INK,2.2);
  }else if(key==="gravity"){
   oval(g,0,0,37,29,"#a879ff22","#d6c8ff",3);
   for(let i=0;i<3;i++){
@@ -2004,7 +2028,7 @@ function drawPortrait(canvas,key,team=1){
  g.fillStyle="#071f3140";g.beginPath();g.ellipse(w*.54,h*.86,32,8,0,0,TAU);g.fill();
  if(key==="guardian"&&window.GaldArt?.drawPortrait(g,w,h,team)){
   // High-quality Gald sprite is ready.
- }else if(key==="barrage"||key==="ward"||key==="gravity")paintSpell(g,key,team,w,h);
+ }else if(key==="barrage"||key==="ward"||key==="gravity"||key==="gale")paintSpell(g,key,team,w,h);
  else{
   g.save();g.translate(w*.51,h*.97);
   const artScale=Math.min(w/128,h/72)*.78;
@@ -2015,7 +2039,7 @@ function drawPortrait(canvas,key,team=1){
  g.fillStyle="#ffffff35";round(g,8,8,3,16,1,g.fillStyle,null);
  g.restore();
 }
-window.KokokuArt={drawUnit,drawPortrait,version:"1.1-gald"};
+window.KokokuArt={drawUnit,drawPortrait,version:"1.2-stage3-kaiju-gale"};
 })();
 </script>
 <script data-shokoku-inline="online-game.js">
@@ -2058,7 +2082,7 @@ const MOTION={
  attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
   sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84,
   duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68,
-  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42},
+  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,kaiju:.78},
  windup:.44
 };
 const CLASSES={
@@ -2068,9 +2092,9 @@ const CLASSES={
  archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,targetPriority:{castle:2,fort:0,unit:2},note:"小型・遠距離・対空"},
  sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:440,damage:62,cool:1.60,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,targetPriority:{castle:1,fort:0,unit:2},note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
  suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:380,damage:50,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,targetPriority:{castle:2,fort:0,unit:2},note:"中型・密集対策・対空対応の範囲砲撃"},
- guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,targetPriority:{castle:1,fort:0,unit:2,largeUnit:3},note:"大型・対大型迎撃・強力な範囲衝撃波"},
+ guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1300,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,targetPriority:{castle:1,fort:0,unit:2,largeUnit:3},note:"大型・対大型迎撃・強力な範囲衝撃波"},
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
- tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,targetPriority:{castle:2,fort:0,unit:2,largeUnit:3},note:"大型・長射程・対空対応の範囲重砲・対城200%"},
+ tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1000,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,targetPriority:{castle:2,fort:0,unit:2,largeUnit:3},note:"大型・長射程・対空対応の範囲重砲・対城200%"},
  // Stage 1: five new combat classes; all use the existing shared target AI.
  duelist:{name:"双剣兵",glyph:"⚔",size:"medium",cost:3,limit:6,qty:1,hp:145,damage:22,cool:.55,range:29,vision:120,speed:30,r:14,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・高速連撃の近接兵。HPは低め、占領不可"},
  crusher:{name:"重撃砕兵",glyph:"✹",size:"medium",cost:5,limit:4,qty:1,hp:460,damage:150,cool:2.65,range:44,vision:155,speed:17,r:19,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・汎用重撃。大型特効なし、強烈な一撃と長い攻撃間隔"},
@@ -2082,6 +2106,8 @@ const CLASSES={
  catapult:{name:"遠投投石器",glyph:"◈",size:"large",cost:8,limit:3,qty:1,hp:700,damage:115,cool:4.5,range:215,vision:255,speed:12,r:25,behavior:"normal",capture:0,hitAir:true,attackMode:"delayedArea",impactDelay:1.1,splash:85,splashScale:1,castleOnContact:true,targetPriority:{castle:0,fort:0,unit:2},note:"大型・1.1秒後に半径85へ115、飛行にも命中。城は接触時のみ攻撃"},
  kamikaze:{name:"突貫爆撃機",glyph:"➤",size:"medium",cost:4,limit:4,qty:1,hp:115,damage:150,cool:1,range:28,vision:180,speed:36,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,attackMode:"contactBlast",splash:78,splashScale:.75,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。敵への接触で自爆、周囲地上兵112.5。撃墜時は不発"},
  mech_summoner:{name:"機械召喚師",glyph:"⚙",size:"medium",cost:5,limit:3,qty:1,hp:340,damage:15,cool:1.9,range:65,vision:115,speed:15,r:18,behavior:"guard",capture:0,hitAir:false,summons:"small_machine",summonTimes:[2,4,6,11,16,21,26,31],targetPriority:{castle:0,fort:0,unit:1},note:"中型・迎撃。2/4/6秒、その後5秒ごとに小型機を最大8体生産"},
+ // Stage 3: the existing priority-4 shared selector handles this objective unit.
+ kaiju:{name:"砦進撃怪獣",glyph:"♜",size:"large",cost:6,limit:2,qty:1,hp:1000,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,behavior:"capture",capture:3,hitAir:false,meleeFx:true,targetPriority:{fort:4,castle:2,unit:1},note:"大型・砦を最優先で占領。砦が索敵内なら敵兵を無視して進撃。砦がなければ敵にも反撃する"},
  // Internal child: never place in a deck, summon directly or display in the card gallery.
  small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:85,damage:14,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
 };
@@ -2104,7 +2130,8 @@ const IDS=Object.keys(CLASSES).filter(id=>!CLASSES[id].internalOnly);
 const SPELLS={
  barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
  ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"},
- gravity:{name:"引力",glyph:"◎",cost:3,limit:3,radius:125,duration:2.5,speeds:{small:100,medium:70,large:35},note:"2.5秒間敵地上兵を吸引・移動拘束。攻撃は可能"}
+ gravity:{name:"引力",glyph:"◎",cost:3,limit:3,radius:125,duration:2.5,speeds:{small:100,medium:70,large:35},note:"2.5秒間敵地上兵を吸引・移動拘束。攻撃は可能"},
+ gale:{name:"疾風号令",glyph:"➚",cost:3,limit:3,radius:125,duration:4,speedMultiplier:1.5,note:"発動時に円内にいた味方全員の移動速度を4秒間1.5倍。円の外でも持続"}
 };
 const CATALOG={...CLASSES,...SPELLS};
 const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
@@ -2258,6 +2285,25 @@ function begin(){
  buildCards();updateHUD();
 
 }
+// Lightweight per-unit timed statuses, shared by future buffs and debuffs.
+function applyStatusEffect(u,effect){
+ if(u.hp<=0)return;
+ const current=u.statusEffects||(u.statusEffects=[]);
+ const same=current.find(e=>e.key===effect.key);
+ if(same){
+  same.remaining=Math.max(same.remaining,effect.remaining);
+  same.mult=effect.mult;same.stat=effect.stat;
+ }else current.push({...effect});
+}
+function tickStatusEffects(u,dt){
+ if(!u.statusEffects?.length)return;
+ for(const e of u.statusEffects)e.remaining-=dt;
+ u.statusEffects=u.statusEffects.filter(e=>e.remaining>0);
+}
+function effectiveMoveSpeed(u){
+ return CLASSES[u.key].speed*(u.statusEffects||[]).reduce((value,e)=>
+  e.stat==="moveSpeed"&&e.remaining>0?value*e.mult:value,1);
+}
 function castSpell(team,id,x,y){
  if(!isSpell(id)||!canPay(team,id)||!validTarget(team,id,x,y))return false;
  const d=SPELLS[id];
@@ -2265,7 +2311,14 @@ function castSpell(team,id,x,y){
  S.left[team][id]--;
  advanceHand(team,id);
  if(id==="barrage")S.spells.incoming.push({kind:"barrage",team,x,y,r:d.radius,time:d.delay,total:d.delay});
- else S.spells.zones.push({kind:id,team,x,y,r:d.radius,time:d.duration,total:d.duration});
+ else if(id==="gale"){
+  // One-time target selection. Units keep the buff after leaving the circle.
+  for(const u of S.units){
+   if(u.team===team&&u.hp>0&&Math.hypot(u.x-x,u.y-y)<=d.radius)
+    applyStatusEffect(u,{key:"gale",stat:"moveSpeed",mult:d.speedMultiplier,remaining:d.duration});
+  }
+  S.effects.push({x,y,t:.55,max:.55,team,r:d.radius,type:"gale"});
+ }else S.spells.zones.push({kind:id,team,x,y,r:d.radius,time:d.duration,total:d.duration});
  if(team===ME()){S.selected=null;buildCards();updateHUD();}
  return true;
 }
@@ -2468,7 +2521,7 @@ function moveToward(u,x,y,dt){
  if(CLASSES[u.key].behavior!=="guard")x=forward===1?Math.max(u.x,x):Math.min(u.x,x);
  const dx=x-u.x,dy=y-u.y,distance=Math.hypot(dx,dy);
  if(distance<.05)return;
- const amt=Math.min(distance,CLASSES[u.key].speed*dt);
+ const amt=Math.min(distance,effectiveMoveSpeed(u)*dt);
  u.x=limit(u.x+dx/distance*amt,28,W-28);
  u.y=limit(u.y+dy/distance*amt,43,H-43);
  u.facing=Math.atan2(dy,dx);
@@ -2601,6 +2654,7 @@ function unitStep(dt){
  for(const u of S.units){
   if(u.hp<=0)continue;
   const d=CLASSES[u.key];
+  tickStatusEffects(u,dt);
   u.attack=Math.max(0,u.attack-dt);u.flash=Math.max(0,u.flash-dt);
   u.attackAnim=Math.max(0,(u.attackAnim||0)-dt);u.walking=false;
   if(d.summons){
@@ -4435,6 +4489,10 @@ function drawUnit(u,alreadyPresented=false){
  case "drone":
   ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-10,-15);ctx.lineTo(-9,-4);ctx.lineTo(-9,4);ctx.lineTo(-10,15);ctx.closePath();ctx.fill();ctx.stroke();
   ctx.fillStyle="#f5d8a0";ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill();break;
+ case "kaiju":
+  ctx.beginPath();ctx.moveTo(-24,7);ctx.lineTo(-24,-16);ctx.lineTo(-12,-30);
+  ctx.lineTo(13,-29);ctx.lineTo(24,-13);ctx.lineTo(27,11);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.strokeStyle="#ffe7ab";ctx.beginPath();ctx.moveTo(8,-14);ctx.lineTo(21,-14);ctx.stroke();break;
  case "tank":
   rounded(ctx,-25,-19,50,38,8);ctx.fill();ctx.stroke();
   ctx.fillStyle="#14353f";rounded(ctx,-6,-11,33,22,4);ctx.fill();
@@ -4446,6 +4504,14 @@ function drawUnit(u,alreadyPresented=false){
   ctx.fillStyle=col;ctx.fillRect(u.x-20,u.y-bob-d.r-14,40*Math.max(0,u.hp/u.max),5);
  }
  if(isAir){ctx.strokeStyle="#d6eae560";ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(u.x,u.y-bob+5);ctx.lineTo(u.x,u.y);ctx.stroke();ctx.setLineDash([]);}
+}
+function drawUnitStatuses(u){
+ if(!u.statusEffects?.some(e=>e.key==="gale"&&e.remaining>0))return;
+ const y=u.y-CLASSES[u.key].r-18;
+ ctx.save();ctx.lineWidth=2.5;ctx.strokeStyle="#a8f6b6";
+ ctx.beginPath();ctx.arc(u.x,y,7,-Math.PI*.65,Math.PI*.65);ctx.stroke();
+ ctx.fillStyle="#b8ffc1";ctx.beginPath();ctx.moveTo(u.x-3,y+3);
+ ctx.lineTo(u.x+1,y-5);ctx.lineTo(u.x+5,y+3);ctx.closePath();ctx.fill();ctx.restore();
 }
 function drawSpellFields(now){
  for(const zone of S.spells.zones){
@@ -4542,7 +4608,7 @@ function cachedSprite(u,pose){
  if(denseSpriteCache.has(key))return denseSpriteCache.get(key);
  if(denseCacheBroken||!window.KokokuArt?.drawUnit)return null;
  try{
-  const big=u.key==="guardian"||u.key==="tank";
+  const big=u.key==="guardian"||u.key==="tank"||u.key==="kaiju";
   const ax=big?BIG_AX:FAST_AX,ay=big?BIG_AY:FAST_AY;
   const tile=document.createElement("canvas");
   tile.width=big?BIG_W:FAST_W;tile.height=big?BIG_H:FAST_H;
@@ -4594,7 +4660,7 @@ function renderCrowdedUnit(u){
  // Small colored ground indicator separates friend and foe in overlapping crowds.
  ctx.strokeStyle=u.team===1?"#7fe4ffad":"#ff879bac";ctx.lineWidth=1.65;
  ctx.beginPath();ctx.ellipse(u.x,u.y+1,Math.max(14,CLASSES[u.key].r+6),7,0,0,Math.PI*2);ctx.stroke();
- const big=u.key==="guardian"||u.key==="tank";
+ const big=u.key==="guardian"||u.key==="tank"||u.key==="kaiju";
  const px=Math.round(u.x-(big?BIG_AX:FAST_AX));
  const py=Math.round(u.y-(big?BIG_AY:FAST_AY));
  // One short crossfade when emergency caching first activates. The
@@ -4639,7 +4705,7 @@ function observeGrandArrival(now){
   return;
  }
  for(const u of S.units){
-  if(u.key!=="guardian"&&u.key!=="tank" || grandSeen.has(u.uid))continue;
+  if(u.key!=="guardian"&&u.key!=="tank"&&u.key!=="kaiju" || grandSeen.has(u.uid))continue;
   grandSeen.add(u.uid);
   // The new UID is authoritative. Avoid comparing local and remote clocks:
   // a guest who waited in a room may be many seconds ahead of the host.
@@ -4697,7 +4763,10 @@ function draw(){
  for(const c of S.capitals)if(visible(WALL_FACE[c.team],H/2,115,H/2,H/2))drawCapital(c);
  const objects=[];
  for(const p of S.forts)if(visible(p.x,p.y,60,100,55))objects.push({y:p.y+20,draw:()=>drawFort(p)});
- for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>renderCrowdedUnit(u)});
+ for(const u of S.units)if(visible(u.x,u.y))objects.push({y:u.y,draw:()=>{
+  renderCrowdedUnit(u);
+  drawUnitStatuses(u);
+ }});
  for(const gone of S.deaths){
   // The guest receives death echoes only in occasional state snapshots.
   // Advance the *artwork* clock locally, never mutating combat/death data.
