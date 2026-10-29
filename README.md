@@ -2,6 +2,9 @@
 
 横スクロールで戦場を大きく見せる、近未来ファンタジーの陣取りカード戦略ゲームです。
 
+**キャラ追加・性能調整の標準手順（開発AI・本人共通）：** [docs/UNIT_BALANCE_WORKFLOW_STANDARD.md](./docs/UNIT_BALANCE_WORKFLOW_STANDARD.md)。既存・新キャラのHP/攻撃力/攻撃間隔から1対1→カード単位→コスト効率を比較し、AIが疑わしい強弱を提示、本人が占領・射程・対空・飛行・範囲等の付加価値を考慮して最終判断。調整前後の残HP・撃破時間を必ず報告。**設計値と現行ゲーム値を混同しない**。
+
+
 **BOT版URL:** https://8mahi8.github.io/shokoku-sensen/
 
 **1vs1 オンライン試験版:** https://8mahi8.github.io/shokoku-sensen/online.html
