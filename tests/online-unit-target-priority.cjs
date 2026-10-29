@@ -283,4 +283,46 @@ test("future guard unit reuses anchored pursuit and return without new AI",()=>{
   moved(a);assert.ok(a.x<chasedX);
  }finally{delete API.CLASSES.futureGuard;}
 });
-console.log("TARGET_PRIORITY_QA: 37 scenarios passed");
+test("stage-one roster has five distinct data-only behavior configurations",()=>{
+ const expected={duelist:["normal",0,145,22,.55],crusher:["normal",0,460,150,2.65],
+  ranger_engineer:["capture",1,300,30,1.4],interceptor:["guard",0,195,38,1.15],
+  ground_bomber:["normal",0,230,55,1.9]};
+ for(const [id,[behavior,capture,hp,damage,cool]] of Object.entries(expected)){
+  const c=API.CLASSES[id];
+  assert.equal(c.behavior,behavior,id+" behavior");
+  assert.equal(c.capture,capture,id+" capture");
+  assert.equal(c.hp,hp,id+" hp");assert.equal(c.damage,damage,id+" damage");
+  assert.equal(c.cool,cool,id+" attack cooldown");
+ }
+ assert.equal(API.CLASSES.crusher.targetPriority.largeUnit,undefined,
+  "crusher is intentionally generalist, never a large-target specialist");
+ assert.equal(API.CLASSES.ground_bomber.flying,true);
+ assert.equal(API.CLASSES.ground_bomber.hitAir,false);
+});
+test("stage-one long-range engineer attacks fort with shared capture priority",()=>{
+ const a=actor("ranger_engineer"),enemy=actor("infantry",2,325,200,11);
+ S.units=[a,enemy];S.forts=[fort(380,200)];
+ assert.equal(chosen(a).attack.kind,"fort");
+ moved(a);assert.equal(shots[0].t.kind,"fort");
+});
+test("stage-one fast guard obeys the spawn-anchor sensor and returns",()=>{
+ const a=actor("interceptor"),enemy=actor("infantry",2,482,200,11);
+ S.units=[a,enemy];assert.equal(chosen(a).approach.ref,enemy);
+ assert.ok(moved(a)>0);assert.ok(a.x>300);
+ a.x=475;enemy.x=540;
+ assert.equal(chosen(a).approach,null);
+ moved(a);assert.ok(a.x<475,"must return to spawn, not chase indefinitely");
+});
+test("stage-one bomber can hit ground but not other flying units",()=>{
+ const a=actor("ground_bomber"),air=actor("drone",2,325,200,11),
+  ground=actor("infantry",2,350,200,12);
+ S.units=[a,air,ground];assert.equal(chosen(a).attack.ref,ground);
+ air.x=325;ground.hp=0;assert.equal(chosen(a).attack,null);
+});
+test("stage-one generalist heavy hitter targets nearer small before distant large",()=>{
+ const a=actor("crusher"),small=actor("infantry",2,320,200,11),
+  big=actor("guardian",2,337,200,12);
+ S.units=[a,small,big];
+ assert.equal(chosen(a).attack.ref,small);
+});
+console.log("TARGET_PRIORITY_QA: 42 scenarios passed");
