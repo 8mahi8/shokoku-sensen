@@ -214,6 +214,14 @@ async function tryPlay(page,team,step,roundPlayed){
    await sleep(320);
   }
   assert.equal(endedNaturally,true,"natural match must reach a real result, not QA finish()");
+  // The final packet may arrive one frame behind the host's meta=finished.
+  // The result dialog must still show 00:00 for time-up on both devices.
+  const reasonText=await host.locator("#dialogText").innerText();
+  if(reasonText.includes("時間切れ")){
+   for(const [seat,page] of [["host",host],["guest",guest]])
+    assert.match(await page.locator("#rules").innerText(),/残り時間：00:00/,
+     seat+" time-over result must not display stale 00:01");
+  }
   const endSnap=await snap(host),guestEnd=await snap(guest);
   const summary={hostPhase:firstHostPhase,guestPhase:firstGuestPhase,
    elapsed:+endSnap.s.elapsed.toFixed(2),maxUnits,fortChanges,
