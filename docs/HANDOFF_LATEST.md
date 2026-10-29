@@ -85,6 +85,22 @@
 - **原因の分類**：学校での再発証拠はまだなく、今確認できたのは実験条件の違い（実機Safari+Sites vs Linux headless WebKit録画）と、開発版の機能差。可能性として新キャラ/特殊能力/ユニット増加の描画・演算負荷は残る。ネットワーク断は最新36秒の継続観測では確認されず、原因と断定しない。
 - **次工程の必須ゲート**：安定版と開発版を**同じ端末・同じSafari・同じGoogle Sites相当・同一兵士数・同一試合状況**でA/B比較する。受入基準は「合格済みの学校版より体感ラグを悪化させない」。もし問題があればその条件だけを再現し、実際に遅いレイヤーを特定して最小修正。本人の実機未比較のまま新機能版を学校公開へ昇格させない。現状の段階で性能回復を目的とした推測変更はしない。
 
+## 2.5 2026-10-30｜学校で合格した「以前のラグ改善」を一次資料から再調査
+
+ユーザー提案：「前回のラグ改善の仕方が良かったかもしれない。資料を探して」。`docs/PERFORMANCE_EVIDENCE.md`（10/22〜28の失敗・成功・実機結果）、`docs/GUEST_SDK_STALL_DIAGNOSIS_2026-10-26.md`、`docs/GUEST_VISUAL_SMOOTHING_2026-10-27.md`、`docs/GUEST_CACHE_WARMUP_2026-10-27.md`、`docs/GUEST_PREPAINT_APPLY_2026-10-27.md`、`docs/GUEST_FIRST_WORLD_READY_2026-10-28.md`、`docs/STABLE_BASELINE_SIMPLE_UNIT_AI_2026-10-28.md` を読了。以下は「当時実装した内容」と「観測された事実」で、**個々の対策が学校実機の改善に何％貢献したかは未実証**。
+
+| 既存の改善 | 導入と裏づけ | 開発最新版への引継ぎ |
+| --- | --- | --- |
+| ゲストFirebase SDK停滞への限定REST回復：SDKが止まり適用も古いときのみ、初回約1.1秒・再試行最短2.2秒で最新戦況を取り直す | [8cd0638e](https://github.com/8mahi8/shokoku-sensen/commit/8cd0638e5f64d61a61ecc2f2b8d04be42e18d345)、録画で約3.4秒の表示時計停止→別試合で約2.0秒、SDK seqよりREST seq先行。ただし試合条件を合わせた厳密A/Bでない | `online-net.js` の`checkGuestSync`や`receiveGuestWorld`は安定版と開発版で同一関数本文。維持 |
+| 兵士の表示のみ最大170→240msの短期補間、低FPSの30FPS保護モードから健全時8.5秒で解除（20秒再制限クールダウン） | [838fb0cd](https://github.com/8mahi8/shokoku-sensen/commit/838fb0cd6de198f1ca3a233a6bce8ad6fa4266a8)、`GUEST_VISUAL_SMOOTHING_2026-10-27.md`。移動のコマ飛び・固定30FPSの原因候補への局所対策 | `presentRemoteUnit`、`adaptCanvasQuality` の安定版/開発版の該当ロジック一致。維持 |
+| 混戦時キャラ描画キャッシュを1描画フレーム最大2新規タイルに分散、未生成タイルは元の絵で描画 | [b48081fb](https://github.com/8mahi8/shokoku-sensen/commit/b48081fb80b731fb1b0ff9e084b377be0d19014f)、実Firebase5分 [#40489499643](https://github.com/8mahi8/shokoku-sensen/actions/runs/40489499643) は58タイル・毎フレーム最大2枚・試合完走。学校iPad FPSへの独立効果は未実測 | `renderCrowdedUnit`、`adaptCrowdedSprites` は安定版と開発版で同一。維持 |
+| 受信済み最新snapshotを描画rAF直前に1回反映し、古いroundからの適用や二重反映を抑止 | [b949e8b2](https://github.com/8mahi8/shokoku-sensen/commit/b949e8b2e739d97007eed75d3840130b91e8b151)、`GUEST_PREPAINT_APPLY_2026-10-27.md`。SDK受信seqが最新でも描画前に適用seqが遅れる再現に対応 | `frame()` と `online-net.js` の`flushGuestBeforePaint`等は安定版・開発版で同一。維持 |
+| 初回戦況が未適用なのに対戦画面だけ先に開くゲスト操作不整合を回避 | `GUEST_FIRST_WORLD_READY_2026-10-28.md`。meta/state受信の順序差を考慮して「同期しています…」表示、受信後だけ操作可能とする。学校10/28に**本人が「ラグが全く気にならなかった、完璧かも」と評価**。ただしどの個別修正が効いたかは不明 | `online-net.js` の`guestPlayableWorld`系コードは旧安定版・開発版双方にある。維持 |
+
+**今回ソースで再確認した事実：** 安定ブランチ `99a0d1d` と現在の開発ブランチの `online-game.js` の `frame`・`tick`・`updateHUD`・`presentRemoteUnit`・`renderCrowdedUnit`・`adaptCrowdedSprites` が一致。通信 `online-net.js` の `maybePublish`・`receiveGuestWorld`・`sendCommand`・`checkGuestSync` も一致。かつ `unitStep`・`fire`・`drawSpellFields`・アート `v3-art.js` はStage1/2新能力による差が存在する。**既存の成功済み改善をもう一度実装するべきではない**。新能力とユニット数増に伴う追加負荷を、できれば同じWebKit iPad端末・同一画面／同数兵・同通信条件で差分検証するのが次の合理的調査。
+
+**再発防止**：旧画質削減・HUD停止・CSS filter削除・Canvas切出しは過去の比較で効果なし／不採用（`PERFORMANCE_EVIDENCE.md` / `TERRAIN_VIEWPORT_AB_2026-10-28.md`）。録画ありheadless WebKitの低FPSを学校の実機ラグ悪化と断定しない。コードに安易な改変をせず、10/28学校受入版をリファレンスにして新機能の差分を調べる。学校Sites・main/stable・Firebase Rulesは変更せず、GitHub開発ブランチの記録だけ更新。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
