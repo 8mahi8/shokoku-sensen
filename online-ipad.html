@@ -489,14 +489,24 @@ function showInfo(id){
  const info=$("deckInfo");info.textContent=card.name+"｜"+parts.join(" ・ ");
 }
 function choose(id,inDeck){
- if(locked||!editorOpen)return;
- if(!inDeck){pending=pending===id?null:id;render();return;}
- if(pending&&pending!==id){
-  const idx=working.indexOf(id);
-  if(idx>=0){working[idx]=pending;pending=null;render();}
-  return;
+ if(locked||!editorOpen||!working)return;
+ // Either selection order works: selected -> candidate or candidate -> selected.
+ // The current working deck, rather than the original tile role, is authoritative.
+ const selected=working.includes(id);
+ if(pending===id){pending=null;render();return;}
+ if(pending){
+  const firstSelected=working.includes(pending);
+  if(firstSelected!==selected){
+   const removeId=firstSelected?pending:id;
+   const addId=firstSelected?id:pending;
+   const index=working.indexOf(removeId);
+   if(index>=0&&!working.includes(addId)){
+    working[index]=addId;pending=null;render();return;
+   }
+  }
  }
- showInfo(id);
+ // A tap in the same section simply changes which card is highlighted.
+ pending=id;render();
 }
 function render(){
  if(!editorOpen||!working)return;
@@ -514,8 +524,10 @@ function render(){
  pool.replaceChildren(...eligible().filter(id=>!working.includes(id)).map(id=>tile(id,false)));
  const full=working.length===COUNT;
  $("deckCount").textContent=working.length+" / "+COUNT+"種類";
- $("deckNotice").textContent=pending?"交換する採用カードをタップしてください":eligible().length===COUNT?
-  "現在は全10種類を採用中。新しいカードが追加されると入れ替えできます。":"未採用カードをタップ → 外したい採用カードをタップで交換。性能を見るボタンで比較できます";
+ $("deckNotice").textContent=pending?
+  (working.includes(pending)?"交換する未採用カードをタップしてください":"交換する採用カードをタップしてください"):
+  eligible().length===COUNT?"現在は全10種類を採用中。新しいカードが追加されると入れ替えできます。":
+  "採用中・未採用のどちらからでもタップ → 反対側のカードをタップで交換。もう一度押すと選択解除。";
  $("deckInfo").textContent="";
  $("deckSave").disabled=!full||!validate(working);
  const avg=working.reduce((s,id)=>s+(Number(catalog[id]?.cost)||0),0)/COUNT;

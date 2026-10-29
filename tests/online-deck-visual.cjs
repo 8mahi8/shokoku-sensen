@@ -44,6 +44,35 @@ const server=http.createServer((req,res)=>{
      preSwap.slice().sort((a,b)=>a[0].localeCompare(b[0])),
      "touch swap must reuse all 15 card portraits instead of rebuilding Canvas");
 
+    // Reverse-order selection: chose the existing card FIRST, then the candidate.
+    // Use genuine touch input on both engines and preserve portrait identity.
+    await page.locator("#deckSelected .deckTile[data-card-id=engineer]").tap();
+    assert.equal(await page.locator("#deckSelected .deckTile.pending[data-card-id=engineer]").count(),1);
+    assert.match(await page.locator("#deckNotice").innerText(),/未採用/);
+    await page.locator("#deckPool .deckTile[data-card-id=crusher]").tap();
+    assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=crusher]").count(),1);
+    assert.equal(await page.locator("#deckPool .deckTile[data-card-id=engineer]").count(),1);
+    assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
+    assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+    assert.equal(await page.locator("#deckEditor .deckTile.pending").count(),0);
+    const reverseSwap=await page.evaluate(()=>[...document.querySelectorAll("#deckEditor .deckTile")]
+     .map(tile=>[tile.dataset.cardId,tile.querySelector("canvas").dataset.qaPortraitIdentity]));
+    assert.deepEqual(reverseSwap.slice().sort((a,b)=>a[0].localeCompare(b[0])),
+     preSwap.slice().sort((a,b)=>a[0].localeCompare(b[0])),
+     "reverse swap must also preserve every portrait Canvas");
+
+    // Tap the same chosen tile twice to cancel the pending selection.
+    await page.locator("#deckSelected .deckTile[data-card-id=crusher]").tap();
+    assert.equal(await page.locator("#deckEditor .deckTile.pending").count(),1);
+    await page.locator("#deckSelected .deckTile[data-card-id=crusher]").tap();
+    assert.equal(await page.locator("#deckEditor .deckTile.pending").count(),0);
+    // Switching highlight within the same section should not spend a slot.
+    await page.locator("#deckSelected .deckTile[data-card-id=duelist]").tap();
+    await page.locator("#deckSelected .deckTile[data-card-id=crusher]").tap();
+    assert.equal(await page.locator("#deckSelected .deckTile.pending[data-card-id=crusher]").count(),1);
+    await page.locator("#deckSelected .deckTile[data-card-id=crusher]").tap();
+    assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
+
     // Cancel must not mutate persisted deck; a future editor open begins from draft.
     await page.locator("#deckCancel").click();
     await page.evaluate(()=>window.ShokokuDeck.open());
