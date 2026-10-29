@@ -101,6 +101,16 @@
 
 **再発防止**：旧画質削減・HUD停止・CSS filter削除・Canvas切出しは過去の比較で効果なし／不採用（`PERFORMANCE_EVIDENCE.md` / `TERRAIN_VIEWPORT_AB_2026-10-28.md`）。録画ありheadless WebKitの低FPSを学校の実機ラグ悪化と断定しない。コードに安易な改変をせず、10/28学校受入版をリファレンスにして新機能の差分を調べる。学校Sites・main/stable・Firebase Rulesは変更せず、GitHub開発ブランチの記録だけ更新。
 
+## 2.6 2026-10-30｜本人指示「変な変更の前に原因調査」：安定版 vs 開発版の同条件 A/B（実行済）
+
+- **本件は原因調査限定**。本体 `online-game.js`、`online-net.js`、`v3-art.js`、単体HTML、AI/バランス、安定版 `99a0d1d`、学校Google Sites、Firebase Rules、main/stableは一切改変していない。追加は `tests/online-stable-vs-stage2-ab.cjs`、`.github/workflows/online-stable-vs-stage2-ab.yml` と本記録のみ。
+- **統制**：GitHub Actions [run #40921543293](https://github.com/8mahi8/shokoku-sensen/actions/runs/40921543293) **success**。学校iPadで本人合格の `99a0d1d:online-ipad.html` をGitからそのまま取得し、開発ブランチの `online-ipad.html` と比較。WebKit headless/1194×834/DPR2/録画なし、ゲームの同じ合法な10体light、20体dense、10体heavy戦場を `seedRealisticBattle` で設定。各場面は**stable → dev → dev → stable**、独立WebKitプロセス、0.7秒ウォームアップ後3.2秒計測。総12回。ネットワークは不要なソロ版で検証し、本番Firebaseには書かない。結果は artifact `stable-vs-stage2-matched-webkit-ab-evidence` の `matched-results.json` に全トライアル。
+- **p95フレーム間隔（同条件2回のp95平均）**：light 10体 stable 64ms / dev 73ms、dense 20体 stable 150.5ms / dev 109.5ms、heavy 10体 stable 94.5ms / dev 95.5ms。**安定版でも低い描画頻度が確認され、開発版が全条件で一貫して遅いとは言えない**。特にdenseでは安定版の再試行でp95=201msと大きな変動がある。3.2秒×2回/場面という短いCI条件なので、差から「開発版の方が速い/遅い」の数値結論は出さない。
+- **p95戦闘/メインロジック実行時間**：stable/devとも3場面のすべてで概ね1ms。JSのCanvas `drawMs` p95は light stable 4ms / dev 5ms、dense stable 8.5ms / dev 7ms、heavy stable 5ms / dev 6ms。巨大なrAF gapに比べJS描画/戦闘命令は短い。この**旧ユニット同数試験**では、Stage1時の `nearbyEnemy` → `selectPriorityTargets` へのAI構造変更が深刻な計算時間増大を起こした証拠は見つからなかった。**AI変更が存在しないという意味ではない**。
+- **未解決**：このA/Bは**旧兵だけ・ソロ・headless Linux WebKit**。Stage2新4ユニット（とくに子兵が増える機械召喚師）＋引力を出した際の差、Firebase・Google Sites埋込iframe・学校iPadの端末本体・録画時の負荷は未比較。旧コードが同じ実機で快適な理由をLinux WebKitテストで完全に説明できるわけではない。前回の開発版Firebase 36秒戦（#40918829528）は新20カードを使い録画もONで、条件が違うため本A/Bと直接FPS比較してはいけない。
+- **現時点の有力な説明**：報告された「またカクついた」は Linux headless WebKitで以前から起きるフレーム遅延を、新開発版の回帰と混同した可能性が高い。ただし新特殊能力の負荷回帰は**除外できない**。次にやるべきなのは、**同じ開発版内で旧ユニット20体とStage2能力を含む同数戦のAB比較**など対象を狭めた根拠取り、最後に学校実機の安定/開発版A/B。**原因が判定できる前に**新AI書き換え・通信頻度変更・画質低下・キャラ削除・本番差し替えを実施しない。
+- **CIの最初の失敗はゲーム不具合ではない**：初回 run #40921348014 はGitHub Actions Playwright Dockerコンテナ内の `git cat-file` で `dubious ownership` を検出しただけ。ワークフローで同じcheckoutの `safe.directory` を設定し再実行した run #40921543293 が全12シーン完走。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
