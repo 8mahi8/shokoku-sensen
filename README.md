@@ -2,6 +2,8 @@
 
 横スクロールで戦場を大きく見せる、近未来ファンタジーの陣取りカード戦略ゲームです。
 
+**開発ブランチ・第1段階5体＋デッキ構築実装（2026-10-29）：** [docs/STAGE1_IMPLEMENTATION_AND_DECK_HANDOFF_2026-10-29.md](./docs/STAGE1_IMPLEMENTATION_AND_DECK_HANDOFF_2026-10-29.md)。候補15種類から10種類を編集し、異なる編成のホスト／ゲストで対戦開始・再戦を実Firebaseで検証。**学校公開版や現行mainのGitHub Pagesにはまだ反映していません**。今後の新キャラ追加では `node tools/build-online-bundles.cjs` を実行し単体HTMLを同期する。
+
 **キャラ追加・性能調整の標準手順（開発AI・本人共通）：** [docs/UNIT_BALANCE_WORKFLOW_STANDARD.md](./docs/UNIT_BALANCE_WORKFLOW_STANDARD.md)。既存・新キャラのHP/攻撃力/攻撃間隔から1対1→カード単位→コスト効率を比較し、AIが疑わしい強弱を提示、本人が占領・射程・対空・飛行・範囲等の付加価値を考慮して最終判断。調整前後の残HP・撃破時間を必ず報告。**設計値と現行ゲーム値を混同しない**。
 
 
