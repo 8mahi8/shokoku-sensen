@@ -216,9 +216,9 @@ async function prepareDeck(page){
      "guardian must prefer large tank despite nearer infantry");
     const hit=await poll(async()=>{
      const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
-     return v.enemy?.hp<1100?v:false;
+     return v.enemy?.hp<1000?v:false;
     },"guardian first hit lands on large enemy",4500);
-    assert.ok(hit.enemy.hp<1100);
+    assert.ok(hit.enemy.hp<1000);
     await host.evaluate(()=>window.__shokokuQa.aiFirebaseChange("removeLarge"));
     verified=await poll(async()=>{
      const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
@@ -229,7 +229,7 @@ async function prepareDeck(page){
      "crusher is not allowed to override the nearer infantry with large targeting");
     verified=await poll(async()=>{
      const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
-     return v.enemy===null&&v.attack==="unit:guardian"&&v.other?.hp===1400?v:false;
+     return v.enemy===null&&v.attack==="unit:guardian"&&v.other?.hp===1300?v:false;
     },"crusher downs closer infantry and then selects larger enemy without bonus",4500);
    }else if(id==="duelistFast"){
     assert.equal(initial.attack,"unit:infantry");
@@ -279,7 +279,7 @@ async function prepareDeck(page){
     }
     if(id==="crusherNoLarge"){
      if(g.units.some(u=>u.uid===initial.enemy.uid))return false;
-     if(g.units.find(u=>u.uid===initial.other.uid)?.hp!==1400)return false;
+     if(g.units.find(u=>u.uid===initial.other.uid)?.hp!==1300)return false;
     }
     if(id==="duelistFast"){
      if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.hp<=61))return false;
