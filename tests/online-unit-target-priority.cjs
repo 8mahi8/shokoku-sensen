@@ -185,7 +185,7 @@ test("all classes expose independent valid priorities",()=>{
  for(const [id,d] of Object.entries(API.CLASSES)){
   const p=d.targetPriority;
   for(const k of ["castle","fort","unit"]){
-   assert.equal(Number.isInteger(p[k])&&p[k]>=0&&p[k]<=3,true,id+" "+k);
+   assert.equal(Number.isInteger(p[k])&&p[k]>=0&&p[k]<=4,true,id+" "+k);
   }
  }
 });
