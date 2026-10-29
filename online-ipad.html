@@ -2415,6 +2415,10 @@ function selectPriorityTargets(u){
  }
  const castle=wallTarget(capital(enemy(u.team)),u.y);
  consider("capital",castle.ref,castle.x,castle.y,castle.r);
+ // Priority 4 represents an overriding objective. A visible priority-4
+ // approach beats lower-priority targets even when they are in attack range.
+ // Existing 0-3 attack-first behavior and normal sight/movement limits remain.
+ if(approach?.priority===4&&(!attack||attack.priority<4))attack=null;
  return {attack,approach};
 }
 
