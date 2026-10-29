@@ -189,6 +189,15 @@
 - **最新の設計・再計算正本**：`docs/STAGE3_PROVISIONAL_BALANCE_SCREEN_V4_2026-10-30.md`。V3は後発の-100HP決定で過去のものになったと注意喚起済み。
 - **次**：怪獣の残るAI仮値（攻撃72/間隔2.25秒、索敵220、移動22、砦占領3、使用回数2）をユーザーと評価、実装段階で**新カード2枚＋期限付きバフデバフ基盤＋既存ゴーレム/戦車HP変更**を開発ブランチへ反映し、旧カード回帰とWebKit/オンライン2席同期を検証する。学校Google Sites本番、GitHub main/stable、Firebase Rules、Driveは本人依頼なしに変更しない。
 
+## 2.15 2026-10-30｜本人が「バランスはこんなもんでよい」→ Stage 3開発版へ実装
+
+- **今回の本人の最新判断**：怪獣の残るAI仮値も含め**現在のバランス案一式で進める**。既存承認：怪獣6コスト/HP1000/砦4城2敵1、疾風号令は3コスト/半径125/4秒/速度×1.5/使用3回、守護ゴーレムHP1300、魔導重戦車HP1000。他の新キャラ数値は直前の最終試算を暫定採用（攻撃72/2.25秒、索敵220、移動22、近接40、占領3、2回）。
+- **開発ブランチで本体に実装済**：`online-game.js` に`kaiju`と`gale`を登録、ゴーレム/戦車のHP-100、優先度4の共通ルールを使った砦最優先AI、`applyStatusEffect`/`tickStatusEffects`/`effectiveMoveSpeed`による小さなバフ・デバフ共通レイヤー。疾風号令は発動瞬間に円内の味方へ付与し、範囲外でも4秒間持続。既存の`ward`/`gravity`を作り直していない。
+- **アート/UIと出荷候補**：`v3-art.js`に新怪獣のオリジナル横向き絵と疾風号令の絵を追加。HP/バフ表示と重いキャラ用描画キャッシュの設定も調整。`online-ipad.html`/`online-embed.html`は**開発ブランチ内だけ**同期し、GitHub Pagesと学校Google Sites稼働HTMLを混同しない。
+- **既存回帰QA**：[Online 1v1 smoke #40939261508](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939261508) 成功（追加の実戦闘エンジン回帰で怪獣と疾風号令を試験）、[Stage 3 full-roster balance #40939177197](https://github.com/8mahi8/shokoku-sensen/actions/runs/40939177197) 成功。これらは**追加のキャッシュ・バフ表示位置微修正以前**なので、次担当は**最新HEAD**のCI結果を必ず確認する。学校iPad実機ではまだ未検証。フルFirebase 2席とWebKit UIの新カード配置／バフ時間は未検証なので完了扱いにしない。
+- **詳細な最新引き継ぎ**：`docs/STAGE3_IMPLEMENTATION_HANDOFF_2026-10-30.md`。それ以前の V1〜V4 設計資料に「新カード未実装」「本体HPは旧値」と書かれていてもそれは**過去時点の記録**。**現行は実装済の開発ブランチコードを優先**。
+- **次の価値ある仕事**：最新のCI/WebKit、実Firebase2席、実試遊に近い新カード・スペルの表示・同期・砦占領を確認し、見つかった実不具合だけ修正。学校Google Sites実稼働HTML、main、stable、Firebase Rules、Driveは未変更。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
