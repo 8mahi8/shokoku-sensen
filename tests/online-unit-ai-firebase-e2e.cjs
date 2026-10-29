@@ -20,7 +20,7 @@ const poll=async(fn,label,timeout=14000)=>{
 // private closure. They cannot be called from public Google Sites or CDN HTML.
 function aiFirebaseSetup(id){
  if(!NET.isHost||NET.isSolo||S.phase!=="battle")throw Error("not live host battle");
- const supported=["rangerCapture","redRangerCapture","guardReturn","guardianRetarget","bomberSplash"];
+ const supported=["rangerCapture","redRangerCapture","guardReturn","guardSelfDefense","guardianRetarget","crusherNoLarge","duelistFast","bomberSplash"];
  if(!supported.includes(id))throw Error("invalid fixture");
  S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.uid=0;S.tickCount=0;
  S.spells={incoming:[],zones:[]};S.botThink=999999;S.botPrepDone=true;
@@ -46,10 +46,20 @@ function aiFirebaseSetup(id){
  }else if(id==="guardReturn"){
   subject=make("interceptor",1,300,320);
   enemy=make("infantry",2,510,320,{hold:true});
+ }else if(id==="guardSelfDefense"){
+  subject=make("interceptor",1,480,320);subject.anchorX=300;
+  enemy=make("infantry",2,520,320,{hold:true});
  }else if(id==="guardianRetarget"){
   subject=make("guardian",1,400,320);
   enemy=make("tank",2,455,320,{hold:true});
   other=make("infantry",2,430,320,{hold:true});
+ }else if(id==="crusherNoLarge"){
+  subject=make("crusher",1,300,320);
+  enemy=make("infantry",2,331,320,{hold:true});
+  other=make("guardian",2,350,320,{hold:true});
+ }else if(id==="duelistFast"){
+  subject=make("duelist",1,300,320);
+  enemy=make("infantry",2,325,320,{hold:true});
  }else if(id==="bomberSplash"){
   subject=make("ground_bomber",1,300,320);
   enemy=make("infantry",2,385,320,{hold:true});
@@ -161,7 +171,7 @@ async function prepareDeck(page){
    const b=await guest.evaluate(()=>window.__shokokuQa?.snapshot().phase);
    return a==="battle"&&b==="battle";
   },"both clients in live battle",35000);
-  for(const id of ["rangerCapture","redRangerCapture","guardReturn","guardianRetarget","bomberSplash"]){
+  for(const id of ["rangerCapture","redRangerCapture","guardReturn","guardSelfDefense","guardianRetarget","crusherNoLarge","duelistFast","bomberSplash"]){
    const priorSeq=await guest.evaluate(()=>window.__onlineSeq||0);
    const initial=await host.evaluate(name=>window.__shokokuQa.aiFirebaseSetup(name),id);
    assert.equal(initial.fixture,id);
@@ -193,6 +203,14 @@ async function prepareDeck(page){
      return v.subject.x<=initial.subject.x+8&&v.approach===null?v:false;
     },"guard stops chasing and returns to anchor",6500);
     assert.ok(verified.subject.x<chased.subject.x-12, "the guard genuinely returned after pursuit");
+   }else if(id==="guardSelfDefense"){
+    assert.equal(initial.attack,"unit:infantry");
+    assert.equal(initial.approach,null,"no chasing outside anchor circle");
+    verified=await poll(async()=>{
+     const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
+     return v.enemy?.hp<105?v:false;
+    },"guard defends itself without leaving anchor sight",4500);
+    assert.equal(verified.subject.x,480,"guard must fire without pursuing");
    }else if(id==="guardianRetarget"){
     assert.equal(initial.attack,"unit:tank",
      "guardian must prefer large tank despite nearer infantry");
@@ -206,6 +224,20 @@ async function prepareDeck(page){
      const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
      return v.attack==="unit:infantry"&&v.other?.hp<105?v:false;
     },"guardian changes target after large enemy removed",4500);
+   }else if(id==="crusherNoLarge"){
+    assert.equal(initial.attack,"unit:infantry",
+     "crusher is not allowed to override the nearer infantry with large targeting");
+    verified=await poll(async()=>{
+     const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
+     return v.enemy===null&&v.attack==="unit:guardian"&&v.other?.hp===1400?v:false;
+    },"crusher downs closer infantry and then selects larger enemy without bonus",4500);
+   }else if(id==="duelistFast"){
+    assert.equal(initial.attack,"unit:infantry");
+    verified=await poll(async()=>{
+     const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
+     return v.enemy?.hp<=61?v:false;
+    },"duelist lands at least two 22-power hits at 0.55s cooldown",4500);
+    assert.equal(verified.subject.x,300,"in-range duelist stops to fight");
    }else if(id==="bomberSplash"){
     assert.equal(initial.attack,"unit:infantry");
     verified=await poll(async()=>{
@@ -241,6 +273,17 @@ async function prepareDeck(page){
     if(id==="guardianRetarget"){
      if(!(g.units.find(u=>u.uid===initial.other.uid)?.hp<105))return false;
     }
+    if(id==="guardSelfDefense"){
+     if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.hp<105))return false;
+     if(Math.abs(unit.x-480)>0.01)return false;
+    }
+    if(id==="crusherNoLarge"){
+     if(g.units.some(u=>u.uid===initial.enemy.uid))return false;
+     if(g.units.find(u=>u.uid===initial.other.uid)?.hp!==1400)return false;
+    }
+    if(id==="duelistFast"){
+     if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.hp<=61))return false;
+    }
     if(id==="bomberSplash"){
      if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.hp<105))return false;
      if(!(g.units.find(u=>u.uid===initial.other.uid)?.hp<105))return false;
@@ -261,7 +304,7 @@ async function prepareDeck(page){
     finalTarget:verified.attack||verified.approach,final:verified}));
   }
   assert.deepEqual(errors,[],"no Chromium/WebKit page exceptions");
-  console.log("PASS: five deterministic AI transitions run on the true host tick and reach WebKit guest via live RTDB",
+  console.log("PASS: eight deterministic AI transitions run on the true host tick and reach WebKit guest via live RTDB",
    JSON.stringify({scenes:results.length,durationMs:Date.now()-began}));
  }finally{
   if(/^\d{5}$/.test(roomCode)){
