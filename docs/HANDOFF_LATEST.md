@@ -77,6 +77,14 @@
 - **条件限定**：Linux ActionsのヘッドレスWebKit・動画録画あり。ChromiumホストとWebKitゲストなので役割差は識別不可。過去の同エンジンWebKit/WebKit比較の知見を `docs/PERFORMANCE_EVIDENCE.md` に残している。**学校iPad実機はまだ未検証。** 今後も同じWebKit環境の画質削減実験を無闇に繰り返さない。優先は実iPadでのホスト／ゲスト入替と、症状が再現すれば該当時のQA診断値を読むこと。
 - **公開・バランス**：`online-game.js`、既存AI、キャラ性能、学校配布HTML、main、stable、Firebase Rules、Google Driveはこの一連の作業で一切変更なし。新たなテストと2資料のみ開発ブランチに保存。PR #22はDraftのまま。
 
+## 2.4 2026-10-30｜学校で合格したのにCIでカクついた理由の切り分け
+
+- 本人の重要フィードバック：「現在Google Sitesに貼っている版は合格レベル。なぜまたカクつかせた？」。**実機で快適と本人が確認した安定版は唯一の性能受入基準として保護**。固定ブランチ `stable/school-ipad-20261028-99a0d1d`（コミット `99a0d1d0cc18a987aefe0ab99dc1f7993160fe25`）の `online-ipad.html` blob は `1eded9ac016f1a21d511917d88de2084ffb9f9c3`。これまでの作業では上書きなし。学校の実Google Sites表示内容の現在のハッシュは取得していないため、固定版と完全一致と推測しない（2026-10-28にDrive保存物が一致したことは別資料で確認）。
+- **構造比較（stable→開発ブランチ）**：`online-game.js` の `frame()`、`tick()`、`adaptCrowdedSprites()`、`renderCrowdedUnit()`、`presentRemoteUnit()`、`guestVisualTimeRemaining()`、`updateHUD()` は関数本文が同一。`online-net.js` の `packGuestWorld()`、`receiveGuestWorld()`、`maybePublish()`、`sendCommand()`、`checkGuestSync()`、`syncDiagnostics()` も関数本文が同一。**新しい通信頻度やメインフレーム処理への変更がカクつきを直接再発させた、と断定する根拠はない**。
+- 相違点としてユニット種類・特殊攻撃/引力/子兵生成・新キャラ描画・戦闘内の処理が増加。これは実戦状況によって負荷が増えうるが、`#40918829528` のChromiumホスト / Linux headless WebKitゲスト **動画録画あり**の結果だけで、「本物の学校iPadで安定版より劣化した」とは言えない。旧 `docs/PERFORMANCE_EVIDENCE.md` の `#39772223658` は、当時WebKit×WebKitの同一条件で**両陣営4〜6FPS程度**というCI特有の低FPSを示している（当時も実機と異なると記録）。したがってヘッドレスWebKitの測定値を実機の回帰判定に流用しない。
+- **原因の分類**：学校での再発証拠はまだなく、今確認できたのは実験条件の違い（実機Safari+Sites vs Linux headless WebKit録画）と、開発版の機能差。可能性として新キャラ/特殊能力/ユニット増加の描画・演算負荷は残る。ネットワーク断は最新36秒の継続観測では確認されず、原因と断定しない。
+- **次工程の必須ゲート**：安定版と開発版を**同じ端末・同じSafari・同じGoogle Sites相当・同一兵士数・同一試合状況**でA/B比較する。受入基準は「合格済みの学校版より体感ラグを悪化させない」。もし問題があればその条件だけを再現し、実際に遅いレイヤーを特定して最小修正。本人の実機未比較のまま新機能版を学校公開へ昇格させない。現状の段階で性能回復を目的とした推測変更はしない。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
