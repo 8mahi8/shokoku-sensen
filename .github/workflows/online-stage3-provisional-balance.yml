@@ -1,0 +1,26 @@
+name: Online Stage 3 provisional design balance
+on:
+  push:
+    paths:
+      - 'tests/online-stage3-provisional-balance.cjs'
+      - '.github/workflows/online-stage3-provisional-balance.yml'
+  workflow_dispatch:
+jobs:
+  stage3-provisional-balance:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Stage 3 full-roster 1v1 and card combat comparisons
+        run: node tests/online-stage3-provisional-balance.cjs
+      - name: Preserve complete comparable results
+        run: node tests/online-stage3-provisional-balance.cjs --json > stage3-provisional-all-v-all.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage3-provisional-all-v-all
+          path: stage3-provisional-all-v-all.json
+          retention-days: 30
