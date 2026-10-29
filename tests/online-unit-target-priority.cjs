@@ -10,14 +10,14 @@ function section(a,b){
 const source=[
  section("const CLASSES={","// School-friendly Google Sites HTML:"),
  section("// Target traits are shared data-driven selectors.","function moveToward(u,x,y,dt){"),
- section("function moveToward(u,x,y,dt){","function attackUnit(target,value){"),
+ section("function gravityZoneFor(u){","function attackUnit(target,value){"),
  section("function unitStep(dt){","function rate(){")
 ].join("\n");
 const W=1280,H=660;
-const S={units:[],forts:[],capitals:[{team:1,hp:3000},{team:2,hp:3000}],tickCount:0,clock:0,elapsed:0};
+const S={units:[],forts:[],capitals:[{team:1,hp:3000},{team:2,hp:3000}],spells:{zones:[]},tickCount:0,clock:0,elapsed:0};
 const shots=[];
 let API;
-const ctx={Math,S,W,H,MOTION:{windup:.44},duelStats:null,
+const ctx={Math,S,W,H,WALL_TOP:69,WALL_BOTTOM:H-70,SPELLS:{gravity:{speeds:{small:100,medium:70,large:35}}},MOTION:{windup:.44},duelStats:null,
  dist:(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),
  limit:(v,a,b)=>Math.max(a,Math.min(b,v)),
  enemy:t=>3-t,capital:t=>S.capitals[t-1],
@@ -33,7 +33,7 @@ const actor=(key,team=1,x=300,y=200,uid=10)=>({
  attack:0,flash:0,attackAnim:0,windup:0,walkPhase:0,facing:0
 });
 const fort=(x,y,owner=0)=>({x,y,owner,hp:12});
-function reset(){S.units=[];S.forts=[];S.tickCount=0;shots.length=0;}
+function reset(){S.units=[];S.forts=[];S.spells={zones:[]};S.tickCount=0;shots.length=0;}
 function test(name,fn){reset();fn();console.log("PASS "+name);}
 const chosen=u=>API.selectPriorityTargets(u);
 const moved=(u,dt=.1)=>{let x=u.x,y=u.y;API.unitStep(dt);return Math.hypot(u.x-x,u.y-y);};
