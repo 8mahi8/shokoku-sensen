@@ -34,7 +34,7 @@ vm.runInContext([
  "const isSpell=id=>Object.prototype.hasOwnProperty.call(SPELLS,id);",
  section("function advanceHand(team,id){","const TEAM="),
  section("function deploy(team,id,x,y){","function notice(message){"),
- section("function castSpell(team,id,x,y){","function playCard(team,id,x,y){"),
+ section("// Lightweight per-unit timed statuses, shared by future buffs and debuffs.","function playCard(team,id,x,y){"),
  section("function shieldMultiplier(team,x,y){","function getFort(u){"),
  section("// Target traits are shared data-driven selectors.","function rate(){"),
  "globalThis.API={CLASSES,SPELLS,CATALOG,deploy,castSpell,fire,unitStep,spellStep,selectPriorityTargets,gravityZoneFor};"
