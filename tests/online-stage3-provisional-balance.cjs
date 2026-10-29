@@ -30,10 +30,9 @@ const spells=objectAt("const SPELLS=");
 const existing=Object.fromEntries(Object.entries(classes).filter(([,d])=>!d.internalOnly));
 assert(Object.keys(existing).length>=18,"expected actual stage 2 roster");
 assert(spells.ward.cost===3&&spells.gravity.duration===2.5,"spell baseline changed: review candidate");
-// Approved 2026-10-30 design-only HP changes, deliberately NOT modifying actual CLASSES:
-// Guardian 1400->1300, Tank 1100->1000; everything else stays as in online-game.js.
-assert.equal(existing.guardian.hp,1400,"live guardian HP changed; review approved delta");
-assert.equal(existing.tank.hp,1100,"live tank HP changed; review approved delta");
+// Stage 3 is now in development: pull current balance from actual game.
+assert.equal(existing.guardian.hp,1300,"approved guardian HP now in development");
+assert.equal(existing.tank.hp,1000,"approved tank HP now in development");
 const approvedExisting={
  ...existing,
  guardian:{...existing.guardian,hp:1300},
@@ -55,8 +54,10 @@ assert.equal(kaiju.targetPriority.fort,4);
 assert.equal(kaiju.targetPriority.castle,2);
 assert.equal(kaiju.targetPriority.unit,1);
 
+assert.equal(existing.kaiju.hp,kaiju.hp,"prototype and live kaiju differ");
+assert.equal(spells.gale.speedMultiplier,gale.speedMultiplier,"prototype and live gale differ");
 const all={...approvedExisting,kaiju};
-const beforeAll={...existing,kaiju};
+const beforeAll={...existing,guardian:{...existing.guardian,hp:1400},tank:{...existing.tank,hp:1100},kaiju};
 const entries=Object.entries(all);
 const round=v=>Number.isFinite(v)?Math.round(v*100)/100:null;
 function fightOne(a,b){
@@ -107,7 +108,7 @@ function fightCards(a,b){
 }
 const hpAdjustment={};
 for(const id of ["guardian","tank"]){
- const previous=existing[id],approved=approvedExisting[id];
+ const previous=beforeAll[id],approved=approvedExisting[id];
  hpAdjustment[id]={previousHp:previous.hp,approvedHp:approved.hp,opponents:{}};
  for(const [otherId,opponent] of Object.entries(all)){
   const beforeOpponent=beforeAll[otherId];
@@ -123,8 +124,7 @@ const oneVsAll=Object.fromEntries(entries.map(([id,d])=>[id,Object.fromEntries(
  entries.map(([target,other])=>[target,fightOne(d,other)]))]));
 const cardsVsAll=Object.fromEntries(entries.map(([id,d])=>[id,Object.fromEntries(
  entries.map(([target,other])=>[target,fightCards(d,other)]))]));
-// Preserve a 1150-HP baseline for explicit before/after checks; this is
-// not a second production card and is not included in all-vs-all roster.
+// Keep earlier HP1150 kaiju design as a comparison fixture only.
 const oldKaiju={...kaiju,hp:1150};
 const hpRevision=Object.fromEntries(entries.filter(([id])=>id!=="kaiju").map(([id,d])=>[id,{
   before:fightOne(oldKaiju,d),after:fightOne(kaiju,d),
