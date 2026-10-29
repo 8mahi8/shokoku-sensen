@@ -274,7 +274,7 @@ body.soloMode #difficulties{display:flex!important}
 .deckMark{font-size:9px;color:#f3d69a}
 .deckDetail{min-height:40px;width:100%;background:#274858;border:1px solid #6696aa;border-radius:8px;color:#e6f8f7;font-size:11px;touch-action:manipulation}
 #deckNotice{font-size:12px;color:#f0d798;min-height:2.6em}
-#deckInfo{font-size:11px;color:#bcdee6;min-height:1.8em}
+#cardInfoOverlay.deckInfoOpen{z-index:10030}
 #deckSummary{font-size:12px;color:#cbe0de}
 #deckEditorFoot{border-top:1px solid #3f6979;padding-top:10px}
 #deckEditorFoot .deckActions{display:flex;gap:8px;flex-wrap:wrap}
@@ -404,7 +404,7 @@ body.soloMode #difficulties{display:flex!important}
    <section class="deckSection"><h3>採用中の10種類</h3><div id="deckSelected"></div></section>
    <section class="deckSection"><h3>交換候補・カード一覧</h3><div id="deckNotice"></div><div id="deckPool"></div></section>
   </div>
-  <div id="deckInfo" aria-live="polite"></div>
+  
   <div id="deckEditorFoot"><div id="deckSummary"></div><div class="deckActions"><button id="deckReset" type="button">標準に戻す</button><button id="deckSave" type="button">決定して戻る</button></div></div>
  </div>
 </div>

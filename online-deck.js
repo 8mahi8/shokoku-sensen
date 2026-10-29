@@ -3,7 +3,7 @@
 "use strict";
 const COUNT=10,DEFAULT=["scout","engineer","archer","barrage","sentinel","suppress","guardian","ward","drone","tank"];
 const KEY="shokoku-deck-v1";
-let catalog={},draft=DEFAULT.slice(),working=null,pending=null,locked=false,editorOpen=false;
+let catalog={},draft=DEFAULT.slice(),working=null,pending=null,locked=false,editorOpen=false,detailReturnFocus=null;
 const $=id=>document.getElementById(id);
 const eligible=()=>Object.keys(catalog).filter(id=>id!=="infantry"&&catalog[id]?.deckEligible!==false);
 function validate(ids){
@@ -61,7 +61,7 @@ function newTile(id,inDeck){
  const detail=document.createElement("button");
  detail.type="button";detail.className="deckDetail";detail.textContent="性能を見る";
  detail.setAttribute("aria-label",data.name+"の能力を見る");
- detail.addEventListener("click",()=>showInfo(id));
+ detail.addEventListener("click",()=>showInfo(id,detail));
  const cell=document.createElement("div");cell.className="deckCell";cell.append(button,detail);
  if(window.KokokuArt?.drawPortrait)window.KokokuArt.drawPortrait(canvas,id,1);
  return cell;
@@ -77,20 +77,59 @@ function updateTile(cell,id,inDeck){
  cell.querySelector(".deckMark").textContent=inDeck?"採用中":"追加候補";
  return cell;
 }
-function showInfo(id){
- const card=catalog[id];if(!card)return;
- const parts=["消費 "+card.cost,"使用上限 "+(Number.isFinite(card.limit)?card.limit+"回":"無制限")];
- if(card.hp!==undefined){
-  const behavior={normal:"進撃",capture:"占領",guard:"迎撃"}[card.behavior]||"進撃";
-  parts.push(behavior,card.flying?"飛行":"地上", "1回"+(card.qty||1)+"体",
-   "HP "+card.hp,"攻撃 "+card.damage,"攻撃間隔 "+card.cool+"秒",
-   "射程 "+card.range,"速度 "+card.speed,card.hitAir?"対空可能":"対空不可",
-   card.capture?"占領力 "+card.capture:"占領不可");
-  if(card.splash)parts.push("範囲攻撃 "+card.splash);
-  if(card.note)parts.push(card.note);
+// Reuse the battle card detail dialog, which is already designed for
+// iPad portrait art + readable two-column stats; no second modal to maintain.
+function showInfo(id,returnFocus){
+ if(!editorOpen)return;
+ const data=catalog[id];if(!data)return;
+ const isSpell=data.hp===undefined;
+ const size={small:"小型",medium:"中型",large:"大型"}[data.size]||"ユニット";
+ const behavior={normal:"進撃",capture:"占領",guard:"迎撃"}[data.behavior]||"進撃";
+ const count=Number.isFinite(data.limit)?data.limit+" 回":"無制限";
+ $("cardInfoName").textContent=data.name;
+ $("cardInfoRole").textContent=isSpell?"スペル":size+" · "+behavior+" · "+(data.flying?"飛行":"地上");
+ const stats=isSpell?[
+  ["消費資源",data.cost],["使用回数",count],["効果半径",data.radius??"—"],
+  ["持続・着弾時間",data.delay!==undefined?data.delay+" 秒":data.duration!==undefined?data.duration+" 秒":"—"]
+ ]:[
+  ["消費資源",data.cost],["使用上限",count],
+  ["1回の召喚数",(data.qty||1)+" 体"],["HP",data.hp],
+  ["攻撃力",data.damage],["射程",data.range],
+  ["移動速度",data.speed],["攻撃間隔",data.cool+" 秒"],
+  ["砦占領力",data.capture||"なし"],["対空攻撃",data.hitAir?"可能":"不可"]
+ ];
+ if(!isSpell&&data.splash)stats.push(
+  ["範囲攻撃半径",data.splash],
+  ["巻き込み攻撃力",Math.round(data.damage*(data.splashScale??.57))]);
+ if(!isSpell&&data.siege)stats.push(
+  ["対城ダメージ",Math.round(data.damage*data.siege)+"（"+data.siege+"倍）"]);
+ if(!isSpell&&data.behavior==="guard")stats.push(["行動方針","召喚位置付近で迎撃"]);
+ const list=$("cardInfoStats");list.replaceChildren();
+ for(const [label,value] of stats){
+  const row=document.createElement("div");row.className="infoStat";
+  const name=document.createElement("span");name.textContent=label;
+  const stat=document.createElement("strong");stat.textContent=String(value);
+  row.append(name,stat);list.append(row);
  }
- else parts.push("スペル",card.note||"");
- const info=$("deckInfo");info.textContent=card.name+"｜"+parts.join(" ・ ");
+ $("cardInfoNote").textContent=data.note||"";
+ const portrait=$("cardInfoPortrait");
+ portrait.getContext("2d")?.clearRect(0,0,portrait.width,portrait.height);
+ if(window.KokokuArt?.drawPortrait)window.KokokuArt.drawPortrait(portrait,id,1);
+ const overlay=$("cardInfoOverlay");
+ detailReturnFocus=returnFocus;
+ $("deckEditor").setAttribute("aria-hidden","true");
+ overlay.classList.add("deckInfoOpen");
+ overlay.classList.remove("hidden");
+ $("cardInfoClose").focus();
+}
+function closeInfo(){
+ const overlay=$("cardInfoOverlay");
+ if(!overlay?.classList.contains("deckInfoOpen"))return;
+ overlay.classList.add("hidden");
+ overlay.classList.remove("deckInfoOpen");
+ $("deckEditor").setAttribute("aria-hidden",editorOpen?"false":"true");
+ const target=detailReturnFocus;detailReturnFocus=null;
+ if(editorOpen&&target?.isConnected)target.focus();
 }
 function choose(id,inDeck){
  if(locked||!editorOpen||!working)return;
@@ -132,7 +171,6 @@ function render(){
   (working.includes(pending)?"交換する未採用カードをタップしてください":"交換する採用カードをタップしてください"):
   eligible().length===COUNT?"現在は全10種類を採用中。新しいカードが追加されると入れ替えできます。":
   "採用中・未採用のどちらからでもタップ → 反対側のカードをタップで交換。もう一度押すと選択解除。";
- $("deckInfo").textContent="";
  $("deckSave").disabled=!full||!validate(working);
  const avg=working.reduce((s,id)=>s+(Number(catalog[id]?.cost)||0),0)/COUNT;
  $("deckSummary").textContent="平均コスト "+avg.toFixed(1)+" ｜ 対空 "+working.filter(id=>catalog[id]?.hitAir).length+
@@ -147,6 +185,7 @@ function open(){
 }
 function close(save=false){
  if(!editorOpen)return;
+ closeInfo();
  if(save&&validate(working)){draft=working.slice();persist();renderLobby();}
  working=null;pending=null;editorOpen=false;
  $("deckEditor").classList.add("hidden");$("deckEditor").setAttribute("aria-hidden","true");
@@ -168,6 +207,16 @@ function bind(){
  $("deckCancel")?.addEventListener("click",()=>close(false));
  $("deckSave")?.addEventListener("click",()=>close(true));
  $("deckReset")?.addEventListener("click",()=>{working=standard();pending=null;render();});
+ // Battle-mode close also hides the shared overlay; ensure deck focus is restored.
+ $("cardInfoClose")?.addEventListener("click",closeInfo);
+ $("cardInfoOverlay")?.addEventListener("click",e=>{
+  if(e.target===e.currentTarget)closeInfo();
+ });
+ document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("cardInfoOverlay")?.classList.contains("deckInfoOpen")){
+   e.preventDefault();closeInfo();
+  }
+ });
 }
 document.addEventListener("DOMContentLoaded",bind);
 window.ShokokuDeck={configure,validate,eligible,current,standard,repair,open,close,setLocked,renderLobby,resetDraft};

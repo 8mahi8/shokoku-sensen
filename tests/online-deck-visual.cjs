@@ -28,6 +28,27 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator("#deckPool .deckTile").count(),5);
     for(const id of ["duelist","crusher","ranger_engineer","interceptor","ground_bomber"])
      assert.equal(await page.locator('#deckPool .deckTile[data-card-id="'+id+'"]').count(),1,"missing real new character "+id);
+    // Use the existing battle-card dialog (the new card preview), not
+    // a small status line below the editor.
+    await page.locator('#deckPool .deckCell:has(.deckTile[data-card-id="ranger_engineer"]) .deckDetail').click();
+    await page.locator("#cardInfoOverlay").waitFor({state:"visible"});
+    assert.equal(await page.locator("#cardInfoName").innerText(),"遠距離工兵");
+    assert.match(await page.locator("#cardInfoStats").innerText(),/HP/);
+    assert.match(await page.locator("#cardInfoStats").innerText(),/300/);
+    const foreground=await page.evaluate(()=>({
+     overlay:Number(getComputedStyle(document.querySelector("#cardInfoOverlay")).zIndex),
+     editor:Number(getComputedStyle(document.querySelector("#deckEditor")).zIndex),
+     hidden:document.querySelector("#deckEditor").getAttribute("aria-hidden"),
+     width:document.documentElement.scrollWidth
+    }));
+    assert.ok(foreground.overlay>foreground.editor,"card details must appear above editor");
+    assert.equal(foreground.hidden,"true");
+    assert.ok(foreground.width<=1026,"detail must not cause horizontal overflow");
+    await page.screenshot({path:path.join(out,engine+"-detail.png")});
+    await page.locator("#cardInfoClose").click();
+    assert.equal(await page.locator("#cardInfoOverlay").isVisible(),false);
+    assert.equal(await page.locator("#deckEditor").getAttribute("aria-hidden"),"false");
+    assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
     // All default portraits exist; swapping must preserve *every* tile Canvas.
     const preSwap=await page.evaluate(()=>{
      const ids=[...document.querySelectorAll("#deckEditor .deckTile")];
@@ -52,6 +73,13 @@ const server=http.createServer((req,res)=>{
     await page.locator("#deckPool .deckTile[data-card-id=crusher]").tap();
     assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=crusher]").count(),1);
     assert.equal(await page.locator("#deckPool .deckTile[data-card-id=engineer]").count(),1);
+    // Details should never replace or edit the currently selected draft.
+    await page.locator('#deckSelected .deckCell:has(.deckTile[data-card-id=crusher]) .deckDetail').click();
+    await page.locator("#cardInfoOverlay").waitFor({state:"visible"});
+    assert.equal(await page.locator("#cardInfoName").innerText(),"重撃砕兵");
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator("#cardInfoOverlay").isVisible(),false);
+    assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=crusher]").count(),1);
     assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
     assert.equal(await page.locator("#deckPool .deckTile").count(),5);
     assert.equal(await page.locator("#deckEditor .deckTile.pending").count(),0);
@@ -82,6 +110,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator("#deckSave").isEnabled(),true);
     await page.screenshot({path:path.join(out,engine+"-default.png")});
     await page.setViewportSize({width:820,height:500});
+    await page.locator('#deckSelected .deckCell:has(.deckTile[data-card-id=guardian]) .deckDetail').click();
+    await page.locator("#cardInfoOverlay").waitFor({state:"visible"});
+    await page.screenshot({path:path.join(out,engine+"-compact-detail.png")});
+    await page.locator("#cardInfoClose").click();
     await page.screenshot({path:path.join(out,engine+"-compact.png")});
     const compact=await page.evaluate(()=>({w:document.documentElement.scrollWidth,
      viewport:innerWidth,selected:document.querySelectorAll("#deckSelected .deckTile").length}));
