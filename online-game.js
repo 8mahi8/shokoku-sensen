@@ -2421,12 +2421,13 @@ function drawSpellFields(now){
   const remainingTime=guestVisualTimeRemaining(zone.time,now);
   if(remainingTime<=0)continue;
   ctx.save();
-  ctx.fillStyle=zone.team===1?"#73ddff1b":"#ff91b81c";
-  ctx.strokeStyle=zone.team===1?"#92e9ffaf":"#f8b2c0af";
+  const gravity=zone.kind==="gravity";
+  ctx.fillStyle=gravity?"#ad80ff22":zone.team===1?"#73ddff1b":"#ff91b81c";
+  ctx.strokeStyle=gravity?"#cbb3ffbf":zone.team===1?"#92e9ffaf":"#f8b2c0af";
   ctx.lineWidth=3;ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r,0,Math.PI*2);ctx.fill();ctx.stroke();
   ctx.strokeStyle="#e9fdff5a";ctx.setLineDash([8,11]);ctx.beginPath();ctx.arc(zone.x,zone.y,zone.r*.82,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
   ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.fillStyle="#f0fdff";
-  ctx.fillText("防護結界 "+Math.ceil(remainingTime)+"秒",zone.x,zone.y-zone.r-13);
+  ctx.fillText((gravity?"引力 ":"防護結界 ")+remainingTime.toFixed(1)+"秒",zone.x,zone.y-zone.r-13);
   ctx.restore();
  }
  for(const shot of S.spells.incoming){
@@ -2440,7 +2441,7 @@ function drawSpellFields(now){
   ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r*(1-remaining*.65),0,Math.PI*2);
   ctx.strokeStyle=shot.team===1?"#ffeac0":"#ffdbdd";ctx.lineWidth=3;ctx.stroke();
   ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.fillStyle="#fff0db";
-  ctx.fillText("砲撃予告",shot.x,shot.y-shot.r-13);ctx.restore();
+  ctx.fillText(shot.kind==="catapult"?"投石着弾":"砲撃予告",shot.x,shot.y-shot.r-13);ctx.restore();
  }
 }
 function queueGuestCommandHint(x,y,now=performance.now()){
@@ -2778,6 +2779,10 @@ function openCardInfo(id){
   infos.push(["範囲攻撃半径",d.splash],["巻き込み攻撃力",Math.round(d.damage*(d.splashScale??.57))]);
  }
  if(!isSpell(id)&&d.siege)infos.push(["対城ダメージ",Math.round(d.damage*d.siege)+"（"+d.siege+"倍）"]);
+ if(!isSpell(id)&&d.pierceCount)infos.push(["直線貫通数",d.pierceCount+" 体"]);
+ if(!isSpell(id)&&d.impactDelay)infos.push(["着弾まで",d.impactDelay+" 秒"]);
+ if(!isSpell(id)&&d.summonTimes)infos.push(["最大生産数",d.summonTimes.length+" 体"]);
+ if(!isSpell(id)&&d.castleOnContact)infos.push(["城への攻撃","本体接触時のみ"]);
  if(!isSpell(id)&&d.behavior==="guard")infos.push(["行動方針","設置地点付近で迎撃"]);
  $("cardInfoStats").replaceChildren();
  for(const [label,value] of infos){
