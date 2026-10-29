@@ -151,6 +151,27 @@ test("summoner creates robots at 2,4,6,11,16,21,26,31 seconds and stops at eight
  API.unitStep(10);
  assert.equal(S.units.filter(u=>u.key==="small_machine").length,8);
 });
+test("gravity fields never act as allied shields; ward remains a separate spell",()=>{
+ const gravity={kind:"gravity",team:1,x:400,y:300,r:125,time:2.5};
+ const ally=unit("infantry",1,400,300),enemy=unit("infantry",2,400,300);
+ S.units=[ally,enemy];S.spells.zones=[gravity];
+ ctx.hitUnit(ally,20);ctx.hitUnit(enemy,20);
+ assert.equal(ally.hp,85);assert.equal(enemy.hp,85,"gravity must not grant a ward multiplier");
+ S.spells.zones.push({kind:"ward",team:1,x:400,y:300,r:93,time:5.2});
+ ctx.hitUnit(ally,20);ctx.hitUnit(enemy,20);
+ assert.equal(ally.hp,74,"ward still cuts damage to 55%");
+ assert.equal(enemy.hp,65,"enemy gets no friendly ward");
+});
+test("killing the summoner stops future births but leaves already spawned robots alive",()=>{
+ const summoner=unit("mech_summoner",1,300,300);S.units=[summoner];
+ API.unitStep(2);
+ const robot=S.units.find(u=>u.key==="small_machine");
+ assert.ok(robot);
+ ctx.hitUnit(summoner,400);
+ API.unitStep(30);
+ assert.equal(S.units.filter(u=>u.key==="small_machine").length,1);
+ assert.equal(robot.hp,85,"children must not die automatically with their summoner");
+});
 test("summoner respects per-side 65-unit cap and retries when slot opens",()=>{
  const a=unit("mech_summoner",1,300,300);
  S.units=[a,...Array.from({length:64},(_,i)=>unit("infantry",1,300+i%12,200+i%16))];
