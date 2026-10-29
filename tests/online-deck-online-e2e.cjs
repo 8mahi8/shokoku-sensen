@@ -56,7 +56,9 @@ const server=http.createServer((req,res)=>{
   for(const [page,removed] of swaps){
    await page.locator("#deckOpen").click();
    assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
-   assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+   assert.equal(await page.locator("#deckPool .deckTile").count(),
+     await page.evaluate(()=>window.ShokokuDeck.eligible().length-10),
+     "unselected pool must grow automatically when more cards are added");
    for(let i=0;i<stageOne.length;i++){
     await page.locator('#deckPool .deckTile[data-card-id="'+stageOne[i]+'"]').click();
     await page.locator('#deckSelected .deckTile[data-card-id="'+removed[i]+'"]').click();
