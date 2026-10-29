@@ -29,7 +29,14 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator("#deckCount").innerText(),"10 / 10種類");
     assert.equal(await page.locator("#deckSave").isEnabled(),true);
     await page.screenshot({path:path.join(out,engine+"-default.png")});
+    await page.setViewportSize({width:820,height:500});
+    await page.screenshot({path:path.join(out,engine+"-compact.png")});
+    const compact=await page.evaluate(()=>({w:document.documentElement.scrollWidth,
+     viewport:innerWidth,selected:document.querySelectorAll("#deckSelected .deckTile").length}));
+    assert.ok(compact.w<=compact.viewport+2,"compact editor must not overflow horizontally");
+    assert.equal(compact.selected,10);
     await page.locator("#deckCancel").click();
+    await page.setViewportSize({width:1024,height:650});
     await page.evaluate(()=>{
      const ids=["scout","engineer","archer","barrage","sentinel","suppress","guardian","ward","drone","tank"];
      const c=Object.fromEntries(ids.map((id,i)=>[id,{name:id,cost:i%5+2,hp:100,hitAir:true,limit:5}]));
@@ -45,6 +52,10 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
     assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=future]").count(),1);
     await page.screenshot({path:path.join(out,engine+"-swapped.png")});
+    await page.setViewportSize({width:390,height:760});
+    await page.screenshot({path:path.join(out,engine+"-portrait.png")});
+    const portrait=await page.evaluate(()=>({w:document.documentElement.scrollWidth,viewport:innerWidth}));
+    assert.ok(portrait.w<=portrait.viewport+2,"portrait editor must not overflow horizontally");
     await page.locator("#deckSave").click();
     const saved=await page.evaluate(()=>window.ShokokuDeck.current());
     assert.equal(saved.length,10);assert.ok(saved.includes("future"));assert.ok(!saved.includes("scout"));
