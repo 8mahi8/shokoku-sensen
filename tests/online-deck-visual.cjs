@@ -28,10 +28,22 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator("#deckPool .deckTile").count(),5);
     for(const id of ["duelist","crusher","ranger_engineer","interceptor","ground_bomber"])
      assert.equal(await page.locator('#deckPool .deckTile[data-card-id="'+id+'"]').count(),1,"missing real new character "+id);
+    // All default portraits exist; swapping must preserve *every* tile Canvas.
+    const preSwap=await page.evaluate(()=>{
+     const ids=[...document.querySelectorAll("#deckEditor .deckTile")];
+     ids.forEach((tile,i)=>tile.querySelector("canvas").dataset.qaPortraitIdentity=String(i));
+     return ids.map(tile=>[tile.dataset.cardId,tile.querySelector("canvas").dataset.qaPortraitIdentity]);
+    });
     await page.locator("#deckPool .deckTile[data-card-id=duelist]").click();
     await page.locator("#deckSelected .deckTile[data-card-id=scout]").click();
     assert.equal(await page.locator("#deckSelected .deckTile[data-card-id=duelist]").count(),1,"real character swapping in");
     assert.equal(await page.locator("#deckPool .deckTile").count(),5);
+    const postSwap=await page.evaluate(()=>[...document.querySelectorAll("#deckEditor .deckTile")]
+     .map(tile=>[tile.dataset.cardId,tile.querySelector("canvas").dataset.qaPortraitIdentity]));
+    assert.deepEqual(postSwap.slice().sort((a,b)=>a[0].localeCompare(b[0])),
+     preSwap.slice().sort((a,b)=>a[0].localeCompare(b[0])),
+     "touch swap must reuse all 15 card portraits instead of rebuilding Canvas");
+
     // Cancel must not mutate persisted deck; a future editor open begins from draft.
     await page.locator("#deckCancel").click();
     await page.evaluate(()=>window.ShokokuDeck.open());
