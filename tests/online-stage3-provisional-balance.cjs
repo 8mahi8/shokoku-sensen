@@ -135,14 +135,14 @@ const statusProto={
   const same=statuses.find(x=>x.key===effect.key);
   if(same){
    same.remaining=Math.max(same.remaining,effect.remaining);
-   same.mult=Math.max(same.mult,effect.mult);
+   same.mult=effect.mult; // same named effect refreshes, never stacks
   }else statuses.push({...effect});
  },
  cast(units,team,x,y){
   const affected=[];
   for(const u of units){
    if(u.team!==team||u.hp<=0||Math.hypot(u.x-x,u.y-y)>gale.radius)continue;
-   this.add(u,{key:"moveHaste",remaining:gale.duration,mult:gale.speedMultiplier});
+   this.add(u,{key:"gale",stat:"moveSpeed",remaining:gale.duration,mult:gale.speedMultiplier});
    affected.push(u.uid);
   }
   return affected;
@@ -152,7 +152,7 @@ const statusProto={
   for(const effect of unit.statuses)effect.remaining-=dt;
   unit.statuses=unit.statuses.filter(x=>x.remaining>1e-8);
  },
- speed(unit){return unit.baseSpeed*(unit.statuses||[]).reduce((v,s)=>s.key==="moveHaste"?v*s.mult:v,1);}
+ speed(unit){return unit.baseSpeed*(unit.statuses||[]).reduce((v,s)=>s.stat==="moveSpeed"?v*s.mult:v,1);}
 };
 const unitsForBuff=[
  {uid:1,team:1,hp:100,x:100,y:100,baseSpeed:kaiju.speed},
@@ -174,6 +174,20 @@ assert.equal(unitsForBuff[2].statuses.length,1,"same buff should refresh, not st
 statusProto.step(unitsForBuff[0],2);
 assert.equal(statusProto.speed(unitsForBuff[0]),kaiju.speed,"buff expires after four seconds");
 assert.equal(statusProto.speed(unitsForBuff[3]),41,"enemy receives no buff");
+// Illustrate the same minimal data model for a potential future DEBUFF.
+// No slow card or debuff stat value is being approved or added to the game.
+const slowFixture={uid:7,team:2,hp:100,x:0,y:0,baseSpeed:20};
+statusProto.add(slowFixture,{key:"qaSlow",stat:"moveSpeed",remaining:3,mult:.7});
+assert.equal(statusProto.speed(slowFixture),14);
+statusProto.add(slowFixture,{key:"qaSlow",stat:"moveSpeed",remaining:3,mult:.7});
+assert.equal(slowFixture.statuses.length,1,"re-applying the same debuff never stacks");
+statusProto.add(slowFixture,{key:"gale",stat:"moveSpeed",remaining:4,mult:1.5});
+assert.ok(Math.abs(statusProto.speed(slowFixture)-21)<1e-8,
+ "independent haste and slow combine as ordinary speed modifiers");
+statusProto.step(slowFixture,3);
+assert.equal(statusProto.speed(slowFixture),30,"expired slow leaves haste active");
+statusProto.step(slowFixture,1);
+assert.equal(statusProto.speed(slowFixture),20,"all modifiers eventually expire");
 assert.equal(gale.duration,4);
 assert.equal(kaiju.cost,6);
 assert.equal(kaiju.vision,220);
