@@ -29,7 +29,7 @@ const signature={
  "online-game.js":'"use strict";\n/* 小国戦線 III — one-screen fortress card battler'
 };
 const rows=[...sources["online-game.js"].matchAll(/^\s+([a-z_]+):\{name:"([^"]+)"[^\n]*?hp:(\d+),damage:(\d+),/gm)]
- .filter(m=>!m[0].includes("internalOnly:true"))
+ .filter(m=>!sources["online-game.js"].slice(m.index,sources["online-game.js"].indexOf("\n",m.index)).includes("internalOnly:true"))
  .map(m=>({id:m[1],name:m[2],hp:Number(m[3]),damage:Number(m[4])}));
 if(rows.length<9||new Set(rows.map(r=>r.id)).size!==rows.length)
  throw Error("Cannot build school stats: missing or duplicate class declarations.");
