@@ -1,0 +1,29 @@
+name: Online Stage-1 unit AI real Firebase E2E
+on:
+  push:
+    paths:
+      - 'tests/online-unit-ai-firebase-e2e.cjs'
+      - '.github/workflows/online-unit-ai-firebase-e2e.yml'
+      - 'online-game.js'
+      - 'online-net.js'
+      - 'online-deck.js'
+      - 'online-ipad.html'
+      - 'online.html'
+  workflow_dispatch:
+jobs:
+  ai-two-browser:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Verify live host AI decisions and WebKit guest synchronization
+        run: node tests/online-unit-ai-firebase-e2e.cjs
