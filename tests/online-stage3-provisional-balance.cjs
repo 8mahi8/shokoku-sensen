@@ -32,15 +32,15 @@ assert(Object.keys(existing).length>=18,"expected actual stage 2 roster");
 assert(spells.ward.cost===3&&spells.gravity.duration===2.5,"spell baseline changed: review candidate");
 
 const kaiju={
- name:"砦進撃怪獣（仮案）",size:"large",cost:7,limit:2,qty:1,
- hp:1150,damage:72,cool:2.25,range:40,vision:1050,speed:22,r:27,
+ name:"砦進撃怪獣（仮案）",size:"large",cost:6,limit:2,qty:1,
+ hp:1150,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,
  behavior:"capture",capture:3,hitAir:false,flying:false,
  targetPriority:{fort:4,castle:2,unit:1}
 };
 const gale={
  name:"疾風号令（仮案）",cost:3,limit:3,radius:125,duration:4,
  speedMultiplier:1.5,eligible:"allied units (ground and flying), voluntary move only",
- zone:"fixed circle; effect only while inside; no lingering"
+ zone:"snapshot targets on cast; buff follows each unit for four seconds"
 };
 assert.equal(kaiju.targetPriority.fort,4);
 assert.equal(kaiju.targetPriority.castle,2);
@@ -111,9 +111,7 @@ const boosts=Object.fromEntries(entries.map(([id,d])=>[id,{
  speed:d.speed,baseIn4s:round(d.speed*gale.duration),
  idealBuffedIn4s:round(d.speed*gale.speedMultiplier*gale.duration),
  idealExtra:round(d.speed*(gale.speedMultiplier-1)*gale.duration),
- fixedCircleExtraFromCenter:round(Math.min(
- d.speed*(gale.speedMultiplier-1)*gale.duration,
- gale.radius*(1-1/gale.speedMultiplier)))
+ castSnapshotExtra:round(d.speed*(gale.speedMultiplier-1)*gale.duration)
 }]));
 const fortHp=12,fortHits=Math.ceil(fortHp/kaiju.capture);
 const model={
@@ -126,10 +124,59 @@ const model={
  fort:{hp:fortHp,capturePerHit:kaiju.capture,requiredHits:fortHits,
  attackTimeFromFirstHit:round((fortHits-1)*kaiju.cool),
  fromBlueSpawn244ToFort410Travel:round((410-244)/kaiju.speed),
- approxBlueSpawnToFortCaptured:round((410-244)/kaiju.speed+(fortHits-1)*kaiju.cool),
+ approxBlueSpawnToFortCaptured:round(Math.max(0,(410-244)-(kaiju.range+24))/kaiju.speed+(fortHits-1)*kaiju.cool),
  note:"No enemy, no offsets or initial summon delay; fort x=410, summon x=244 at same y"},
  stats,boosts,kaijuOne,kaijuCards,oneVsAll,cardsVsAll
 };
+// Proposed snapshot-on-cast buff model only; independent of production game.
+const statusProto={
+ add(unit,effect){
+  const statuses=unit.statuses||(unit.statuses=[]);
+  const same=statuses.find(x=>x.key===effect.key);
+  if(same){
+   same.remaining=Math.max(same.remaining,effect.remaining);
+   same.mult=Math.max(same.mult,effect.mult);
+  }else statuses.push({...effect});
+ },
+ cast(units,team,x,y){
+  const affected=[];
+  for(const u of units){
+   if(u.team!==team||u.hp<=0||Math.hypot(u.x-x,u.y-y)>gale.radius)continue;
+   this.add(u,{key:"moveHaste",remaining:gale.duration,mult:gale.speedMultiplier});
+   affected.push(u.uid);
+  }
+  return affected;
+ },
+ step(unit,dt){
+  if(!unit.statuses)return;
+  for(const effect of unit.statuses)effect.remaining-=dt;
+  unit.statuses=unit.statuses.filter(x=>x.remaining>1e-8);
+ },
+ speed(unit){return unit.baseSpeed*(unit.statuses||[]).reduce((v,s)=>s.key==="moveHaste"?v*s.mult:v,1);}
+};
+const unitsForBuff=[
+ {uid:1,team:1,hp:100,x:100,y:100,baseSpeed:kaiju.speed},
+ {uid:2,team:1,hp:100,x:226,y:100,baseSpeed:41},
+ {uid:3,team:1,hp:100,x:224,y:100,baseSpeed:18},
+ {uid:4,team:2,hp:100,x:101,y:101,baseSpeed:41},
+ {uid:5,team:1,hp:0,x:99,y:99,baseSpeed:41}
+];
+const affected=statusProto.cast(unitsForBuff,1,100,100);
+assert.deepEqual(affected,[1,3],"only alive allies inside at cast get buff");
+unitsForBuff[0].x=1000; // Leaving the cast area DOES NOT remove an applied buff.
+statusProto.step(unitsForBuff[0],2);
+assert.equal(statusProto.speed(unitsForBuff[0]),kaiju.speed*1.5);
+const newcomer={uid:6,team:1,hp:100,x:100,y:100,baseSpeed:22};
+assert.equal(statusProto.speed(newcomer),22,"later spawns never inherit past buff");
+statusProto.cast(unitsForBuff,1,100,100); // Refresh re-cast only if still inside.
+assert.equal(unitsForBuff[0].statuses[0].remaining,2,"moved unit does not get fresh duration");
+assert.equal(unitsForBuff[2].statuses.length,1,"same buff should refresh, not stack endlessly");
+statusProto.step(unitsForBuff[0],2);
+assert.equal(statusProto.speed(unitsForBuff[0]),kaiju.speed,"buff expires after four seconds");
+assert.equal(statusProto.speed(unitsForBuff[3]),41,"enemy receives no buff");
+assert.equal(gale.duration,4);
+assert.equal(kaiju.cost,6);
+assert.equal(kaiju.vision,220);
 assert.equal(Object.keys(kaijuOne).length,Object.keys(existing).length);
 assert.equal(Object.keys(kaijuCards).length,Object.keys(existing).length);
 assert.equal(kaijuOne.guardian.winner,"b");
@@ -155,7 +202,7 @@ else{
  for(const id of ["scout","interceptor","guardian","tank","catapult","kaiju"]){
   console.log("  "+id+" speed "+boosts[id].speed+
    " maximum extra x"+boosts[id].idealExtra+
-   " zone-center extra x"+boosts[id].fixedCircleExtraFromCenter);
+   " buffed-on-cast extra x"+boosts[id].castSnapshotExtra);
  }
  console.log("STAGE3_DESIGN_BALANCE_QA: PASS (all "+entries.length+" x "+entries.length+" one-unit AND card duels)");
 }
