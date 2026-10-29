@@ -1,0 +1,30 @@
+name: Online Stage-2 sustained match observation
+on:
+  push:
+    paths:
+      - 'tests/online-stage2-match-observation.cjs'
+      - '.github/workflows/online-stage2-match-observation.yml'
+  workflow_dispatch:
+jobs:
+  observation:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Observe real host and WebKit guest match with recording and lag sampling
+        run: node tests/online-stage2-match-observation.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage2-sustained-match-screenshots-video-lag
+          path: qa-stage2-match-observation/
+          retention-days: 14
