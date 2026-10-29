@@ -1,0 +1,31 @@
+name: Online deck editor visual QA
+on:
+  push:
+    paths:
+      - 'online-deck.js'
+      - 'online-net.js'
+      - 'online-game.js'
+      - 'online-ipad.html'
+      - 'tests/online-deck-visual.cjs'
+      - '.github/workflows/online-deck-visual.yml'
+  workflow_dispatch:
+jobs:
+  editor:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - run: node tests/online-deck-visual.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deck-editor-chromium-webkit
+          path: qa-deck-editor-visual/
+          retention-days: 14
