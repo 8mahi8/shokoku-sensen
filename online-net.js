@@ -593,13 +593,17 @@ function finish(data){
  const winner=data.result==="draw"?0:data.result==="win"?1:2,at=Date.now()+serverOffset;
  room.update({
   state:{seq:++seq,round:meta?.round||1,world:{...world,phase:"result"},at},
-  result:{winner,reason:data.reason,at},
+  result:{winner,reason:data.reason,capitalHp:world.capitals.map(c=>c.hp),at},
   "meta/status":"finished"
  }).catch(setError);
 }
 function resultForMe(){return !result||result.winner===0?"draw":result.winner===team?"win":"lose"}
 function hasResult(){return !!result}
 function resultReason(){return result?.reason||"対戦終了"}
+function resultCapitalHp(){
+ const h=result?.capitalHp;
+ return h&&Number.isFinite(h[0])&&Number.isFinite(h[1])?[h[0],h[1]]:null;
+}
 async function rematch(){
  if(solo){game?.begin();return;}
  if(!room||!connected)return;
@@ -688,7 +692,7 @@ const api={
   get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},
  get canSendCommand(){return !host&&!!room&&phase==="playing"&&connected&&players?.guest?.id===clientId},
  get soloDifficulty(){return soloDifficulty},
- registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resetLobby,rematch,
+ registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resultCapitalHp,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;

@@ -1934,8 +1934,13 @@ function end(result,reason){
  const titles={win:"勝利！",lose:"敗北",draw:"引き分け"};
  $("dialogTitle").textContent=titles[result]||"対戦終了";
  $("dialogText").textContent=reason+"　前哨基地と初期配置を変えると展開も大きく変わるよ。";
- $("rules").innerHTML="自軍首都："+Math.ceil(capital(ME()).hp)+" / "+START_HP+
- "<br>敵軍首都："+Math.ceil(capital(3-ME()).hp)+" / "+START_HP+
+ // Result and final world arrive on different Firebase listeners. Always use
+ // the terminal HP attached to the result, not an earlier guest snapshot.
+ const finalHp=NET.resultCapitalHp?.();
+ const displayHp=side=>Math.ceil(Number.isFinite(finalHp?.[side-1])&&
+  finalHp[side-1]>=0?finalHp[side-1]:capital(side).hp);
+ $("rules").innerHTML="自軍首都："+displayHp(ME())+" / "+START_HP+
+ "<br>敵軍首都："+displayHp(3-ME())+" / "+START_HP+
  "<br>残り時間："+(typeof reason==="string"&&reason.startsWith("時間切れ")?"00:00":numTime(S.seconds))+
  "<br>"+(NET.isSolo?"オフライン BOT対戦":"1vs1 オンライン対戦");
  $("start").textContent=NET.isSolo?"BOTと再戦":NET.isHost?"同じルームで再戦":"再戦する（ホスト待ち）";

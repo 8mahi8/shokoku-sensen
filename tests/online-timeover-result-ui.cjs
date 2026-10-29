@@ -16,6 +16,12 @@ const extra=[
  "  S.seconds=.93;",
  "  end(\"win\",\"時間切れ！ 首都の残りHP割合で判定した。\");",
  "  return true;",
+ " },",
+ " resultCastleQa:()=>{",
+ "  if(!NET.isHost||S.phase!==\"battle\")return false;",
+ "  S.capitals[0].hp=2700;S.capitals[1].hp=0;",
+ "  end(\"win\",\"首都が破壊された！\");",
+ "  return true;",
  " },"
 ].join("\n");
 const modified=src.replace(anchor,anchor+extra);
@@ -81,6 +87,30 @@ const wait=async(fn,label,timeout=20000)=>{
     name+" displays time-over 00:00 despite .93s clock");
    await page.screenshot({path:path.join(out,name+"-timeover-00-00.png"),timeout:16000});
   }
+  // Second room round: final castle HP must come from the authoritative
+  // result node even if the guest has not applied the terminal world packet.
+  await host.locator("#start").click();
+  await wait(async()=>await host.locator("#onlinePanel").isVisible()&&
+   await guest.locator("#onlinePanel").isVisible(),"round-two lobby",16000);
+  await guest.locator("#netReady").click();await host.locator("#netReady").click();
+  await wait(async()=>host.locator("#netStart").isEnabled(),"round-two ready");
+  await host.locator("#netStart").click();
+  await wait(async()=>(await host.evaluate(()=>window.__shokokuQa.snapshot().phase))==="battle"&&
+   (await guest.evaluate(()=>window.__shokokuQa.snapshot().phase))==="battle",
+   "round-two battle",35000);
+  assert.equal(await host.evaluate(()=>window.__shokokuQa.resultCastleQa()),true);
+  await wait(async()=>(await host.locator("#dialogTitle").innerText())==="勝利！"&&
+   (await guest.locator("#dialogTitle").innerText())==="敗北",
+   "castle result on both devices",16000);
+  const hostText=await host.locator("#rules").innerText(),
+        guestText=await guest.locator("#rules").innerText();
+  assert.match(hostText,/自軍首都：2700 \/ 3000/);
+  assert.match(hostText,/敵軍首都：0 \/ 3000/);
+  assert.match(guestText,/自軍首都：0 \/ 3000/);
+  assert.match(guestText,/敵軍首都：2700 \/ 3000/);
+  await host.screenshot({path:path.join(out,"host-castle-final-hp.png"),timeout:16000});
+  await guest.screenshot({path:path.join(out,"guest-castle-final-hp.png"),timeout:16000});
+  console.log("PASS: exact terminal castle HP 2700/0 shared by host and WebKit guest");
   assert.deepEqual(errors,[],"no page exceptions");
   console.log("PASS: 00:00 time-over result on Chromium host and WebKit guest with stale .93s final world");
  }finally{
