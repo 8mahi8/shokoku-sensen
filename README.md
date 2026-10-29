@@ -1,5 +1,15 @@
 # 小国戦線 III — FORTRESS FRONT（BOT対戦 v4.2）
 
+> ## 【開発担当AI・最優先の最新引き継ぎ入口】
+>
+> **「小国戦争開発引き継いで」だけで再開できるようにした。** まず [**docs/HANDOFF_LATEST.md**](docs/HANDOFF_LATEST.md) を読み、同じ開発ブランチの [AGENTS.md](AGENTS.md)、最新コード、Draft [PR #22](https://github.com/8mahi8/shokoku-sensen/pull/22)、CIを確認して作業を継続する。固定入口は毎回最新に更新し、古い日付のHANDOFFは履歴として扱う。
+>
+> **開発ブランチ：** `perf/online-guest-snapshot-diagnostics-20261020`。**現在の工程：** 第2段階の4体＋引力スペルを開発版へ実装済み、Node/CI・2席Firebase・WebKit/iPad試遊の検証はこれから。**main / stable / 学校Google Sites稼働版 / Firebase Rulesには無断で触れない。**
+>
+> このREADME以下に残る過去の開発記録と当時の状況が矛盾する場合は、最新の本人指示・現在のコード・[固定引き継ぎ](docs/HANDOFF_LATEST.md)を優先する。
+
+
+
 横スクロールで戦場を大きく見せる、近未来ファンタジーの陣取りカード戦略ゲームです。
 
 **開発ブランチ・第1段階5体＋デッキ構築実装（2026-10-29）：** [docs/STAGE1_IMPLEMENTATION_AND_DECK_HANDOFF_2026-10-29.md](./docs/STAGE1_IMPLEMENTATION_AND_DECK_HANDOFF_2026-10-29.md)。候補15種類から10種類を編集し、異なる編成のホスト／ゲストで対戦開始・再戦を実Firebaseで検証。**学校公開版や現行mainのGitHub Pagesにはまだ反映していません**。今後の新キャラ追加では `node tools/build-online-bundles.cjs` を実行し単体HTMLを同期する。
