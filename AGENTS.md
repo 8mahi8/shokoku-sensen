@@ -1,3 +1,13 @@
+# 最重要：小国戦争開発を引き継ぐAI向け・固定入口（2026-10-30）
+
+ユーザーが**「小国戦争開発引き継いで」**や「小国戦線の開発引き継いで」とだけ送った場合、追加の引き継ぎ文を要求しない。まず**GitHub開発ブランチ** `perf/online-guest-snapshot-diagnostics-20261020` の [`docs/HANDOFF_LATEST.md`](docs/HANDOFF_LATEST.md) を全文読み、最新HEAD・Draft PR #22・`online-game.js`・CIの状態を確認して、その指示に沿って作業を継続する。
+
+**この固定ファイルが今後の最新入口。** 作業完了時は履歴ファイルを毎回増やすだけでなく、`docs/HANDOFF_LATEST.md` の進捗・検証・次作業も更新する。古い2026-10-27〜29のHANDOFFで「デッキ構築は未承認・禁止」「Stage 2は未実装」等と書いていても、最新の本人承認済み実装と矛盾する場合は、最新本人指示・現在の実コード・固定入口を優先。
+
+**最新の主要制約：** 学校のiPad Safari／Google Sites（GitHub Pagesは試遊のみ）用の友人1vs1。main/stable/学校Google Sites稼働版/Firebase Rules/既存Driveファイルは許可なく変更しない。GitHub開発ブランチへの実装・テスト・記録は「任した」で許可される。既存ユニットAIは書き換えず、特殊能力は独立レイヤーへ。バランス調整はユーザーの全体維持判断で一旦終了。デッキは既に承認済み・10種類選択＋基本歩兵常設。テスト合格と物理iPad動作確認を混同しない。
+
+---
+
 # AI developer handoff — Shokoku Sensen III
 Before touching character art, read docs/CHARACTER_PIPELINE.md and characters/gald/character.json. Then read source of truth: gald-source.html, gald-render.js, v3-art.js, v3.js and index.html (current GitHub branch). Do not infer from chat memory or temporary files.
 Gald B-04 was successful because the character was designed in profile FIRST, with clean silhouette, key poses, coherent rigged joints, planted feet, real weight transfer, and restrained decorative detail. Smooth interpolation alone is not artistic quality. NEVER move a front-facing drawing as though it faces sideways.
