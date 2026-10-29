@@ -118,7 +118,8 @@ const server=http.createServer((req,res)=>{
      (await guest.evaluate(()=>window.__shokokuQa.snapshot().energy[2]))>=11.9,
      "guest energy update",12000);
     const before=await host.evaluate(t=>window.__shokokuDeckQa.hand(t),side);
-    await player.locator('#cards .card[data-id="'+id+'"]').click();
+    if(side===2)await player.locator('#cards .card[data-id="'+id+'"]').tap();
+    else await player.locator('#cards .card[data-id="'+id+'"]').click();
     assert.equal(await player.evaluate(()=>window.__shokokuQa.snapshot().selected),id,
      "card tap must select "+id);
     const worldX=side===1?175:1105,worldY=290+(action%5)*24;
@@ -146,11 +147,11 @@ const server=http.createServer((req,res)=>{
     }
     // A guest order is not successful just because sendCommand returned true:
     // wait for the authoritative hand to appear on the guest as well.
-    if(side===2)await wait(async()=>{
-     const local=await guest.evaluate(()=>window.__shokokuDeckQa.hand(2));
-     const authoritative=await host.evaluate(()=>window.__shokokuDeckQa.hand(2));
+    await wait(async()=>{
+     const local=await guest.evaluate(t=>window.__shokokuDeckQa.hand(t),side);
+     const authoritative=await host.evaluate(t=>window.__shokokuDeckQa.hand(t),side);
      return JSON.stringify(local)===JSON.stringify(authoritative);
-    },"guest receives accepted hand for "+id,14000);
+    },"guest receives authoritative hand for "+side+":"+id,14000);
     used.add(id);
    }
    assert.deepEqual(new Set(playedBySide[side]),new Set(stageOne),
@@ -163,6 +164,31 @@ const server=http.createServer((req,res)=>{
     g.elapsed>=1&&h.units.some(u=>u.team===1)&&h.units.some(u=>u.team===2)&&
     g.units.some(u=>u.team===1)&&g.units.some(u=>u.team===2);
   },"real two-sided battle arrives at WebKit guest",20000);
+  // Confirm that deployed units actually advance and interact with the
+  // authoritative battlefield. These are normal 30Hz ticks, not a fabricated
+  // damage function. A fort owner/HP change OR a wounded unit is sufficient.
+  const earlier=await host.evaluate(()=>window.__shokokuQa.snapshot().units);
+  await sleep(1650);
+  const later=await host.evaluate(()=>window.__shokokuQa.snapshot().units);
+  const moved=earlier.some(a=>later.some(b=>a.uid===b.uid&&
+   Math.hypot(a.x-b.x,a.y-b.y)>1));
+  assert.equal(moved,true,"live units must move under the real combat loop");
+  let battleEvidence=null;
+  await wait(async()=>{
+   const response=await fetch(BASE+"/"+code+"/state.json");
+   if(!response.ok)throw Error("state read "+response.status);
+   const state=await response.json(),world=state?.world;
+   if(!world)return false;
+   const units=Array.isArray(world.units)?world.units:Object.values(world.units||{});
+   const forts=Array.isArray(world.forts)?world.forts:Object.values(world.forts||{});
+   const damaged=units.some(u=>u&&Number.isFinite(u.hp)&&
+    Number.isFinite(u.max)&&u.hp<u.max-.01);
+   const captured=forts.some(f=>f&& (f.owner!==0||f.hp<12));
+   if(!damaged&&!captured)return false;
+   battleEvidence={damaged,captured,elapsed:world.elapsed,units:units.length};
+   return true;
+  },"real attack or capture changes the Firebase battlefield",45000);
+  console.log("PASS: live troop movement and authoritative combat/capture",JSON.stringify(battleEvidence));
   assert.deepEqual(issues,[],"no page errors during real live-card battle");
   console.log("PASS: 20 authentic combat placements, all five Stage-1 classes on both sides, real guest touch→Firebase→host→guest");
   // End via an explicit QA result so the test need not wait five real minutes.
