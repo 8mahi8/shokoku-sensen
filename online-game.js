@@ -37,7 +37,7 @@ const MOTION={
  attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
   sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84,
   duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68,
-  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42},
+  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,kaiju:.78},
  windup:.44
 };
 const CLASSES={
@@ -47,9 +47,9 @@ const CLASSES={
  archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:8,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,targetPriority:{castle:2,fort:0,unit:2},note:"小型・遠距離・対空"},
  sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:5,qty:1,hp:440,damage:62,cool:1.60,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,targetPriority:{castle:1,fort:0,unit:2},note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
  suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:6,qty:1,hp:380,damage:50,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,targetPriority:{castle:2,fort:0,unit:2},note:"中型・密集対策・対空対応の範囲砲撃"},
- guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1400,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,targetPriority:{castle:1,fort:0,unit:2,largeUnit:3},note:"大型・対大型迎撃・強力な範囲衝撃波"},
+ guardian:{name:"守護ゴーレム",glyph:"⬡",size:"large",cost:7,limit:2,qty:1,hp:1300,damage:115,cool:2.05,range:52,vision:210,speed:18,r:24,behavior:"guard",capture:0,hitAir:false,splash:63,splashScale:.85,targetPriority:{castle:1,fort:0,unit:2,largeUnit:3},note:"大型・対大型迎撃・強力な範囲衝撃波"},
  drone:{name:"浮遊ドローン",glyph:"✦",size:"medium",cost:4,limit:5,qty:2,hp:120,damage:18,cool:1.25,range:98,vision:153,speed:34,r:15,behavior:"normal",capture:0,hitAir:true,flying:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行・対空・砲撃1発で撃破される軽装甲"},
- tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1100,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,targetPriority:{castle:2,fort:0,unit:2,largeUnit:3},note:"大型・長射程・対空対応の範囲重砲・対城200%"},
+ tank:{name:"魔導重戦車",glyph:"▰",size:"large",cost:7,limit:2,qty:1,hp:1000,damage:110,cool:2.05,range:125,vision:175,speed:15,r:25,behavior:"normal",capture:0,hitAir:true,splash:72,splashScale:.67,siege:2,targetPriority:{castle:2,fort:0,unit:2,largeUnit:3},note:"大型・長射程・対空対応の範囲重砲・対城200%"},
  // Stage 1: five new combat classes; all use the existing shared target AI.
  duelist:{name:"双剣兵",glyph:"⚔",size:"medium",cost:3,limit:6,qty:1,hp:145,damage:22,cool:.55,range:29,vision:120,speed:30,r:14,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・高速連撃の近接兵。HPは低め、占領不可"},
  crusher:{name:"重撃砕兵",glyph:"✹",size:"medium",cost:5,limit:4,qty:1,hp:460,damage:150,cool:2.65,range:44,vision:155,speed:17,r:19,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・汎用重撃。大型特効なし、強烈な一撃と長い攻撃間隔"},
@@ -61,6 +61,8 @@ const CLASSES={
  catapult:{name:"遠投投石器",glyph:"◈",size:"large",cost:8,limit:3,qty:1,hp:700,damage:115,cool:4.5,range:215,vision:255,speed:12,r:25,behavior:"normal",capture:0,hitAir:true,attackMode:"delayedArea",impactDelay:1.1,splash:85,splashScale:1,castleOnContact:true,targetPriority:{castle:0,fort:0,unit:2},note:"大型・1.1秒後に半径85へ115、飛行にも命中。城は接触時のみ攻撃"},
  kamikaze:{name:"突貫爆撃機",glyph:"➤",size:"medium",cost:4,limit:4,qty:1,hp:115,damage:150,cool:1,range:28,vision:180,speed:36,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,attackMode:"contactBlast",splash:78,splashScale:.75,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。敵への接触で自爆、周囲地上兵112.5。撃墜時は不発"},
  mech_summoner:{name:"機械召喚師",glyph:"⚙",size:"medium",cost:5,limit:3,qty:1,hp:340,damage:15,cool:1.9,range:65,vision:115,speed:15,r:18,behavior:"guard",capture:0,hitAir:false,summons:"small_machine",summonTimes:[2,4,6,11,16,21,26,31],targetPriority:{castle:0,fort:0,unit:1},note:"中型・迎撃。2/4/6秒、その後5秒ごとに小型機を最大8体生産"},
+ // Stage 3: the existing priority-4 shared selector handles this objective unit.
+ kaiju:{name:"砦進撃怪獣",glyph:"♜",size:"large",cost:6,limit:2,qty:1,hp:1000,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,behavior:"capture",capture:3,hitAir:false,meleeFx:true,targetPriority:{fort:4,castle:2,unit:1},note:"大型・砦を最優先で占領。砦が索敵内なら敵兵を無視して進撃。砦がなければ敵にも反撃する"},
  // Internal child: never place in a deck, summon directly or display in the card gallery.
  small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:85,damage:14,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
 };
@@ -83,7 +85,8 @@ const IDS=Object.keys(CLASSES).filter(id=>!CLASSES[id].internalOnly);
 const SPELLS={
  barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:3,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
  ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"},
- gravity:{name:"引力",glyph:"◎",cost:3,limit:3,radius:125,duration:2.5,speeds:{small:100,medium:70,large:35},note:"2.5秒間敵地上兵を吸引・移動拘束。攻撃は可能"}
+ gravity:{name:"引力",glyph:"◎",cost:3,limit:3,radius:125,duration:2.5,speeds:{small:100,medium:70,large:35},note:"2.5秒間敵地上兵を吸引・移動拘束。攻撃は可能"},
+ gale:{name:"疾風号令",glyph:"➚",cost:3,limit:3,radius:125,duration:4,speedMultiplier:1.5,note:"発動時に円内にいた味方全員の移動速度を4秒間1.5倍。円の外でも持続"}
 };
 const CATALOG={...CLASSES,...SPELLS};
 const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
@@ -237,6 +240,25 @@ function begin(){
  buildCards();updateHUD();
 
 }
+// Lightweight per-unit timed statuses, shared by future buffs and debuffs.
+function applyStatusEffect(u,effect){
+ if(u.hp<=0)return;
+ const current=u.statusEffects||(u.statusEffects=[]);
+ const same=current.find(e=>e.key===effect.key);
+ if(same){
+  same.remaining=Math.max(same.remaining,effect.remaining);
+  same.mult=effect.mult;same.stat=effect.stat;
+ }else current.push({...effect});
+}
+function tickStatusEffects(u,dt){
+ if(!u.statusEffects?.length)return;
+ for(const e of u.statusEffects)e.remaining-=dt;
+ u.statusEffects=u.statusEffects.filter(e=>e.remaining>0);
+}
+function effectiveMoveSpeed(u){
+ return CLASSES[u.key].speed*(u.statusEffects||[]).reduce((value,e)=>
+  e.stat==="moveSpeed"&&e.remaining>0?value*e.mult:value,1);
+}
 function castSpell(team,id,x,y){
  if(!isSpell(id)||!canPay(team,id)||!validTarget(team,id,x,y))return false;
  const d=SPELLS[id];
@@ -244,7 +266,14 @@ function castSpell(team,id,x,y){
  S.left[team][id]--;
  advanceHand(team,id);
  if(id==="barrage")S.spells.incoming.push({kind:"barrage",team,x,y,r:d.radius,time:d.delay,total:d.delay});
- else S.spells.zones.push({kind:id,team,x,y,r:d.radius,time:d.duration,total:d.duration});
+ else if(id==="gale"){
+  // One-time target selection. Units keep the buff after leaving the circle.
+  for(const u of S.units){
+   if(u.team===team&&u.hp>0&&Math.hypot(u.x-x,u.y-y)<=d.radius)
+    applyStatusEffect(u,{key:"gale",stat:"moveSpeed",mult:d.speedMultiplier,remaining:d.duration});
+  }
+  S.effects.push({x,y,t:.55,max:.55,team,r:d.radius,type:"gale"});
+ }else S.spells.zones.push({kind:id,team,x,y,r:d.radius,time:d.duration,total:d.duration});
  if(team===ME()){S.selected=null;buildCards();updateHUD();}
  return true;
 }
@@ -447,7 +476,7 @@ function moveToward(u,x,y,dt){
  if(CLASSES[u.key].behavior!=="guard")x=forward===1?Math.max(u.x,x):Math.min(u.x,x);
  const dx=x-u.x,dy=y-u.y,distance=Math.hypot(dx,dy);
  if(distance<.05)return;
- const amt=Math.min(distance,CLASSES[u.key].speed*dt);
+ const amt=Math.min(distance,effectiveMoveSpeed(u)*dt);
  u.x=limit(u.x+dx/distance*amt,28,W-28);
  u.y=limit(u.y+dy/distance*amt,43,H-43);
  u.facing=Math.atan2(dy,dx);
@@ -580,6 +609,7 @@ function unitStep(dt){
  for(const u of S.units){
   if(u.hp<=0)continue;
   const d=CLASSES[u.key];
+  tickStatusEffects(u,dt);
   u.attack=Math.max(0,u.attack-dt);u.flash=Math.max(0,u.flash-dt);
   u.attackAnim=Math.max(0,(u.attackAnim||0)-dt);u.walking=false;
   if(d.summons){
