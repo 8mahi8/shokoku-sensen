@@ -46,18 +46,27 @@ const server=http.createServer((req,res)=>{
    if(!response.ok)throw Error("DB "+response.status);
    return response.json();
   };
-  // Different, legal decks prove the new 5 cards are real selections, not
-  // merely decorative catalog tiles. Guest uses the standalone iPad HTML.
-  for(const [page,newId,oldId] of [[host,"duelist","scout"],[guest,"ground_bomber","tank"]]){
+  // Both players draft all five real Stage-1 classes, but with different
+  // remaining cards. Tap the editor exactly as a player would.
+  const stageOne=["duelist","crusher","ranger_engineer","interceptor","ground_bomber"];
+  const swaps=[
+   [host,["scout","engineer","sentinel","drone","tank"]],
+   [guest,["scout","engineer","archer","sentinel","tank"]]
+  ];
+  for(const [page,removed] of swaps){
    await page.locator("#deckOpen").click();
    assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
    assert.equal(await page.locator("#deckPool .deckTile").count(),5);
-   await page.locator('#deckPool .deckTile[data-card-id="'+newId+'"]').click();
-   await page.locator('#deckSelected .deckTile[data-card-id="'+oldId+'"]').click();
-   assert.equal(await page.locator('#deckSelected .deckTile[data-card-id="'+newId+'"]').count(),1);
+   for(let i=0;i<stageOne.length;i++){
+    await page.locator('#deckPool .deckTile[data-card-id="'+stageOne[i]+'"]').click();
+    await page.locator('#deckSelected .deckTile[data-card-id="'+removed[i]+'"]').click();
+   }
+   assert.equal(await page.locator("#deckSelected .deckTile").count(),10);
    await page.locator("#deckSave").click();
    const saved=await page.evaluate(()=>window.ShokokuDeck.current());
-   assert.equal(saved.length,10);assert.ok(saved.includes(newId));assert.ok(!saved.includes(oldId));
+   assert.equal(new Set(saved).size,10);
+   assert.ok(stageOne.every(id=>saved.includes(id)));
+   assert.ok(removed.every(id=>!saved.includes(id)));
   }
   await guest.locator("#netReady").click();
   await host.locator("#netReady").click();
@@ -86,6 +95,78 @@ const server=http.createServer((req,res)=>{
   assert.ok(guestDeck[2].includes("ground_bomber")&&!guestDeck[2].includes("tank"));
   assert.deepEqual(hostDeck[2],guestDeck[2],"host and guest see the same locked red deck");
   console.log("PASS: two-browser Firebase independently edited 10-unique decks with real new cards");
+  // The original E2E only started a match and then called finish(). Play the
+  // actual battle now: 10 real cards per side, including ALL five new troops,
+  // with card selection and canvas placement (touch on the WebKit guest).
+  // Only the QA energy top-up is synthetic; all spends, hand cycling, RTDB
+  // commands, host validation, unit spawns and guest snapshots are real.
+  await wait(async()=>{
+   const a=await host.evaluate(()=>window.__shokokuQa?.snapshot().phase);
+   const b=await guest.evaluate(()=>window.__shokokuQa?.snapshot().phase);
+   return a==="battle"&&b==="battle";
+  },"both players enter live battle",35000);
+  const playedBySide={1:[],2:[]};
+  for(const side of [1,2]){
+   const player=side===1?host:guest,used=new Set();
+   for(let action=0;action<10;action++){
+    const hand=await player.evaluate(t=>window.__shokokuDeckQa.hand(t),side);
+    const unused=hand.filter(id=>!used.has(id));
+    assert.ok(unused.length>0,"an unused card must rotate into the hand");
+    const id=unused.find(item=>stageOne.includes(item))||unused[0];
+    assert.equal(await host.evaluate(t=>window.__shokokuQa.setEnergyForQa(t,12),side),true);
+    if(side===2)await wait(async()=>
+     (await guest.evaluate(()=>window.__shokokuQa.snapshot().energy[2]))>=11.9,
+     "guest energy update",12000);
+    const before=await host.evaluate(t=>window.__shokokuDeckQa.hand(t),side);
+    await player.locator('#cards .card[data-id="'+id+'"]').click();
+    assert.equal(await player.evaluate(()=>window.__shokokuQa.snapshot().selected),id,
+     "card tap must select "+id);
+    const worldX=side===1?175:1105,worldY=290+(action%5)*24;
+    const projected=await player.evaluate(({x,y})=>{
+     const state=window.__shokokuQa.snapshot(),v=state.view;
+     const rect=document.getElementById("fieldArea").getBoundingClientRect();
+     const px=rect.left+v.ox+v.s*x,py=rect.top+v.oy+v.s*y;
+     const target=document.elementFromPoint(px,py);
+     return {x:px,y:py,hit:target?.id||null,
+      inside:px>=rect.left&&px<rect.right&&py>=rect.top&&py<rect.bottom};
+    },{x:worldX,y:worldY});
+    assert.ok(projected.inside&&projected.hit==="field",
+     "placement coordinates must hit the real canvas: "+JSON.stringify(projected));
+    if(side===2)await player.touchscreen.tap(projected.x,projected.y);
+    else await player.mouse.click(projected.x,projected.y);
+    await wait(async()=>{
+     const next=await host.evaluate(t=>window.__shokokuDeckQa.hand(t),side);
+     return JSON.stringify(next)!==JSON.stringify(before);
+    },"host accepts "+side+":"+id,18000);
+    if(stageOne.includes(id)){
+     await wait(async()=>(await host.evaluate(({team,key})=>
+      window.__shokokuQa.snapshot().units.some(u=>u.team===team&&u.key===key),
+      {team:side,key:id})), "real "+id+" spawned for "+side,7000);
+     playedBySide[side].push(id);
+    }
+    // A guest order is not successful just because sendCommand returned true:
+    // wait for the authoritative hand to appear on the guest as well.
+    if(side===2)await wait(async()=>{
+     const local=await guest.evaluate(()=>window.__shokokuDeckQa.hand(2));
+     const authoritative=await host.evaluate(()=>window.__shokokuDeckQa.hand(2));
+     return JSON.stringify(local)===JSON.stringify(authoritative);
+    },"guest receives accepted hand for "+id,14000);
+    used.add(id);
+   }
+   assert.deepEqual(new Set(playedBySide[side]),new Set(stageOne),
+    "all five new combat units must have been legally used by side "+side);
+  }
+  await wait(async()=>{
+   const h=await host.evaluate(()=>window.__shokokuQa.snapshot());
+   const g=await guest.evaluate(()=>window.__shokokuQa.snapshot());
+   return h.phase==="battle"&&g.phase==="battle"&&
+    g.elapsed>=1&&h.units.some(u=>u.team===1)&&h.units.some(u=>u.team===2)&&
+    g.units.some(u=>u.team===1)&&g.units.some(u=>u.team===2);
+  },"real two-sided battle arrives at WebKit guest",20000);
+  assert.deepEqual(issues,[],"no page errors during real live-card battle");
+  console.log("PASS: 20 authentic combat placements, all five Stage-1 classes on both sides, real guest touch→Firebase→host→guest");
+  // End via an explicit QA result so the test need not wait five real minutes.
+  // This tests finishing/rematch protocol, NOT natural victory balance.
   await host.evaluate(()=>window.ShokokuNet.finish({result:"win",reason:"deck QA"}));
   await wait(async()=>(await meta())?.status==="finished","finish reaches server");
   await host.evaluate(()=>window.ShokokuNet.rematch());
