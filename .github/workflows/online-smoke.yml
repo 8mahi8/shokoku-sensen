@@ -6,6 +6,7 @@ on:
       - 'tests/online-smoke.cjs'
       - 'tests/online-deck.cjs'
       - 'tests/online-stage1-combat.cjs'
+      - 'tests/online-stage2-combat.cjs'
       - 'tests/online-balance-theory.cjs'
       - 'tools/build-online-bundles.cjs'
       - 'tests/online-sim.cjs'
@@ -32,6 +33,10 @@ jobs:
         run: node tests/online-balance-theory.cjs > /dev/null
       - name: Check priority-based unit AI (42 scenarios)
         run: node tests/online-unit-target-priority.cjs
+      - name: Stage 1 and Stage 2 real battle extraction regressions
+        run: |
+          node tests/online-stage1-combat.cjs
+          node tests/online-stage2-combat.cjs
       - name: Verify no automatic match collection in school build
         run: |
           ! grep -q 'ShokokuResearch' online-ipad.html
