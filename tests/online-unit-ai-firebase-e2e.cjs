@@ -98,6 +98,11 @@ function aiFirebaseChange(action){
  const enemy=S.units.find(u=>u.uid===f.enemy);
  if(action==="leaveAnchor"&&f.id==="guardReturn"&&enemy)enemy.x=650;
  else if(action==="removeLarge"&&f.id==="guardianRetarget"&&enemy)enemy.hp=0;
+ else if(action==="stage3MoveBuffedAlly"&&f.id==="stage3KaijuGale"){
+  const ally=S.units.find(u=>u.uid===f.other);
+  if(!ally)throw Error("missing stage3 ally");
+  ally.x=550;ally.anchorX=550;ally.anchorY=220;
+ }
  else throw Error("invalid fixture transition");
  NET.maybePublish(true);
  return window.__shokokuQa.aiFirebaseState();
@@ -190,7 +195,33 @@ async function prepareDeck(page){
      g.units.some(u=>u.key===initial.subject.key&&u.team===expectedSide);
    },"guest receives fresh "+id+" fixture",18000);
    let verified;
-   if(id==="rangerCapture"||id==="redRangerCapture"){
+   if(id==="stage3KaijuGale"){
+    assert.equal(initial.attack,null);
+    assert.equal(initial.approach,"fort","priority4 ignores in-range enemy");
+    assert.equal(initial.subject.statusEffects[0].key,"gale");
+    assert.equal(initial.other.statusEffects[0].key,"gale");
+    assert.equal(initial.enemy.statusEffects.length,0);
+    await poll(async()=>{
+     const g=await guest.evaluate(()=>window.__shokokuQa.aiFirebaseGuestState());
+     const beast=g.units.find(u=>u.uid===initial.subject.uid);
+     const ally=g.units.find(u=>u.uid===initial.other.uid);
+     const foe=g.units.find(u=>u.uid===initial.enemy.uid);
+     return beast?.statusEffects?.some(e=>e.key==="gale")&&
+       ally?.statusEffects?.some(e=>e.key==="gale")&&
+       foe?.statusEffects?.length===0;
+    },"WebKit received cast-time status",3000);
+    await host.evaluate(()=>window.__shokokuQa.aiFirebaseChange("stage3MoveBuffedAlly"));
+    await poll(async()=>{
+     const g=await guest.evaluate(()=>window.__shokokuQa.aiFirebaseGuestState());
+     const ally=g.units.find(u=>u.uid===initial.other.uid);
+     return ally?.x>530&&ally.statusEffects?.some(e=>e.key==="gale");
+    },"haste persists outside original circle",3000);
+    verified=await poll(async()=>{
+     const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
+     return v.fort?.owner===1&&v.enemy?.hp===105?v:false;
+    },"kaiju captures without attacking nearby infantry",14000);
+    assert.equal(verified.fort.hp,12);
+   }else if(id==="rangerCapture"||id==="redRangerCapture"){
     assert.equal(initial.attack,"fort","fort priority 3 must beat enemy priority 1");
     verified=await poll(async()=>{
      const v=await host.evaluate(()=>window.__shokokuQa.aiFirebaseState());
@@ -292,6 +323,11 @@ async function prepareDeck(page){
     if(id==="duelistFast"){
      if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.hp<=61))return false;
     }
+    if(id==="stage3KaijuGale"){
+     if(g.forts.find(f=>f.x===410)?.owner!==1)return false;
+     if(g.units.find(u=>u.uid===initial.enemy.uid)?.hp!==105)return false;
+     if(g.units.find(u=>u.uid===initial.subject.uid)?.statusEffects?.some(e=>e.key==="gale"))return false;
+    }
     if(id==="bomberSplash"){
      if(!(g.units.find(u=>u.uid===initial.enemy.uid)?.hp<105))return false;
      if(!(g.units.find(u=>u.uid===initial.other.uid)?.hp<105))return false;
@@ -312,7 +348,7 @@ async function prepareDeck(page){
     finalTarget:verified.attack||verified.approach,final:verified}));
   }
   assert.deepEqual(errors,[],"no Chromium/WebKit page exceptions");
-  console.log("PASS: eight deterministic AI transitions run on the true host tick and reach WebKit guest via live RTDB",
+  console.log("PASS: nine deterministic AI transitions run on the true host tick and reach WebKit guest via live RTDB",
    JSON.stringify({scenes:results.length,durationMs:Date.now()-began}));
  }finally{
   if(/^\d{5}$/.test(roomCode)){
