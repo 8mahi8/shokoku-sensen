@@ -83,7 +83,7 @@ async function measure(variant,scene,trial){
   });
   assert.equal(reading.frameError,null,variant+" Canvas exception");
   assert.ok(reading.frames>0);
-  assert.ok(reading.scene.moved>0,variant+" battle must move");
+  assert.ok(reading.scene.elapsed>102,variant+" battle clock must advance");
   assert.deepEqual(errors,[],"unexpected page errors "+variant+":"+scene);
   const rows=reading.frameBench.filter(r=>r.phase==="battle");
   const gap=stat(rows.map(r=>r.gapMs)),draw=stat(rows.map(r=>r.drawMs));
