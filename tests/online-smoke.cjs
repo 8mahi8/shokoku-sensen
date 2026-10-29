@@ -47,10 +47,10 @@ for(const [id,d] of Object.entries(originalClasses)){
  const p=d.targetPriority;
  assert.ok(p&&typeof p==="object",id+" must declare targetPriority");
  for(const key of ["castle","fort","unit"])
-  assert.ok(Number.isInteger(p[key])&&p[key]>=0&&p[key]<=3,
+  assert.ok(Number.isInteger(p[key])&&p[key]>=0&&p[key]<=4,
    id+" invalid target priority: "+key);
  for(const [key,v] of Object.entries(p))
-  assert.ok(Number.isInteger(v)&&v>=0&&v<=3,id+" invalid optional priority "+key);
+  assert.ok(Number.isInteger(v)&&v>=0&&v<=4,id+" invalid optional priority "+key);
 }
 
 // A new roster entry needs explicit visual wiring; otherwise the fallback
