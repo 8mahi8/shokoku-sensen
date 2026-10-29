@@ -1016,7 +1016,7 @@ function botExpertAction(team=2){
    sum+1+(CLASSES[v.key].size==="large"?.85:0),0)};
  }).sort((a,b)=>b.value-a.value)[0];
  const groupSize=targets?.hits??0;
- const alreadyTargeted=targets&&S.spells.incoming.some(shot=>shot.team===team&&shot.time>0&&
+ const alreadyTargeted=targets&&S.spells.incoming.some(shot=>(shot.kind===undefined||shot.kind==="barrage")&&shot.team===team&&shot.time>0&&
   Math.hypot(shot.x-targets.center.x,shot.y-targets.center.y)<SPELLS.barrage.radius*.85);
  if(targets&&(groupSize>=(hard?2:3)||urgent&&groupSize===2)&&
   canPay(team,"barrage")&&!alreadyTargeted&&
@@ -1275,7 +1275,7 @@ function botExpertAction(team=2){
   const candidate=friends.map(u=>{
    const close=friends.filter(v=>dist(v,u)<SPELLS.ward.radius*.85);
    const threatenedAllies=close.filter(v=>foes.some(e=>dist(e,v)<CLASSES[e.key].vision+35));
-   const existing=S.spells.zones.some(z=>z.team===team&&z.time>1.5&&
+   const existing=S.spells.zones.some(z=>(z.kind===undefined||z.kind==="ward")&&z.team===team&&z.time>1.5&&
     Math.hypot(z.x-u.x,z.y-u.y)<SPELLS.ward.radius*.70);
    return {u,score:threatenedAllies.length+
     (threatenedAllies.some(v=>CLASSES[v.key].size==="large")?1:0),existing};
