@@ -133,6 +133,14 @@
 - **判断**：この段階で推測に基づく戦闘AI/Canvas簡素化/画質低下/通信頻度の変更は**しない**。旧安定版で学校合格した処理を維持し、新特殊能力の「重ね過ぎ」が実機で顕著なら同一条件A/Bを取る。今回の測定は `docs/PERFORMANCE_EVIDENCE.md` に詳細記録済み。
 - **次のロードマップ**：第2段階の主要なユニット/引力/ゲスト同期/31秒生成検証と今回の密集負荷診断は成功済み。ただし学校実機試験、自然な友人戦の新特殊能力同時多発による体感ラグの比較は未実施。**今後設計する新規スペル1枚＋大型1体**（本人要望、まだ未設計/未実装）に入る前に、必要なら既存新兵種の視認性・通常デッキプレイへの馴染みを確認。新キャラ設計は本人と能力・性能を相談してから追加。**学校Google Sites公開は本人指示まで維持**。
 
+## 2.9 2026-10-30｜Stage 2 デッキ20候補・新カード5種のiPad UI操作性レビューと最小修正
+
+- **ユーザー最新「任せた」承認による作業**。開発ブランチの既存QA成果物 [デッキ画面 #40910404735](https://github.com/8mahi8/shokoku-sensen/actions/runs/40910404735) のWebKitデフォルト/コンパクト/詳細・新ユニット画像 [Stage 2 #40912068320](https://github.com/8mahi8/shokoku-sensen/actions/runs/40912068320) を取得し、画像を組んで直接目視。新4体のアート・カード絵・引力リング・子兵・ステータス詳細は見えている。**問題発見：Stage 2まででデッキ候補が20種になり、縦のカード一覧の下へ進むまで「決定して戻る／標準に戻す」が初期画面に出ない**。1024×650の旧WebKit画面では編集画面のフッターがファーストビューに収まらなかった。ユーザーの「少ないタップで遊びたい」を踏まえ、表示だけ最小修正。
+- **CSSのみ変更**：`online.html`、`online-ipad.html`、`online-embed.html` の `#deckEditorFoot` を `position:sticky;bottom:0;z-index:2` とし、背景色・軽い影・safe-area-inset-bottomを指定。長いカード一覧をそのままスクロールでき、決定/リセットは常時画面下に残る。**デッキ選択・戦闘・AI・コスト・Firebaseルール・Canvas描画コード等は一切変更しない**。学校公開済Google Sites/main/stableは触らない。
+- **テスト増強**：`tests/online-deck-visual.cjs` を拡張。Chromium + WebKit、1024×650横向き・820×500コンパクトでstickyフッターの実位置/ヒットテスト/40px以上のボタン高さ、5種類の新カード `piercer`、`catapult`、`kamikaze`、`mech_summoner`、`gravity` それぞれの「性能を見る」表示（名前・役割・note、引力2.5秒）、新スペルのタップ交換→復帰、旧デッキ・Canvas portraitを保つ既存テスト、WebKit縦画面確認。**[CI #40925939802](https://github.com/8mahi8/shokoku-sensen/actions/runs/40925939802) completed / success**。Chromium/WebKitそれぞれ `PASS: ... deck 10/10, touch swap, save and reopened draft`。スクリーンショットartifact `deck-editor-chromium-webkit`（WebKit sticky before/swap/compactなど）を回収して直接目視し、初期横画面・820×500とも操作バーが見えていることを確認。
+- **関連CI**：同じ最新CSSを含むcommit `284d56ce` に対して [Online 1v1 smoke #40925811782](https://github.com/8mahi8/shokoku-sensen/actions/runs/40925811782) success。前コミットのデッキE2E/Stage2 Firebase/iPad UI等でも同じCSS版に関するrunがsuccess。**ただしGoogle Sites上の実iPadでの実操作は未検証**。
+- **次**：残るUI問題を実機で観察。新キャラ/スペル追加のデッキ操作が成立することの自動確認は済み。ユーザーの希望である**追加大型1体＋追加スペル1個**は現在未設計・未実装の予約タスクのまま、能力/費用/バランスを本人と決める。その後学校試遊用候補を更新する。開発PR #22はDraft、main/stable/学校公開版/Firebase Rules/Google Drive未変更。
+
 ## 3. 再開後にまず行うこと（本人から追加説明を待つ必要はない）
 
 1. **GitHub開発ブランチ最新HEAD、PR #22、`AGENTS.md`、この文書、`STAGE2_IMPLEMENTATION_HANDOFF`と実ソース・CI結果を読む。** GitHub上の事実を記憶や過去チャットより優先。過去の固定SHAや「未実装」注記をそのまま繰り返さない。
