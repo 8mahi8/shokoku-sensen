@@ -77,9 +77,16 @@ for(const required of ['S.phase="mulligan"','S.mulligan.time<=0',
  'S.phase==="mulligan"||S.phase==="prep"']){
  assert.ok(source.includes(required),"missing shipped lifecycle "+required);
 }
-for(const required of ['data.kind==="mulligan"','game?.mulligan?.(data.slots)',
+for(const required of ['data.kind==="mulligan"','data.slots?data.slots.split(",").map(Number):[]',
  'function sendMulligan(slots)','guestPlayableWorld()']){
  assert.ok(net.includes(required),"missing network integration "+required);
 }
+assert.ok(net.includes('slots:slots.join(",")'),
+ "empty selection must be serialized as a Firebase-safe string");
+assert.ok(source.includes("mulliganExpiresAt=performance.now()+MULLIGAN_SECONDS*1000"),
+ "20 seconds must use real elapsed clock instead of capped frame delta");
+assert.ok(source.includes("(mulliganExpiresAt-now)/1000"),
+ "timeout must still fire after rAF throttling");
+console.log("PASS zero-card Firebase wire encoding and monotonic 20s timeout");
 console.log("PASS phase timer, guest snapshot, transport wiring");
 console.log("MULLIGAN_QA PASS");
