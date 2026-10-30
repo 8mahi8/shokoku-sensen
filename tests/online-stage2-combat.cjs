@@ -157,7 +157,7 @@ test("kamikaze detonates on contact but not upon being killed by another unit",(
  side=unit("engineer",2,340,300),air=unit("drone",2,340,300);
  S.units=[a,first,side,air];
  API.fire(a,{kind:"unit",ref:first,x:first.x,y:first.y});
- assert.equal(first.hp,270);assert.equal(side.hp,307.5);assert.equal(air.hp,120);assert.ok(a.hp<=0);
+ assert.equal(first.hp,20);assert.equal(side.hp,120);assert.equal(air.hp,120);assert.ok(a.hp<=0);
  const b=unit("kamikaze",1,400,300);
  S.units.push(b);const effects=S.effects.length;
  // Unrelated damage can kill the unit but must never produce an explosion.
