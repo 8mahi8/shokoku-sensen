@@ -6,6 +6,7 @@ on:
       - 'online-embed.html'
       - 'online-ipad.html'
       - 'online-game.js'
+      - 'tests/online-mulligan.cjs'
       - 'tests/online-stage2-combat.cjs'
       - 'tests/online-stage2-browser-visual.cjs'
       - 'v3-art.js'
@@ -29,6 +30,7 @@ jobs:
         run: |
           node tests/online-smoke.cjs
           node tests/online-deck.cjs
+          node tests/online-mulligan.cjs
           node tests/online-stage1-combat.cjs
           node tests/online-stage2-combat.cjs
           node tests/online-unit-target-priority.cjs
