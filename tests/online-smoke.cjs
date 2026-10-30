@@ -128,6 +128,9 @@ assert.ok(!read("online.html").includes('id="shokoku-school-unit-stats"'),
 // The editor is a catalog consumer; gameplay owns the authoritative match deck.
 assert.ok(deck.includes('const COUNT=10')&&deck.includes('new Set(ids).size===COUNT'),
  "Deck editor must enforce 10 distinct card IDs");
+assert.ok(deck.includes('Number.isFinite(data.limit)?data.limit+"回":"∞"')&&
+ deck.includes('"種類 ｜ 出撃予算 "+budget'),
+ "deck editor exposes per-card use caps and 10-card finite budget");
 assert.ok(game.includes('window.ShokokuDeck?.configure(CATALOG)'),
  "Game roster must feed the editor without a duplicate card table");
 assert.ok(game.includes('S.activeDecks')&&game.includes('NET.matchDecks'),
