@@ -1,5 +1,16 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-10-30｜ゲストの短いカクつき原因調査：実機診断改修まで完了（最新）
+
+- 本人の「任した」を受け、旧学校安定版とStage3最新版の差分検討／既存テストを再確認。**原因の確定や学校iPad実機での解消には至っていない**。実Firebase WebKitでは受信・反映が進んだままrAFが止まることは既知だが、学校Safariの原因は未確定。前回の1枚/2枚タイル比較は改善を証明できなかったのでキャッシュ制限2枚は維持。
+- これ以上同じLinux WebKitの合成ストレスを反復するより、学校で感じた「一瞬カクッ」を捕捉できるように**既存のタイトル3タップ診断画面を改善**。ゲスト診断が表示中なら100ms以上、非表示なら従来の180ms以上のrAF間隔を取得。発生時のSDK受信・世界反映seq/経過ms、部隊数、開戦後経過秒、前のCanvas描画ms、前のタイル生成枚数、キャッシュ/30FPSモード、累計件数と最長時間を画面表示。**試合ごとにクリア、Firebaseアップロードや永続記録なし**。通常描画、通信、キャラAI、バランス、タップ操作は不変。
+- 開発ブランチの`online-game.js`を変更し、`online-ipad.html`と`online-embed.html`に生成コードを同期。`tests/online-smoke.cjs`の抽出テストと学校Stage3 CIのアサーションを更新。
+- [Online smoke #41048570259](https://github.com/8mahi8/shokoku-sensen/actions/runs/41048570259) **success**。 [School Stage3 HTML verification #41048882646](https://github.com/8mahi8/shokoku-sensen/actions/runs/41048882646) **success**。ビルド`--check`により2つの単体HTMLと戦闘コードの同期確認、学校用HTMLのゲーム設定・新診断コードも検証済み。途中コミットのCI失敗は旧テストとの不整合／新テスト文字列エスケープで修正済み。実機Safariは未検証。
+- 次回の学校試遊では旧安定版と新開発版をできるだけ同じiPad・同部隊数・両役割で比較。新版でタイトル3タップ診断を出して、カクついた瞬間の**直近ギャップとSDK受信・世界反映・前Canvas描画**を画面で確認。ここが次の原因絞り込みの一次データ。機械的に描画品質を下げたり通信方式を変えない。
+- **学校Google Sites既存埋め込み・Google Drive・main/stable・Firebase Rulesは変更なし**。GitHub開発ブランチの完成HTMLが変わっても、学校版には自動反映されない。Google Driveへの配布保存は本人から依頼された時のみ。怪獣の正式優先度`城1・砦4・敵兵1`を維持。
+- 詳細は`docs/PERFORMANCE_EVIDENCE.md`最終節に記録済み。最新HEADとCIは必ず再取得する。
+
+
 ## 2026-10-30｜性能改善の最新判断：キャッシュ生成枚数は変更しない（2枚維持）
 
 - 最新の本人指示「任した」を受け、怪獣入りStage3実Firebase/ゲストCanvasの画像生成スパイク対策を検討。**キャラの描画ロジック・通信・学校Google Sites・main/stable・Google Drive・Firebase Rulesは触らない**。
