@@ -96,10 +96,11 @@ function stage2Run(){
   let last=0;const counts=[];
   for(const t of [2,4,6,11,16,21,26,31]){
    S.clock+=t-last;unitStep(t-last);last=t;
-   counts.push(S.units.filter(u=>u.key==="small_machine").length);
+   counts.push(S.units.filter(u=>u.key==="small_machine").length+S.units.filter(u=>u.key==="small_machine_elite").length);
   }
   result={counts,spawned:q.actor.summonCount||0,
-   robots:S.units.filter(u=>u.key==="small_machine").map(u=>({x:u.x,y:u.y,team:u.team}))};
+   robots:S.units.filter(u=>u.key==="small_machine").map(u=>({x:u.x,y:u.y,team:u.team})),
+   elite:S.units.filter(u=>u.key==="small_machine_elite").map(u=>({x:u.x,y:u.y,team:u.team}))};
  }else if(scene==="gravity"){
   const start=q.victim.x;
   unitStep(.1);const held=q.victim.x;
@@ -163,7 +164,8 @@ function verify(scene,o){
   assert.equal(r.secondary,120);assert.equal(r.airHp,120);
  }else if(scene==="summoner"){
   assert.deepEqual(r.counts,[1,2,3,4,5,6,7,8]);
-  assert.equal(r.spawned,8);assert.equal(r.robots.length,8);
+  assert.equal(r.spawned,8);assert.equal(r.robots.length,7);
+  assert.equal(r.elite.length,1,"eighth robot is the approved elite");
  }else if(scene==="gravity"){
   assert.equal(r.start,500);assert.equal(r.held,500);
   assert.equal(r.pulled,400);assert.equal(r.center,400);
