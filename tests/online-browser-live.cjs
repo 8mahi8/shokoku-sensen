@@ -117,6 +117,19 @@ const deadline=async (f,label,timeout=18000)=>{
   for(const [name,p] of [["host",host],["guest",guest]]){
    await deadline(async()=>p.locator("#overlay").evaluate(el=>el.classList.contains("hidden")),name+" start");
   }
+  // New opening phase: the guest BOT auto-confirms, the human host chooses
+  // to keep all four cards, and both devices advance together to placement.
+  await deadline(async()=>host.evaluate(()=>
+   window.__shokokuQa?.snapshot().phase==="mulligan"&&
+   !document.getElementById("mulliganOverlay").classList.contains("hidden")),
+   "host sees 4-card mulligan",15000);
+  await host.locator("#mulliganConfirm").click();
+  await deadline(async()=>{
+   const h=await host.evaluate(()=>window.__shokokuQa.snapshot().phase);
+   const g=await guest.evaluate(()=>window.__shokokuQa.snapshot().phase);
+   return h==="prep"&&g==="prep";
+  },"host and BOT ready -> preparation",14000);
+  console.log("PASS: online host mulligan and guest BOT automatic confirmation");
   // Host and guest are now plain game clients; no match recording runs.
   assert.equal(await host.evaluate(()=>window.ShokokuResearch),undefined);
   async function summon(p,team){
