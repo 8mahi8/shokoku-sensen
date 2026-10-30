@@ -1,5 +1,15 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-10-31｜【配布用ファイル保存完了】新カード3種入りGoogle Sites用HTMLをGoogleドライブに保存
+
+- **本人依頼**：「実装が終わったら、最終確認してGoogleサイトに貼り付けるやつGoogleドライブに保存しといて」。
+- **GitHub Actions最終検証済みsnapshot**：コミット`aa87d5ca5eee11dafa9b68d46dd907c770a620a5`で[School Stage 3 release-candidate HTML verification #41145155194](https://github.com/8mahi8/shokoku-sensen/actions/runs/41145155194) **success**、[Online 1v1 smoke #41145146952](https://github.com/8mahi8/shokoku-sensen/actions/runs/41145146952) **success**、[Stage 2 browser visual QA #41145155397](https://github.com/8mahi8/shokoku-sensen/actions/runs/41145155397) **success**。生成済み`online-embed.html`に基づくGitHub Actions成果物 [SchoolSites-Stage3-verified-20261030](https://github.com/8mahi8/shokoku-sensen/actions/runs/41145155194/artifacts/13019614297) を取得、zip内の同一内容`.txt`/`.html`を配布元とした。
+- **Google Drive保存先**：ユーザーの既存フォルダ[小国戦線III](https://drive.google.com/drive/folders/1brr7JaupWk_kHMKVoI9gIkei3XrJGY2S)。貼付用テキスト：[小国戦線III_GoogleSites貼付用_新カード3枚_20261031.txt](https://drive.google.com/file/d/1vc9PCfYS0nkGt9Ge3I5PrhzzBQER7YGH/view?usp=drivesdk)（ID `1vc9PCfYS0nkGt9Ge3I5PrhzzBQER7YGH`）。試遊用HTML：[小国戦線III_新カード3枚_学校試遊_20261031.html](https://drive.google.com/file/d/1xTsgFBFkMvAK2TIcwwiyErUjfxxl1VVI/view?usp=drivesdk)（ID `1xTsgFBFkMvAK2TIcwwiyErUjfxxl1VVI`）。
+- **実施した最終読み戻し照合**：Google Driveの`fetch`で上記2ファイルを実際に読み取り、GitHub開発ブランチの`online-embed.html`と**文字列全体が完全一致（両方391,769文字）**。衛生補助兵、対空誘導弾、小雷撃の定義を全ファイルで確認。新3種は発動待ち0.4/0.3秒、ヒーラーは2秒周期。デッキ候補25、貼付HTML内には同期済み4モジュールを埋め込み。
+- **学校Google Sites既存公開版は無変更**。本件は「Driveに貼付用ファイルを新規保存」までであり、Google Sitesの実運用HTMLを書き換えていない。学校のiPad Safariで実際に友達と新カードを使って対戦する実機試験は未確認。Firebase Security Rules、既存Driveファイル、main/stableも変更していない。**次工程**：本人がGoogle Sitesの「埋め込む → 埋め込みコード」に新`.txt`のHTML全文を貼る→学校iPad2台で短い対戦を確認→実際に問題が出た場合だけ最小修正。
+
+
+
 ## 2026-10-31｜【最新正式】新カード3枚を開発版実装、短い発動待ちに変更
 
 - 本人：「**新カードの設計もあれでいいよ。ただ発動時間が即時だと実装とかエフェクトとかがちょっと難しくなりそうだから、ちょっとでも発動時間はあった方が実装しやすいと思う**」。事前設計正本 [THREE_NEW_CARDS_BALANCE_REVIEW_V2_20261031.md](THREE_NEW_CARDS_BALANCE_REVIEW_V2_20261031.md) に追補。新3カードの採用値は承認済み。**発動時間の具体値0.4/0.3秒はユーザー指定でなくAIの最小実装判断**。
