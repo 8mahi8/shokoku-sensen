@@ -456,7 +456,7 @@ function newTile(id,inDeck){
  const canvas=document.createElement("canvas");canvas.width=128;canvas.height=72;canvas.className="deckPortrait";
  const cost=document.createElement("span");cost.className="deckCost";cost.textContent=String(data.cost);
  const name=document.createElement("span");name.className="deckName";name.textContent=data.name;
- const mark=document.createElement("span");mark.className="deckMark";mark.textContent=inDeck?"採用中":"追加候補";
+ const mark=document.createElement("span");mark.className="deckMark";mark.textContent=(inDeck?"採用中":"追加候補")+" · "+(Number.isFinite(data.limit)?data.limit+"回":"∞");
  button.append(canvas,cost,name,mark);
  // The tile can move between selected and pool without recreating its Canvas.
  button.addEventListener("click",()=>choose(id,!!working?.includes(id)));
@@ -476,7 +476,7 @@ function updateTile(cell,id,inDeck){
  tile.classList.toggle("pending",pending===id);
  tile.setAttribute("aria-pressed",String(inDeck));
  tile.setAttribute("aria-label",data.name+" コスト"+data.cost+(inDeck?" 採用中":" 未採用"));
- cell.querySelector(".deckMark").textContent=inDeck?"採用中":"追加候補";
+ cell.querySelector(".deckMark").textContent=(inDeck?"採用中":"追加候補")+" · "+(Number.isFinite(data.limit)?data.limit+"回":"∞");
  return cell;
 }
 // Reuse the battle card detail dialog, which is already designed for
@@ -575,9 +575,12 @@ function render(){
   "採用中・未採用のどちらからでもタップ → 反対側のカードをタップで交換。もう一度押すと選択解除。";
  $("deckSave").disabled=!full||!validate(working);
  const avg=working.reduce((s,id)=>s+(Number(catalog[id]?.cost)||0),0)/COUNT;
+ const budget=working.reduce((s,id)=>{
+  const d=catalog[id];return s+(Number.isFinite(d?.limit)?d.cost*d.limit:0);
+ },0);
  $("deckSummary").textContent="平均コスト "+avg.toFixed(1)+" ｜ 対空 "+working.filter(id=>catalog[id]?.hitAir).length+
  "種類 ｜ 占領 "+working.filter(id=>catalog[id]?.capture>0).length+
- "種類 ｜ スペル "+working.filter(id=>catalog[id]?.radius!==undefined).length+"種類";
+ "種類 ｜ スペル "+working.filter(id=>catalog[id]?.radius!==undefined).length+"種類 ｜ 出撃予算 "+budget;
 }
 function open(){
  if(locked||!Object.keys(catalog).length)return;
