@@ -55,7 +55,7 @@
 - **今の段階では無料捨て札・手札入替・新しいドロー機構は追加しない**。使い切りによる手札枚数減少も既存仕様を維持する。実際に問題が出たとき、最小限の対処を本人と相談する。
 
 ## コードと検証
-- 変更：`online-game.js`の`CLASSES`/`SPELLS`各`limit`、学校向け生成ファイル`online-ipad.html`と`online-embed.html`の同定義。
+- 変更：`online-game.js`の`CLASSES`/`SPELLS`各`limit`、`online-deck.js`のデッキ編集タイルに残存回数ではなく**1試合の上限回数を表示**し、概要に`出撃予算`（cost×limitの合計）を表示。学校向け生成ファイル`online-ipad.html`と`online-embed.html`にも同期。
 - 回帰：`tests/online-smoke.cjs`に、全24定義（基本歩兵・内部専用子・22種類）の上限一致、デフォルト総予算113、全10枚組み合わせ予算下限94/上限132、実際の`advanceHand`から抽出した使い切り/循環ルールのテストを追加。`tests/online-stage2-combat.cjs`のドローン上限アサーションを承認済3へ更新。
 - 開発時の独立検証：GitHubから取得した最新コードの定義を実行し、22種類の上限、全646,646通りの総予算、ドローン速度30、単体HTML2つのゲーム埋込一致を確認。抽出した実際の`advanceHand`のカード枯渇と手札補充も実行成功。
 - **未検証**：GitHub Actions上の最新ジョブ実行結果、全てのNode.jsテスト、Chrome/WebKitの新カード回数での画面、学校iPadでの実戦試遊。コード保存だけで実機確認済みとしない。
