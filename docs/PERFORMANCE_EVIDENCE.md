@@ -315,3 +315,23 @@
 **コード比較と解釈**：固定安定版`99a0d1d`とStage3の主要ネットワーク関数`packGuestWorld/receiveGuestWorld/maybePublish/sendCommand/checkGuestSync/syncDiagnostics/flushGuestBeforePaint`および`frame/tick/presentRemoteUnit`は本文一致。新キャラ絵、追加攻撃、状態バフ表示は差異。通信なしでもWebKitのrAF間隔とCanvas JS描画時間に大差があるので、ブラウザの合成/レンダリングスケジューリングも候補。これは**描画経路の疑いを支持するが、学校でのカクつき原因を特定した証拠ではない**。公式WebKitの[Timelines](https://webkit.org/web-inspector/timelines-tab/)はJavaScript/レイアウト/描画/合成を別々に見る方法を示すが、学校Safari実機のWeb Inspectorは今回使用していない。
 
 **次**：`stable/school-ipad-20261028-99a0d1d`を保護したまま学校の同じ端末で旧版/Stage3版、双方の役割・同程度の部隊数を比較。既存タイトル3タップの診断にある描画FPS/フレーム最大間隔とSDK受信/適用シーケンスを、発生前後で照合する。画面更新だけ止まり受信が進むなら描画・合成側、FPS維持でstate受信が止まるなら通信側、両方進むのにユニット表示だけ飛ぶなら補間側を優先。WebKit CIだけで大規模低画質化、固定FPS制限、送信頻度変更、通信全面改修を行わない。
+
+## 2026-10-30｜Stage3実Firebase/WebKit：フレーム遅延と受信・描画の同時刻診断
+
+**きっかけ**：学校実機でゲストは概ね快適だが時々カクつき、以前の安定版では気にならなかった。通信だけでなくCanvas、画像キャッシュ、WebKitの更新処理を調査。
+
+**新しいQA**：`tests/online-stage3-firebase-hitch-trace.cjs` と `.github/workflows/online-stage3-firebase-hitch-trace.yml`。実Firebaseに接続したChromiumホストとWebKitゲスト、localhost用にだけ注入した怪獣・大型・新旧ユニット混成20体の戦場を試験。実際のホスト30Hz戦闘と約125ms RTDB配信／ゲストCanvas描画を維持。診断用に90ms以上の各フレームについてCanvas描画、JSフレーム合計、SDK受信seqと経過時間、ゲスト適用seqと経過時間、キャッシュ新規生成枚数を照合。これは**学校用HTML・ゲーム本体への新しい計測コードや通信は追加しない**方式。動画録画なし。各シーン16.5秒、戦闘中も自然なダメージ・召喚あり。ただしQAによる20体同時強制配置であり、学校の通常デッキ戦の密度／戦況と同一ではない。
+
+- **初回試験 [#41040552470](https://github.com/8mahi8/shokoku-sensen/actions/runs/41040552470)** は2シーンの計測自体は成功したが、終了時のFirebase一時ルーム削除確認が失敗したためワークフローは**failure**。旧版と同じく接続中のRTDBクライアントが削除直後に存在情報を再書込した可能性があるが、原因未確定。数値だけを参考にし、全体成功扱いしない。
+- **修正試験 [#41040834899](https://github.com/8mahi8/shokoku-sensen/actions/runs/41040834899)** は**completed/success**。本番と同じ低FPS時スプライトキャッシュ自動切替をQAでも有効にし、ブラウザ接続を閉じた後850ms待って削除・読み戻し。Firebase一時ルームはDELETE 200、GET 200/nullで削除確認。
+  - 最初の`plain`混成シーン：ゲストp95 rAF間隔133ms、Canvas JS描画p95 12ms、最大フレーム間隔250ms。250msのフレームではCanvas描画10ms・SDK受信41ms前・最新状態適用11ms前で、**その瞬間は受信も反映も進んでいた**。スクリーンショットは実際に取得して目視済み。大きな崩壊／キャラ消失なし、ただし強制密集による重なりはQA条件による。
+  - 続く`gale`混成シーン：ゲストp95間隔55ms・描画6ms、最大68ms。シーンと実行順が変わっているので疾風号令が改善に寄与したという意味ではない。
+- **同じplainシーンを冷状態と後半の温状態で比較した追加試験 [#41041123442](https://github.com/8mahi8/shokoku-sensen/actions/runs/41041123442)** は**completed/success**、3シーン`plain→gale→plain`。Firebase一時ルームはDELETE 200、GET 200/null、JSエラーなし。ゲスト描画の自動キャッシュ切替を実際に通している。
+  - 初回plain：WebKit p95 rAF間隔**69ms**、Canvas描画p95 **7ms**、最大188ms。188msのカクつき時、新規キャッシュタイル生成**2枚**、描画4ms、総JS5ms、SDK受信25ms前、最新状態適用4ms前。最初のシーン終了時キャッシュ65タイル。
+  - gale：rAF p95 **32ms**、Canvas描画p95 **2ms**、最大57ms。76タイルを保有。
+  - **同じplainの再実行**：rAF p95 **35ms**、Canvas描画p95 **2ms**、最大49ms。78タイルを保有し、試験終盤にゲスト低FPSモードが自動解除。いずれも初期20体から戦闘で人数や位置が変動するため、画面のピクセル負荷まで固定した比較ではない。
+
+**解釈**：同一フレームでSDK受信・適用seqが最新で、描画JSが4〜10msしかかからなくても188〜250msのrAF停止が観測されたため、**WebKitの描画/合成スケジューリングと画像キャッシュの初回生成・ウォームアップを優先的に調査する根拠が増えた**。キャッシュ利用後に同じシーンのp95が69→35ms、Canvasが7→2msになったのは有力な手掛かりだが、実行順、初期リソース、ブラウザのJIT/内部キャッシュ、実際の戦闘状態とユニット数も違う。キャッシュが「唯一の原因」「確実な改善策」とは断定できない。特にテスト環境はLinux headless WebKitで、学校Safariの実機FPSではない。
+
+**判断**：本体の描画品質や通信間隔を推測で変更せず、この成果を診断基準にする。低FPSキャッシュには毎描画フレーム最大2タイル生成の既存対策があり、今回の188msフレームも2枚生成。iPad実機の同じ兵数・初回/連戦・ホスト/ゲスト入替・旧安定版との比較で、初回の負荷に偏るのか継続中にも不規則に起こるのかを最優先で確認。その条件が揃えば**新規タイル生成の一時負荷をさらに分散する最小修正のA/B**を検討する。学校のGoogle Sites、Drive、main/stable、Firebase Rules、ゲーム本体には一切変更なし。
+
