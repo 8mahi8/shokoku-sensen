@@ -1,5 +1,13 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-10-31｜CI追補：承認済み重装35・範囲砲撃180のsmoke成功
+
+- 最終的な `online-game.js` + 両生成HTMLは `node tools/build-online-bundles.cjs --check` 一致。GitHub Actions [Online 1v1 smoke #41143481291](https://github.com/8mahi8/shokoku-sensen/actions/runs/41143481291) は **completed/success**。`tests/online-smoke.cjs`の数値・実砲撃着弾テスト成功、旧数値に依存していた `tests/online-balance-theory.cjs` のサンプル2件を正式35へ合わせ修正、13サンプル全件が合格。オンラインsim・deck含めたsmokeを通過。
+- 更新途中コミットのCIで失敗していたのは `online.html`の旧ゲームJSキャッシュ番号v22期待と、旧重装工兵ダメージ34の仮想勝敗残HP期待（324/202）で、**ゲーム本体の戦闘ルール故障ではなく古い固定アサーション**。現行のv23期待、残HP320/195へ更新済み。
+- **実ブラウザー実描画、学校iPad Safari、実Firebase 2人対戦の今回新数値による結果はまだ確認していない**。成功扱いはsmokeに限定。機械召喚師のHP/攻撃案は本人未承認で未実装。
+
+
+
 ## 2026-10-31｜【現在の最優先】重装工兵35・範囲砲撃180を本人承認／機械召喚師は有限召喚の性能再設計
 
 - **正式決定**：重装工兵 `engineer.damage:34→35`、範囲砲撃 `barrage.damage:125→180`。両者**開発ブランチに実装**。コスト・回数上限・HP・AI・占領・範囲・着弾時間等は一切据え置き。学校実機のGoogle Sites埋め込み版は変更していない。前節の「HP420→480」「着弾1.3→0.9」は**未承認案であり今回は不採用**。
