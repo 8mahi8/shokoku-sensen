@@ -71,6 +71,8 @@ const originalClasses=initializeClasses({});
 }
 
 const schoolKeys=Object.keys(originalClasses).filter(id=>!originalClasses[id].internalOnly);
+assert.ok(!schoolKeys.includes("small_machine_elite")&&!schoolKeys.includes("small_machine"),
+ "Summoned robot variants must never be standalone editable/deck cards");
 // The initial nine remain a compatibility baseline, NOT a cap on future classes.
 // Every future unit must opt into the same data-driven targeting contract.
 const baselineUnitIds=["infantry","scout","engineer","archer","sentinel",
@@ -190,7 +192,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html"]){
   assert.ok(!html.includes(stale),p+" contains stale UI instructions: "+stale);
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=23'),
+assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=24'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
