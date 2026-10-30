@@ -37,7 +37,7 @@ const MOTION={
  attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
   sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84,
   duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68,
-  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,kaiju:.78},
+  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,small_machine_elite:.55,kaiju:.78},
  windup:.44
 };
 const CLASSES={
@@ -64,7 +64,8 @@ const CLASSES={
  // Stage 3: the existing priority-4 shared selector handles this objective unit.
  kaiju:{name:"砦進撃怪獣",glyph:"♜",size:"large",cost:6,limit:2,qty:1,hp:1000,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,behavior:"capture",capture:3,hitAir:false,meleeFx:true,targetPriority:{fort:4,castle:1,unit:1},note:"大型・砦を最優先で占領。砦が索敵内なら敵兵を無視して進撃。砦がなければ敵にも反撃する"},
  // Internal child: never place in a deck, summon directly or display in the card gallery.
- small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:85,damage:14,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
+ small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:105,damage:18,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
+ small_machine_elite:{name:"最終型機械兵",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:220,damage:35,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師の8体目だけに現れる最終型。直接召喚・デッキ選択不可"},
 };
 // School-friendly Google Sites HTML: optional, single visible HP / base damage
 // table at the VERY TOP of the pasted document. Only host applies combat
@@ -583,7 +584,10 @@ function applyGravity(dt){
  }
 }
 function spawnSmallMachine(parent){
- const kind="small_machine",d=CLASSES[kind];
+ // The eighth and FINAL timed child is distinct; existing cap/retry rules apply.
+ const spawnIndex=parent.summonCount||0;
+ const kind=spawnIndex===CLASSES[parent.key].summonTimes.length-1?"small_machine_elite":"small_machine";
+ const d=CLASSES[kind];
  if(S.units.filter(u=>u.team===parent.team&&u.hp>0).length>=65)return false;
  const dir=parent.team===1?1:-1;
  const x=limit(parent.x-dir*27,30,W-30),y=limit(parent.y+((parent.summonCount||0)%3-1)*22,46,H-45);
@@ -2568,6 +2572,15 @@ function drawUnit(u,alreadyPresented=false){
   ctx.fillStyle="#14363f";ctx.fillRect(0,-3,14,6);break;
  case "scout":
   ctx.beginPath();ctx.moveTo(18,0);ctx.lineTo(-12,-10);ctx.lineTo(-6,0);ctx.lineTo(-12,10);ctx.closePath();ctx.fill();ctx.stroke();break;
+ case "small_machine":
+ case "small_machine_elite": {
+  const elite=u.key==="small_machine_elite";
+  rounded(ctx,elite?-15:-12,elite?-13:-10,elite?30:24,elite?26:20,5);ctx.fill();ctx.stroke();
+  ctx.fillStyle=elite?"#ffda76":"#c6d8d8";
+  ctx.beginPath();ctx.arc(0,0,elite?7:5,0,Math.PI*2);ctx.fill();
+  if(elite){ctx.strokeStyle="#ffe39c";ctx.lineWidth=3;ctx.strokeRect(-10,-16,20,4);}
+  break;
+ }
  case "engineer":
   rounded(ctx,-17,-16,34,32,7);ctx.fill();ctx.stroke();
   ctx.fillStyle="#e1cf95";ctx.fillRect(-6,-7,14,14);break;
