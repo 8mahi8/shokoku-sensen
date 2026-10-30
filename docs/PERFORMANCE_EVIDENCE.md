@@ -344,7 +344,7 @@
   - 1枚方式: 初回plain guest rAF p95 **75ms**、最大202ms、Canvas p95 7ms。最後のplain p95 37ms、最大61ms。
   - 2枚方式: 初回plain guest rAF p95 **121ms**、最大347ms、Canvas p95 10ms。最後のplain p95 49ms、最大60ms。
   - 「1枚のほうが速い」可能性は出たが、**ランナー差を排除できないので本番変更の根拠にしない**。
-- そこで**同一ブラウザ・同一Firebase一時ルーム・同一混成ユニット・生成済タイルを各試行前にクリア**する新QA `tests/online-stage3-cache-budget-abba.cjs` と専用Workflow `.github/workflows/online-stage3-cache-budget-abba.yml` を追加。[#41042433872](https://github.com/8mahi8/shokoku-sensen/actions/runs/41042433872) **completed/success**。2→1→1→2のABBA、各区間約9秒、各試行前に強制的に低FPSキャッシュモードへ入れる**テスト限定**変更、Netflix等の外部配信なし、正式コード/学校版変更なし。
+- そこで**同一ブラウザ・同一Firebase一時ルーム・同一混成ユニット・生成済タイルを各試行前にクリア**する新QA `tests/online-stage3-cache-budget-abba.cjs` と専用Workflow `.github/workflows/online-stage3-cache-budget-abba.yml` を追加。[#41042433872](https://github.com/8mahi8/shokoku-sensen/actions/runs/41042433872) **completed/success**。2→1→1→2のABBA、各区間約9秒、各試行前に強制的に低FPSキャッシュモードへ入れる**テスト限定**変更、外部配信なし、正式コード/学校版変更なし。
   - 2枚・1回目: guest rAF p95 **82ms**、描画p95 6ms、最大214ms、生成キャッシュ70枚、ホスト540フレーム。
   - 1枚・1回目: p95 **91ms**、描画9ms、最大123ms、キャッシュ68枚、ホスト525フレーム。
   - 1枚・2回目: p95 **66ms**、描画5ms、最大96ms、キャッシュ70枚、ホスト540フレーム。
