@@ -1,5 +1,13 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-10-30｜性能改善の最新判断：キャッシュ生成枚数は変更しない（2枚維持）
+
+- 最新の本人指示「任した」を受け、怪獣入りStage3実Firebase/ゲストCanvasの画像生成スパイク対策を検討。**キャラの描画ロジック・通信・学校Google Sites・main/stable・Google Drive・Firebase Rulesは触らない**。
+- QA版でのみキャッシュ生成上限を1枚/フレームと2枚/フレームで比較。別ランナー比較 [#41041966054](https://github.com/8mahi8/shokoku-sensen/actions/runs/41041966054) は両ジョブ成功したが、ホストFPS差も存在して因果は不明。
+- 同一WebKitゲスト・同一Firebase・同じ混成シーンを毎回キャッシュクリアして実行する**2→1→1→2 ABBA**の新テスト `tests/online-stage3-cache-budget-abba.cjs` を追加。[#41042433872](https://github.com/8mahi8/shokoku-sensen/actions/runs/41042433872) **success**、Firebase一時ルームDELETE/GET null。WebKitのp95更新間隔は2枚で82ms/48ms、1枚で91ms/66ms。生成上限変更による一貫した改善は確認できず、ウォームアップ・戦況の影響が大きい。
+- **採否：現行の`DENSE_TILE_BUILDS_PER_FRAME=2`を維持。** 短時間の初回カクつきのためにキャッシュウォームアップを遅らせたり、複雑な事前描画機構を独断導入しない。原状の2枚制限も既存回帰試験で保護。
+- 実証した事実：Firebase受信/適用が新しいままWebKitの画面更新が短時間止まる例がある。完全な原因・学校Safari実機での解消は**未確認**。次に価値が高いのは学校Safariで旧安定版/Stage3の同条件・役割交代・開始直後/時間経過後の比較（タイトル3タップ診断あり）。詳細は`docs/PERFORMANCE_EVIDENCE.md`末尾。不要な再調査や無断バランス変更を避ける。
+
 ## 2026-10-30｜Stage3学校ゲストの瞬間カクつき：実Firebase×描画の追加証拠（最新版）
 
 - ユーザー報告：学校Safariのゲストは基本快適だが時々カクつく。以前の固定安定版は気にならなかった。通信だけでなくCanvas/キャッシュ/WebKit画面更新を調査する方針。**Drive保存は本人が依頼したときのみ**。
