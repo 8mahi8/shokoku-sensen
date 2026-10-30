@@ -115,6 +115,9 @@ async function sample(page,side,mode){
    host.goto("http://127.0.0.1:8792/online.html?qa=1"),
    guest.goto("http://127.0.0.1:8792/online-ipad.html?qa=1")
   ]);
+  // Localhost QA usually disables adaptive art for controlled A/B.
+  // Here we need production-equivalent behavior while tracing real hitches.
+  await guest.evaluate(()=>{window.__qaEnableCrowdedArtAdapt=true;});
   for(const page of [host,guest])
    await poll(async()=>(await page.locator("#netStatus").innerText()).includes("接続OK"),
     "Firebase connected",35000);
@@ -162,7 +165,7 @@ async function sample(page,side,mode){
      over90:g.hitches.length,finalSeq:g.seq,cache:g.cache,quality:g.quality}}));
   }
   assert.deepEqual(errors,[],"no browser errors");
-  console.log("STAGE3_HITCH_TRACE_SUCCESS two real Firebase host/WebKit scenarios");
+  console.log("STAGE3_HITCH_TRACE_CAPTURED two real Firebase host/WebKit scenarios");
  }finally{
   fs.writeFileSync(path.join(out,"trace.json"),JSON.stringify({results,errors,notes:[
    "Localhost QA-only synthetic crowd; no school deployment, no gameplay-code change",
@@ -170,18 +173,30 @@ async function sample(page,side,mode){
    "Hitches >=90ms include same-frame SDK/REST snapshot ages (QA only)",
    "A single run cannot establish the root cause of intermittent school iPad stutter"
   ]},null,2));
-  if(code){
-   try{
-    const response=await fetch(dbRoot+"/"+code+".json",{method:"DELETE"});
-    cleanup=response.ok;
-    const after=await fetch(dbRoot+"/"+code+".json");
-    cleanup=cleanup&&after.ok&&(await after.json())===null;
-   }catch(e){console.warn("cleanup",e.message);}
-  }
+  // Disconnect sockets before deleting. Otherwise the live RTDB clients can
+  // rewrite presence/metadata after DELETE and invalidate readback.
+  await guest?.close().catch(()=>{});
+  await host?.close().catch(()=>{});
   await guestBrowser?.close().catch(()=>{});
   await hostBrowser?.close().catch(()=>{});
+  let deleteStatus=0,verifyStatus=0;
+  if(code){
+   await sleep(850);
+   for(let attempt=0;attempt<3&&!cleanup;attempt++){
+    try{
+     const endpoint=dbRoot+"/"+code+".json";
+     const response=await fetch(endpoint,{method:"DELETE"});
+     deleteStatus=response.status;
+     if(!response.ok)break;
+     await sleep(550);
+     const after=await fetch(endpoint);
+     verifyStatus=after.status;
+     cleanup=after.ok&&(await after.json())===null;
+    }catch(e){console.warn("cleanup",e.message);}
+   }
+  }
   await new Promise(ok=>server.close(ok));
-  console.log("STAGE3_HITCH_CLEANUP "+JSON.stringify({cleanup}));
+  console.log("STAGE3_HITCH_CLEANUP "+JSON.stringify({cleanup,deleteStatus,verifyStatus}));
   if(code&&!cleanup)process.exitCode=1;
  }
 })().catch(error=>{console.error("STAGE3_HITCH_TRACE_FAILED",error);process.exitCode=1});
