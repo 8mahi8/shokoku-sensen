@@ -1212,4 +1212,64 @@ return (time,appliedAt,sdkAt)=>{
  assert.ok(read("guest-lab-game.html").includes("function guestPlayableWorld(){"),"guest lab gating");
  console.log("PASS: playable world required before guest input UI");
 }
+// Approved cap pass: extract the shipping class/spell tables rather than duplicating
+// a fictional catalog.  The two multi-summon cards consume one use per pair.
+{
+ const spellStart=game.indexOf("const SPELLS={");
+ const spellEnd=game.indexOf("const CATALOG=",spellStart);
+ assert.ok(spellStart>0&&spellEnd>spellStart,"spell table boundaries");
+ const actualSpells=new Function(game.slice(spellStart,spellEnd)+"return SPELLS;")();
+ const chosenCaps={
+  infantry:Infinity,scout:4,engineer:3,archer:5,sentinel:3,suppress:2,
+  guardian:2,drone:3,tank:2,duelist:4,crusher:2,ranger_engineer:3,
+  interceptor:4,ground_bomber:2,piercer:4,catapult:2,kamikaze:4,
+  mech_summoner:2,kaiju:2,small_machine:0,
+  barrage:2,ward:3,gravity:2,gale:3
+ };
+ const roster={...originalClasses,...actualSpells};
+ assert.deepEqual(Object.keys(roster).sort(),Object.keys(chosenCaps).sort(),
+  "every playable card plus internal child has a reviewed cap");
+ for(const [id,cap] of Object.entries(chosenCaps))
+  assert.equal(roster[id].limit,cap,"approved use limit: "+id);
+ assert.equal(roster.archer.qty,2);
+ assert.equal(roster.drone.qty,2);
+ assert.equal(roster.infantry.limit,Infinity,"permanent basic unit remains unlimited");
+ const chosen=base=>base.reduce((sum,id)=>sum+roster[id].cost*roster[id].limit,0);
+ assert.equal(chosen(["scout","engineer","archer","barrage","sentinel",
+  "suppress","guardian","ward","drone","tank"]),113,
+  "approved default deck finite card budget");
+ const all=Object.keys(roster).filter(id=>id!=="infantry"&&!roster[id].internalOnly);
+ assert.equal(all.length,22);
+ const budgets=[];
+ const enumerate=(i,n,total)=>{
+  if(n===10){budgets.push(total);return;}
+  if(i>=all.length||all.length-i<10-n)return;
+  enumerate(i+1,n+1,total+roster[all[i]].cost*roster[all[i]].limit);
+  enumerate(i+1,n,total);
+ };
+ enumerate(0,0,0);
+ assert.equal(budgets.length,646646,"all 10 distinct card deck combinations");
+ assert.ok(Math.min(...budgets.slice(0,1000))>0); // no zero-cost playable cards
+ assert.equal(Math.min(...budgets),91,"smallest deck finite budget");
+ assert.equal(Math.max(...budgets),135,"largest deck finite budget");
+ const deckState={hand:[null,["archer","drone","tank","ward"],[]],
+  queue:[null,["scout","engineer","sentinel","barrage","suppress","guardian"],[]],
+  left:[null,{archer:5,drone:1,tank:2,ward:3,scout:4,engineer:3,
+   sentinel:3,barrage:2,suppress:2,guardian:2},{}]};
+ const handStart=game.indexOf("function advanceHand(team,id){");
+ const handEnd=game.indexOf("const TEAM=",handStart);
+ assert.ok(handStart>0&&handEnd>handStart,"shipping hand rotation section");
+ const advance=new Function("S","HAND_SIZE",game.slice(handStart,handEnd)+
+  "return advanceHand;")(deckState,4);
+ deckState.left[1].archer--;
+ advance(1,"archer");
+ assert.equal(deckState.hand[1].length,4);
+ assert.ok(deckState.queue[1].includes("archer"),"card with uses left returns to queue");
+ deckState.left[1].drone--;
+ advance(1,"drone");
+ assert.equal(deckState.left[1].drone,0);
+ assert.equal(deckState.hand[1].length,4,"depleted card is replaced");
+ assert.ok(!deckState.queue[1].includes("drone"),"depleted card leaves rotation");
+ console.log("PASS: approved per-card caps, all deck budgets, and exhausted-card hand rotation");
+}
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
