@@ -1274,4 +1274,66 @@ return (time,appliedAt,sdkAt)=>{
  assert.ok(!deckState.queue[1].includes("drone"),"depleted card leaves rotation");
  console.log("PASS: approved per-card caps, all deck budgets, and exhausted-card hand rotation");
 }
+// Battle cards must expose charges prominently without requiring card detail.
+// This executes the shipping buildCards() with tiny DOM stubs, including an
+// unaffordable card, instead of only looking for labels in the source.
+{
+ const start=game.indexOf("function buildCards(){");
+ const finish=game.indexOf("\nlet galleryResume=",start);
+ assert.ok(start>=0&&finish>start,"shipping card builder found");
+ const state={hand:[null,["scout","suppress","barrage","guardian"],[]],
+  left:[null,{infantry:Infinity,scout:4,suppress:1,barrage:2,guardian:2},{}],
+  selected:null,queue:[null,["archer"],[]]};
+ const catalog={...originalClasses,...new Function(
+  game.slice(game.indexOf("const SPELLS={"),game.indexOf("const CATALOG="))+
+  "return SPELLS;")()};
+ const items=[],cardList={replaceChildren(){items.length=0;},append(button){items.push(button);}};
+ const next={textContent:""};
+ const doc={createElement(){const classes=new Set();return {
+  className:"",dataset:{},classList:{add(c){classes.add(c);},contains(c){return classes.has(c);}},
+  setAttribute(key,value){this[key]=value;},addEventListener(){},
+  querySelector(){return {};},_classes:classes,innerHTML:""
+ };}};
+ const create=new Function("cards","S","ME","CATALOG","isSpell","SIZE_LABEL",
+  "canPay","window","document","$","cardDown","openCardInfo",
+  game.slice(start,finish)+"return buildCards;");
+ const build=create(cardList,state,()=>1,catalog,id=>!originalClasses[id],
+  {small:"小型",medium:"中型",large:"大型"},()=>false,{},doc,
+  id=>id==="nextCard"?next:null,()=>{},()=>{});
+ build();
+ assert.equal(items.length,5,"basic + four rotating cards");
+ const byId=id=>items.find(b=>b.dataset.id===id);
+ assert.ok(byId("infantry").innerHTML.includes("∞"),"basic uses are unlimited");
+ assert.ok(byId("scout").innerHTML.includes('class="cardUsesNow">4</strong>')&&
+  byId("scout").innerHTML.includes("width:100%"),"full charges visible");
+ assert.ok(byId("suppress")._classes.has("uses-critical")&&
+  byId("suppress").innerHTML.includes('class="cardUsesNow">1</strong>')&&
+  byId("suppress").innerHTML.includes("width:50%"),
+  "last use is explicit and highlighted");
+ assert.ok(byId("suppress")._classes.has("unavailable"),
+  "energy shortage must not override remaining use state");
+ assert.ok(byId("barrage").innerHTML.includes('class="cardUsesTotal">/2</span>'),
+  "spells have the same limit HUD");
+ assert.ok(byId("guardian").innerHTML.includes('class="cardUsesTotal">/2</span>'),
+  "large units have the same limit HUD");
+ assert.match(byId("suppress")["aria-label"],/残り1回 \/ 上限2回/,
+  "full remaining count is accessible");
+ state.left[1].scout=2;
+ build();
+ assert.ok(byId("scout")._classes.has("uses-low")&&
+  byId("scout").innerHTML.includes("width:50%"),"partly depleted count updates");
+ state.left[1].scout=0;
+ build();
+ assert.ok(byId("scout")._classes.has("uses-critical")&&
+  byId("scout")._classes.has("depleted")&&
+  byId("scout").innerHTML.includes("width:0%"),"exhausted has clear zero");
+ const css=read("online.html");
+ for(const selector of [".cardUsesNow",".cardLimitTrack",".card.uses-low .cardUses",
+  ".card.uses-critical .cardUses",".card.unavailable:not(.depleted) .cardPortrait"])
+  assert.ok(css.includes(selector),"CSS missing charge selector "+selector);
+ for(const page of ["online-ipad.html","online-embed.html"])
+  assert.ok(read(page).includes(".card.uses-critical .cardUses"),
+   "standalone file must include remaining-charge UI "+page);
+ console.log("PASS: in-battle charge counts, urgency colors, gauge, aria, energy dimming, standalone CSS");
+}
 console.log("PASS: syntax, editable school HP/damage (both bundles), safe fallbacks, round isolation, reconnect, rematch, decks, BOT and tablet UI");
