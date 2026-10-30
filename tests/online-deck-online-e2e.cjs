@@ -80,6 +80,45 @@ const server=http.createServer((req,res)=>{
     state.lockedDecks?.guestDeckIds?.length===10&&
     await host.locator("#onlinePanel").isHidden()&&await guest.locator("#onlinePanel").isHidden();
   },"match starts with ten cards each");
+  // Two real browsers independently select opening cards. Host commits both
+  // authoritative hands; guest sees its replacements via the normal RTDB state.
+  await wait(async()=>{
+   const a=await host.evaluate(()=>window.__shokokuQa?.snapshot().phase);
+   const b=await guest.evaluate(()=>window.__shokokuQa?.snapshot().phase);
+   return a==="mulligan"&&b==="mulligan";
+  },"both players see mulligan",18000);
+  const h0=await host.evaluate(()=>window.__shokokuQa.snapshot().hand[1]);
+  const g0=await guest.evaluate(()=>window.__shokokuQa.snapshot().hand[2]);
+  assert.equal(await host.locator("#mulliganCards .mulliganCard").count(),4);
+  assert.equal(await guest.locator("#mulliganCards .mulliganCard").count(),4);
+  await host.locator("#mulliganCards .mulliganCard").nth(0).click();
+  await guest.locator("#mulliganCards .mulliganCard").nth(1).tap();
+  await guest.locator("#mulliganCards .mulliganCard").nth(3).tap();
+  await host.locator("#mulliganConfirm").click();
+  await wait(async()=>{
+   const m=await host.evaluate(()=>window.ShokokuNet.isHost&&
+    window.__shokokuQa.snapshot().phase==="mulligan"&&
+    document.getElementById("mulliganStatus").textContent.includes("確定"));
+   return m;
+  },"host submitted and waits for guest",9000);
+  await guest.locator("#mulliganConfirm").tap();
+  await wait(async()=>{
+   const a=await host.evaluate(()=>window.__shokokuQa.snapshot().phase);
+   const b=await guest.evaluate(()=>window.__shokokuQa.snapshot().phase);
+   return a==="prep"&&b==="prep";
+  },"both confirmed mulligan -> deployment",11000);
+  const h1=await host.evaluate(()=>window.__shokokuQa.snapshot().hand[1]);
+  const g1=await guest.evaluate(()=>window.__shokokuQa.snapshot().hand[2]);
+  assert.notEqual(h1[0],h0[0],"host swapped its chosen first card");
+  assert.deepEqual(h1.slice(1),h0.slice(1),"host retained its other three cards");
+  assert.equal(g1[0],g0[0]);assert.equal(g1[2],g0[2]);
+  assert.notEqual(g1[1],g0[1]);assert.notEqual(g1[3],g0[3]);
+  await wait(async()=>{
+   const synced=await guest.evaluate(()=>window.__shokokuQa.snapshot().hand);
+   return JSON.stringify(synced[1])===JSON.stringify(h1)&&
+    JSON.stringify(synced[2])===JSON.stringify(g1);
+  },"Firebase guest hand matches both host-mulligan results",10000);
+  console.log("PASS: two-browser mulligan 1 vs 2 swapped cards, both ready -> existing prep");
   const locked=await meta();
   assert.ok(locked.lockedDecks.hostDeckIds.includes("duelist"));
   assert.ok(!locked.lockedDecks.hostDeckIds.includes("scout"));
