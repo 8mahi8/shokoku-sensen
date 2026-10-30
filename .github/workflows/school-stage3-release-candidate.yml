@@ -49,7 +49,10 @@ jobs:
               'applyStatusEffect(u,{key:"gale",stat:"moveSpeed"',
               'guardian        : { hp: 1300',
               'tank            : { hp: 1000',
-              'kaiju           : { hp: 1000'
+              'kaiju           : { hp: 1000',
+              // School comparison needs short-frame hitch evidence on real Safari.
+              'gapMs<(perfPanel?100:180)',
+              'perfPreviousDrawMs=drawMs;perfPreviousTiles=denseSpriteBuildsThisFrame;'
             ])assert(doc.includes(str),'Missing from School HTML: '+str);
           }
           assert(!html.includes('ShokokuResearch'),'No passive research logging');
