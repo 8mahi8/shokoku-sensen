@@ -37,7 +37,7 @@ const MOTION={
  attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
   sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84,
   duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68,
-  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,small_machine_elite:.55,kaiju:.78},
+  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,small_machine_elite:.55,medic:.58,kaiju:.78},
  windup:.44
 };
 const CLASSES={
@@ -66,6 +66,7 @@ const CLASSES={
  // Internal child: never place in a deck, summon directly or display in the card gallery.
  small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:105,damage:18,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
  small_machine_elite:{name:"最終型機械兵",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:220,damage:35,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師の8体目だけに現れる最終型。直接召喚・デッキ選択不可"},
+ medic:{name:"衛生補助兵",glyph:"✚",size:"small",cost:2,limit:4,qty:1,hp:120,damage:10,cool:2,range:30,vision:115,speed:16,r:13,behavior:"guard",capture:0,hitAir:false,healRadius:90,healAmount:20,healInterval:2,targetPriority:{castle:0,fort:0,unit:2},note:"配置点付近で味方を支援。2秒ごとに範囲90内の負傷した味方1体へ20回復。自分と施設は回復不可"},
 };
 // School-friendly Google Sites HTML: optional, single visible HP / base damage
 // table at the VERY TOP of the pasted document. Only host applies combat
@@ -87,7 +88,9 @@ const SPELLS={
  barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:2,radius:82,damage:180,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
  ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"},
  gravity:{name:"引力",glyph:"◎",cost:3,limit:2,radius:125,duration:2.5,speeds:{small:100,medium:70,large:35},note:"2.5秒間敵地上兵を吸引・移動拘束。攻撃は可能"},
- gale:{name:"疾風号令",glyph:"➚",cost:3,limit:3,radius:125,duration:4,speedMultiplier:1.5,note:"発動時に円内にいた味方全員の移動速度を4秒間1.5倍。円の外でも持続"}
+ gale:{name:"疾風号令",glyph:"➚",cost:3,limit:3,radius:125,duration:4,speedMultiplier:1.5,note:"発動時に円内にいた味方全員の移動速度を4秒間1.5倍。円の外でも持続"},
+ anti_air_missile:{name:"対空誘導弾",glyph:"➶",cost:2,limit:3,radius:100,damage:200,groundDamage:25,delay:.4,note:"0.4秒後、指定半径100内の最も近い敵飛行1体へ200。飛行がいなければ地上1体に25。建物には無効"},
+ small_lightning:{name:"小雷撃",glyph:"ϟ",cost:1,limit:4,radius:45,damage:30,delay:.3,note:"0.3秒の短い予告後、半径45内の敵兵全員に30。地上・飛行に有効、味方と建物には無効"}
 };
 const CATALOG={...CLASSES,...SPELLS};
 const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
@@ -398,7 +401,8 @@ function castSpell(team,id,x,y){
  S.energy[team]=Math.max(0,S.energy[team]-d.cost);
  S.left[team][id]--;
  advanceHand(team,id);
- if(id==="barrage")S.spells.incoming.push({kind:"barrage",team,x,y,r:d.radius,time:d.delay,total:d.delay});
+ if(id==="barrage"||id==="anti_air_missile"||id==="small_lightning")
+  S.spells.incoming.push({kind:id,team,x,y,r:d.radius,time:d.delay,total:d.delay});
  else if(id==="gale"){
   // One-time target selection. Units keep the buff after leaving the circle.
   for(const u of S.units){
@@ -457,15 +461,39 @@ function spellStep(dt){
   shot.time-=dt;
   if(shot.time<=0){
    let hits=0;
-   for(const u of S.units){
-    if(u.hp<=0||u.team===shot.team)continue;
-    if(Math.hypot(u.x-shot.x,u.y-shot.y)<=shot.r){
-     hitUnit(u,shot.kind==="catapult"?shot.damage:SPELLS.barrage.damage);
-     hits++;
+   if(shot.kind==="anti_air_missile"){
+    // Host-only target selection at impact: closest flying enemy has priority.
+    let air=null,ground=null,airDist=Infinity,groundDist=Infinity;
+    for(const u of S.units){
+     if(u.hp<=0||u.team===shot.team)continue;
+     const distance=Math.hypot(u.x-shot.x,u.y-shot.y);
+     if(distance>shot.r)continue;
+     const flying=!!CLASSES[u.key].flying,nearest=flying?airDist:groundDist;
+     const selected=flying?air:ground;
+     if(distance<nearest-1e-9||(Math.abs(distance-nearest)<=1e-9&&u.uid<(selected?.uid??Infinity))){
+      if(flying){air=u;airDist=distance;}else{ground=u;groundDist=distance;}
+     }
     }
+    const target=air||ground;
+    if(target){
+     hitUnit(target,air?SPELLS.anti_air_missile.damage:SPELLS.anti_air_missile.groundDamage);
+     S.effects.push({x:target.x,y:target.y,t:.50,max:.50,team:shot.team,r:24,type:"anti_air_missile"});
+     hits=1;
+    }else S.effects.push({x:shot.x,y:shot.y,t:.32,max:.32,team:shot.team,r:18,type:"anti_air_missile"});
+   }else{
+    const power=shot.kind==="catapult"?shot.damage:shot.kind==="small_lightning"?
+     SPELLS.small_lightning.damage:SPELLS.barrage.damage;
+    for(const u of S.units){
+     if(u.hp<=0||u.team===shot.team)continue;
+     if(Math.hypot(u.x-shot.x,u.y-shot.y)<=shot.r){
+      hitUnit(u,power);hits++;
+     }
+    }
+    S.effects.push({x:shot.x,y:shot.y,t:.52,max:.52,team:shot.team,r:shot.r,
+     type:shot.kind==="small_lightning"?"small_lightning":"barrage"});
+    if(shot.team===1&&hits>=3&&shot.kind!=="small_lightning")
+     notice((shot.kind==="catapult"?"投石":"範囲砲撃")+"が敵兵"+hits+"体に命中！");
    }
-   S.effects.push({x:shot.x,y:shot.y,t:.52,max:.52,team:shot.team,r:shot.r,type:"barrage"});
-   if(shot.team===1&&hits>=3)notice((shot.kind==="catapult"?"投石":"範囲砲撃")+"が敵兵"+hits+"体に命中！");
   }
  }
  S.spells.incoming=S.spells.incoming.filter(x=>x.time>0);
@@ -761,6 +789,25 @@ function unitStep(dt){
      u.summonElapsed+1e-8>=d.summonTimes[u.summonCount||0]){
     if(!spawnSmallMachine(u))break; // Preserve pending summon while the team is full.
     u.summonCount=(u.summonCount||0)+1;
+   }
+  }
+  if(d.healInterval){
+   u.healElapsed=(u.healElapsed||0)+dt;
+   while(u.healElapsed+1e-8>=d.healInterval){
+    u.healElapsed-=d.healInterval;
+    let patient=null,ratio=Infinity;
+    for(const ally of S.units){
+     if(ally===u||ally.team!==u.team||ally.hp<=0||ally.hp>=ally.max)continue;
+     if(Math.hypot(ally.x-u.x,ally.y-u.y)>d.healRadius)continue;
+     const p=ally.hp/ally.max;
+     if(p<ratio-1e-9||(Math.abs(p-ratio)<=1e-9&&ally.uid<(patient?.uid??Infinity))){
+      patient=ally;ratio=p;
+     }
+    }
+    if(patient){
+     patient.hp=Math.min(patient.max,patient.hp+d.healAmount);
+     S.effects.push({x:patient.x,y:patient.y,t:.48,max:.48,r:24,team:u.team,type:"heal"});
+    }
    }
   }
   const targets=selectPriorityTargets(u);
@@ -2581,6 +2628,9 @@ function drawUnit(u,alreadyPresented=false){
   if(elite){ctx.strokeStyle="#ffe39c";ctx.lineWidth=3;ctx.strokeRect(-10,-16,20,4);}
   break;
  }
+ case "medic":
+  rounded(ctx,-12,-15,24,30,5);ctx.fill();ctx.stroke();
+  ctx.fillStyle="#bfffd4";ctx.fillRect(-3,-10,6,20);ctx.fillRect(-9,-4,18,6);break;
  case "engineer":
   rounded(ctx,-17,-16,34,32,7);ctx.fill();ctx.stroke();
   ctx.fillStyle="#e1cf95";ctx.fillRect(-6,-7,14,14);break;
@@ -2642,12 +2692,17 @@ function drawSpellFields(now){
   if(remainingTime<=0)continue;
   const remaining=Math.max(0,Math.min(1,remainingTime/shot.total));
   ctx.save();
-  ctx.strokeStyle=shot.team===1?"#ffd184":"#ff8197";ctx.fillStyle=shot.team===1?"#ffbc6426":"#ff71882b";
-  ctx.lineWidth=4;ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+  const missile=shot.kind==="anti_air_missile",lightning=shot.kind==="small_lightning";
+  ctx.strokeStyle=missile?"#8efbe9":lightning?"#d7aaff":shot.team===1?"#ffd184":"#ff8197";
+  ctx.fillStyle=missile?"#67cfc522":lightning?"#bc8bff24":shot.team===1?"#ffbc6426":"#ff71882b";
+  ctx.lineWidth=missile||lightning?3:4;
+  ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r,0,Math.PI*2);ctx.fill();ctx.stroke();
   ctx.beginPath();ctx.arc(shot.x,shot.y,shot.r*(1-remaining*.65),0,Math.PI*2);
-  ctx.strokeStyle=shot.team===1?"#ffeac0":"#ffdbdd";ctx.lineWidth=3;ctx.stroke();
+  ctx.strokeStyle=missile?"#d6fff5":lightning?"#f1dcff":shot.team===1?"#ffeac0":"#ffdbdd";
+  ctx.lineWidth=3;ctx.stroke();
   ctx.font="bold 14px system-ui";ctx.textAlign="center";ctx.fillStyle="#fff0db";
-  ctx.fillText(shot.kind==="catapult"?"投石着弾":"砲撃予告",shot.x,shot.y-shot.r-13);ctx.restore();
+  const label=missile?"誘導弾":lightning?"小雷撃":shot.kind==="catapult"?"投石着弾":"砲撃予告";
+  ctx.fillText(label,shot.x,shot.y-shot.r-13);ctx.restore();
  }
 }
 function queueGuestCommandHint(x,y,now=performance.now()){
@@ -2920,10 +2975,18 @@ function draw(){
   if(remaining<=0||!visible(e.x,e.y,(e.r||20)+30,(e.r||20)+50,(e.r||20)+35))continue;
   const f=remaining/e.max;
   ctx.save();ctx.globalAlpha=Math.min(1,f*1.4);
-  const boom=e.type==="barrage"||e.type==="tank"||e.type==="suppress",spell=e.type==="barrage";
-  const color=spell?"#ffe2a3":e.type==="archer"?"#d3abff":e.type==="drone"?"#98fff1":TEAM[e.team];
+  const boom=e.type==="barrage"||e.type==="tank"||e.type==="suppress"||e.type==="small_lightning",spell=e.type==="barrage";
+  const color=e.type==="heal"?"#a7ffcc":e.type==="anti_air_missile"?"#c5fff2":
+   e.type==="small_lightning"?"#e5c1ff":spell?"#ffe2a3":e.type==="archer"?"#d3abff":e.type==="drone"?"#98fff1":TEAM[e.team];
   ctx.strokeStyle=color;ctx.lineWidth=boom?4:2.5;
   ctx.beginPath();ctx.arc(e.x,e.y,Math.max(3,e.r*(1.26-.66*f)),0,Math.PI*2);ctx.stroke();
+  if(e.type==="heal"){
+   ctx.lineWidth=3.5;ctx.beginPath();ctx.moveTo(e.x-7,e.y-15);ctx.lineTo(e.x+7,e.y-15);
+   ctx.moveTo(e.x,e.y-22);ctx.lineTo(e.x,e.y-8);ctx.stroke();
+  }else if(e.type==="small_lightning"||e.type==="anti_air_missile"){
+   ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(e.x-13,e.y-27);ctx.lineTo(e.x+2,e.y-9);
+   ctx.lineTo(e.x-4,e.y-9);ctx.lineTo(e.x+15,e.y+6);ctx.stroke();
+  }
   if((boom||e.type==="slash")&&!guestSimplifyVisuals()){
    const n=boom?8:4,base=e.r*(1-f)*.86;
    for(let k=0;k<n;k++){
@@ -3022,10 +3085,11 @@ function openCardInfo(id){
  $("cardInfoRole").textContent=isSpell(id)?"スペル":SIZE_LABEL[d.size]+" · "+(d.capture?"占領可能":"戦闘専門");
  const remaining=Number.isFinite(S.left[ME()][id])?S.left[ME()][id]:"無制限";
  const infos=isSpell(id)?
-   [["消費資源",d.cost],["使用回数",remaining+" 回"],["効果半径",d.radius],["持続・着弾時間",id==="barrage"?d.delay+" 秒":d.duration+" 秒"]]:
+   [["消費資源",d.cost],["使用回数",remaining+" 回"],["効果半径",d.radius],["持続・着弾時間",d.delay!==undefined?d.delay+" 秒":d.duration+" 秒"]]:
    [["消費資源",d.cost],["残り召喚回数",remaining],["1回の召喚数",d.qty+" 体"],
     ["HP",d.hp],["攻撃力",d.damage],["射程",d.range],["移動速度",d.speed],
     ["攻撃間隔",d.cool+" 秒"],["砦占領力",d.capture||"なし"]];
+ if(!isSpell(id)&&d.healInterval)infos.push(["回復量と周期",d.healAmount+" HP / "+d.healInterval+" 秒"],["回復半径",d.healRadius]);
  if(!isSpell(id)&&d.splash){
   infos.push(["範囲攻撃半径",d.splash],["巻き込み攻撃力",Math.round(d.damage*(d.splashScale??.57))]);
  }
