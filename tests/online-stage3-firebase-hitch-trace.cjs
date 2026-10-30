@@ -4,7 +4,9 @@
 const assert=require("node:assert/strict");
 const fs=require("node:fs"),http=require("node:http"),path=require("node:path");
 const {chromium,webkit}=require("playwright");
-const root=process.cwd(),out=path.join(root,"qa-stage3-hitch-trace");
+const cacheBudget=Number(process.env.CACHE_BUILD_BUDGET||2);
+assert.ok([1,2].includes(cacheBudget),"benchmark only 1 or 2 tiles/frame");
+const root=process.cwd(),out=path.join(root,"qa-stage3-hitch-trace-"+cacheBudget);
 const dbRoot="https://mygame-df915-default-rtdb.firebaseio.com/shokokuRooms1v1";
 fs.mkdirSync(out,{recursive:true});
 const sleep=ms=>new Promise(ok=>setTimeout(ok,ms));
@@ -46,6 +48,10 @@ assert.equal(hostGame.split(anchor).length,2);
 hostGame=hostGame.replace(anchor,anchor+
  "\n fixtureStage3:("+fixtureStage3.toString()+"),");
 let guestHtml=fs.readFileSync(path.join(root,"online-ipad.html"),"utf8");
+const budgetAnchor="const DENSE_TILE_BUILDS_PER_FRAME=2;";
+assert.equal(guestHtml.split(budgetAnchor).length,2,"exact cache-budget source anchor");
+guestHtml=guestHtml.replace(budgetAnchor,
+ "const DENSE_TILE_BUILDS_PER_FRAME="+cacheBudget+";");
 const probe='datum.gapMs>=180&&!document.hidden';
 assert.equal(guestHtml.split(probe).length,2,"guest hitch diagnostics source anchor");
 guestHtml=guestHtml.replace(probe,'datum.gapMs>=90&&!document.hidden');
@@ -158,17 +164,17 @@ async function sample(page,side,mode){
    assert.ok(g.frameCount>10,"guest rendered the scene");
    assert.equal(h.frameError,null);assert.equal(g.frameError,null);
    await guest.screenshot({path:path.join(out,"guest-"+mode+"-"+trial+".png")});
-   results.push({trial,mode,created,host:h,guest:g});
+   results.push({cacheBudget,trial,mode,created,host:h,guest:g});
    console.log("STAGE3_HITCH_TRACE "+JSON.stringify({
-    trial,mode,host:{frames:h.frameCount,gapP95:h.gapP95,drawP95:h.drawP95},
+    cacheBudget,trial,mode,host:{frames:h.frameCount,gapP95:h.gapP95,drawP95:h.drawP95},
     guest:{frames:g.frameCount,gapP95:g.gapP95,drawP95:g.drawP95,
      maxGap:g.gapMax,longHitches:g.hitches.filter(x=>x.gapMs>=180).slice(0,12),
      over90:g.hitches.length,finalSeq:g.seq,cache:g.cache,quality:g.quality}}));
   }
   assert.deepEqual(errors,[],"no browser errors");
-  console.log("STAGE3_HITCH_TRACE_CAPTURED three real Firebase host/WebKit scenarios");
+  console.log("STAGE3_HITCH_TRACE_CAPTURED three real Firebase host/WebKit scenarios (tiles/frame "+cacheBudget+")");
  }finally{
-  fs.writeFileSync(path.join(out,"trace.json"),JSON.stringify({results,errors,notes:[
+  fs.writeFileSync(path.join(out,"trace.json"),JSON.stringify({cacheBudget,results,errors,notes:[
    "Localhost QA-only synthetic crowd; no school deployment, no gameplay-code change",
    "Real Firebase host+guest with real Canvas and network, but Linux headless browsers",
    "Hitches >=90ms include same-frame SDK/REST snapshot ages (QA only)",
