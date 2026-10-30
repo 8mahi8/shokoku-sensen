@@ -1,0 +1,30 @@
+name: Online Stage3 real Firebase guest hitch trace
+on:
+  push:
+    paths:
+      - 'tests/online-stage3-firebase-hitch-trace.cjs'
+      - '.github/workflows/online-stage3-firebase-hitch-trace.yml'
+  workflow_dispatch:
+jobs:
+  stage3-guest-hitch:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 7
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Observe real host/WebKit guest snapshot and render hitches
+        run: node tests/online-stage3-firebase-hitch-trace.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage3-hitch-host-guest-trace
+          path: qa-stage3-hitch-trace/
+          retention-days: 14
