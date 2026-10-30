@@ -1083,9 +1083,9 @@ return (time,appliedAt,sdkAt)=>{
   S={phase:"battle",elapsed:20.3,units:[{},{}]};
  const qa=new Function("NET","document","S",
   "let lastGuestHitch=null,guestHitchCount=0,guestHitchWorst=0,perfPanel={},"+
-  "perfPreviousDrawMs=4.6,perfPreviousTiles=2,guestLowPower=false,lowFpsCrowdedSprites=true;\\n"+
+  "perfPreviousDrawMs=4.6,perfPreviousTiles=2,guestLowPower=false,lowFpsCrowdedSprites=true;\n"+
   game.slice(hs,he)+
-  "\\nreturn {sample:trackGuestFrameHitch,last:()=>lastGuestHitch,"+
+  "\nreturn {sample:trackGuestFrameHitch,last:()=>lastGuestHitch,"+
   "reset:()=>{lastGuestHitch=null;},panel:on=>perfPanel=on?{}:null,"+
   "totals:()=>[guestHitchCount,guestHitchWorst]};")(role,document,S);
  qa.sample(99);assert.equal(qa.last(),null,"under 100ms ignored");
