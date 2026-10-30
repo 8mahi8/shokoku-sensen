@@ -34,6 +34,42 @@ const classEnd=game.indexOf("const IDS=Object.keys(CLASSES)",classStart);
 assert.ok(classStart>0&&classEnd>classStart,"Online unit stat block missing");
 const initializeClasses=new Function("window",game.slice(classStart,classEnd)+";return CLASSES;");
 const originalClasses=initializeClasses({});
+
+{
+ // 2026-10-31 user-approved precise buffs, without unauthorized cost/area/AI changes.
+ const start=game.indexOf("const SPELLS={"),end=game.indexOf("const CATALOG=",start);
+ assert.ok(start>0&&end>start,"spell definitions must be available");
+ const spells=new Function(game.slice(start,end)+"return SPELLS;")();
+ assert.equal(originalClasses.engineer.damage,35,"approved heavy engineer attack");
+ assert.equal(originalClasses.engineer.hp,420,"heavy engineer HP is unchanged");
+ assert.equal(originalClasses.engineer.cost,4,"heavy engineer cost is unchanged");
+ assert.equal(originalClasses.engineer.capture,2,"heavy engineer fort capture is unchanged");
+ assert.equal(spells.barrage.damage,180,"approved barrage hit damage");
+ assert.equal(spells.barrage.cost,4,"barrage cost stays 4");
+ assert.equal(spells.barrage.limit,2,"barrage usage cap stays 2");
+ assert.equal(spells.barrage.radius,82,"barrage area stays 82");
+ assert.equal(spells.barrage.delay,1.3,"barrage delay stays 1.3");
+ const stepStart=game.indexOf("function spellStep(dt){");
+ const stepEnd=game.indexOf("\nfunction getFort(u){",stepStart);
+ assert.ok(stepStart>0&&stepEnd>stepStart,"real spell step found");
+ const inside={team:2,x:100,y:100,hp:170};
+ const outside={team:2,x:183,y:100,hp:170};
+ const own={team:1,x:100,y:110,hp:170};
+ const state={units:[inside,outside,own],effects:[],spells:{
+  incoming:[{kind:"barrage",team:1,x:100,y:100,r:82,time:1.3}],zones:[]}};
+ const spellStep=new Function("S","hitUnit","SPELLS","applyGravity","notice",
+  game.slice(stepStart,stepEnd)+"return spellStep;");
+ const run=spellStep(state,(u,p)=>{u.hp-=p;},spells,()=>{},()=>{});
+ run(1.29);
+ assert.equal(inside.hp,170,"no premature spell impact");
+ run(.02);
+ assert.equal(inside.hp,-10,"shipping spell step applies 180 damage");
+ assert.equal(outside.hp,170,"outside the blast remains untouched");
+ assert.equal(own.hp,170,"no friendly spell damage");
+ assert.equal(state.spells.incoming.length,0,"impact resolves once");
+ console.log("PASS: approved heavy engineer 35, barrage 180 and unchanged spell/fort constraints");
+}
+
 const schoolKeys=Object.keys(originalClasses).filter(id=>!originalClasses[id].internalOnly);
 // The initial nine remain a compatibility baseline, NOT a cap on future classes.
 // Every future unit must opt into the same data-driven targeting contract.
