@@ -76,6 +76,7 @@ async function sample(page,side,mode){
   const hitches=rows.filter(x=>x.gapMs>=90).map(x=>({
    gapMs:Math.round(x.gapMs),drawMs:Math.round(x.drawMs),
    jsMs:Math.round(x.totalMs),logicMs:Math.round(x.logicMs),units:x.units,
+   newCachedTiles:x.newCachedTiles||0,
    sdkSeq:x.hitchNet?.sdkSeq??null,appliedSeq:x.hitchNet?.appliedSeq??null,
    sdkAgeMs:x.hitchNet?.sdkAgeMs??null,appliedAgeMs:x.hitchNet?.appliedAgeMs??null,
    restSeq:x.hitchNet?.restSeq??null,applyMs:x.hitchNet?.applyMs??null
@@ -135,7 +136,7 @@ async function sample(page,side,mode){
   await host.locator("#netStart").click();
   await poll(async()=>await host.locator("#onlinePanel").isHidden()&&
    await guest.locator("#onlinePanel").isHidden(),"playing",35000);
-  for(const mode of ["plain","gale"]){
+  for(const [trial,mode] of ["plain","gale","plain"].entries()){
    const before=await guest.evaluate(()=>window.ShokokuNet.syncDiagnostics().seq||0);
    const created=await host.evaluate(x=>window.__shokokuQa.fixtureStage3(x),mode);
    assert.equal(created.units,20);assert.equal(created.kaiju,2);
@@ -156,16 +157,16 @@ async function sample(page,side,mode){
    assert.ok(h.frameCount>100,"host rendered the scene");
    assert.ok(g.frameCount>10,"guest rendered the scene");
    assert.equal(h.frameError,null);assert.equal(g.frameError,null);
-   await guest.screenshot({path:path.join(out,"guest-"+mode+".png")});
-   results.push({mode,created,host:h,guest:g});
+   await guest.screenshot({path:path.join(out,"guest-"+mode+"-"+trial+".png")});
+   results.push({trial,mode,created,host:h,guest:g});
    console.log("STAGE3_HITCH_TRACE "+JSON.stringify({
-    mode,host:{frames:h.frameCount,gapP95:h.gapP95,drawP95:h.drawP95},
+    trial,mode,host:{frames:h.frameCount,gapP95:h.gapP95,drawP95:h.drawP95},
     guest:{frames:g.frameCount,gapP95:g.gapP95,drawP95:g.drawP95,
      maxGap:g.gapMax,longHitches:g.hitches.filter(x=>x.gapMs>=180).slice(0,12),
      over90:g.hitches.length,finalSeq:g.seq,cache:g.cache,quality:g.quality}}));
   }
   assert.deepEqual(errors,[],"no browser errors");
-  console.log("STAGE3_HITCH_TRACE_CAPTURED two real Firebase host/WebKit scenarios");
+  console.log("STAGE3_HITCH_TRACE_CAPTURED three real Firebase host/WebKit scenarios");
  }finally{
   fs.writeFileSync(path.join(out,"trace.json"),JSON.stringify({results,errors,notes:[
    "Localhost QA-only synthetic crowd; no school deployment, no gameplay-code change",
