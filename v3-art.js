@@ -13,7 +13,7 @@ const UNIT_COLORS={
  infantry:["#4d99b8","#294c75"],scout:["#efcc79","#346e89"],engineer:["#d7a963","#3b6574"],archer:["#a784dc","#435d8f"],
  suppress:["#e8a16a","#5b5c83"],sentinel:["#8ca6d5","#303e63"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"],
  duelist:["#d1a2e1","#554988"],crusher:["#d68b74","#68424e"],ranger_engineer:["#8fc8ad","#315b72"],interceptor:["#e6c17d","#436a89"],ground_bomber:["#b9cf79","#426787"],
- piercer:["#96cbdf","#3c5c8f"],catapult:["#bb9a73","#564858"],kamikaze:["#ecb779","#963c65"],mech_summoner:["#72c5b9","#3a6577"],small_machine:["#a7d5ca","#365977"],kaiju:["#6a997e","#344c67"],
+ piercer:["#96cbdf","#3c5c8f"],catapult:["#bb9a73","#564858"],kamikaze:["#ecb779","#963c65"],mech_summoner:["#72c5b9","#3a6577"],small_machine:["#a7d5ca","#365977"],small_machine_elite:["#f1c66f","#526a91"],kaiju:["#6a997e","#344c67"],
  barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"],gravity:["#886add","#2a427b"],gale:["#6aca8b","#367b86"]
 };
 function path(g,points,fill,stroke=INK,lineWidth=2.4){
@@ -373,7 +373,21 @@ function small_machine(g,p,s){
  path(g,[[25+hit*7,-26],[35+hit*7,-19],[25+hit*7,-12]],p.accent,INK,1.5);
  line(g,[[0,-39],[4,-46]],p.accent,2);
 }
-const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber,piercer,catapult,kamikaze,mech_summoner,small_machine,kaiju};
+function small_machine_elite(g,p,s){
+ // Armored final child: retain the familiar robot silhouette and team hue.
+ small_machine(g,p,s);
+ const hit=s.hit;
+ // Broad shoulder plates, visible even at tablet RTS zoom levels.
+ path(g,[[-27,-42],[-17,-49],[-10,-40],[-17,-28],[-27,-30]],"#e8b85d",INK,2.2);
+ path(g,[[12,-40],[19,-49],[29,-41],[29,-30],[16,-28]],"#e8b85d",INK,2.2);
+ round(g,-16,-38,32,8,3,"#385565","#e7cf83",2);
+ crystal(g,0,-32,8,"#ffe080");
+ // Crown-like antenna and a heavier glowing blade distinguish the eighth.
+ path(g,[[-10,-49],[-6,-61],[0,-55],[7,-63],[11,-49]],"#f2ce75",INK,2);
+ line(g,[[15,-24],[32+hit*7,-19]],"#ffe5a2",6);
+ path(g,[[28+hit*7,-29],[42+hit*7,-19],[28+hit*7,-9]],"#d8ad56",INK,2);
+}
+const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber,piercer,catapult,kamikaze,mech_summoner,small_machine,small_machine_elite,kaiju};
 function paint(g,key,team,clock=0,unit={}){
  const p=PALETTES[team]||PALETTES[1];
  const moving=!!unit.walking;
@@ -409,10 +423,10 @@ function paint(g,key,team,clock=0,unit={}){
 }
 const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.73,drone:1.08,tank:1.79,
  duelist:.98,crusher:1.13,ranger_engineer:1.00,interceptor:1.06,ground_bomber:1.10,
- piercer:1.06,catapult:1.66,kamikaze:1.02,mech_summoner:1.09,small_machine:.72,kaiju:1.62};
+ piercer:1.06,catapult:1.66,kamikaze:1.02,mech_summoner:1.09,small_machine:.72,small_machine_elite:.94,kaiju:1.62};
 const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73,
  duelist:80,crusher:93,ranger_engineer:82,interceptor:86,ground_bomber:66,
- piercer:85,catapult:100,kamikaze:72,mech_summoner:94,small_machine:54,kaiju:96};
+ piercer:85,catapult:100,kamikaze:72,mech_summoner:94,small_machine:54,small_machine_elite:61,kaiju:96};
 // Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
  // The Gald sprite cache replaces only the guardian artwork. Retain the
