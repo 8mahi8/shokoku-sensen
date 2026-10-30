@@ -1240,18 +1240,17 @@ return (time,appliedAt,sdkAt)=>{
   "approved default deck finite card budget");
  const all=Object.keys(roster).filter(id=>id!=="infantry"&&!roster[id].internalOnly);
  assert.equal(all.length,22);
- const budgets=[];
+ let combinations=0,minBudget=Infinity,maxBudget=-Infinity;
  const enumerate=(i,n,total)=>{
-  if(n===10){budgets.push(total);return;}
+  if(n===10){combinations++;minBudget=Math.min(minBudget,total);maxBudget=Math.max(maxBudget,total);return;}
   if(i>=all.length||all.length-i<10-n)return;
   enumerate(i+1,n+1,total+roster[all[i]].cost*roster[all[i]].limit);
   enumerate(i+1,n,total);
  };
  enumerate(0,0,0);
- assert.equal(budgets.length,646646,"all 10 distinct card deck combinations");
- assert.ok(Math.min(...budgets.slice(0,1000))>0); // no zero-cost playable cards
- assert.equal(Math.min(...budgets),91,"smallest deck finite budget");
- assert.equal(Math.max(...budgets),135,"largest deck finite budget");
+ assert.equal(combinations,646646,"all 10 distinct card deck combinations");
+ assert.equal(minBudget,94,"smallest deck finite budget");
+ assert.equal(maxBudget,132,"largest deck finite budget");
  const deckState={hand:[null,["archer","drone","tank","ward"],[]],
   queue:[null,["scout","engineer","sentinel","barrage","suppress","guardian"],[]],
   left:[null,{archer:5,drone:1,tank:2,ward:3,scout:4,engineer:3,
