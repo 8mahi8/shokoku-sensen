@@ -1079,18 +1079,32 @@ return (time,appliedAt,sdkAt)=>{
  const he=game.indexOf("\nfunction togglePerfPanel(){",hs);
  assert.ok(hs>0&&he>hs,"in-memory guest hitch capture exists");
  const n={eventSeq:15,seq:14,eventAgeMs:125,ageMs:160};
- const role={isHost:false,syncDiagnostics:()=>n},document={hidden:false},S={phase:"battle",units:[{},{}]};
- const qa=new Function("NET","document","S","let lastGuestHitch=null;\n"+game.slice(hs,he)+
-  "\nreturn {sample:trackGuestFrameHitch,last:()=>lastGuestHitch,reset:()=>lastGuestHitch=null};")(role,document,S);
- qa.sample(179);assert.equal(qa.last(),null,"sub-180ms frame gaps are ignored");
- qa.sample(180);assert.deepEqual(qa.last(),{gapMs:180,units:2,sdkSeq:15,appliedSeq:14,sdkAgeMs:125,appliedAgeMs:160},
-  "brief stutters from 180ms should be visible in diagnostics");
- qa.reset();
- qa.sample(725);
- assert.deepEqual(qa.last(),{gapMs:725,units:2,sdkSeq:15,appliedSeq:14,sdkAgeMs:125,appliedAgeMs:160});
+ const role={isHost:false,syncDiagnostics:()=>n},document={hidden:false},
+  S={phase:"battle",elapsed:20.3,units:[{},{}]};
+ const qa=new Function("NET","document","S",
+  "let lastGuestHitch=null,guestHitchCount=0,guestHitchWorst=0,perfPanel={},"+
+  "perfPreviousDrawMs=4.6,perfPreviousTiles=2,guestLowPower=false,lowFpsCrowdedSprites=true;\\n"+
+  game.slice(hs,he)+
+  "\\nreturn {sample:trackGuestFrameHitch,last:()=>lastGuestHitch,"+
+  "reset:()=>{lastGuestHitch=null;},panel:on=>perfPanel=on?{}:null,"+
+  "totals:()=>[guestHitchCount,guestHitchWorst]};")(role,document,S);
+ qa.sample(99);assert.equal(qa.last(),null,"under 100ms ignored");
+ qa.sample(130);assert.deepEqual(qa.last(),
+  {gapMs:130,units:2,elapsedSeconds:"20.3",sdkSeq:15,appliedSeq:14,
+   sdkAgeMs:125,appliedAgeMs:160,beforeDrawMs:4.6,beforeTiles:2,
+   quality:"通常",cached:true},
+  "opt-in panel captures 100-179ms hitches with previous Canvas draw cost");
+ assert.deepEqual(qa.totals(),[1,130]);
+ qa.reset();qa.panel(false);qa.sample(179);assert.equal(qa.last(),null);
+ qa.sample(180);assert.equal(qa.last().gapMs,180);
+ assert.deepEqual(qa.totals(),[2,180]);
  qa.reset();role.isHost=true;qa.sample(800);assert.equal(qa.last(),null,"host ignored");
  role.isHost=false;document.hidden=true;qa.sample(800);assert.equal(qa.last(),null,"hidden iframe ignored");
  document.hidden=false;S.phase="menu";qa.sample(800);assert.equal(qa.last(),null,"menu ignored");
+ assert.ok(game.includes('perfPreviousDrawMs=drawMs;perfPreviousTiles=denseSpriteBuildsThisFrame;'),
+  "last paint duration and cache tiles are measured only with panel open");
+ assert.ok(game.includes('lastGuestHitch=null;guestHitchCount=0;guestHitchWorst=0;'),
+  "new match clears guest hitch evidence");
  assert.ok(game.includes("S.remoteSprites=null;lastGuestHitch=null;"),"new round clears old stop");
  assert.ok(game.includes("datum.hitchNet={sdkSeq:sync.eventSeq||0,appliedSeq:sync.seq||0,"),
   "QA frame benchmark correlates hitch with SDK and applied-world timing");
