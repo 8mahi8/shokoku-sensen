@@ -294,3 +294,24 @@
 
 - **結論の強さ**：WebKit `new20` で元兵20体よりp95 rAF gapが長かった（119→149.5ms）ため、**全く悪化の兆候がないとは言えない**。ただし兵種・絵・位置/衝突・攻撃・生成数・戦況が違い、2×3.5秒のheadless CIという小標本。Canvas draw p95とロジック p95が同程度で、安定版ですらheadless WebKitが遅い旧証拠と整合。新能力のどこが原因かは**未特定**。16体の子兵そのものでは本実験でCanvas/ロジックの重大悪化は再現せず、ブラウザ種別で結果が大きく変わる。ゲスト役割差・Firebase同期は未測定（ソロ）。
 - **採用判断**：旧版で実機合格した通信・画質・AIを変える理由は今はない。任意の大規模最適化・低画質化は不採用。実iPad/Sitesの旧安定と新開発のA/Bで体感差が出たとき、物理端末の同じシーンと同じ計測診断で原因を絞る。新能力の自然な友人戦・長時間プレイ・同数同配置の厳密負荷評価は別条件。今回の合格を「学校実機60FPS保証」と呼ばない。
+
+## 2026-10-30｜学校ゲストの一瞬のカクつき：描画・通信を分けたStage3追加調査
+
+**学校からの実報告**：以前の安定版よりゲストが時々カクつくが、基本は遊べる。原因はまだ未特定。学校用コードの変更やDriveへの再保存は指示されていない。
+
+**今回の実検査**：`tests/online-stage2-load-profile.cjs` にStage3怪獣を含む20体の混成負荷`stage3-plain`と、同一編成20体へ疾風号令の期限付き効果をQA注入する`stage3-gale`を追加。旧4シーンも再測定。WebKit 2回/条件・Chromium 1回/条件、合計18シーン。GitHub Actions [#41038098220](https://github.com/8mahi8/shokoku-sensen/actions/runs/41038098220) **completed/success**。本体の`online-game.js`・`v3-art.js`・`online-net.js`・HTML・バランス・AIはこの調査では変更なし。
+
+| 20体開始の合成ストレスシーン | WebKit p95フレーム間隔 | WebKit p95 Canvas JS描画 | WebKit p95ロジック | Chromium p95フレーム間隔 |
+|---|---:|---:|---:|---:|
+| 既存兵 old20 | 76ms | 7.5ms | 1ms | 16.7ms |
+| Stage2新混成 new20 | 102ms | 6.5ms | 1ms | 16.8ms |
+| Stage2＋引力 gravity20 | 96.5ms | 8ms | 1ms | 16.7ms |
+| 子兵16体含む child20 | 56.5ms | 3.5ms | 1ms | 16.7ms |
+| **Stage3怪獣を含む stage3-plain** | **88.5ms** | **6.5ms** | **1ms** | **16.7ms** |
+| **同編成＋20体疾風効果 stage3-gale** | **95ms** | **8ms** | **1ms** | **16.7ms** |
+
+数値は各試行のp95を単純平均した参考値。実Firebase通信なし、Windows/iPadとは異なるLinux headless WebKit/Chromium、1194×834・Canvas DPR1、試合の人工的な20体配置、0.9秒準備＋3.5秒計測という条件。新規召喚などで観測中のユニット数/位置は変動し、疾風号令の一斉付与は通常の合法なスペル発動場面ではなく**描画上限の合成試験**。ステージ間・試行順の変動があるため、疾風号令が6.5msのフレーム間隔悪化を引き起こしたと**断定不可**。長時間での稀な一時停止や実iPadの体感は測れていない。
+
+**コード比較と解釈**：固定安定版`99a0d1d`とStage3の主要ネットワーク関数`packGuestWorld/receiveGuestWorld/maybePublish/sendCommand/checkGuestSync/syncDiagnostics/flushGuestBeforePaint`および`frame/tick/presentRemoteUnit`は本文一致。新キャラ絵、追加攻撃、状態バフ表示は差異。通信なしでもWebKitのrAF間隔とCanvas JS描画時間に大差があるので、ブラウザの合成/レンダリングスケジューリングも候補。これは**描画経路の疑いを支持するが、学校でのカクつき原因を特定した証拠ではない**。公式WebKitの[Timelines](https://webkit.org/web-inspector/timelines-tab/)はJavaScript/レイアウト/描画/合成を別々に見る方法を示すが、学校Safari実機のWeb Inspectorは今回使用していない。
+
+**次**：`stable/school-ipad-20261028-99a0d1d`を保護したまま学校の同じ端末で旧版/Stage3版、双方の役割・同程度の部隊数を比較。既存タイトル3タップの診断にある描画FPS/フレーム最大間隔とSDK受信/適用シーケンスを、発生前後で照合する。画面更新だけ止まり受信が進むなら描画・合成側、FPS維持でstate受信が止まるなら通信側、両方進むのにユニット表示だけ飛ぶなら補間側を優先。WebKit CIだけで大規模低画質化、固定FPS制限、送信頻度変更、通信全面改修を行わない。
