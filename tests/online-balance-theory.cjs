@@ -64,7 +64,7 @@ function duel(left,right,{firstLeft=0,firstRight=0}={}){
 const checks=[
  ["duelist","scout","left",5,4.4],
  ["duelist","sentinel","right",308,3.2],
- ["crusher","engineer","left",324,5.3],
+ ["crusher","engineer","left",320,5.3],
  ["crusher","sentinel","left",212,5.3],
  ["crusher","guardian","right",850,6.15],
  ["ranger_engineer","scout","left",48,8.4],
@@ -73,7 +73,7 @@ const checks=[
  ["ground_bomber","suppress","right",105,7.6],
  ["ground_bomber","guardian","left",230,43.7],
  ["ground_bomber","drone","right",120,15],
- ["sentinel","engineer","left",202,9.6],
+ ["sentinel","engineer","left",195,9.6],
  ["sentinel","suppress","left",140,9.6]
 ];
 for(const [id,other,winner,hp,time] of checks){
