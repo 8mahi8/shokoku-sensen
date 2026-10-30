@@ -379,4 +379,17 @@ test("priority 3 remains attack-first even against farther priority 3",()=>withO
  assert.equal(chosen(a).approach.kind,"fort");
  moved(a);assert.equal(shots[0].t.ref,e);
 }));
-console.log("TARGET_PRIORITY_QA: 48 scenarios passed");
+test("kaiju castle priority 1 selects closer defender",()=>{
+ const a=actor("kaiju",1,1100,200),e=actor("infantry",2,1120,200,11);
+ S.units=[a,e];
+ const p=API.CLASSES.kaiju.targetPriority;
+ assert.deepEqual([p.castle,p.fort,p.unit],[1,4,1]);
+ assert.equal(chosen(a).attack.ref,e);
+ moved(a);assert.equal(shots[0].t.ref,e);
+});
+test("kaiju fort priority 4 still overrides nearby enemy",()=>{
+ const a=actor("kaiju",1,1100,200),e=actor("infantry",2,1120,200,11);
+ S.units=[a,e];S.forts=[fort(1148,200,2)];
+ assert.equal(chosen(a).attack.kind,"fort");
+});
+console.log("TARGET_PRIORITY_QA: 50 scenarios passed");
