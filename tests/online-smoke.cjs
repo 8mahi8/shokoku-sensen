@@ -1306,8 +1306,8 @@ return (time,appliedAt,sdkAt)=>{
   enumerate(i+1,n,total);
  };
  enumerate(0,0,0);
- assert.equal(combinations,646646,"all 10 distinct card deck combinations");
- assert.equal(minBudget,94,"smallest deck finite budget");
+ assert.equal(combinations,3268760,"all 10 distinct card deck combinations");
+ assert.equal(minBudget,80,"smallest deck finite budget");
  assert.equal(maxBudget,132,"largest deck finite budget");
  const deckState={hand:[null,["archer","drone","tank","ward"],[]],
   queue:[null,["scout","engineer","sentinel","barrage","suppress","guardian"],[]],
