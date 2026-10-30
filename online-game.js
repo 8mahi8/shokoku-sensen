@@ -143,7 +143,7 @@ const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elap
  uid:0,botThink:0,botPrepDone:false,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(matchStart=false){
- S.mulligan=null;mulliganSelected.clear();mulliganSubmitted=false;mulliganRendered="";
+ S.mulligan=null;mulliganSelected.clear();mulliganSubmitted=false;mulliganRendered="";mulliganExpiresAt=0;
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.clock=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
  S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];qaRaceBudgetPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
@@ -246,7 +246,7 @@ function notice(message){
  const el=$("announcement");el.textContent=message;el.classList.add("visible");S.noticeUntil=performance.now()+2600;
 }
 // The host alone owns both hands. A guest submits only its four slot indices.
-let mulliganOverlay=null,mulliganSelected=new Set(),mulliganSubmitted=false,mulliganRendered="";
+let mulliganOverlay=null,mulliganSelected=new Set(),mulliganSubmitted=false,mulliganRendered="",mulliganExpiresAt=0;
 function beginPlacement(){
  if(S.phase!=="mulligan")return;
  S.phase="prep";S.prep=PREP;mulliganSelected.clear();mulliganRendered="";
@@ -363,6 +363,7 @@ function updateMulliganUI(){
 function begin(){
  resetWorld(true);clampCamera();S.phase="mulligan";S.speed=1;
  S.mulligan={time:MULLIGAN_SECONDS,done:[null,false,false]};
+ mulliganExpiresAt=performance.now()+MULLIGAN_SECONDS*1000;
  $("speed").textContent="速度 1.00×";$("pause").textContent="Ⅱ 停止";
  $("overlay").classList.add("hidden");
  $("prepBanner").classList.remove("visible");
@@ -3340,7 +3341,9 @@ function start(){
    $("start").disabled=false;
    $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
    buildCards();updateHUD();
-  },mulligan:slots=>confirmMulligan(2,slots),notify:message=>notice(message),showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
+  },mulligan:slots=>confirmMulligan(2,slots),
+  mulliganSendFailed:()=>{if(S.phase==="mulligan"){mulliganSubmitted=false;mulliganRendered="";updateMulliganUI();}},
+  notify:message=>notice(message),showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
    phase:S.phase,prep:S.prep,seconds:S.seconds,elapsed:S.elapsed,clock:S.clock,
    mulligan:S.mulligan,energy:S.energy,left:S.left,hand:S.hand,queue:S.queue,units:S.units,
    forts:S.forts,capitals:S.capitals,spells:S.spells,effects:S.effects,
@@ -3503,7 +3506,7 @@ function start(){
   updateCamera(delta);
   inspectHold(now);
   if(NET.isHost&&S.phase==="mulligan"){
-   S.mulligan.time=Math.max(0,S.mulligan.time-delta);
+   S.mulligan.time=Math.max(0,(mulliganExpiresAt-now)/1000);
    if(S.mulligan.time<=0){
     for(const team of [1,2])if(!S.mulligan.done[team])confirmMulligan(team,[]);
    }
