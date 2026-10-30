@@ -36,6 +36,14 @@ const server=http.createServer((req,res)=>{
     assert.ok(hands.different,source+" identical host and guest opening draws");
     if(i<11)await page.evaluate(()=>window.ShokokuNet.rematch());
    }
+   // Mulligan comes before the original 10-second placement phase.
+   assert.equal(await page.evaluate(()=>window.__shokokuQa.snapshot().phase),"mulligan");
+   assert.equal(await page.locator("#mulliganCards .mulliganCard").count(),4);
+   await page.locator("#mulliganCards .mulliganCard").nth(0).click();
+   assert.equal(await page.locator("#mulliganConfirm").innerText(),"選んだ1枚を交換");
+   await page.locator("#mulliganConfirm").click();
+   await page.waitForFunction(()=>window.__shokokuQa.snapshot().phase==="prep");
+   assert.equal(await page.locator("#mulliganOverlay").evaluate(el=>el.classList.contains("hidden")),true);
    await page.waitForFunction(()=>window.ShokokuNet?.isSolo===true&&window.ShokokuNet?.isOnline===false&&window.ShokokuNet?.isHost===true);
    await page.locator("#onlinePanel").waitFor({state:"hidden"});
    const badge=await page.locator("#networkBar").innerText();assert.match(badge,/OFFLINE/);
@@ -75,8 +83,11 @@ const server=http.createServer((req,res)=>{
     const aria=Number(rail.getAttribute("aria-valuenow"));
     return shown===Math.floor(energy)&&Math.abs(aria-energy)<.15;
    },null,{timeout:5000});
-   // Local rematch must restart without a room (no Firebase).
+   // Local rematch must restart from a fresh mulligan, not a stale hand.
    await page.evaluate(()=>window.ShokokuNet.rematch());
+   assert.equal(await page.evaluate(()=>window.__shokokuQa.snapshot().phase),"mulligan");
+   await page.locator("#mulliganConfirm").click();
+   await page.waitForFunction(()=>window.__shokokuQa.snapshot().phase==="prep");
    assert.equal(await page.locator("#prepTime").innerText(),"00:10");
    assert.ok(await page.locator("#onlinePanel").evaluate(e=>e.classList.contains("hidden")));
    if(errors.length)throw Error(source+" browser errors: "+errors.join(" | "));

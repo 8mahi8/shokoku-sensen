@@ -15,7 +15,7 @@ const S={phase:"mulligan",mulligan:{time:20,done:[null,false,false]},
 const NET={isHost:true,sendMulligan:()=>false};
 let uiUpdates=0,published=0;
 const nodes={prepBanner:{classList:{add:()=>{}}},fieldHint:{textContent:""}};
-const ctx={S,NET,PREP:10,Set,Math,Array,Number,
+const ctx={S,NET,PREP:10,ME:()=>1,Set,Math,Array,Number,
  mulliganSelected:new Set(),mulliganSubmitted:false,mulliganRendered:"",
  $:id=>nodes[id],buildCards:()=>{},updateHUD:()=>{},
  updateMulliganUI:()=>{uiUpdates++;}};
