@@ -37,7 +37,7 @@ vm.runInContext([
  section("// Lightweight per-unit timed statuses, shared by future buffs and debuffs.","function playCard(team,id,x,y){"),
  section("function shieldMultiplier(team,x,y){","function getFort(u){"),
  section("// Target traits are shared data-driven selectors.","function rate(){"),
- "globalThis.API={CLASSES,SPELLS,CATALOG,deploy,castSpell,fire,unitStep,spellStep,selectPriorityTargets,gravityZoneFor};"
+ "globalThis.API={CLASSES,SPELLS,CATALOG,deploy,castSpell,fire,unitStep,spellStep,effectiveMoveSpeed,selectPriorityTargets,gravityZoneFor};"
 ].join("\n"),ctx,{filename:"stage2-extracted-engine.js"});
 API=ctx.API;
 function unit(key,team,x,y,uid=++S.uid){
@@ -64,6 +64,15 @@ test("stage2 cards have user-approved parameters and child stays hidden",()=>{
  assert.equal(C.mech_summoner.summonTimes.join(","),"2,4,6,11,16,21,26,31");
  assert.equal(API.SPELLS.gravity.duration,2.5);
  assert.equal(API.SPELLS.gravity.cost,3);
+});
+test("drone trial speed decreases to 30 without altering movement buff scaling",()=>{
+ const drone=unit("drone",1,420,300);
+ assert.equal(API.CLASSES.drone.speed,30,"only the trial move-speed baseline changes");
+ assert.equal(API.CLASSES.drone.qty,2,"drone still summons a pair");
+ assert.equal(API.CLASSES.drone.limit,5,"usage cap is not changed during review");
+ assert.equal(API.effectiveMoveSpeed(drone),30);
+ drone.statusEffects=[{key:"gale",stat:"moveSpeed",mult:1.5,remaining:4}];
+ assert.equal(API.effectiveMoveSpeed(drone),45,"gale remains multiplicative");
 });
 test("pierce hits 10 targets maximum, main 55 and behind targets 33",()=>{
  const atk=unit("piercer",1,420,300);
