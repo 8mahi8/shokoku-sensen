@@ -71,8 +71,12 @@ function stage2Run(){
   result={keys:S.units.map(u=>u.key),teams:S.units.map(u=>u.team)};
  }else if(scene==="pierce"){
   const f=q.foes[0];fire(q.actor,{kind:"unit",ref:f,x:f.x,y:f.y});
+  const lance=S.projectiles.at(-1);
   result={mainDamage:420-f.hp,secondary:q.foes.slice(1).map(u=>420-u.hp),
-   airHp:q.air.hp,projectiles:S.projectiles.length};
+   airHp:q.air.hp,projectiles:S.projectiles.length,flightEndX:lance.tx};
+  // Freeze the *visual only* lance mid-flight for screenshot evidence.
+  // The real damage was already resolved at fire time.
+  lance.t=lance.max*.35;
  }else if(scene==="catapult"){
   fire(q.actor,{kind:"unit",ref:q.primary,x:q.primary.x,y:q.primary.y});
   const shot=S.spells.incoming[0];
@@ -142,6 +146,7 @@ function verify(scene,o){
   assert.equal(r.mainDamage,55);
   assert.deepEqual(r.secondary,[33,33,33,33,33,33,33,33,33,0]);
   assert.equal(r.airHp,120);assert.ok(r.projectiles>0);
+  assert.ok(r.flightEndX>650,"piercing lance flies past the primary target");
   assert.ok(o.pierceBoltDraws>0,"piercing energy lance must be painted");
  }else if(scene==="catapult"){
   assert.equal(r.saved.kind,"catapult");assert.equal(r.saved.x,620);

@@ -2584,7 +2584,14 @@ function fire(u,target){
  const impactLife=d.size==="large"?.42:.33;
  S.effects.push({x:target.x,y:target.y,t:impactLife,max:impactLife,team:u.team,r:d.splash||16,type:u.key});
  if(d.projectile||["archer","suppress","drone","tank"].includes(u.key)){
-  S.projectiles.push({x:u.x,y:u.y-36,tx:target.x,ty:target.y-(target.kind==="unit"?34:8),
+  // Visual-only continuation of the lance beyond its first target.
+  // The hit calculation already resolves instantly and remains untouched.
+  const dx=target.x-u.x,dy=target.y-u.y,distToTarget=Math.hypot(dx,dy);
+  const lance=d.attackMode==="pierce"&&distToTarget>1e-6;
+  const travel=lance?Math.max(distToTarget,d.range):0;
+  S.projectiles.push({x:u.x,y:u.y-36,
+   tx:lance?u.x+dx/distToTarget*travel:target.x,
+   ty:lance?u.y-36+dy/distToTarget*travel:target.y-(target.kind==="unit"?34:8),
    t:u.key==="tank"?.56:.40,max:u.key==="tank"?.56:.40,team:u.team,kind:u.key});
  }
  if((d.meleeFx||["guardian","engineer","infantry","scout"].includes(u.key))&&S.effects.length<220){
@@ -4750,8 +4757,8 @@ function paintGrandArrival(now){
 }
 // Visual-only, elongated lance: long swept tail + wide energy flares + sharp head.
 // Collision geometry is independently defined by CLASSES.piercer.pierceWidth.
-function drawPiercerBolt(g,x,y,angle,alpha){
- g.save();g.translate(x,y);g.rotate(angle);
+function drawPiercerBolt(g,x,y,angle,alpha,growth=1){
+ g.save();g.translate(x,y);g.rotate(angle);g.scale(growth,1);
  g.globalAlpha*=alpha;
  // Broad wake is intentionally transparent; units stay readable underneath.
  g.fillStyle="#39baff55";
@@ -4837,7 +4844,7 @@ function draw(){
    // A longer pointed bolt is visible even when only its trailing edge is on screen.
    if(visible(x,y,120,75,75))
     drawPiercerBolt(ctx,x,y,Math.atan2(shot.ty-shot.y,shot.tx-shot.x),
-     Math.min(1,remaining/.09));
+     Math.min(1,remaining/.09),Math.min(1,.22+f*4));
    continue;
   }
   if(!visible(x,y,35,45,45))continue;

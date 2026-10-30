@@ -6,6 +6,8 @@ on:
       - 'online-embed.html'
       - 'online-ipad.html'
       - 'online-game.js'
+      - 'tests/online-stage2-combat.cjs'
+      - 'tests/online-stage2-browser-visual.cjs'
       - 'v3-art.js'
       - 'online-net.js'
       - 'online-deck.js'
