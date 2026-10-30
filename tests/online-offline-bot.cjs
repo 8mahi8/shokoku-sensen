@@ -86,9 +86,17 @@ const server=http.createServer((req,res)=>{
    // Local rematch must restart from a fresh mulligan, not a stale hand.
    await page.evaluate(()=>window.ShokokuNet.rematch());
    assert.equal(await page.evaluate(()=>window.__shokokuQa.snapshot().phase),"mulligan");
-   await page.locator("#mulliganConfirm").click();
-   await page.waitForFunction(()=>window.__shokokuQa.snapshot().phase==="prep");
-   assert.equal(await page.locator("#prepTime").innerText(),"00:10");
+   if(source==="online.html"){
+    // Let the real twenty-second window expire with no swap selected.
+    const beforeHand=await page.evaluate(()=>window.__shokokuQa.snapshot().hand[1]);
+    await page.waitForFunction(()=>window.__shokokuQa.snapshot().phase==="prep",null,{timeout:36000});
+    assert.deepEqual(await page.evaluate(()=>window.__shokokuQa.snapshot().hand[1]),beforeHand,
+     "mulligan timeout keeps all four original cards");
+   }else{
+    await page.locator("#mulliganConfirm").click();
+    await page.waitForFunction(()=>window.__shokokuQa.snapshot().phase==="prep");
+    assert.equal(await page.locator("#prepTime").innerText(),"00:10");
+   }
    assert.ok(await page.locator("#onlinePanel").evaluate(e=>e.classList.contains("hidden")));
    if(errors.length)throw Error(source+" browser errors: "+errors.join(" | "));
    console.log("PASS:",source,"solo match with Firebase blocked, blue/red units, local timer, and offline rematch");
