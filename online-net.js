@@ -36,7 +36,7 @@ function onlinePanel(visible){$("onlinePanel").classList.toggle("hidden",!visibl
 // A meta event is not proof the first playable world has been applied.
 function guestPlayableWorld(){
  const state=game?.world?.();
- return !host&&lastRemoteSeq>0&&(state?.phase==="prep"||state?.phase==="battle");
+ return !host&&lastRemoteSeq>0&&(state?.phase==="mulligan"||state?.phase==="prep"||state?.phase==="battle");
 }
 function updateUI(){
  const inRoom=!!room,guest=!!players?.guest?.online;
@@ -337,7 +337,9 @@ function setupRoom(code,isHost){
    if(meta?.status==="playing"&&data.round===meta.round&&data.by===players?.guest?.id&&players?.guest?.online&&
       Number.isInteger(data.seq)&&data.seq>lastGuestSeq){
     lastGuestSeq=data.seq;
-    const valid=game?.accept({id:data.id,x:data.x,y:data.y})===true;
+    const valid=data.kind==="mulligan"?
+     game?.mulligan?.(data.slots)===true:
+     game?.accept({id:data.id,x:data.x,y:data.y})===true;
     if(!valid)room.child("feedback").set({seq:data.seq,round:meta.round,message:"召喚できませんでした。コスト・範囲・カードを確認。"}).catch(()=>{});
     else maybePublish(true);
    }
@@ -548,6 +550,15 @@ function sendCommand(c){
  room.child("commands").push({by:clientId,seq,round:meta?.round||1,id:c.id,x:c.x,y:c.y,time:Date.now()+serverOffset}).catch(setError);
  return true; // Queued locally, not yet host-confirmed.
 }
+function sendMulligan(slots){
+ if(host||!room||phase!=="playing"||!connected||players?.guest?.id!==clientId)return false;
+ if(!Array.isArray(slots)||slots.length>4||slots.some(i=>!Number.isInteger(i)||i<0||i>=4)||
+    new Set(slots).size!==slots.length)return false;
+ const seq=++commandSeq;
+ room.child("commands").push({kind:"mulligan",by:clientId,seq,
+  round:meta?.round||1,slots,time:Date.now()+serverOffset}).catch(setError);
+ return true;
+}
 function maybePublish(force=false){
  if(!host||!room||phase!=="playing"||!game||!connected)return;
  const now=performance.now();
@@ -695,7 +706,7 @@ const api={
   get hostBot(){return hostBotSeat()},get botActive(){return solo||guestBot||hostBotSeat()},
  get canSendCommand(){return !host&&!!room&&phase==="playing"&&connected&&players?.guest?.id===clientId},
  get soloDifficulty(){return soloDifficulty},
- registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,syncDiagnostics,sendCommand,finish,resultForMe,hasResult,resultReason,resultCapitalHp,resetLobby,rematch,
+ registerGame(x){game=x},maybePublish,checkGuestSync,flushGuestBeforePaint,syncDiagnostics,sendCommand,sendMulligan,finish,resultForMe,hasResult,resultReason,resultCapitalHp,resetLobby,rematch,
  reportVisibility(hidden){if(hidden&&phase==="playing")show("画面を離れると通信が遅れる場合があります。");}
 };
 window.ShokokuNet=api;

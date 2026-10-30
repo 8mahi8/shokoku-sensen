@@ -91,7 +91,7 @@ const SPELLS={
 const CATALOG={...CLASSES,...SPELLS};
 const SIZE_LABEL={small:"小型",medium:"中型",large:"大型"};
 const DECK_IDS=["scout","engineer","archer","barrage","sentinel","suppress","guardian","ward","drone","tank"];
-const HAND_SIZE=4;
+const HAND_SIZE=4,MULLIGAN_SECONDS=20;
 window.ShokokuDeck?.configure(CATALOG);
 // Randomized each round, then rotated without replacement.
 function shuffledDeck(ids=DECK_IDS){
@@ -101,6 +101,18 @@ function shuffledDeck(ids=DECK_IDS){
   [d[i],d[j]]=[d[j],d[i]];
  }
  return d;
+}
+// Pure rotating-deck exchange: draw from the unshown six before returning
+// rejected cards to the end of the cycle. No card is duplicated or spent.
+function applyMulliganHand(hand,queue,slots){
+ if(!Array.isArray(slots)||slots.length>HAND_SIZE||
+   slots.some(i=>!Number.isInteger(i)||i<0||i>=HAND_SIZE)||
+   new Set(slots).size!==slots.length||!Array.isArray(hand)||hand.length!==HAND_SIZE||
+   !Array.isArray(queue)||queue.length<slots.length)return false;
+ const rejected=slots.map(i=>hand[i]);
+ for(const i of slots)hand[i]=queue.shift();
+ queue.push(...rejected);
+ return true;
 }
 const isSpell=id=>Object.prototype.hasOwnProperty.call(SPELLS,id);
 const hasCard=(team,id)=>id==="infantry"||S.hand[team].includes(id);
@@ -126,11 +138,12 @@ const numTime=v=>{const s=Math.max(0,Math.ceil(v));return String(Math.floor(s/60
 // Give short, subtle feedback that explicitly means "sent", not "spawned".
 const GUEST_COMMAND_HINT_MS=650;
 let guestCommandHints=[],lastGuestHintPainted=0;
-const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,
+const S={phase:"menu",difficulty:"normal",speed:.85,prep:PREP,seconds:MATCH,elapsed:0,mulligan:null,
  energy:[0,8,8],observedEnergy:[0,8,8],left:[null,{},{}],activeDecks:[null,DECK_IDS.slice(),DECK_IDS.slice()],units:[],forts:[],capitals:[],effects:[],projectiles:[],deaths:[],tickCount:0,
  uid:0,botThink:0,botPrepDone:false,selected:null,drag:null,pointer:null,hand:[null,[],[]],queue:[null,[],[]],spells:{incoming:[],zones:[]},view:{w:1,h:1,s:1,ox:0,oy:0,dpr:1},
  hudTick:0,noticeUntil:0,clock:0,cam:{x:415,y:330,tx:415,ty:330,moving:false},underAttackUntil:0,lastAlert:-10};
 function resetWorld(matchStart=false){
+ S.mulligan=null;mulliganSelected.clear();mulliganSubmitted=false;mulliganRendered="";
  S.prep=PREP;S.seconds=MATCH;S.elapsed=0;S.clock=0;S.uid=0;S.botThink=7;S.botPrepDone=false;S.botSaveLarge=false;
  S.energy=[0,8,8];S.observedEnergy=[0,8,8];qaSiegePlans=[null,null,null];qaWindowPlans=[null,null,null];qaConcedePlans=[null,null,null];qaCastleHitEvents=[];qaRaceBudgetPlans=[null,null,null];S.units=[];S.effects=[];S.projectiles=[];S.deaths=[];S.tickCount=0;S.selected=null;S.drag=null;S.pointer=null;
  S.cam={x:ME()===1?300:980,y:330,tx:ME()===1?300:980,ty:330,moving:false};S.underAttackUntil=0;S.lastAlert=-10;
@@ -232,15 +245,131 @@ function deploy(team,id,x,y){
 function notice(message){
  const el=$("announcement");el.textContent=message;el.classList.add("visible");S.noticeUntil=performance.now()+2600;
 }
-function begin(){
- resetWorld(true);clampCamera();S.phase="prep";S.speed=1;
- $("speed").textContent="速度 1.00×";$("pause").textContent="Ⅱ 停止";
- $("overlay").classList.add("hidden");
+// The host alone owns both hands. A guest submits only its four slot indices.
+let mulliganOverlay=null,mulliganSelected=new Set(),mulliganSubmitted=false,mulliganRendered="";
+function beginPlacement(){
+ if(S.phase!=="mulligan")return;
+ S.phase="prep";S.prep=PREP;mulliganSelected.clear();mulliganRendered="";
  $("prepBanner").classList.add("visible");
  $("fieldHint").textContent="開戦準備：資源8で初期配置を決めよう。キャラは動かない。";
- // No opening BOT spawns: both players decide their own preparation.
- buildCards();updateHUD();
-
+ buildCards();updateHUD();updateMulliganUI();
+}
+function confirmMulligan(team,slots){
+ if(!NET.isHost||S.phase!=="mulligan"||!S.mulligan||
+   (team!==1&&team!==2)||S.mulligan.done[team])return false;
+ if(!applyMulliganHand(S.hand[team],S.queue[team],slots))return false;
+ S.mulligan.done[team]=true;
+ if(S.mulligan.done[1]&&S.mulligan.done[2])beginPlacement();
+ else{buildCards();updateHUD();updateMulliganUI();}
+ return true;
+}
+function submitMulligan(){
+ if(S.phase!=="mulligan"||!S.mulligan||
+   S.mulligan.done[ME()]||mulliganSubmitted)return false;
+ const slots=[...mulliganSelected].sort((a,b)=>a-b);
+ if(NET.isHost){
+  if(!confirmMulligan(ME(),slots))return false;
+ }else{
+  if(!NET.sendMulligan?.(slots))return false;
+  mulliganSubmitted=true;
+ }
+ updateMulliganUI();return true;
+}
+function setupMulliganUI(){
+ if(mulliganOverlay)return;
+ const style=document.createElement("style");
+ style.textContent=`
+ #mulliganOverlay{position:fixed;inset:0;z-index:9000;display:grid;place-items:center;
+   background:linear-gradient(145deg,#051820f5,#132c38f5);padding:14px;color:#eef7f3}
+ #mulliganOverlay.hidden{display:none!important}
+ #mulliganPanel{width:min(95vw,680px);max-height:95dvh;overflow:auto;touch-action:pan-y;
+   background:#132d39;border:1px solid #6ca9b1;border-radius:20px;padding:clamp(12px,2.5vw,22px);
+   box-shadow:0 18px 70px #000a;text-align:center}
+ #mulliganPanel h2{font-size:clamp(20px,4vw,28px);margin:5px 0;color:#eff7ef}
+ #mulliganPanel p{font-size:13px;color:#b8d1d3;margin:4px 0 14px}
+ #mulliganClock{font-variant-numeric:tabular-nums;color:#f6d88b;font-weight:800;font-size:22px}
+ #mulliganCards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:10px 0 14px}
+ .mulliganCard{min-width:0;min-height:150px;display:flex;align-items:center;flex-direction:column;
+   gap:6px;padding:10px 5px;border-radius:14px;background:#1b3b49;
+   border:2px solid #54808d;touch-action:manipulation;position:relative}
+ .mulliganCard.selected{background:#3e3940;border-color:#f0cb6f;box-shadow:0 0 0 1px #e6b76855 inset}
+ .mulliganCard:disabled{opacity:.7;cursor:default}
+ .mulliganCard canvas{width:100%;height:auto;max-width:120px}
+ .mulliganCost{align-self:flex-start;font-size:13px;font-weight:900;color:#f5d88d}
+ .mulliganName{font-size:clamp(10px,1.8vw,14px);font-weight:800;line-height:1.3}
+ .mulliganPick{font-size:12px;font-weight:800;color:#cfeced;margin-top:auto}
+ .mulliganCard.selected .mulliganPick{color:#ffdb80}
+ #mulliganConfirm{border:0;border-radius:12px;min-height:48px;padding:10px 24px;
+   background:#eacb7e;color:#162c35;font-size:16px;font-weight:900;width:min(100%,390px)}
+ #mulliganConfirm:disabled{opacity:.55}
+ #mulliganStatus{min-height:22px;margin:10px 0 0;color:#b7dbe0;font-size:13px}
+ @media(max-width:480px){#mulliganCards{gap:5px}.mulliganCard{padding:8px 3px;min-height:119px}
+  .mulliganCard canvas{max-width:92px}.mulliganPick{font-size:10px}}
+ @media(max-height:540px){#mulliganPanel{padding:10px}#mulliganPanel p{margin-bottom:5px}
+  #mulliganCards{margin:7px 0}.mulliganCard{min-height:90px;padding:4px 2px;gap:2px}
+  .mulliganCard canvas{max-width:80px;height:45px}#mulliganConfirm{min-height:39px}}
+ `;
+ document.head.appendChild(style);
+ const overlay=document.createElement("div");
+ overlay.id="mulliganOverlay";overlay.className="hidden";
+ overlay.setAttribute("role","dialog");overlay.setAttribute("aria-modal","true");
+ overlay.setAttribute("aria-labelledby","mulliganTitle");
+ overlay.innerHTML='<div id="mulliganPanel"><small>OPENING HAND / 1回だけ交換</small>'+
+  '<h2 id="mulliganTitle">最初の手札を選ぼう</h2>'+
+  '<p>交換したいカードをタップ（0〜4枚）。基本歩兵はいつでも使えるよ。</p>'+
+  '<div id="mulliganClock">残り 20秒</div><div id="mulliganCards"></div>'+
+  '<button id="mulliganConfirm" type="button">この4枚で開始</button>'+
+  '<div id="mulliganStatus" aria-live="polite"></div></div>';
+ document.body.appendChild(overlay);mulliganOverlay=overlay;
+ $("mulliganConfirm").addEventListener("click",submitMulligan);
+}
+function updateMulliganUI(){
+ if(!mulliganOverlay)return;
+ const active=S.phase==="mulligan"&&!!S.mulligan;
+ mulliganOverlay.classList.toggle("hidden",!active);
+ if(!active)return;
+ const done=!!S.mulligan.done[ME()],waiting=done||mulliganSubmitted;
+ $("mulliganClock").textContent="残り "+Math.ceil(Math.max(0,S.mulligan.time))+"秒";
+ $("mulliganStatus").textContent=done?"確定済み。相手を待っています…":
+  mulliganSubmitted?"交換を送信中…":S.mulligan.done[3-ME()]?"相手は確定済み":
+  "4枚から好きな枚数を交換できます";
+ $("mulliganConfirm").disabled=waiting;
+ $("mulliganConfirm").textContent=waiting?"確定済み":mulliganSelected.size?
+  "選んだ"+mulliganSelected.size+"枚を交換":"交換せずに開始";
+ const signature=ME()+":"+S.hand[ME()].join(",")+":"+waiting;
+ if(signature===mulliganRendered)return;
+ mulliganRendered=signature;
+ const row=$("mulliganCards");row.replaceChildren();
+ S.hand[ME()].forEach((id,i)=>{
+  const d=CATALOG[id],button=document.createElement("button");
+  button.type="button";button.className="mulliganCard";
+  button.disabled=waiting;
+  const on=mulliganSelected.has(i);button.classList.toggle("selected",on);
+  button.setAttribute("aria-pressed",String(on));
+  button.setAttribute("aria-label",d.name+" "+(on?"交換する":"交換しない"));
+  button.innerHTML='<span class="mulliganCost">'+d.cost+' COST</span>'+
+   '<canvas width="128" height="72" aria-hidden="true"></canvas>'+
+   '<span class="mulliganName">'+d.name+'</span>'+
+   '<span class="mulliganPick">'+(on?"✓ 交換する":"残す")+'</span>';
+  if(window.KokokuArt)window.KokokuArt.drawPortrait(button.querySelector("canvas"),id,ME());
+  button.addEventListener("click",()=>{
+   if(S.phase!=="mulligan"||mulliganSubmitted||S.mulligan.done[ME()])return;
+   if(mulliganSelected.has(i))mulliganSelected.delete(i);else mulliganSelected.add(i);
+   mulliganRendered="";updateMulliganUI();
+  });
+  row.appendChild(button);
+ });
+}
+function begin(){
+ resetWorld(true);clampCamera();S.phase="mulligan";S.speed=1;
+ S.mulligan={time:MULLIGAN_SECONDS,done:[null,false,false]};
+ $("speed").textContent="速度 1.00×";$("pause").textContent="Ⅱ 停止";
+ $("overlay").classList.add("hidden");
+ $("prepBanner").classList.remove("visible");
+ $("fieldHint").textContent="初手の交換を決定してから開戦準備が始まります";
+ // Solo/host BOT needs no extra interaction; preserve its existing strategy.
+ if(NET.isSolo||NET.hostBot)confirmMulligan(2,[]);
+ buildCards();updateHUD();updateMulliganUI();
 }
 // Lightweight per-unit timed statuses, shared by future buffs and debuffs.
 function applyStatusEffect(u,effect){
@@ -2089,6 +2218,7 @@ function botStep(dt){
 }
 function end(result,reason){
  if(S.phase==="result")return;
+ S.mulligan=null;updateMulliganUI();
  if(NET.isHost)NET.finish({result,reason});
  S.phase="result";
  const titles={win:"勝利！",lose:"敗北",draw:"引き分け"};
@@ -3000,8 +3130,8 @@ function nextEnergyProgress(energy){
 function updateHUD(){
  if(!S.capitals.length)return;
  updateFortNavigation();
- putHudText("clock",S.phase==="prep"?numTime(S.prep):numTime(S.seconds));
- putHudText("phaseLabel",S.phase==="gallery"?"図鑑（停止中）":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊");
+ putHudText("clock",S.phase==="mulligan"?numTime(S.mulligan?.time??MULLIGAN_SECONDS):S.phase==="prep"?numTime(S.prep):numTime(S.seconds));
+ putHudText("phaseLabel",S.phase==="gallery"?"図鑑（停止中）":S.phase==="mulligan"?"初手交換":S.phase==="prep"?"開戦準備":S.phase==="paused"?"一時停止":S.phase==="battle"?(S.elapsed<100?"序盤｜布陣":S.elapsed<210?"中盤｜攻防":"終盤｜総力戦"):"試遊");
  putHudText("blueText",Math.ceil(capital(1).hp)+" / "+START_HP);
  putHudText("redText",Math.ceil(capital(2).hp)+" / "+START_HP);
  putHudWidth($("blueBar"),100*capital(1).hp/START_HP+"%");
@@ -3183,7 +3313,7 @@ function samplePerf(now,drawMs){
    new URLSearchParams(location.search).has("qa"))
   ?{samples:[],prevTotalMs:0,skipDrawing:false}:null;
 function start(){
- resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
+ setupMulliganUI();resetWorld();fit();buildEnergyMeter();buildCards();buildGallery();setupPerfPanel();
  // Expose read-only deck diagnostics in local browser QA only, never in school.
  if((location.hostname==="localhost"||location.hostname==="127.0.0.1")&&
     new URLSearchParams(location.search).has("qa"))
@@ -3206,12 +3336,13 @@ function start(){
     panCamera(target-S.cam.x,330-S.cam.y);
    },resetForLobby:()=>{
    resetWorld();S.phase="menu";S.remoteSprites=null;lastGuestHitch=null;
+   updateMulliganUI();
    $("start").disabled=false;
    $("overlay").classList.add("hidden");$("prepBanner").classList.remove("visible");
    buildCards();updateHUD();
-  },notify:message=>notice(message),showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
+  },mulligan:slots=>confirmMulligan(2,slots),notify:message=>notice(message),showResult:()=>{if(S.phase!=="result")end(NET.resultForMe(),NET.resultReason());},world:()=>({
    phase:S.phase,prep:S.prep,seconds:S.seconds,elapsed:S.elapsed,clock:S.clock,
-   energy:S.energy,left:S.left,hand:S.hand,queue:S.queue,units:S.units,
+   mulligan:S.mulligan,energy:S.energy,left:S.left,hand:S.hand,queue:S.queue,units:S.units,
    forts:S.forts,capitals:S.capitals,spells:S.spells,effects:S.effects,
    projectiles:S.projectiles,deaths:S.deaths,uid:S.uid,speed:S.speed
   }),
@@ -3222,6 +3353,9 @@ function start(){
   apply:(data,seq)=>{
    if(NET.isHost||!data||!(seq>(window.__onlineSeq||0)))return;
    const was=S.phase,localClock=S.clock;
+   if(data.phase==="mulligan"&&was!=="mulligan"){
+    mulliganSelected.clear();mulliganSubmitted=false;mulliganRendered="";
+   }
    const oldSelected=S.selected,oldCam=S.cam;
    // A guest may receive its first world snapshot before the match callback.
    // Reconcile its eligibility against the locked rosters, not default cards.
@@ -3243,11 +3377,15 @@ function start(){
    S.spells={incoming:list(data.spells?.incoming),zones:list(data.spells?.zones)};
    S.hand=[null,list(data.hand?.[1]),list(data.hand?.[2])];
    S.queue=[null,list(data.queue?.[1]),list(data.queue?.[2])];
-   if(data.phase==="prep"||data.phase==="battle"){
+   S.mulligan=data.mulligan||null;
+   if(data.phase==="mulligan"||data.phase==="prep"||data.phase==="battle"){
     S.phase=data.phase;
     if(NET.guestBot&&data.phase==="battle"&&was!=="battle")S.botThink=3;
     $("overlay").classList.add("hidden");
     $("prepBanner").classList.toggle("visible",S.phase==="prep");
+    if(S.phase==="mulligan"&&NET.guestBot&&!S.mulligan?.done[ME()]&&!mulliganSubmitted)
+     submitMulligan();
+    updateMulliganUI();
     // On the first remote snapshot the guest must see its OWN red deploy
     // zone immediately. A smooth pan from the stale blue-room menu camera
     // could let an early touch hit an invalid world position.
@@ -3266,8 +3404,8 @@ function start(){
    // clock to zero. Re-anchor once when entering a remote round, otherwise
    // the guest may permanently skip spawn/hit art tied to the host clock.
    // Within an active round preserve the existing no-rewind presentation.
-   const enteringRemoteRound=(S.phase==="prep"||S.phase==="battle")&&
-    was!=="prep"&&was!=="battle";
+   const enteringRemoteRound=(S.phase==="mulligan"||S.phase==="prep"||S.phase==="battle")&&
+    was!=="mulligan"&&was!=="prep"&&was!=="battle";
    S.clock=enteringRemoteRound?S.clock:Math.max(localClock,S.clock);
    const now=performance.now();
    S.remoteVisualReceivedAt=now;
@@ -3364,7 +3502,12 @@ function start(){
   S.clock+=delta*guestVisualClockPace(now);
   updateCamera(delta);
   inspectHold(now);
-  if(NET.isHost&&S.phase==="prep"){
+  if(NET.isHost&&S.phase==="mulligan"){
+   S.mulligan.time=Math.max(0,S.mulligan.time-delta);
+   if(S.mulligan.time<=0){
+    for(const team of [1,2])if(!S.mulligan.done[team])confirmMulligan(team,[]);
+   }
+  }else if(NET.isHost&&S.phase==="prep"){
    S.prep=Math.max(0,S.prep-delta);
    if(NET.isSolo||NET.hostBot)botPreparation();
    if(S.prep<=0){
@@ -3383,6 +3526,7 @@ function start(){
   }else acc=0;
   qaRunBlueBot(delta);
   if(qa)datum.logicMs=performance.now()-started;
+  updateMulliganUI();
   if(NET.guestBot&&(S.phase==="prep"||S.phase==="battle")){
    if(S.phase==="prep")botPreparation();
    else botStep(delta*S.speed);
@@ -3392,7 +3536,7 @@ function start(){
   if(S.hudTick>=.12){S.hudTick=0;updateHUD();NET.checkGuestSync?.();}
   if(qa)datum.hudMs=performance.now()-hudStart;
   const networkStart=qa?performance.now():0;
-  if(NET.isHost&&!NET.isSolo&&(S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
+  if(NET.isHost&&!NET.isSolo&&(S.phase==="mulligan"||S.phase==="prep"||S.phase==="battle"||S.phase==="result"))NET.maybePublish();
   if(qa)datum.networkMs=performance.now()-networkStart;
   if(!NET.isHost&&guestLowPower&&now-guestLastPaint<30)return;
   // Exclusive localhost QA control: when true, simulation, controls and
