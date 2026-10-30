@@ -104,13 +104,15 @@ function stage2Run(){
   spellStep(1.5);unitStep(.1);
   result={start,held,pulled,center,released:q.victim.x,zones:S.spells.zones.length};
  }
- const painted={},original=window.KokokuArt.drawUnit;
+ const painted={},original=window.KokokuArt.drawUnit,oldBolt=drawPiercerBolt;
+ let pierceBoltDraws=0;
+ drawPiercerBolt=function(...args){pierceBoltDraws++;return oldBolt(...args);};
  window.KokokuArt.drawUnit=function(...args){
   const u=args[1];if(u?.key)painted[u.team+":"+u.key]=(painted[u.team+":"+u.key]||0)+1;
   return original.apply(this,args);
  };
- try{draw();}finally{window.KokokuArt.drawUnit=original;}
- return {scene,result,painted,frameError:window.__onlineFrameError||null};
+ try{draw();}finally{window.KokokuArt.drawUnit=original;drawPiercerBolt=oldBolt;}
+ return {scene,result,painted,pierceBoltDraws,frameError:window.__onlineFrameError||null};
 }
 const htmlOriginal=fs.readFileSync(path.join(root,"online-ipad.html"),"utf8");
 const anchor="window.__shokokuQa={";
@@ -140,6 +142,7 @@ function verify(scene,o){
   assert.equal(r.mainDamage,55);
   assert.deepEqual(r.secondary,[33,33,33,33,33,33,33,33,33,0]);
   assert.equal(r.airHp,120);assert.ok(r.projectiles>0);
+  assert.ok(o.pierceBoltDraws>0,"piercing energy lance must be painted");
  }else if(scene==="catapult"){
   assert.equal(r.saved.kind,"catapult");assert.equal(r.saved.x,620);
   assert.equal(r.saved.y,300);assert.ok(r.saved.projectiles>0);
@@ -150,7 +153,7 @@ function verify(scene,o){
   assert.ok(r.before.health>0,"cannot explode before contact");
   assert.ok(r.before.x>520,"must move before touching enemy");
   assert.equal(r.dead,true);assert.ok(r.enemy<=0);
-  assert.equal(r.secondary,307.5);assert.equal(r.airHp,120);
+  assert.equal(r.secondary,120);assert.equal(r.airHp,120);
  }else if(scene==="summoner"){
   assert.deepEqual(r.counts,[1,2,3,4,5,6,7,8]);
   assert.equal(r.spawned,8);assert.equal(r.robots.length,8);

@@ -31,7 +31,7 @@ window.SHOKOKU_UNIT_STATS = {
   ground_bomber   : { hp:  230, damage:  55 }, // 対地爆撃翼
   piercer         : { hp:  170, damage:  55 }, // 貫通射手
   catapult        : { hp:  700, damage: 115 }, // 遠投投石器
-  kamikaze        : { hp:  115, damage: 150 }, // 突貫爆撃機
+  kamikaze        : { hp:  150, damage: 400 }, // 突貫爆撃機
   mech_summoner   : { hp:  340, damage:  15 }, // 機械召喚師
   kaiju           : { hp: 1000, damage:  72 }, // 砦進撃怪獣
 };
@@ -2102,9 +2102,9 @@ const CLASSES={
  interceptor:{name:"迅速迎撃騎兵",glyph:"➶",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:38,cool:1.15,range:33,vision:215,speed:47,r:16,behavior:"guard",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:1,fort:0,unit:2},note:"中型・召喚位置中心の索敵円内で高速迎撃し帰還"},
  ground_bomber:{name:"対地爆撃翼",glyph:"✦",size:"medium",cost:5,limit:4,qty:1,hp:230,damage:55,cool:1.90,range:105,vision:167,speed:23,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,projectile:true,splash:67,splashScale:.60,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。地上の敵兵に範囲爆撃、空中の敵には反撃不可"},
  // Stage 2: all new combat specials are data-driven; existing target AI is unchanged.
- piercer:{name:"貫通射手",glyph:"➳",size:"medium",cost:3,limit:5,qty:1,hp:170,damage:55,cool:1.85,range:165,vision:205,speed:18,r:14,behavior:"normal",capture:0,hitAir:false,projectile:true,attackMode:"pierce",pierceCount:10,pierceScale:.6,pierceWidth:14,targetPriority:{castle:2,fort:0,unit:2},note:"中型・直線貫通。主対象55、後続は60%、最大10体。対空不可"},
+ piercer:{name:"貫通射手",glyph:"➳",size:"medium",cost:3,limit:5,qty:1,hp:170,damage:55,cool:1.85,range:165,vision:205,speed:18,r:14,behavior:"normal",capture:0,hitAir:false,projectile:true,attackMode:"pierce",pierceCount:10,pierceScale:.6,pierceWidth:42,targetPriority:{castle:2,fort:0,unit:2},note:"中型・直線貫通。主対象55、後続は60%、最大10体。対空不可"},
  catapult:{name:"遠投投石器",glyph:"◈",size:"large",cost:8,limit:3,qty:1,hp:700,damage:115,cool:4.5,range:215,vision:255,speed:12,r:25,behavior:"normal",capture:0,hitAir:true,attackMode:"delayedArea",impactDelay:1.1,splash:85,splashScale:1,castleOnContact:true,targetPriority:{castle:0,fort:0,unit:2},note:"大型・1.1秒後に半径85へ115、飛行にも命中。城は接触時のみ攻撃"},
- kamikaze:{name:"突貫爆撃機",glyph:"➤",size:"medium",cost:4,limit:4,qty:1,hp:115,damage:150,cool:1,range:28,vision:180,speed:36,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,attackMode:"contactBlast",splash:78,splashScale:.75,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。敵への接触で自爆、周囲地上兵112.5。撃墜時は不発"},
+ kamikaze:{name:"突貫爆撃機",glyph:"➤",size:"medium",cost:4,limit:4,qty:1,hp:150,damage:400,cool:1,range:28,vision:180,speed:43,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,attackMode:"contactBlast",splash:90,splashScale:.75,targetPriority:{castle:2,fort:0,unit:2},note:"中型・高速飛行。接触で自爆、主対象400・半径90の周囲地上兵300。撃墜時は不発"},
  mech_summoner:{name:"機械召喚師",glyph:"⚙",size:"medium",cost:5,limit:3,qty:1,hp:340,damage:15,cool:1.9,range:65,vision:115,speed:15,r:18,behavior:"guard",capture:0,hitAir:false,summons:"small_machine",summonTimes:[2,4,6,11,16,21,26,31],targetPriority:{castle:0,fort:0,unit:1},note:"中型・迎撃。2/4/6秒、その後5秒ごとに小型機を最大8体生産"},
  // Stage 3: the existing priority-4 shared selector handles this objective unit.
  kaiju:{name:"砦進撃怪獣",glyph:"♜",size:"large",cost:6,limit:2,qty:1,hp:1000,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,behavior:"capture",capture:3,hitAir:false,meleeFx:true,targetPriority:{fort:4,castle:1,unit:1},note:"大型・砦を最優先で占領。砦が索敵内なら敵兵を無視して進撃。砦がなければ敵にも反撃する"},
@@ -4748,6 +4748,28 @@ function paintGrandArrival(now){
  }
  ctx.restore();
 }
+// Visual-only, elongated lance: long swept tail + wide energy flares + sharp head.
+// Collision geometry is independently defined by CLASSES.piercer.pierceWidth.
+function drawPiercerBolt(g,x,y,angle,alpha){
+ g.save();g.translate(x,y);g.rotate(angle);
+ g.globalAlpha*=alpha;
+ // Broad wake is intentionally transparent; units stay readable underneath.
+ g.fillStyle="#39baff55";
+ g.beginPath();g.moveTo(-96,0);g.lineTo(-62,-12);g.lineTo(-23,-18);
+ g.lineTo(4,-12);g.lineTo(20,0);g.lineTo(4,12);g.lineTo(-23,18);
+ g.lineTo(-62,12);g.closePath();g.fill();
+ // Spear blade, with distinct point and rear fins.
+ g.fillStyle="#4ecfff";
+ g.beginPath();g.moveTo(-79,0);g.lineTo(-44,-6);g.lineTo(-9,-9);
+ g.lineTo(12,0);g.lineTo(-9,9);g.lineTo(-44,6);g.closePath();g.fill();
+ g.fillStyle="#e9ffff";
+ g.beginPath();g.moveTo(-68,-2);g.lineTo(1,-2);g.lineTo(17,0);
+ g.lineTo(1,2);g.lineTo(-68,2);g.closePath();g.fill();
+ g.strokeStyle="#a5efff";g.lineWidth=2;g.lineCap="round";
+ g.beginPath();g.moveTo(-88,-7);g.lineTo(-60,-15);
+ g.moveTo(-88,7);g.lineTo(-60,15);g.stroke();
+ g.restore();
+}
 // Visual-only rejection of entirely off-camera sprite work.
 let drawCullingEnabled=true;
 function draw(){
@@ -4811,8 +4833,15 @@ function draw(){
   const f=1-remaining/shot.max;
   const x=shot.x+(shot.tx-shot.x)*f,y=shot.y+(shot.ty-shot.y)*f-
    (shot.kind==="catapult"?Math.sin(f*Math.PI)*65:0);
+  if(shot.kind==="piercer"){
+   // A longer pointed bolt is visible even when only its trailing edge is on screen.
+   if(visible(x,y,120,75,75))
+    drawPiercerBolt(ctx,x,y,Math.atan2(shot.ty-shot.y,shot.tx-shot.x),
+     Math.min(1,remaining/.09));
+   continue;
+  }
   if(!visible(x,y,35,45,45))continue;
-  const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="catapult"?28:shot.kind==="piercer"?21:shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
+  const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="catapult"?28:shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
   ctx.save();ctx.globalAlpha=Math.min(1,remaining/.09);
   ctx.strokeStyle=shot.kind==="catapult"?"#ffda90":shot.kind==="piercer"?"#b2e9ff":shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
   ctx.lineWidth=shot.kind==="catapult"?9:shot.kind==="tank"?8:shot.kind==="suppress"?6:4;

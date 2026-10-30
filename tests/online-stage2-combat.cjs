@@ -68,13 +68,48 @@ test("stage2 cards have user-approved parameters and child stays hidden",()=>{
 test("pierce hits 10 targets maximum, main 55 and behind targets 33",()=>{
  const atk=unit("piercer",1,420,300);
  const foes=Array.from({length:12},(_,i)=>unit("engineer",2,470+i*6,300));
- const off=unit("engineer",2,495,340),ally=unit("engineer",1,495,300),air=unit("drone",2,500,300);
+ const off=unit("engineer",2,495,370),ally=unit("engineer",1,495,300),air=unit("drone",2,500,300);
  S.units=[atk,...foes,off,ally,air];
  API.fire(atk,{kind:"unit",ref:foes[0],x:foes[0].x,y:foes[0].y});
  assert.equal(foes[0].hp,420-55);
  assert.equal(foes.slice(1,10).filter(v=>v.hp===387).length,9);
  assert.ok(foes.slice(10).every(v=>v.hp===420));
  assert.equal(off.hp,420);assert.equal(ally.hp,420);assert.equal(air.hp,120);
+});
+test("tripled pierce lane hits behind-ray offsets up to 42, but not 43 or allies/air",()=>{
+ const atk=unit("piercer",1,420,300),main=unit("engineer",2,470,300);
+ const near=unit("engineer",2,500,340),outside=unit("engineer",2,500,343);
+ const ahead=unit("engineer",2,450,300),far=unit("engineer",2,640,300);
+ const ally=unit("engineer",1,500,340),air=unit("drone",2,500,320);
+ S.units=[atk,main,near,outside,ahead,far,ally,air];
+ assert.equal(API.CLASSES.piercer.pierceWidth,42);
+ API.fire(atk,{kind:"unit",ref:main,x:main.x,y:main.y});
+ assert.equal(main.hp,365,"the primary still takes 55");
+ assert.equal(near.hp,387,"40px offset takes 33 pierce");
+ assert.equal(outside.hp,420,"43px offset is excluded");
+ assert.equal(ahead.hp,420,"targets before the primary cannot be pierced");
+ assert.equal(far.hp,420,"pierce does not extend beyond max range + unit radius");
+ assert.equal(ally.hp,420,"friendly unit is never hit");
+ assert.equal(air.hp,120,"air target is excluded");
+});
+test("contact blast trial is 400 primary, 300 splash, 90 radius, 4-cost single-use",()=>{
+ const C=API.CLASSES.kamikaze;
+ assert.deepEqual([C.cost,C.qty,C.hp,C.damage,C.speed,C.splash,C.splashScale,C.limit],
+  [4,1,150,400,43,90,.75,4]);
+ const actor=unit("kamikaze",1,400,300),primary=unit("engineer",2,440,300);
+ const justInside=unit("engineer",2,440,389),outside=unit("engineer",2,440,391);
+ const ally=unit("infantry",1,443,300),air=unit("drone",2,455,300);
+ S.units=[actor,primary,justInside,outside,ally,air];
+ API.fire(actor,{kind:"unit",ref:primary,x:primary.x,y:primary.y});
+ assert.equal(primary.hp,20,"420-HP main target survives 400 with 20");
+ assert.equal(justInside.hp,120,"300 splash reaches radius 89");
+ assert.equal(outside.hp,420,"splash stops outside radius 90");
+ assert.equal(ally.hp,105);assert.equal(air.hp,120);
+ assert.ok(actor.hp<=0,"contact bomber self-destructs on hit");
+ const castleBomber=unit("kamikaze",1,1100,300);
+ const before=S.capitals[1].hp;
+ API.fire(castleBomber,{kind:"capital",ref:S.capitals[1],x:1154,y:300});
+ assert.equal(S.capitals[1].hp,before-400,"one collision deals 400 siege damage");
 });
 test("catapult marks fixed impact position and hits ground plus flying for 115 after 1.1s",()=>{
  const atk=unit("catapult",1,280,300),primary=unit("engineer",2,450,300),
@@ -135,7 +170,7 @@ test("contact bomber approaches until hitboxes touch instead of exploding at sig
  // Acquisition threshold is 28 + target radius 12; physical collision is 17 + 12.
  assert.equal(API.selectPriorityTargets(attacker).attack.ref,victim);
  API.unitStep(.1);
- assert.equal(attacker.hp,115,"not exploded before physical contact");
+ assert.equal(attacker.hp,150,"not exploded before physical contact");
  assert.ok(attacker.x>300,"bomber moves toward target rather than freezing within acquisition range");
  for(let i=0;i<8&&attacker.hp>0;i++)API.unitStep(.1);
  assert.ok(attacker.hp<=0,"bomb detonates after actual contact");
