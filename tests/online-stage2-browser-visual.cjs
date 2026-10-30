@@ -144,8 +144,10 @@ function verify(scene,o){
    assert.ok(o.painted[team+":"+id]>0,"missing art "+team+":"+id);
  }else if(scene==="pierce"){
   assert.equal(r.mainDamage,55);
-  assert.deepEqual(r.secondary,[33,33,33,33,33,33,33,33,33,0]);
-  assert.equal(r.airHp,120);assert.ok(r.projectiles>0);
+  // Ten total: 1 ground main + 8 ground secondaries + 1 flying secondary.
+  assert.deepEqual(r.secondary,[33,33,33,33,33,33,33,33,0,0]);
+  assert.equal(r.airHp,87,"airborne unit in piercing lane receives 33");
+  assert.ok(r.projectiles>0);
   assert.ok(r.flightEndX>650,"piercing lance flies past the primary target");
   assert.ok(o.pierceBoltDraws>0,"piercing energy lance must be painted");
  }else if(scene==="catapult"){
