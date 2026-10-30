@@ -2210,6 +2210,8 @@ function resetWorld(matchStart=false){
   S.queue[team]=deck.slice(HAND_SIZE);
  }
  S.remoteSprites=null;
+ lastGuestHitch=null;guestHitchCount=0;guestHitchWorst=0;
+ perfPreviousDrawMs=NaN;perfPreviousTiles=null;
  guestCommandHints=[];lastGuestHintPainted=0;
  S.remoteVisualReceivedAt=0;S.remoteHostClock=null;
  // Re-evaluate both sprite quality and Canvas frame/raster quality per match.
@@ -5099,13 +5101,23 @@ function resumeButton(){
 // Opt-in, local-only guest diagnostics. Triple-tap the game title to show/hide.
 let perfPanel=null,perfStart=0,perfFrames=0,perfDrawTotal=0,perfDrawWorst=0,perfMaxGap=0,perfLastFrame=0;
 // Guest-only recent hitch snapshot; never stored, uploaded or shared.
-let lastGuestHitch=null;
+let lastGuestHitch=null,guestHitchCount=0,guestHitchWorst=0;
+let perfPreviousDrawMs=NaN,perfPreviousTiles=null;
 function trackGuestFrameHitch(gapMs){
- if(NET.isHost||document.hidden||S.phase!=="battle"||gapMs<180)return;
+ // Observe 100ms+ when the local diagnostics are visible, otherwise 180ms+.
+ // Ignore hidden tab throttling; do not upload measurements.
+ if(NET.isHost||document.hidden||S.phase!=="battle"||
+    gapMs<(perfPanel?100:180))return;
  const n=NET.syncDiagnostics?.()||{};
+ guestHitchCount++;guestHitchWorst=Math.max(guestHitchWorst,Math.round(gapMs));
  lastGuestHitch={gapMs:Math.round(gapMs),units:S.units.length,
+  elapsedSeconds:Number(S.elapsed||0).toFixed(1),
   sdkSeq:n.eventSeq||0,appliedSeq:n.seq||0,
-  sdkAgeMs:n.eventAgeMs||0,appliedAgeMs:n.ageMs||0};
+  sdkAgeMs:n.eventAgeMs||0,appliedAgeMs:n.ageMs||0,
+  // Previous drawn frame only, not proof that draw caused this long gap.
+  beforeDrawMs:Number.isFinite(perfPreviousDrawMs)?Math.round(perfPreviousDrawMs*10)/10:null,
+  beforeTiles:perfPreviousTiles,
+  quality:guestLowPower?"約30FPS":"通常",cached:!!lowFpsCrowdedSprites};
 }
 function togglePerfPanel(){
  if(perfPanel){perfPanel.remove();perfPanel=null;return;}
@@ -5115,6 +5127,7 @@ function togglePerfPanel(){
  perfPanel.style.cssText="position:fixed;top:66px;right:8px;z-index:2000;pointer-events:none;background:#06171de9;border:1px solid #76b5bf;padding:9px 11px;border-radius:8px;color:#f0ffed;font:12px/1.5 monospace;white-space:pre;max-width:95vw";
  document.body.appendChild(perfPanel);
  perfStart=0;perfFrames=0;perfDrawTotal=0;perfDrawWorst=0;perfMaxGap=0;perfLastFrame=0;
+ perfPreviousDrawMs=NaN;perfPreviousTiles=null;
  perfPanel.textContent="通信と描画の計測中…";
 }
 function setupPerfPanel(){
@@ -5128,6 +5141,7 @@ function setupPerfPanel(){
 }
 function samplePerf(now,drawMs){
  if(!perfPanel)return;
+ perfPreviousDrawMs=drawMs;perfPreviousTiles=denseSpriteBuildsThisFrame;
  if(perfLastFrame>0)perfMaxGap=Math.max(perfMaxGap,now-perfLastFrame);
  perfLastFrame=now;
  if(!perfStart)perfStart=now;
@@ -5153,11 +5167,18 @@ function samplePerf(now,drawMs){
   "描画モード "+(isHost?"ホスト通常":guestLowPower?"ゲスト約30FPS上限":"ゲスト通常")+
    " / DPR "+S.view.dpr.toFixed(2)+
    (lowFpsCrowdedSprites?" / 兵士キャッシュ中":" / 兵士通常"),
+  !isHost?"カクつき "+guestHitchCount+"回 / 最大 "+guestHitchWorst+"ms (表示100ms+, 非表示180ms+)":
+   "診断はこの端末内のみ",
   !isHost&&lastGuestHitch?
-   "直近のカクつき "+lastGuestHitch.gapMs+"ms / 受信seq "+lastGuestHitch.sdkSeq+" / 反映seq "+lastGuestHitch.appliedSeq:
-   "直近のカクつき 180ms以上なし",
+   "直近 "+lastGuestHitch.gapMs+"ms / 開戦後 "+lastGuestHitch.elapsedSeconds+"秒 / 兵士 "+lastGuestHitch.units+"体":
+   "直近のカクつき記録なし",
   !isHost&&lastGuestHitch?
-   "発生時 受信経過 "+lastGuestHitch.sdkAgeMs+"ms / 反映経過 "+lastGuestHitch.appliedAgeMs+"ms / 兵士 "+lastGuestHitch.units+"体":
+   "発生時 SDK "+lastGuestHitch.sdkSeq+"("+lastGuestHitch.sdkAgeMs+"ms前) / 反映 "+lastGuestHitch.appliedSeq+"("+lastGuestHitch.appliedAgeMs+"ms前)":
+   "100ms以上は診断画面を表示して観測",
+  !isHost&&lastGuestHitch?
+   "前描画 "+(lastGuestHitch.beforeDrawMs===null?"未計測":lastGuestHitch.beforeDrawMs+"ms")+
+    " / 新タイル "+(lastGuestHitch.beforeTiles===null?"未計測":lastGuestHitch.beforeTiles+"枚")+
+    " / "+lastGuestHitch.quality+(lastGuestHitch.cached?" キャッシュ":" 通常アート"):
    "診断はこの端末内のみ",
   window.__onlineFrameError?"描画エラー "+String(window.__onlineFrameError).slice(0,45):
   n.error?"同期エラー "+String(n.error).slice(0,48):
