@@ -68,7 +68,7 @@ test("stage2 cards have user-approved parameters and child stays hidden",()=>{
 test("pierce hits 10 targets maximum, main 55 and behind targets 33",()=>{
  const atk=unit("piercer",1,420,300);
  const foes=Array.from({length:12},(_,i)=>unit("engineer",2,470+i*6,300));
- const off=unit("engineer",2,495,370),ally=unit("engineer",1,495,300),air=unit("drone",2,500,300);
+ const off=unit("engineer",2,495,370),ally=unit("engineer",1,495,300),air=unit("drone",2,500,370);
  S.units=[atk,...foes,off,ally,air];
  API.fire(atk,{kind:"unit",ref:foes[0],x:foes[0].x,y:foes[0].y});
  assert.equal(foes[0].hp,420-55);
@@ -76,7 +76,7 @@ test("pierce hits 10 targets maximum, main 55 and behind targets 33",()=>{
  assert.ok(foes.slice(10).every(v=>v.hp===420));
  assert.equal(off.hp,420);assert.equal(ally.hp,420);assert.equal(air.hp,120);
 });
-test("tripled pierce lane hits behind-ray offsets up to 42, but not 43 or allies/air",()=>{
+test("tripled pierce lane hits ground and air but not off-ray or allied targets",()=>{
  const atk=unit("piercer",1,420,300),main=unit("engineer",2,470,300);
  const near=unit("engineer",2,500,340),outside=unit("engineer",2,500,343);
  const ahead=unit("engineer",2,450,300),far=unit("engineer",2,640,300);
@@ -90,7 +90,88 @@ test("tripled pierce lane hits behind-ray offsets up to 42, but not 43 or allies
  assert.equal(ahead.hp,420,"targets before the primary cannot be pierced");
  assert.equal(far.hp,420,"pierce does not extend beyond max range + unit radius");
  assert.equal(ally.hp,420,"friendly unit is never hit");
- assert.equal(air.hp,120,"air target is excluded");
+ assert.equal(air.hp,87,"flying secondary receives 33");
+});
+
+test("piercer hits flying primary and mixed airborne/ground secondaries",()=>{
+ const a=unit("piercer",1,420,300),main=unit("drone",2,470,300);
+ S.units=[a,main];
+ assert.equal(API.CLASSES.piercer.hitAir,true);
+ assert.equal(API.selectPriorityTargets(a).attack.ref,main,"airborne target acquired");
+ const air=unit("drone",2,510,322),ground=unit("engineer",2,515,300),
+  before=unit("drone",2,455,300),off=unit("drone",2,520,350),
+  friendly=unit("drone",1,510,310);
+ S.units.push(air,ground,before,off,friendly);
+ API.fire(a,{kind:"unit",ref:main,x:main.x,y:main.y});
+ assert.equal(main.hp,65,"55 airborne main damage");
+ assert.equal(air.hp,87,"33 airborne secondary damage");
+ assert.equal(ground.hp,387,"33 ground secondary damage");
+ assert.equal(before.hp,120,"air before target is excluded");
+ assert.equal(off.hp,120,"air outside 42px lane is excluded");
+ assert.equal(friendly.hp,120,"friendly flyer not hit");
+});
+test("ranged engineer can directly hit air and still prioritizes capturing forts",()=>{
+ const a=unit("ranger_engineer",1,420,300),air=unit("drone",2,460,300);
+ S.units=[a,air];
+ assert.equal(API.CLASSES.ranger_engineer.hitAir,true);
+ assert.equal(API.CLASSES.ranger_engineer.capture,2);
+ assert.equal(API.selectPriorityTargets(a).attack.ref,air);
+ API.fire(a,{kind:"unit",ref:air,x:air.x,y:air.y});
+ assert.equal(air.hp,90,"30 vs flying unit");
+ assert.equal(S.projectiles.at(-1).kind,"ranger_engineer");
+ S.forts=[{x:445,y:300,owner:2,hp:12}];
+ assert.equal(API.selectPriorityTargets(a).attack.kind,"fort",
+  "fort priority 3 must remain above unit priority 1");
+});
+test("suppress and tank splash hit flying bystanders and flying target groups",()=>{
+ for(const key of ["suppress","tank"]){
+  const d=API.CLASSES[key],a=unit(key,1,420,300),
+   main=unit("engineer",2,460,300),air=unit("drone",2,470,320),
+   ground=unit("engineer",2,475,330),
+   outside=unit("drone",2,460,300+d.splash+2),friendly=unit("drone",1,468,300);
+  S.units=[a,main,air,ground,outside,friendly];
+  API.fire(a,{kind:"unit",ref:main,x:main.x,y:main.y});
+  const splash=d.damage*d.splashScale;
+  assert.equal(main.hp,420-d.damage,key+" unchanged primary");
+  assert.ok(Math.abs(air.hp-(120-splash))<1e-8,key+" flying splash");
+  assert.ok(Math.abs(ground.hp-(420-splash))<1e-8,key+" ground splash");
+  assert.equal(outside.hp,120,key+" airborne outside range");
+  assert.equal(friendly.hp,120,key+" allied air immune");
+  const a2=unit(key,1,420,300),mainAir=unit("drone",2,460,300),
+   air2=unit("drone",2,475,310);
+  S.units=[a2,mainAir,air2];
+  assert.equal(API.selectPriorityTargets(a2).attack.ref,mainAir,key+" air primary acquired");
+  API.fire(a2,{kind:"unit",ref:mainAir,x:mainAir.x,y:mainAir.y});
+  assert.equal(mainAir.hp,120-d.damage,key+" primary flying damage");
+  assert.ok(Math.abs(air2.hp-(120-splash))<1e-8,key+" airborne behind main");
+ }
+});
+test("ground-only splash does not accidentally become anti-air",()=>{
+ for(const key of ["sentinel","guardian","ground_bomber"]){
+  const d=API.CLASSES[key],a=unit(key,1,420,300),
+   main=unit("engineer",2,455,300),air=unit("drone",2,460,315);
+  S.units=[a,main,air];
+  assert.equal(d.hitAir,false);
+  API.fire(a,{kind:"unit",ref:main,x:main.x,y:main.y});
+  assert.equal(air.hp,120,key+" airborne bystander excluded");
+  S.units=[a,air];
+  assert.notEqual(API.selectPriorityTargets(a).attack?.ref,air,
+   key+" cannot directly select airborne unit");
+ }
+});
+test("gravity pulls grounded enemies but never flying drone or bomber",()=>{
+ const ground=unit("infantry",2,480,300),drone=unit("drone",2,480,310),
+  bomber=unit("kamikaze",2,480,330),ally=unit("infantry",1,480,320);
+ S.units=[ground,drone,bomber,ally];
+ S.hand[1]=["gravity"];S.activeDecks[1]=["gravity"];
+ assert.equal(API.castSpell(1,"gravity",400,300),true);
+ assert.equal(API.gravityZoneFor(ground).kind,"gravity");
+ for(const u of [drone,bomber,ally])assert.equal(API.gravityZoneFor(u),null);
+ const positions=[drone.x,drone.y,bomber.x,bomber.y,ally.x,ally.y];
+ API.spellStep(1);
+ assert.ok(ground.x<480,"ground unit is pulled");
+ assert.deepEqual([drone.x,drone.y,bomber.x,bomber.y,ally.x,ally.y],positions,
+  "flying enemies and allies are never displaced by gravity");
 });
 test("contact blast trial is 400 primary, 300 splash, 90 radius, 4-cost single-use",()=>{
  const C=API.CLASSES.kamikaze;

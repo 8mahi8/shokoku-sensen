@@ -2098,11 +2098,11 @@ const CLASSES={
  // Stage 1: five new combat classes; all use the existing shared target AI.
  duelist:{name:"双剣兵",glyph:"⚔",size:"medium",cost:3,limit:6,qty:1,hp:145,damage:22,cool:.55,range:29,vision:120,speed:30,r:14,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・高速連撃の近接兵。HPは低め、占領不可"},
  crusher:{name:"重撃砕兵",glyph:"✹",size:"medium",cost:5,limit:4,qty:1,hp:460,damage:150,cool:2.65,range:44,vision:155,speed:17,r:19,behavior:"normal",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:2,fort:0,unit:2},note:"中型・汎用重撃。大型特効なし、強烈な一撃と長い攻撃間隔"},
- ranger_engineer:{name:"遠距離工兵",glyph:"⚑",size:"medium",cost:4,limit:5,qty:1,hp:300,damage:30,cool:1.40,range:95,vision:175,speed:17,r:15,behavior:"capture",capture:2,hitAir:false,projectile:true,targetPriority:{castle:3,fort:3,unit:1},note:"中型・遠くから砦を占領。砦への攻撃は2ずつ"},
+ ranger_engineer:{name:"遠距離工兵",glyph:"⚑",size:"medium",cost:4,limit:5,qty:1,hp:300,damage:30,cool:1.40,range:95,vision:175,speed:17,r:15,behavior:"capture",capture:2,hitAir:true,projectile:true,targetPriority:{castle:3,fort:3,unit:1},note:"中型・対空可能な遠距離射撃で砦を占領。砦への攻撃は2ずつ"},
  interceptor:{name:"迅速迎撃騎兵",glyph:"➶",size:"medium",cost:3,limit:5,qty:1,hp:195,damage:38,cool:1.15,range:33,vision:215,speed:47,r:16,behavior:"guard",capture:0,hitAir:false,meleeFx:true,targetPriority:{castle:1,fort:0,unit:2},note:"中型・召喚位置中心の索敵円内で高速迎撃し帰還"},
  ground_bomber:{name:"対地爆撃翼",glyph:"✦",size:"medium",cost:5,limit:4,qty:1,hp:230,damage:55,cool:1.90,range:105,vision:167,speed:23,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,projectile:true,splash:67,splashScale:.60,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。地上の敵兵に範囲爆撃、空中の敵には反撃不可"},
  // Stage 2: all new combat specials are data-driven; existing target AI is unchanged.
- piercer:{name:"貫通射手",glyph:"➳",size:"medium",cost:3,limit:5,qty:1,hp:170,damage:55,cool:1.85,range:165,vision:205,speed:18,r:14,behavior:"normal",capture:0,hitAir:false,projectile:true,attackMode:"pierce",pierceCount:10,pierceScale:.6,pierceWidth:42,targetPriority:{castle:2,fort:0,unit:2},note:"中型・直線貫通。主対象55、後続は60%、最大10体。対空不可"},
+ piercer:{name:"貫通射手",glyph:"➳",size:"medium",cost:3,limit:5,qty:1,hp:170,damage:55,cool:1.85,range:165,vision:205,speed:18,r:14,behavior:"normal",capture:0,hitAir:true,projectile:true,attackMode:"pierce",pierceCount:10,pierceScale:.6,pierceWidth:42,targetPriority:{castle:2,fort:0,unit:2},note:"中型・直線貫通。主対象55、後続は60%、最大10体。地上・飛行を直線貫通"},
  catapult:{name:"遠投投石器",glyph:"◈",size:"large",cost:8,limit:3,qty:1,hp:700,damage:115,cool:4.5,range:215,vision:255,speed:12,r:25,behavior:"normal",capture:0,hitAir:true,attackMode:"delayedArea",impactDelay:1.1,splash:85,splashScale:1,castleOnContact:true,targetPriority:{castle:0,fort:0,unit:2},note:"大型・1.1秒後に半径85へ115、飛行にも命中。城は接触時のみ攻撃"},
  kamikaze:{name:"突貫爆撃機",glyph:"➤",size:"medium",cost:4,limit:4,qty:1,hp:150,damage:400,cool:1,range:28,vision:180,speed:43,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,attackMode:"contactBlast",splash:90,splashScale:.75,targetPriority:{castle:2,fort:0,unit:2},note:"中型・高速飛行。接触で自爆、主対象400・半径90の周囲地上兵300。撃墜時は不発"},
  mech_summoner:{name:"機械召喚師",glyph:"⚙",size:"medium",cost:5,limit:3,qty:1,hp:340,damage:15,cool:1.9,range:65,vision:115,speed:15,r:18,behavior:"guard",capture:0,hitAir:false,summons:"small_machine",summonTimes:[2,4,6,11,16,21,26,31],targetPriority:{castle:0,fort:0,unit:1},note:"中型・迎撃。2/4/6秒、その後5秒ごとに小型機を最大8体生産"},
@@ -2639,7 +2639,7 @@ function fire(u,target){
     const vx=dx/reach,vy=dy/reach;
     const candidates=[];
     for(const v of S.units){
-     if(v===ref||v.hp<=0||v.team===u.team||CLASSES[v.key].flying)continue;
+     if(v===ref||v.hp<=0||v.team===u.team||(CLASSES[v.key].flying&&!d.hitAir))continue;
      const ox=v.x-u.x,oy=v.y-u.y,along=ox*vx+oy*vy;
      const sideways=Math.abs(ox*vy-oy*vx);
      // Secondary targets must lie beyond the main target on its firing ray.
@@ -2653,7 +2653,7 @@ function fire(u,target){
   }
   if(d.splash){
    for(const v of S.units){
-    if(v.hp<=0||v===ref||v.team===u.team||CLASSES[v.key].flying)continue;
+    if(v.hp<=0||v===ref||v.team===u.team||(CLASSES[v.key].flying&&!d.hitAir))continue;
     if(dist(v,ref)<d.splash)attackUnit(v,d.damage*(d.splashScale??.57),u);
    }
   }
