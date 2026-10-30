@@ -143,6 +143,16 @@ for(const path of ["online.html","online-ipad.html","online-embed.html"]){
   assert.ok(html.includes('id="'+id+'"'),path+" lacks "+id);
 }
 
+// Rule copy must not contradict the approved ten-card deck and custom spell caps.
+for(const p of ["online.html","online-ipad.html","online-embed.html"]){
+ const html=read(p);
+ assert.ok(html.includes("デッキで選んだ10種類のカードは4枚手札で循環"),
+  p+" must explain the current rotating ten-card deck");
+ assert.ok(html.includes("使用回数が0になると循環から外れます"),
+  p+" must explain exhausted cards");
+ for(const stale of ["ほかの8兵種と2種類のスペル","各3回まで、開戦後","9種類の近未来ファンタジー兵士"])
+  assert.ok(!html.includes(stale),p+" contains stale UI instructions: "+stale);
+}
 const page=read("online.html");
 assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=22'),
  "online.html must load the current core game and network modules");
