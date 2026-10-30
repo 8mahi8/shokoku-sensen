@@ -69,7 +69,7 @@ test("drone trial speed decreases to 30 without altering movement buff scaling",
  const drone=unit("drone",1,420,300);
  assert.equal(API.CLASSES.drone.speed,30,"only the trial move-speed baseline changes");
  assert.equal(API.CLASSES.drone.qty,2,"drone still summons a pair");
- assert.equal(API.CLASSES.drone.limit,5,"usage cap is not changed during review");
+ assert.equal(API.CLASSES.drone.limit,3,"approved drone cap is 3 deployments / 6 bodies");
  assert.equal(API.effectiveMoveSpeed(drone),30);
  drone.statusEffects=[{key:"gale",stat:"moveSpeed",mult:1.5,remaining:4}];
  assert.equal(API.effectiveMoveSpeed(drone),45,"gale remains multiplicative");
