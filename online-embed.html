@@ -2109,7 +2109,7 @@ const CLASSES={
  kamikaze:{name:"突貫爆撃機",glyph:"➤",size:"medium",cost:4,limit:4,qty:1,hp:115,damage:150,cool:1,range:28,vision:180,speed:36,r:17,behavior:"normal",capture:0,hitAir:false,flying:true,attackMode:"contactBlast",splash:78,splashScale:.75,targetPriority:{castle:2,fort:0,unit:2},note:"中型・飛行。敵への接触で自爆、周囲地上兵112.5。撃墜時は不発"},
  mech_summoner:{name:"機械召喚師",glyph:"⚙",size:"medium",cost:5,limit:3,qty:1,hp:340,damage:15,cool:1.9,range:65,vision:115,speed:15,r:18,behavior:"guard",capture:0,hitAir:false,summons:"small_machine",summonTimes:[2,4,6,11,16,21,26,31],targetPriority:{castle:0,fort:0,unit:1},note:"中型・迎撃。2/4/6秒、その後5秒ごとに小型機を最大8体生産"},
  // Stage 3: the existing priority-4 shared selector handles this objective unit.
- kaiju:{name:"砦進撃怪獣",glyph:"♜",size:"large",cost:6,limit:2,qty:1,hp:1000,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,behavior:"capture",capture:3,hitAir:false,meleeFx:true,targetPriority:{fort:4,castle:2,unit:1},note:"大型・砦を最優先で占領。砦が索敵内なら敵兵を無視して進撃。砦がなければ敵にも反撃する"},
+ kaiju:{name:"砦進撃怪獣",glyph:"♜",size:"large",cost:6,limit:2,qty:1,hp:1000,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,behavior:"capture",capture:3,hitAir:false,meleeFx:true,targetPriority:{fort:4,castle:1,unit:1},note:"大型・砦を最優先で占領。砦が索敵内なら敵兵を無視して進撃。砦がなければ敵にも反撃する"},
  // Internal child: never place in a deck, summon directly or display in the card gallery.
  small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:85,damage:14,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
 };
