@@ -36,7 +36,13 @@ const initializeClasses=new Function("window",game.slice(classStart,classEnd)+";
 const originalClasses=initializeClasses({});
 
 {
- // 2026-10-31 user-approved precise buffs, without unauthorized cost/area/AI changes.
+ // Approved 2026-10-31 three-card rollout: prior 22-card deck pool now 25.
+assert.ok(game.includes('anti_air_missile:{name:"対空誘導弾"'));
+assert.ok(game.includes('small_lightning:{name:"小雷撃"'));
+assert.ok(game.includes('medic:{name:"衛生補助兵"'));
+assert.ok(art.includes("function medic(")&&art.includes('key==="anti_air_missile"'),
+ "new cards must have purpose-built battle and spell artwork");
+// 2026-10-31 user-approved precise buffs, without unauthorized cost/area/AI changes.
  const start=game.indexOf("const SPELLS={"),end=game.indexOf("const CATALOG=",start);
  assert.ok(start>0&&end>start,"spell definitions must be available");
  const spells=new Function(game.slice(start,end)+"return SPELLS;")();
@@ -73,6 +79,7 @@ const originalClasses=initializeClasses({});
 const schoolKeys=Object.keys(originalClasses).filter(id=>!originalClasses[id].internalOnly);
 assert.ok(!schoolKeys.includes("small_machine_elite")&&!schoolKeys.includes("small_machine"),
  "Summoned robot variants must never be standalone editable/deck cards");
+assert.ok(schoolKeys.includes("medic"),"new medic is a playable editable character");
 // The initial nine remain a compatibility baseline, NOT a cap on future classes.
 // Every future unit must opt into the same data-driven targeting contract.
 const baselineUnitIds=["infantry","scout","engineer","archer","sentinel",
@@ -192,7 +199,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html"]){
   assert.ok(!html.includes(stale),p+" contains stale UI instructions: "+stale);
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=24'),
+assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=25'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
@@ -1274,8 +1281,8 @@ return (time,appliedAt,sdkAt)=>{
   infantry:Infinity,scout:4,engineer:3,archer:5,sentinel:3,suppress:2,
   guardian:2,drone:3,tank:2,duelist:4,crusher:2,ranger_engineer:3,
   interceptor:4,ground_bomber:2,piercer:4,catapult:2,kamikaze:4,
-  mech_summoner:2,kaiju:2,small_machine:0,
-  barrage:2,ward:3,gravity:2,gale:3
+  mech_summoner:2,kaiju:2,small_machine:0,small_machine_elite:0,medic:4,
+  barrage:2,ward:3,gravity:2,gale:3,anti_air_missile:3,small_lightning:4
  };
  const roster={...originalClasses,...actualSpells};
  assert.deepEqual(Object.keys(roster).sort(),Object.keys(chosenCaps).sort(),
@@ -1290,7 +1297,7 @@ return (time,appliedAt,sdkAt)=>{
   "suppress","guardian","ward","drone","tank"]),113,
   "approved default deck finite card budget");
  const all=Object.keys(roster).filter(id=>id!=="infantry"&&!roster[id].internalOnly);
- assert.equal(all.length,22);
+ assert.equal(all.length,25);
  let combinations=0,minBudget=Infinity,maxBudget=-Infinity;
  const enumerate=(i,n,total)=>{
   if(n===10){combinations++;minBudget=Math.min(minBudget,total);maxBudget=Math.max(maxBudget,total);return;}
