@@ -407,7 +407,7 @@ body.soloMode #difficulties{display:flex!important}
 <div id="galleryOverlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
  <div id="galleryPanel">
   <div id="galleryHead">
-   <div><small>CHARACTER COLLECTION / ORIGINAL 2D ART</small><h2 id="galleryTitle">小国戦線｜部隊図鑑</h2><p>装備・シルエット・攻撃方法で描き分けた、9種類の近未来ファンタジー兵士。オンライン対戦中も試合は進行します。</p></div>
+   <div><small>CHARACTER COLLECTION / ORIGINAL 2D ART</small><h2 id="galleryTitle">小国戦線｜部隊図鑑</h2><p>各ユニットの装備・シルエット・攻撃方法を確認できます。オンライン対戦中も試合は進行します。</p></div>
    <button id="galleryClose" class="topButton" aria-label="図鑑を閉じて対戦に戻る">✕ 戻る</button>
   </div>
   <div id="galleryCards"></div>
@@ -422,8 +422,8 @@ body.soloMode #difficulties{display:flex!important}
 ・<strong>戦場は横スクロール制</strong>。カードをタップで選択、戦場をタップで召喚・スペル発動。スワイプはカメラ移動のみ。ミニマップなし。<br>
 ・<strong>自城・前線ボタン</strong>でカメラ移動。城HP・制限時間はいつでも確認可能。<br>
 ・カードは<strong>長押しで能力表示</strong>。基本歩兵は召喚後も選択したままで連続召喚可能。<br>
-・<strong>基本歩兵はいつでも召喚可能</strong>。ほかの8兵種と2種類のスペルは4枚手札で循環します。カードを使うと次のカードに交代。<br>
-・<strong>範囲砲撃（4）</strong>：約1.3秒後に敵兵へ範囲攻撃。<strong>防護結界（3）</strong>：約5秒間、範囲内の味方へのダメージを45％軽減。各3回まで、開戦後に使用可能。<br>
+・<strong>基本歩兵はいつでも召喚可能</strong>。デッキで選んだ10種類のカードは4枚手札で循環し、使うと次を引きます。使用回数が0になると循環から外れます。<br>
+・<strong>範囲砲撃（4）</strong>：約1.3秒後に敵兵へ範囲攻撃。<strong>防護結界（3）</strong>：約5秒間、範囲内の味方へのダメージを45％軽減。いずれも開戦後に使用可能。残り使用回数はカードの下部に表示されます。<br>
 ・前哨基地は占領可能ユニットが最後の一撃で獲得。最も奥の自軍基地で<strong>召喚ラインが全域に前進</strong>。<br>
 ・召喚エネルギーは上限12。12マスのゲージで次の1コストまでの進捗を確認できます。序盤は回復が遅く、終盤ほど加速します。<br>
 ・城壁は自動攻撃しません。兵士で守り、敵の城壁を攻め落としましょう。<br>
@@ -431,7 +431,7 @@ body.soloMode #difficulties{display:flex!important}
 </div>
 <div id="difficulties"><button data-level="easy">練習</button><button class="active" data-level="normal">ふつう</button><button data-level="hard">むずかしい</button></div>
 <button id="start">同じルームで再戦</button><button id="newRoom">ルームを退出する</button>
-<button id="galleryFromMenu" class="galleryLink">✧ 先に9体のキャラクターデザインを見る</button>
+<button id="galleryFromMenu" class="galleryLink">✧ 先にキャラクターデザインを見る</button>
 </div></div>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
