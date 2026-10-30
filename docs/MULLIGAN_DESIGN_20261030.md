@@ -1,9 +1,9 @@
-# 小国戦線III｜マリガン導入設計案（2026-10-30／未承認）
+# 小国戦線III｜マリガン確定仕様・実装（2026-10-30）
 
 ## 本人の依頼と実装状態
 - 本人依頼：低コスト新キャラの前に『シャドバにもあるマリガン機能』を追加したい。
-- **マリガン導入の方針のみ承認**。交換回数、秒数、同カード再取得可否、BOT挙動等の詳細は担当AIの**提案**であって、本人確定のゲーム仕様ではない。
-- 現時点で**調査・設計のみ**。ゲーム本体、ネット通信、Google Sites、Firebase Security Rules、配布物は変更しない。
+- **本人正式承認済み**：初手4枚から0〜4枚を一度交換、20秒制限、両者確定で直ちに10秒初期配置へ。交換分は未表示の6枚から補充し、交換したカードは後でデッキへ戻る。BOTは交換なしを自動確定。
+- **開発ブランチ実装・自動テスト済み**。学校Google Sitesへの反映、Firebase Rules、main、Google Driveは変更していない。
 
 ## 外部資料（一次情報優先）
 - Cygames Shadowverse公式（旧） https://shadowverse.jp/gameguide/playguide.php ：旧作は初手3枚、1回だけ任意枚数引き直し。
@@ -13,10 +13,10 @@
 ## GitHub現行コードの確認（2026-10-30）
 - `online-game.js`：`HAND_SIZE=4`、10枚`activeDecks`を`shuffledDeck`でシャッフルし、`S.hand[team]=deck.slice(0,4)`、`S.queue[team]=deck.slice(4)`。カード使用で手札1枚をキュー末尾に戻し、先頭から補充する。
 - 基本歩兵`infantry`は10枚のデッキ外・常時使用可能で、手札4枚に数えない。
-- `NET.startMatch`がFirebase`meta.status=playing`にし、ホスト`game.begin()`→10秒`prep`（初期配置）→5分`battle`。オンラインゲストはホストのスナップショットを受信し、カード使用を`commands`へ送信。ソロ・ホストBOT・ゲストBOTもある。
-- `online-net.js`の`guestPlayableWorld`と`online-game.js`の`apply`は現時点`prep`/`battle`のみ扱うので、`mulligan`を追加する際は必ず双方を同期させる。再戦`resetWorld`でも一から引き直す。
+- `NET.startMatch`がFirebase`meta.status=playing`にし、ホスト`game.begin()`→20秒以内の`mulligan`→10秒`prep`（初期配置）→5分`battle`。ゲストは既存`commands`経由で交換スロットを送信する。ソロ・ホストBOT・ゲストBOTにも対応。
+- `online-net.js`の`guestPlayableWorld`と`online-game.js`の`apply`は`mulligan`/`prep`/`battle`の3フェーズに対応。再戦で4枚を再配布しマリガンをやり直す。
 
-## 推奨する具体的なゲーム仕様（提案）
+## 本人承認・実装済みのゲーム仕様
 1. 両者のデッキがロビーでREADY確定した後、開戦準備10秒の**前に独立したマリガン20秒フェーズ**を挟む。両者が先に確定すれば即進む。タイムアウトは選択を変えず自動確定で足止めしない。
 2. 最初の4枚を表示（基本歩兵は対象外）。0〜4枚をタップで選択、`交換せず開始`／`選んだカードを交換`ボタンで1回だけ確定。1人1回、取り消し再抽選は不可。
 3. 確定時：選択していない手札は**同じ位置で保持**。選択位置に山札（`queue`先頭6枚）から同数を補充。捨てたカードは`queue`の末尾へ回すので、**同一カードが直後の補充で戻らない**。交換したカードは対戦中に再び巡ってくる。デッキ10種類重複なしの不変条件を守る。
@@ -33,6 +33,8 @@
 - Chromium/WebKit 2ブラウザ、実Firebase一時ルームE2E、単体HTML2枚の生成一致と画面目視。学校Safari実機は別途試遊が必要。
 - 現行キャラ対空強化・爆撃機と貫通射手の性能・ゲスト瞬間カクつき診断を壊さないこと。
 
-## 現状と次
-- 現在は調査・設計完了。**マリガンのコード実装・自動テスト・学校試遊は未着手**。
-- ユーザーが具体ルールに同意したら、開始前の重要ルールとして正式仕様化し、開発ブランチで一式実装してQAを進める。
+## 実装・検証結果（2026-10-30）
+
+- 実装：`online-game.js`／`online-net.js`／`online.html`／単体HTML2枚とiPadタップUI。タイマーは実時間`performance.now()`で20秒。0枚交換のFirebase欠落防止に空文字列を使用。送信に失敗したゲストは再操作できる。
+- [学校HTMLと交換ロジック0〜4枚テスト](https://github.com/8mahi8/shokoku-sensen/actions/runs/41058357483) 成功。[実Firebase二者交換（ホスト1枚・ゲスト2枚）、20回の召喚、再戦](https://github.com/8mahi8/shokoku-sensen/actions/runs/41058357300) 成功。[オフラインBOT/iPad表示/20秒放置自動確定](https://github.com/8mahi8/shokoku-sensen/actions/runs/41058357554) 成功。
+- 学校iPad Safari実機はまだ未検証。従来のゲスト側カクつきの根本原因も未確定。新低コストキャラの設計前に基礎マリガンを完了したため、次は低コスト追加案に戻る。
