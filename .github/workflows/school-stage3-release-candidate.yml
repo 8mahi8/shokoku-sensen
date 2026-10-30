@@ -44,7 +44,7 @@ jobs:
             assert.equal((doc.match(/data-shokoku-inline=/g)||[]).length,4);
             for(const str of [
               'kaiju:{name:"砦進撃怪獣"',
-              'targetPriority:{fort:4,castle:2,unit:1}',
+              'targetPriority:{fort:4,castle:1,unit:1}',
               'gale:{name:"疾風号令"',
               'applyStatusEffect(u,{key:"gale",stat:"moveSpeed"',
               'guardian        : { hp: 1300',
