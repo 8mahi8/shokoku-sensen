@@ -359,6 +359,87 @@ test("elite is internally spawned only, using the same collision and attack rule
  assert.equal(API.CLASSES.small_machine_elite.internalOnly,true);
  assert.equal(API.CLASSES.small_machine_elite.deckEligible,false);
 });
+test("three new cards use approved costs and low-touch effects",()=>{
+ const med=API.CLASSES.medic,aa=API.SPELLS.anti_air_missile,bolt=API.SPELLS.small_lightning;
+ assert.deepEqual([med.cost,med.limit,med.qty,med.hp,med.damage,med.cool,med.healRadius,med.healAmount,med.healInterval],[2,4,1,120,10,2,90,20,2]);
+ assert.equal(med.behavior,"guard");assert.equal(med.capture,0);assert.equal(med.hitAir,false);
+ assert.deepEqual([aa.cost,aa.limit,aa.radius,aa.damage,aa.groundDamage,aa.delay],[2,3,100,200,25,.4]);
+ assert.deepEqual([bolt.cost,bolt.limit,bolt.radius,bolt.damage,bolt.delay],[1,4,45,30,.3]);
+});
+test("medic heals weakest HP percentage every 2s; respects 90 radius, uid and max HP",()=>{
+ const med=unit("medic",1,400,300),injured=unit("engineer",1,420,300),
+  outside=unit("engineer",1,491,300),enemy=unit("engineer",2,650,300);
+ injured.hp=200;outside.hp=30;enemy.hp=30;
+ S.units=[med,injured,outside,enemy];
+ for(const u of S.units)u.attack=999;
+ API.unitStep(1.99);
+ assert.equal(injured.hp,200,"first heal cannot happen before 2s");
+ API.unitStep(.01);
+ assert.equal(injured.hp,220,"healing pulse restores exactly 20 HP");
+ assert.equal(outside.hp,30,"unit beyond radius excluded");
+ assert.equal(enemy.hp,30,"opponent excluded");
+ assert.equal(med.hp,120,"medic cannot heal itself");
+ const ally2=unit("engineer",1,425,300);ally2.hp=220;ally2.attack=999;
+ injured.hp=220;S.units.push(ally2);
+ API.unitStep(2);
+ assert.equal(injured.hp,240,"lower uid wins tie at same HP ratio");
+ assert.equal(ally2.hp,220,"only one ally healed per pulse");
+ injured.hp=415;ally2.hp=420;
+ API.unitStep(2);
+ assert.equal(injured.hp,420,"HP cannot exceed max");
+ assert.ok(S.effects.some(x=>x.type==="heal"),"healing has visible effect echo");
+});
+test("medic can heal allied flyer but not after its own death",()=>{
+ const med=unit("medic",1,400,300),drone=unit("drone",1,410,300);
+ med.attack=999;drone.attack=999;drone.hp=99;S.units=[med,drone];
+ API.unitStep(2);
+ assert.equal(drone.hp,119);
+ ctx.hitUnit(med,120);drone.hp=55;
+ API.unitStep(2);assert.equal(drone.hp,55,"dead medic cannot heal");
+ assert.equal(S.capitals[0].hp,3000);
+});
+test("AA guided missile: delayed host-owned single-target nearest flyer, ground fallback and miss",()=>{
+ const far=unit("ground_bomber",2,490,300),near=unit("drone",2,450,300),
+  ground=unit("engineer",2,405,300),friend=unit("drone",1,402,300);
+ S.units=[far,near,ground,friend];
+ S.hand[1]=["anti_air_missile"];S.activeDecks[1]=["anti_air_missile"];
+ assert.equal(API.castSpell(1,"anti_air_missile",400,300),true);
+ assert.equal(S.left[1].anti_air_missile,2);
+ assert.equal(S.energy[1],10);
+ assert.equal(near.hp,120,"damage must wait for .4s");
+ API.spellStep(.39);assert.equal(near.hp,120);
+ API.spellStep(.02);
+ assert.ok(near.hp<=0,"closest flyer receives 200");
+ assert.equal(far.hp,230,"no second flyer damaged");
+ assert.equal(ground.hp,420,"no ground damage while flying target is available");
+ assert.equal(friend.hp,120);
+ assert.equal(S.spells.incoming.length,0);
+ S.units=[ground,friend];S.hand[1]=["anti_air_missile"];
+ assert.equal(API.castSpell(1,"anti_air_missile",400,300),true);
+ API.spellStep(.4);
+ assert.equal(ground.hp,395,"ground fallback is only 25");
+ S.units=[friend];S.hand[1]=["anti_air_missile"];
+ assert.equal(API.castSpell(1,"anti_air_missile",400,300),true);
+ API.spellStep(.4);
+ assert.equal(friend.hp,120,"no enemy means no damage");
+ assert.equal(S.left[1].anti_air_missile,0,"miss consumes last finite charge");
+ assert.equal(S.capitals[0].hp,3000);
+ assert.equal(S.capitals[1].hp,3000);
+});
+test("small lightning strikes every nearby ground and flying enemy after .3s",()=>{
+ const ground=unit("infantry",2,430,300),air=unit("drone",2,410,320),
+  outside=unit("infantry",2,446,300),friend=unit("infantry",1,400,300);
+ S.units=[ground,air,outside,friend];
+ S.hand[1]=["small_lightning"];S.activeDecks[1]=["small_lightning"];
+ assert.equal(API.castSpell(1,"small_lightning",400,300),true);
+ assert.equal(S.energy[1],11);assert.equal(S.left[1].small_lightning,3);
+ API.spellStep(.29);assert.equal(ground.hp,105);
+ API.spellStep(.02);
+ assert.equal(ground.hp,75);assert.equal(air.hp,90);
+ assert.equal(outside.hp,105);assert.equal(friend.hp,105);
+ assert.equal(S.capitals[0].hp,3000);assert.equal(S.capitals[1].hp,3000);
+ assert.equal(S.spells.incoming.length,0);
+});
 test("stage3 kaiju objective and gale status",()=>{
  const a=unit("kaiju",1,300,300),e=unit("infantry",2,329,300);
  S.units=[a,e];S.forts=[{x:430,y:300,hp:12,owner:2}];
