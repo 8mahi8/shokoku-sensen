@@ -54,7 +54,7 @@ jobs:
               'kaiju           : { hp: 1000',
               'kamikaze        : { hp:  150, damage: 400',
               'pierceCount:10,pierceScale:.6,pierceWidth:42',
-              'function drawPiercerBolt(g,x,y,angle,alpha)',
+              'function drawPiercerBolt(g,x,y,angle,alpha,growth=1)',
               // School comparison needs short-frame hitch evidence on real Safari.
               'gapMs<(perfPanel?100:180)',
               'perfPreviousDrawMs=drawMs;perfPreviousTiles=denseSpriteBuildsThisFrame;'
