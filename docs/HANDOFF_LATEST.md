@@ -1,5 +1,13 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-10-30｜マリガン実装と本番前QA（最新確定・実機未検証）
+
+- **本人が確定**：初手4枚・0〜4枚を1回交換・20秒制限・両者確定で即10秒初期配置。ホストが権威的に確定し、交換カードは残り6枚から補充した後キュー末尾へ戻す。基本歩兵は常時枠。BOTは交換なし自動確定。タイムアウトは無交換で自動確定。
+- **開発ブランチに実装済**：`online-game.js`＋`online-net.js`、`online.html`＋単体版2つ、4枚タップUI。制限時間は実時間`performance.now()`を使用。Firebaseでは空配列を使わずカンマ区切りスロット文字列で送信し**0枚交換も保証**。送信に失敗したゲストはやり直せる。既存の同じFirebase部屋と認証方式を利用。ルール変更なし。
+- **成功済CI**：[School HTML・交換0〜4枚・禁止重複 #41058357483](https://github.com/8mahi8/shokoku-sensen/actions/runs/41058357483)、[Chromiumホスト＋WebKitゲスト・実Firebaseで1枚対2枚交換・手札同期・20回召喚・再戦 #41058357300](https://github.com/8mahi8/shokoku-sensen/actions/runs/41058357300)、[オフラインソロ・BOT・マリガン20秒自動確定・iPad UI #41058357554](https://github.com/8mahi8/shokoku-sensen/actions/runs/41058357554)、[通常オンライン smoke #41058357495](https://github.com/8mahi8/shokoku-sensen/actions/runs/41058357495)。これらは**各success**。他の高負荷ブラウザ/長時間Firebase CIは最終ログを別途確認。
+- 変更していないもの：学校Google Sites埋め込み、本番Firebase Security Rules、Google Drive、main/stable。**学校iPad Safari実機は未検証**。ゲストの瞬間カクつき根本原因はこの実装で解決したわけではない。次はユーザーと低コスト新キャラの正式設計に進む。マリガン正式仕様は [`docs/MULLIGAN_DESIGN_20261030.md`](MULLIGAN_DESIGN_20261030.md)。以下の過去の「設計未承認・未実装」欄は履歴であり本節を優先。
+
+
 ## 2026-10-30｜マリガン本人承認・実装（10枚サイクル対応）
 
 - 本人正式承認：**初手4枚から0〜4枚の1回交換、20秒制限、両者確定で直ちに10秒初期配置へ進む**。基本歩兵はデッキ外の常時カードで交換対象外。交換したカードはまずキュー末尾へ回し、直後の引き直しでは戻らない。資源8/カード残使用回数/以後の循環を維持。
