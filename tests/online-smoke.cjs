@@ -144,7 +144,7 @@ for(const path of ["online.html","online-ipad.html","online-embed.html"]){
 }
 
 const page=read("online.html");
-assert.ok(page.includes('./online-deck.js?v=2')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=21'),
+assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=22'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
