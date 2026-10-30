@@ -338,9 +338,9 @@ function setupRoom(code,isHost){
       Number.isInteger(data.seq)&&data.seq>lastGuestSeq){
     lastGuestSeq=data.seq;
     const valid=data.kind==="mulligan"?
-     game?.mulligan?.(data.slots)===true:
+     game?.mulligan?.(typeof data.slots==="string"?(data.slots?data.slots.split(",").map(Number):[]):null)===true:
      game?.accept({id:data.id,x:data.x,y:data.y})===true;
-    if(!valid)room.child("feedback").set({seq:data.seq,round:meta.round,message:"召喚できませんでした。コスト・範囲・カードを確認。"}).catch(()=>{});
+    if(!valid)room.child("feedback").set({seq:data.seq,round:meta.round,message:data.kind==="mulligan"?"初手交換は終了済みか選択が無効です。":"召喚できませんでした。コスト・範囲・カードを確認。"}).catch(()=>{});
     else maybePublish(true);
    }
    try{await snap.ref.remove()}catch(e){setError(e)}
@@ -556,7 +556,8 @@ function sendMulligan(slots){
     new Set(slots).size!==slots.length)return false;
  const seq=++commandSeq;
  room.child("commands").push({kind:"mulligan",by:clientId,seq,
-  round:meta?.round||1,slots,time:Date.now()+serverOffset}).catch(setError);
+  round:meta?.round||1,slots:slots.join(","),time:Date.now()+serverOffset})
+  .catch(e=>{setError(e);game?.mulliganSendFailed?.();});
  return true;
 }
 function maybePublish(force=false){
