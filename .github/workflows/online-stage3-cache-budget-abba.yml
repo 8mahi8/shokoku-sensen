@@ -1,0 +1,30 @@
+name: Online Stage3 cache-budget WebKit ABBA
+on:
+  push:
+    paths:
+      - 'tests/online-stage3-cache-budget-abba.cjs'
+      - '.github/workflows/online-stage3-cache-budget-abba.yml'
+  workflow_dispatch:
+jobs:
+  paired-guest-cache-budget:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    timeout-minutes: 7
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.56.1
+      - name: Run 2-1-1-2 sprite tile limit with identical guest
+        run: node tests/online-stage3-cache-budget-abba.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage3-cache-budget-webkit-abba
+          path: qa-stage3-cache-budget-abba/
+          retention-days: 14
