@@ -1,5 +1,16 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-10-30｜Stage3学校ゲストの瞬間カクつき：実Firebase×描画の追加証拠（最新版）
+
+- ユーザー報告：学校Safariのゲストは基本快適だが時々カクつく。以前の固定安定版は気にならなかった。通信だけでなくCanvas/キャッシュ/WebKit画面更新を調査する方針。**Drive保存は本人が依頼したときのみ**。
+- 実Firebaseと実Canvasを同時に使うQA `tests/online-stage3-firebase-hitch-trace.cjs` とCI `online-stage3-firebase-hitch-trace.yml`を開発ブランチに追加。学校HTMLやゲーム本体には計測処理を挿入しない。詳細は`docs/PERFORMANCE_EVIDENCE.md` 末尾参照。
+- [QA #41040834899](https://github.com/8mahi8/shokoku-sensen/actions/runs/41040834899) **success**：WebKitゲストで250msのフレーム間隔があっても同じ瞬間のCanvas JS描画10ms、SDK受信41ms前、ゲーム状態適用11ms前。画像キャッシュ自動切替（実ゲーム同等）も通過。Firebase一時ルームDELETE・GET/null確認。
+- [QA #41041123442](https://github.com/8mahi8/shokoku-sensen/actions/runs/41041123442) **success**：同じStage3混成20体をcold plain→gale→warm plainで繰り返すと、plainのWebKit rAF p95が69ms→35ms、Canvas JS描画p95が7ms→2ms。初回188msの遅延時には新しいポーズキャッシュ2タイルを生成、SDK受信25ms前・状態適用4ms前。後半ではタイル78枚が温まり、低FPSモードも解除。ユニット数・戦況・試行順・ブラウザウォームアップの差があるため、**キャッシュの因果関係は未証明**。
+- 判定：**通信だけが原因ではない**というブラウザ実測の根拠が得られ、キャラクターアート初回生成／WebKitのレンダリング・合成が次の優先的調査対象。ただしこれはLinux headless WebKitであり、学校iPad Safariで同一原因の証明や改善済み宣言は不可。画質・通信・ゲームAIを推測だけで変更しない。
+- 実画面PNGも回収して目視。キャラ消失/明確な画像破綻は見えないが、QAの人工的な20体同座標密集で絵が重なるのでUI美観の検収ではない。
+- **今回のゲーム本体変更なし**。最近の正式バランスは怪獣`城1/砦4/敵兵1`。学校Google Sites、Drive、main/stable、Firebase Rulesは全く変更していない。次回は実iPadの旧安定版/現Stage3・同じ混戦/役割交代で初回と数分後を比較し、初期負荷の寄与が実機でも再現すれば、キャッシュ生成をさらに段階化するA/Bを検討する。
+
+
 ## 2026-10-30｜学校ゲスト一瞬のカクつき：今回の新しい調査結果（最優先）
 - 本人最新報告：基本は遊べるが、旧学校版ではなかったゲスト一瞬のカクつきが残る。通信だけでなくCanvas/レンダリング/キャラ画像も調査対象。Google Driveは**本人の依頼がある時だけ保存**。既存学校版・main・stable・Firebase Rulesには触れない。
 - `tests/online-stage2-load-profile.cjs`へStage3怪獣混成`stage3-plain`と同編成に20体の疾風号令効果を与える合成ストレス`stage3-gale`を追加（**テスト専用**）。旧4場面と合わせ18/18ブラウザー試験 **Actions #41038098220 success**。Linux headless WebKit p95フレーム間隔はold20 76ms、new20 102ms、stage3-plain 88.5ms、stage3-gale 95ms。Stage3描画JS p95は6.5〜8ms、戦闘ロジックは1msで、通信を止めてもフレーム間隔の不均一さがある。Chromiumは同じシーンで16.7ms程度。実iPad/Safariのfpsや不具合原因の確定ではなく、短時間の人工密集での比較。
