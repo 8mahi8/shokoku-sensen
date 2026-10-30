@@ -43,7 +43,7 @@ const MOTION={
 const CLASSES={
  infantry:{name:"基本歩兵",glyph:"♟",size:"small",cost:2,limit:Infinity,qty:2,hp:105,damage:15,cool:1.45,range:26,vision:104,speed:23,r:12,behavior:"normal",capture:1,hitAir:false,targetPriority:{castle:2,fort:1,unit:2},note:"小型・占領・無制限"},
  scout:{name:"偵察ライダー",glyph:"➤",size:"medium",cost:3,limit:4,qty:1,hp:195,damage:28,cool:1.05,range:31,vision:115,speed:41,r:14,behavior:"capture",capture:1,hitAir:false,targetPriority:{castle:3,fort:3,unit:1},note:"中型・高速・少数戦・占領"},
- engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:3,qty:1,hp:420,damage:34,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,targetPriority:{castle:3,fort:3,unit:1},note:"中型・高耐久・近接・占領"},
+ engineer:{name:"重装工兵",glyph:"◆",size:"medium",cost:4,limit:3,qty:1,hp:420,damage:35,cool:1.4,range:32,vision:120,speed:16,r:18,behavior:"capture",capture:2,hitAir:false,targetPriority:{castle:3,fort:3,unit:1},note:"中型・高耐久・近接・占領"},
  archer:{name:"魔導射手",glyph:"✧",size:"small",cost:2,limit:5,qty:2,hp:95,damage:20,cool:1.65,range:153,vision:195,speed:19,r:12,behavior:"normal",capture:0,hitAir:true,targetPriority:{castle:2,fort:0,unit:2},note:"小型・遠距離・対空"},
  sentinel:{name:"迎撃衛士",glyph:"⚔",size:"medium",cost:4,limit:3,qty:1,hp:440,damage:62,cool:1.60,range:44,vision:190,speed:20,r:20,behavior:"guard",capture:0,hitAir:false,splash:43,splashScale:.5,targetPriority:{castle:1,fort:0,unit:2},note:"中型・配置地点を守る迎撃前衛・近接薙ぎ払い"},
  suppress:{name:"制圧機兵",glyph:"✳",size:"medium",cost:5,limit:2,qty:1,hp:380,damage:50,cool:1.9,range:115,vision:150,speed:17,r:18,behavior:"normal",capture:0,hitAir:true,splash:70,splashScale:.8,targetPriority:{castle:2,fort:0,unit:2},note:"中型・密集対策・対空対応の範囲砲撃"},
@@ -83,7 +83,7 @@ if(schoolStats&&typeof schoolStats==="object"){
 }
 const IDS=Object.keys(CLASSES).filter(id=>!CLASSES[id].internalOnly);
 const SPELLS={
- barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:2,radius:82,damage:125,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
+ barrage:{name:"範囲砲撃",glyph:"☄",cost:4,limit:2,radius:82,damage:180,delay:1.3,note:"1.3秒後に敵兵へ範囲ダメージ。建物には無効"},
  ward:{name:"防護結界",glyph:"⬡",cost:3,limit:3,radius:93,duration:5.2,mult:.55,note:"5.2秒間、範囲内の味方へのダメージを45%軽減"},
  gravity:{name:"引力",glyph:"◎",cost:3,limit:2,radius:125,duration:2.5,speeds:{small:100,medium:70,large:35},note:"2.5秒間敵地上兵を吸引・移動拘束。攻撃は可能"},
  gale:{name:"疾風号令",glyph:"➚",cost:3,limit:3,radius:125,duration:4,speedMultiplier:1.5,note:"発動時に円内にいた味方全員の移動速度を4秒間1.5倍。円の外でも持続"}
