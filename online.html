@@ -76,7 +76,42 @@ button:focus-visible{outline:2px solid #f6d88b;outline-offset:2px}
 .cardName{font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cardBottom{display:flex;justify-content:space-between;align-items:center;gap:3px;font-size:9px;color:#b6d1d6}
 .cardCapture{font-size:9px;background:#b5a05c35;color:#f0d89b;padding:1px 3px;border-radius:4px}
-.cardLeft{font-weight:800;color:#dde6d4;font-variant-numeric:tabular-nums}
+/* Match-wide card charges: visible at a glance, independent of energy. */
+.cardUses{display:inline-flex;align-items:baseline;gap:2px;max-width:100%;padding:2px 5px;line-height:1.05;
+ background:#16414c;border:1px solid #80cbd1;border-radius:6px;color:#f1ffff;white-space:nowrap;font-weight:950;
+ font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.cardUsesLabel{font-size:9px;font-weight:850}
+.cardUsesNow{font-size:15px;line-height:1}
+.cardUsesTotal{font-size:10px;color:#bddce2}
+.cardLimitTrack{height:5px;flex:none;width:100%;border-radius:8px;background:#0c202a;border:1px solid #476571;overflow:hidden}
+.cardLimitFill{display:block;height:100%;background:#77ddcb}
+.card.uses-low .cardUses{background:#584221;border-color:#f3cb7f;color:#ffe7b1}
+.card.uses-low .cardUsesTotal{color:#ffe7b1}
+.card.uses-low .cardLimitFill{background:#f0bf67}
+.card.uses-critical .cardUses{background:#612b2b;border-color:#ffaaa0;color:#fff3e7}
+.card.uses-critical .cardUsesTotal{color:#ffd2c9}
+.card.uses-critical .cardLimitFill{background:#f0927b}
+.card.uses-unlimited .cardUses{background:#1c493f;border-color:#71c8a6;color:#e0ffe9}
+.card.uses-unlimited .cardLimitFill{background:#74c9a9}
+/* Dim the artwork, not the strategic uses indicator, when energy is insufficient. */
+.card.unavailable:not(.depleted){filter:none;opacity:1;border-color:#4a6571}
+.card.unavailable:not(.depleted) .cardPortrait,
+.card.unavailable:not(.depleted) .cardName{filter:saturate(.6);opacity:.6}
+.card.unavailable:not(.depleted) .cardCost{opacity:.65}
+.card.depleted{filter:grayscale(.55);opacity:.72}
+@media(max-width:710px){
+ .cardUses{padding:1px 3px;gap:1px}
+ .cardUsesLabel{display:none}
+ .cardUsesNow{font-size:12px}
+ .cardUsesTotal{font-size:9px}
+ .cardLimitTrack{height:3px}
+}
+@media (min-width:700px) and (pointer:coarse) and (max-height:560px){
+ .cardUsesNow{font-size:13px}
+ .cardUses{padding:1px 4px}
+ .cardLimitTrack{height:4px}
+}
+
 .cardTier{font-weight:950;white-space:nowrap;color:#c5e7df}
 .card.tier-small .cardTier{color:#a9dfbe}
 .card.tier-medium .cardTier{color:#9bd8f9}
