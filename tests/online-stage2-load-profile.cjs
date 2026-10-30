@@ -1,4 +1,4 @@
-// Controlled Stage-2 high-density performance/visual investigation.
+// Controlled Stage-2/Stage-3 high-density performance/visual investigation.
 // No changes to game logic; localhost-only QA fixture inserted into HTML.
 // A headless WebKit rAF measurement does NOT equal a physical school iPad FPS.
 "use strict";
@@ -11,7 +11,7 @@ const original=fs.readFileSync(path.join(root,"online-ipad.html"),"utf8");
 const anchor="window.__shokokuQa={";
 assert.equal(original.split(anchor).length,2);
 function setupLoadScene(scene){
- if(!NET.isSolo||!["old20","new20","gravity20","child20"].includes(scene))throw Error("QA only");
+ if(!NET.isSolo||!["old20","new20","gravity20","child20","stage3-plain","stage3-gale"].includes(scene))throw Error("QA only");
  resetWorld();S.phase="battle";S.prep=0;S.botThink=999999;
  S.elapsed=120;S.seconds=180;S.clock=120;S.speed=1;
  S.cam.x=740;S.cam.y=330;S.cam.tx=740;S.cam.ty=330;clampCamera();
@@ -41,7 +41,9 @@ function setupLoadScene(scene){
     "scout","scout","sentinel","suppress","guardian"];
    const newIds=["piercer","piercer","catapult","catapult","kamikaze",
     "kamikaze","mech_summoner","mech_summoner","infantry","guardian"];
-   const ids=scene==="old20"?old:newIds;
+   const stage3Ids=["piercer","catapult","kamikaze","mech_summoner","kaiju",
+    "infantry","archer","sentinel","guardian","tank"];
+   const ids=scene==="old20"?old:scene.startsWith("stage3-")?stage3Ids:newIds;
    for(let i=0;i<ids.length;i++)put(ids[i],team,x+(i%3-1)*22,118+i*48);
   }
  }
@@ -56,6 +58,7 @@ function setupLoadScene(scene){
  return {scene,initial,created,spells:S.spells.zones.length,clock:S.clock};
 }
 const extra="setupLoadScene:"+setupLoadScene.toString()+","+
+ "applyGaleForLoad:()=>{for(const u of S.units)applyStatusEffect(u,{key:'gale',stat:'moveSpeed',mult:1.5,remaining:4});return S.units.filter(u=>u.statusEffects?.length).length},"+
  "loadStatus:()=>({units:S.units.length,children:S.units.filter(u=>u.key==='small_machine').length,"+
  "incoming:S.spells.incoming.filter(s=>s.kind==='catapult').length,"+
  "gravity:S.spells.zones.filter(z=>z.kind==='gravity').length,elapsed:S.elapsed}),";
@@ -99,6 +102,10 @@ async function sceneRun(browserType,scene,trial){
   await page.evaluate(()=>window.__shokokuQa.setDpr(1));
   await page.waitForTimeout(900);
   const initial=await page.evaluate(()=>window.__shokokuQa.loadStatus());
+  const buffed=scene==="stage3-gale"?
+   await page.evaluate(()=>window.__shokokuQa.applyGaleForLoad()):0;
+  if(scene==="stage3-gale")assert.equal(buffed,20,"all 20 actual units get status markers");
+  if(scene==="stage3-plain")assert.equal(buffed,0);
   await page.screenshot({path:path.join(out,browserType.name()+"-"+scene+"-"+trial+".png"),
    animations:"disabled",timeout:25000});
   await page.evaluate(()=>window.__shokokuQa.resetFrameBench());
@@ -123,14 +130,18 @@ async function sceneRun(browserType,scene,trial){
    "production match must advance past fixture start");
   assert.ok(rows.length>10,"enough battle frames");
   assert.deepEqual(errors,[],"browser errors");
-  const result={browser:browserType.name(),scene,trial,setup,initial,
+  const result={browser:browserType.name(),scene,trial,setup,initial,buffed,
    final:sample.status,frameCount:rows.length,
    raf:stat(sample.rafGaps),
    gap:stat(rows.map(r=>r.gapMs)),
    draw:stat(rows.map(r=>r.drawMs)),logic:stat(rows.map(r=>r.logicMs)),
    net:stat(rows.map(r=>r.networkMs)),
    maxUnitsSeen:Math.max(...rows.map(r=>r.units||0)),
-   freshTiles:Math.max(0,...rows.map(r=>r.newCachedTiles||0)),error:sample.error};
+   freshTiles:Math.max(0,...rows.map(r=>r.newCachedTiles||0)),
+   longFrames:rows.filter(r=>r.gapMs>100).length,
+   longFramesOver250:rows.filter(r=>r.gapMs>250).length,
+   minUnexplainedGapMs:Math.max(0,...rows.map(r=>r.gapAfterPrevMs||0)),
+   error:sample.error};
   console.log("STAGE2_LOAD_SAMPLE "+JSON.stringify(result));
   return result;
  }finally{
@@ -142,7 +153,7 @@ async function sceneRun(browserType,scene,trial){
  const results=[];
  await new Promise(resolve=>server.listen(8796,"127.0.0.1",resolve));
  try{
-  const scenes=["old20","new20","gravity20","child20"];
+  const scenes=["old20","new20","gravity20","child20","stage3-plain","stage3-gale"];
   for(const scene of scenes){
    // ABBA control for runner/time drift within each engine.
    for(const [engine,reps] of [[webkit,2],[chromium,1]]){
@@ -161,16 +172,17 @@ async function sceneRun(browserType,scene,trial){
      peakUnits:Math.max(...a.map(r=>r.maxUnitsSeen)),
      finalChildren:Math.max(...a.map(r=>r.final.children))};
    })]));
-  assert.equal(results.length,12);
+  assert.equal(results.length,18);
   fs.writeFileSync(path.join(out,"load-results.json"),JSON.stringify({
    summary,results,limitations:[
     "Controlled QA placements/units: old/new rosters and powers differ, not equal game outcomes.",
     "3.5-second post-warmup windows; new summoners can increase the count during the run.",
     "No Firebase in this single-client test, no physical iPad or Google Sites iframe.",
     "Headless WebKit/Chromium frame gaps cannot be read as iPad FPS.",
-    "Effects and child mechanisms run in the unchanged production game engine."
+    "Effects and child mechanisms run in the unchanged production game engine.",
+    "Stage-3 gale fixture applies the actual timed effect to every unit after warmup: a synthetic worst-case rendering load, not a legal match cast."
    ]},null,2));
   console.log("STAGE2_LOAD_SUMMARY "+JSON.stringify(summary));
-  console.log("PASS: 12 Stage-2 load/browser 20-unit stress scenarios");
+  console.log("PASS: 18 Stage-2/3 load/browser 20-unit stress scenarios");
  }finally{await new Promise(resolve=>server.close(resolve));}
 })().catch(e=>{console.error("STAGE2_LOAD_FAILED",e);process.exitCode=1});
