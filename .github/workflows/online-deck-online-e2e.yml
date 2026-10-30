@@ -8,6 +8,7 @@ on:
       - 'online-ipad.html'
       - 'online.html'
       - 'tests/online-deck-online-e2e.cjs'
+      - 'tests/online-mulligan.cjs'
       - '.github/workflows/online-deck-online-e2e.yml'
   workflow_dispatch:
 jobs:
@@ -23,4 +24,5 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
+      - run: node tests/online-mulligan.cjs
       - run: node tests/online-deck-online-e2e.cjs
