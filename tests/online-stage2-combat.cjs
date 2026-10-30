@@ -61,6 +61,15 @@ test("stage2 cards have user-approved parameters and child stays hidden",()=>{
  assert.deepEqual([C.catapult.cost,C.catapult.hp,C.catapult.damage,C.catapult.cool,C.catapult.splash],[8,700,115,4.5,85]);
  assert.equal(C.ranger_engineer.capture,2);
  assert.ok(C.small_machine.internalOnly&&C.small_machine.deckEligible===false);
+ assert.ok(C.small_machine_elite.internalOnly&&C.small_machine_elite.deckEligible===false);
+ assert.deepEqual([C.small_machine.hp,C.small_machine.damage,C.small_machine.cool],[105,18,1.5]);
+ assert.deepEqual([C.small_machine_elite.hp,C.small_machine_elite.damage,C.small_machine_elite.cool],[220,35,1.5]);
+ assert.equal(C.small_machine_elite.capture,0);
+ assert.equal(C.small_machine_elite.hitAir,false);
+ assert.equal(C.mech_summoner.cost,5);
+ assert.equal(C.mech_summoner.hp,340);
+ assert.equal(C.mech_summoner.limit,2);
+ assert.equal(C.small_machine_elite.behavior,C.small_machine.behavior);
  assert.equal(C.mech_summoner.summonTimes.join(","),"2,4,6,11,16,21,26,31");
  assert.equal(API.SPELLS.gravity.duration,2.5);
  assert.equal(API.SPELLS.gravity.cost,3);
@@ -265,16 +274,24 @@ test("contact bomber approaches until hitboxes touch instead of exploding at sig
  for(let i=0;i<8&&attacker.hp>0;i++)API.unitStep(.1);
  assert.ok(attacker.hp<=0,"bomb detonates after actual contact");
 });
-test("summoner creates robots at 2,4,6,11,16,21,26,31 seconds and stops at eight",()=>{
+test("summoner births 7 lightly buffed robots and one elite at 31s, never a ninth",()=>{
  const a=unit("mech_summoner",1,300,300);S.units=[a];
- let t=0;
- for(const threshold of [2,4,6,11,16,21,26,31]){
-  API.unitStep(threshold-t);t=threshold;
-  assert.equal(S.units.filter(u=>u.key==="small_machine").length,
-   [2,4,6,11,16,21,26,31].indexOf(threshold)+1);
+ let elapsed=0;
+ const times=[2,4,6,11,16,21,26,31];
+ for(const threshold of times){
+  API.unitStep(threshold-elapsed-.01);elapsed=threshold-.01;
+  assert.equal(S.units.filter(u=>u.key.startsWith("small_machine")).length,
+   times.indexOf(threshold),"the next child must not spawn early");
+  API.unitStep(.01);elapsed=threshold;
+  const children=S.units.filter(u=>u.key.startsWith("small_machine"));
+  assert.equal(children.length,times.indexOf(threshold)+1);
+  assert.equal(children.at(-1).key,threshold===31?"small_machine_elite":"small_machine");
+  assert.equal(children.at(-1).max,threshold===31?220:105);
  }
- API.unitStep(10);
- assert.equal(S.units.filter(u=>u.key==="small_machine").length,8);
+ API.unitStep(15);
+ assert.equal(a.summonCount,8);
+ assert.equal(S.units.filter(u=>u.key==="small_machine").length,7);
+ assert.equal(S.units.filter(u=>u.key==="small_machine_elite").length,1);
 });
 test("gravity fields never act as allied shields; ward remains a separate spell",()=>{
  const gravity={kind:"gravity",team:1,x:400,y:300,r:125,time:2.5};
@@ -295,7 +312,7 @@ test("killing the summoner stops future births but leaves already spawned robots
  ctx.hitUnit(summoner,400);
  API.unitStep(30);
  assert.equal(S.units.filter(u=>u.key==="small_machine").length,1);
- assert.equal(robot.hp,85,"children must not die automatically with their summoner");
+ assert.equal(robot.hp,105,"children must not die automatically with their summoner");
 });
 test("summoner respects per-side 65-unit cap and retries when slot opens",()=>{
  const a=unit("mech_summoner",1,300,300);
@@ -304,6 +321,43 @@ test("summoner respects per-side 65-unit cap and retries when slot opens",()=>{
  assert.equal(a.summonCount||0,0);
  S.units.pop();API.unitStep(.1);
  assert.equal(a.summonCount,1);assert.equal(S.units.length,65);
+});
+test("two summoners track the eighth elite independently",()=>{
+ const a=unit("mech_summoner",1,250,250),b=unit("mech_summoner",2,1000,450);
+ S.units=[a,b];
+ for(const dt of [2,2,2,5,5,5,5,5])API.unitStep(dt);
+ assert.equal(a.summonCount,8);assert.equal(b.summonCount,8);
+ for(const team of [1,2]){
+  const robots=S.units.filter(u=>u.team===team&&u.key.startsWith("small_machine"));
+  assert.equal(robots.filter(u=>u.key==="small_machine").length,7);
+  assert.equal(robots.filter(u=>u.key==="small_machine_elite").length,1);
+ }
+});
+test("elite waits for the 65-unit cap and retries without becoming ordinary",()=>{
+ const a=unit("mech_summoner",1,300,300);
+ S.units=[a];
+ for(const dt of [2,2,2,5,5,5,5])API.unitStep(dt);
+ assert.equal(a.summonCount,7);
+ while(S.units.filter(u=>u.team===1&&u.hp>0).length<65)
+  S.units.push(unit("infantry",1,350,240));
+ API.unitStep(5);
+ assert.equal(a.summonCount,7);
+ assert.equal(S.units.filter(u=>u.key==="small_machine_elite").length,0);
+ S.units.pop();
+ API.unitStep(.1);
+ assert.equal(a.summonCount,8);
+ assert.equal(S.units.filter(u=>u.key==="small_machine_elite").length,1);
+});
+test("elite is internally spawned only, using the same collision and attack rules",()=>{
+ const elite=unit("small_machine_elite",1,400,300);
+ const enemy=unit("infantry",2,418,300);
+ S.units=[elite,enemy];
+ API.fire(elite,{kind:"unit",ref:enemy,x:enemy.x,y:enemy.y});
+ assert.equal(enemy.hp,70,"elite deals exactly 35 attack damage");
+ assert.equal(API.CLASSES.small_machine_elite.capture,0);
+ assert.equal(API.CLASSES.small_machine_elite.hitAir,false);
+ assert.equal(API.CLASSES.small_machine_elite.internalOnly,true);
+ assert.equal(API.CLASSES.small_machine_elite.deckEligible,false);
 });
 test("stage3 kaiju objective and gale status",()=>{
  const a=unit("kaiju",1,300,300),e=unit("infantry",2,329,300);
