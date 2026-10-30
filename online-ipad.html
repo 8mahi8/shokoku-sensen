@@ -5064,17 +5064,29 @@ function buildCards(){
   const button=document.createElement("button");
   button.type="button";button.className="card"+(id==="infantry"?" permanent":"")+(spell?" spell":"")+(d.size?" tier-"+d.size:"");
   button.dataset.id=id;
-  button.setAttribute("aria-label",d.name+" コスト"+d.cost+" "+(spell?"スペル":SIZE_LABEL[d.size]));
+  const remaining=S.left[ME()][id],limited=Number.isFinite(d.limit);
+  const usesStatus=!limited?"unlimited":remaining<=1?"critical":
+   remaining<d.limit&&remaining<=2?"low":"normal";
+  button.classList.add("uses-"+usesStatus);
+  button.setAttribute("aria-label",d.name+" コスト"+d.cost+" "+(spell?"スペル":SIZE_LABEL[d.size])+
+   (limited?" 残り"+remaining+"回 / 上限"+d.limit+"回":" 召喚無制限"));
   if(S.selected===id)button.classList.add("selected");
   if(!available)button.classList.add("depleted");
   if(!canPay(ME(),id))button.classList.add("unavailable");
-  const left=Number.isFinite(CATALOG[id].limit)?"残 "+S.left[ME()][id]:"∞";
+  // Keep the limit visible even when energy is insufficient: it is a match-wide
+  // resource, not an energy affordability warning. The gauge is visual only.
+  const uses=limited?
+   '<span class="cardUses"><span class="cardUsesLabel">残り</span><strong class="cardUsesNow">'+remaining+
+   '</strong><span class="cardUsesTotal">/'+d.limit+'</span></span>':
+   '<span class="cardUses"><span class="cardUsesLabel">常時</span><strong class="cardUsesNow">∞</strong></span>';
+  const fill=limited?Math.max(0,Math.min(100,Math.round(remaining/d.limit*100))):100;
   button.innerHTML='<div class="cardTop"><span class="cardCost">'+d.cost+'</span><span class="cardQuantity">'+
    (spell?"魔法":id==="infantry"?"常時":"×"+d.qty)+'</span></div>'+
    '<canvas class="cardPortrait" width="128" height="72" aria-hidden="true"></canvas>'+
    '<div class="cardName">'+d.name+'</div>'+
-   '<div class="cardBottom"><span class="cardLeft">'+left+'</span>'+
-   (spell?'<span class="cardSpell">魔法</span>':'<span class="cardTier">'+SIZE_LABEL[d.size]+(d.capture?' ⚑':'')+'</span>')+'</div>';
+   '<div class="cardBottom">'+uses+
+   (spell?'<span class="cardSpell">魔法</span>':'<span class="cardTier">'+SIZE_LABEL[d.size]+(d.capture?' ⚑':'')+'</span>')+'</div>'+
+   '<span class="cardLimitTrack" aria-hidden="true"><span class="cardLimitFill" style="width:'+fill+'%"></span></span>';
   if(window.KokokuArt)window.KokokuArt.drawPortrait(button.querySelector("canvas"),id,ME());
   button.addEventListener("pointerdown",e=>cardDown(e,id));
   button.addEventListener("contextmenu",e=>{e.preventDefault();if(S.phase==="prep"||S.phase==="battle")openCardInfo(id);});
