@@ -1557,7 +1557,7 @@ const UNIT_COLORS={
  infantry:["#4d99b8","#294c75"],scout:["#efcc79","#346e89"],engineer:["#d7a963","#3b6574"],archer:["#a784dc","#435d8f"],
  suppress:["#e8a16a","#5b5c83"],sentinel:["#8ca6d5","#303e63"],guardian:["#8ca7ad","#416f79"],drone:["#6ce1cc","#425e9d"],tank:["#d4bb86","#557885"],
  duelist:["#d1a2e1","#554988"],crusher:["#d68b74","#68424e"],ranger_engineer:["#8fc8ad","#315b72"],interceptor:["#e6c17d","#436a89"],ground_bomber:["#b9cf79","#426787"],
- piercer:["#96cbdf","#3c5c8f"],catapult:["#bb9a73","#564858"],kamikaze:["#ecb779","#963c65"],mech_summoner:["#72c5b9","#3a6577"],small_machine:["#a7d5ca","#365977"],kaiju:["#6a997e","#344c67"],
+ piercer:["#96cbdf","#3c5c8f"],catapult:["#bb9a73","#564858"],kamikaze:["#ecb779","#963c65"],mech_summoner:["#72c5b9","#3a6577"],small_machine:["#a7d5ca","#365977"],small_machine_elite:["#f1c66f","#526a91"],kaiju:["#6a997e","#344c67"],
  barrage:["#bd7e48","#392c47"],ward:["#398c96","#303a78"],gravity:["#886add","#2a427b"],gale:["#6aca8b","#367b86"]
 };
 function path(g,points,fill,stroke=INK,lineWidth=2.4){
@@ -1917,7 +1917,21 @@ function small_machine(g,p,s){
  path(g,[[25+hit*7,-26],[35+hit*7,-19],[25+hit*7,-12]],p.accent,INK,1.5);
  line(g,[[0,-39],[4,-46]],p.accent,2);
 }
-const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber,piercer,catapult,kamikaze,mech_summoner,small_machine,kaiju};
+function small_machine_elite(g,p,s){
+ // Armored final child: retain the familiar robot silhouette and team hue.
+ small_machine(g,p,s);
+ const hit=s.hit;
+ // Broad shoulder plates, visible even at tablet RTS zoom levels.
+ path(g,[[-27,-42],[-17,-49],[-10,-40],[-17,-28],[-27,-30]],"#e8b85d",INK,2.2);
+ path(g,[[12,-40],[19,-49],[29,-41],[29,-30],[16,-28]],"#e8b85d",INK,2.2);
+ round(g,-16,-38,32,8,3,"#385565","#e7cf83",2);
+ crystal(g,0,-32,8,"#ffe080");
+ // Crown-like antenna and a heavier glowing blade distinguish the eighth.
+ path(g,[[-10,-49],[-6,-61],[0,-55],[7,-63],[11,-49]],"#f2ce75",INK,2);
+ line(g,[[15,-24],[32+hit*7,-19]],"#ffe5a2",6);
+ path(g,[[28+hit*7,-29],[42+hit*7,-19],[28+hit*7,-9]],"#d8ad56",INK,2);
+}
+const SPRITES={infantry,scout,engineer,archer,suppress,sentinel,guardian,drone,tank,duelist,crusher,ranger_engineer,interceptor,ground_bomber,piercer,catapult,kamikaze,mech_summoner,small_machine,small_machine_elite,kaiju};
 function paint(g,key,team,clock=0,unit={}){
  const p=PALETTES[team]||PALETTES[1];
  const moving=!!unit.walking;
@@ -1953,10 +1967,10 @@ function paint(g,key,team,clock=0,unit={}){
 }
 const UNIT_SCALE={infantry:.93,scout:.99,engineer:1.07,archer:.94,suppress:1.12,sentinel:1.11,guardian:1.73,drone:1.08,tank:1.79,
  duelist:.98,crusher:1.13,ranger_engineer:1.00,interceptor:1.06,ground_bomber:1.10,
- piercer:1.06,catapult:1.66,kamikaze:1.02,mech_summoner:1.09,small_machine:.72,kaiju:1.62};
+ piercer:1.06,catapult:1.66,kamikaze:1.02,mech_summoner:1.09,small_machine:.72,small_machine_elite:.94,kaiju:1.62};
 const BODY_HEIGHT={infantry:77,scout:83,engineer:85,archer:83,suppress:78,sentinel:87,guardian:97,drone:64,tank:73,
  duelist:80,crusher:93,ranger_engineer:82,interceptor:86,ground_bomber:66,
- piercer:85,catapult:100,kamikaze:72,mech_summoner:94,small_machine:54,kaiju:96};
+ piercer:85,catapult:100,kamikaze:72,mech_summoner:94,small_machine:54,small_machine_elite:61,kaiju:96};
 // Changes are visual only: gameplay movement, collision, range and cost remain unchanged.
 function drawUnit(g,u,clock){
  // The Gald sprite cache replaces only the guardian artwork. Retain the
@@ -2136,7 +2150,7 @@ const MOTION={
  attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
   sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84,
   duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68,
-  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,kaiju:.78},
+  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,small_machine_elite:.55,kaiju:.78},
  windup:.44
 };
 const CLASSES={
@@ -2163,7 +2177,8 @@ const CLASSES={
  // Stage 3: the existing priority-4 shared selector handles this objective unit.
  kaiju:{name:"砦進撃怪獣",glyph:"♜",size:"large",cost:6,limit:2,qty:1,hp:1000,damage:72,cool:2.25,range:40,vision:220,speed:22,r:27,behavior:"capture",capture:3,hitAir:false,meleeFx:true,targetPriority:{fort:4,castle:1,unit:1},note:"大型・砦を最優先で占領。砦が索敵内なら敵兵を無視して進撃。砦がなければ敵にも反撃する"},
  // Internal child: never place in a deck, summon directly or display in the card gallery.
- small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:85,damage:14,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
+ small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:105,damage:18,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
+ small_machine_elite:{name:"最終型機械兵",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:220,damage:35,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師の8体目だけに現れる最終型。直接召喚・デッキ選択不可"},
 };
 // School-friendly Google Sites HTML: optional, single visible HP / base damage
 // table at the VERY TOP of the pasted document. Only host applies combat
@@ -2682,7 +2697,10 @@ function applyGravity(dt){
  }
 }
 function spawnSmallMachine(parent){
- const kind="small_machine",d=CLASSES[kind];
+ // The eighth and FINAL timed child is distinct; existing cap/retry rules apply.
+ const spawnIndex=parent.summonCount||0;
+ const kind=spawnIndex===CLASSES[parent.key].summonTimes.length-1?"small_machine_elite":"small_machine";
+ const d=CLASSES[kind];
  if(S.units.filter(u=>u.team===parent.team&&u.hp>0).length>=65)return false;
  const dir=parent.team===1?1:-1;
  const x=limit(parent.x-dir*27,30,W-30),y=limit(parent.y+((parent.summonCount||0)%3-1)*22,46,H-45);
@@ -4667,6 +4685,15 @@ function drawUnit(u,alreadyPresented=false){
   ctx.fillStyle="#14363f";ctx.fillRect(0,-3,14,6);break;
  case "scout":
   ctx.beginPath();ctx.moveTo(18,0);ctx.lineTo(-12,-10);ctx.lineTo(-6,0);ctx.lineTo(-12,10);ctx.closePath();ctx.fill();ctx.stroke();break;
+ case "small_machine":
+ case "small_machine_elite": {
+  const elite=u.key==="small_machine_elite";
+  rounded(ctx,elite?-15:-12,elite?-13:-10,elite?30:24,elite?26:20,5);ctx.fill();ctx.stroke();
+  ctx.fillStyle=elite?"#ffda76":"#c6d8d8";
+  ctx.beginPath();ctx.arc(0,0,elite?7:5,0,Math.PI*2);ctx.fill();
+  if(elite){ctx.strokeStyle="#ffe39c";ctx.lineWidth=3;ctx.strokeRect(-10,-16,20,4);}
+  break;
+ }
  case "engineer":
   rounded(ctx,-17,-16,34,32,7);ctx.fill();ctx.stroke();
   ctx.fillStyle="#e1cf95";ctx.fillRect(-6,-7,14,14);break;
