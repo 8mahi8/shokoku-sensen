@@ -6,6 +6,8 @@
 - 開発版`online-game.js`で`piercer`/`ranger_engineer`の`hitAir:true`を適用。貫通射手の後続も飛行を貫通対象に含む。爆風は攻撃側の`hitAir`がtrueの時だけ飛行巻き込みを許可。対地爆撃翼、迎撃衛士、守護ゴーレム、突貫爆撃機の地上限定範囲攻撃は**不変**。
 - **引力の戦闘コード修正は不要**：従来の`gravityZoneFor`が冒頭で飛行ユニットを除外し、`applyGravity`も共通利用する。今回は実際の`castSpell`/ `spellStep`を通す新しい回帰テストで、敵ドローンと突貫爆撃機が吸引されず、地上兵は動くことを検証する。
 - 単体HTML2種類とソースを同期し、`tests/online-stage2-combat.cjs`に貫通の飛行主対象・混在後続、工兵の対空と砦優先維持、爆風の飛行巻き込みと味方/範囲外、地上専用攻撃維持、引力飛行無効のテストを追加。
+- **実行済み検証（成功）**：[オンライン総合smoke #41054400671](https://github.com/8mahi8/shokoku-sensen/actions/runs/41054400671) で飛行貫通・遠距離工兵対空・飛行爆風・地上専用維持・引力飛行除外の5新テスト成功。[学校用HTML同期・回帰 #41054515104](https://github.com/8mahi8/shokoku-sensen/actions/runs/41054515104)成功、19種・4モジュールの`--check`一致。[Chromium + WebKit Stage2 Canvas/戦闘 #41054514948](https://github.com/8mahi8/shokoku-sensen/actions/runs/41054514948)成功、貫通10体上限の枠内で**飛行ドローンに33ダメージ（HP120→87）**が両ブラウザ一致。[実Firebase 2席 #41054400572](https://github.com/8mahi8/shokoku-sensen/actions/runs/41054400572)成功、ゲスト反映・引力ゾーン・再戦・一時ルーム削除確認。[Stage1 実Firebase #41054400613](https://github.com/8mahi8/shokoku-sensen/actions/runs/41054400613)成功。学校iPad Safari実機試験は未実施。
+
 - 新キャラの具体設計は依然未確定。学校Google Sites埋め込み・main/stable・Google Drive・Firebase Rulesは未変更。学校iPad実機での新対空バランスは未検証。以前の未承認レビューより**本セクションの本人承認を優先**する。CI結果は最新実行を確認する。
 
 
