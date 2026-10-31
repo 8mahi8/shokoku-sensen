@@ -77,6 +77,7 @@ assert.ok(art.includes("function medic(")&&art.includes('key==="anti_air_missile
 }
 
 const schoolKeys=Object.keys(originalClasses).filter(id=>!originalClasses[id].internalOnly);
+assert.equal(originalClasses.piercer.hp,110,"approved piercer glass-cannon HP after school playtest");
 assert.equal(originalClasses.piercer.damage,40,"approved primary piercer damage");
 assert.equal(originalClasses.piercer.damage*originalClasses.piercer.pierceScale,33,
  "piercer's secondary damage stays at 33");
@@ -206,7 +207,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html"]){
   assert.ok(!html.includes(stale),p+" contains stale UI instructions: "+stale);
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=26'),
+assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=27'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
