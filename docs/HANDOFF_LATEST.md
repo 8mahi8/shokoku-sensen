@@ -1,5 +1,15 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-10-31｜【最新正式・開発版実装済み】貫通射手HP110、攻撃40・貫通33は維持
+
+- 本人正式了承：「**まぁとりあえずは貫通射手110ぐらいでいっか**」。直前の学校実戦で貫通射手の近接殴り合いが強すぎる、射程が長いぶん耐久を下げてよいと判断。**現在開発版は`piercer`のHP170→110を実装済み**。主対象40・後続33（`pierceScale:.825`）・射程165・貫通幅42・最大10体・対空可・コスト3・回数4・攻撃間隔1.85秒はすべて変更なし。既存の他ユニットやスペルも未変更。
+- `online-game.js`、`online.html`（ゲームJSキャッシュ v27）、`online-ipad.html`、`online-embed.html`（インラインゲーム定義と学校編集表HP110/ダメージ40の両方）を開発ブランチで同期。既存QAの期待HPを110に変更し、双剣兵5撃KO/貫通射手4撃KO（密着、同時初撃の単純計算）と対空可能維持の回帰チェックを追加。
+- **検証**：開発ブランチhead `49140eed`で[Online 1v1 smoke #41179492108](https://github.com/8mahi8/shokoku-sensen/actions/runs/41179492108) **success**、[School Stage 3 release-candidate HTML verification #41179492137](https://github.com/8mahi8/shokoku-sensen/actions/runs/41179492137) **success**。GitHubのコードを読み戻し、2種類のStandalone内の`online-game.js`がモジュール原本と全文一致、上部編集表はHP110・攻撃40、両方の各script構文チェックもPASS。他のブラウザ・Firebase E2Eジョブは開始時点で実行中につき、実機iPad成功と混同しない。
+- [飛行/対空レビュー](AIR_ANTIAIR_BALANCE_REVIEW_20261031.md)は実装前HP170を基準とした**過去の検証資料**。HP110での仮条件の検証も記載済みだが、今回の正式変更により**110が現行開発値**になった。更新前の「HP170現行」「HP110未反映」節は履歴であり、必ず本節を優先。
+- **変更範囲**：開発ブランチだけ。学校Google Sitesの現在稼働中埋め込みHTML、Google Driveの以前保存した配布ファイル、Firebase Security Rulesは変更していない。学校iPadでのHP110試遊は未検証。**次の作業**：残りの自動テスト結果を確認し、試遊用の新HTML配布は本人の指示時にGoogle Driveへ保存。
+
+
+
 ## 2026-10-31｜【最新】飛行3種×対空7種・全21対面の重点バランス確認（分析だけ）
 
 - 本人依頼「飛行ユニットと対空出来るやつの戦闘は特にバランスではチェックしたいから１回確認」。**分析報告を**[docs/AIR_ANTIAIR_BALANCE_REVIEW_20261031.md](AIR_ANTIAIR_BALANCE_REVIEW_20261031.md)**に保存済み**（実コード値、全21組、距離100/220の`unitStep`・`spellStep`実関数による条件付きシミュレーション、同総コストの2枚魔導射手、3種スペル閾値）。**これは実戦iPad試験ではなく固定条件・初期攻撃クールダウン0の簡易比較**であり、実機勝率を示さない。
