@@ -57,7 +57,7 @@ function reset(){
 function test(name,fn){reset();fn();console.log("PASS "+name);}
 test("stage2 cards have user-approved parameters and child stays hidden",()=>{
  const C=API.CLASSES;
- assert.deepEqual([C.piercer.cost,C.piercer.hp,C.piercer.damage,C.piercer.pierceCount],[3,170,40,10]);
+ assert.deepEqual([C.piercer.cost,C.piercer.hp,C.piercer.damage,C.piercer.pierceCount],[3,110,40,10]);
  assert.deepEqual([C.catapult.cost,C.catapult.hp,C.catapult.damage,C.catapult.cool,C.catapult.splash],[8,700,115,4.5,85]);
  assert.equal(C.ranger_engineer.capture,2);
  assert.ok(C.small_machine.internalOnly&&C.small_machine.deckEligible===false);
@@ -82,6 +82,18 @@ test("drone trial speed decreases to 30 without altering movement buff scaling",
  assert.equal(API.effectiveMoveSpeed(drone),30);
  drone.statusEffects=[{key:"gale",stat:"moveSpeed",mult:1.5,remaining:4}];
  assert.equal(API.effectiveMoveSpeed(drone),45,"gale remains multiplicative");
+});
+test("approved HP110 piercer is fragile to dual-swords at contact",()=>{
+ const piercer=unit("piercer",1,420,300),dual=unit("duelist",2,442,300);
+ assert.equal(piercer.hp,110);
+ assert.equal(dual.hp,145);
+ assert.equal(API.CLASSES.duelist.damage,22);
+ assert.equal(Math.ceil(piercer.hp/API.CLASSES.duelist.damage),5,
+  "five sword strikes KO the long-range piercer");
+ assert.equal(Math.ceil(dual.hp/API.CLASSES.piercer.damage),4,
+  "piercer needs four primary hits to KO the dual-swords at 40 damage");
+ assert.equal(API.CLASSES.piercer.range,165,"long range retained");
+ assert.equal(API.CLASSES.piercer.hitAir,true,"antiair remains legal");
 });
 test("pierce hits 10 targets maximum, main 40 and behind targets 33",()=>{
  const atk=unit("piercer",1,420,300);
