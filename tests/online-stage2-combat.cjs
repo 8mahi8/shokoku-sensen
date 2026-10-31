@@ -57,7 +57,7 @@ function reset(){
 function test(name,fn){reset();fn();console.log("PASS "+name);}
 test("stage2 cards have user-approved parameters and child stays hidden",()=>{
  const C=API.CLASSES;
- assert.deepEqual([C.piercer.cost,C.piercer.hp,C.piercer.damage,C.piercer.pierceCount],[3,170,55,10]);
+ assert.deepEqual([C.piercer.cost,C.piercer.hp,C.piercer.damage,C.piercer.pierceCount],[3,170,40,10]);
  assert.deepEqual([C.catapult.cost,C.catapult.hp,C.catapult.damage,C.catapult.cool,C.catapult.splash],[8,700,115,4.5,85]);
  assert.equal(C.ranger_engineer.capture,2);
  assert.ok(C.small_machine.internalOnly&&C.small_machine.deckEligible===false);
@@ -83,13 +83,13 @@ test("drone trial speed decreases to 30 without altering movement buff scaling",
  drone.statusEffects=[{key:"gale",stat:"moveSpeed",mult:1.5,remaining:4}];
  assert.equal(API.effectiveMoveSpeed(drone),45,"gale remains multiplicative");
 });
-test("pierce hits 10 targets maximum, main 55 and behind targets 33",()=>{
+test("pierce hits 10 targets maximum, main 40 and behind targets 33",()=>{
  const atk=unit("piercer",1,420,300);
  const foes=Array.from({length:12},(_,i)=>unit("engineer",2,470+i*6,300));
  const off=unit("engineer",2,495,370),ally=unit("engineer",1,495,300),air=unit("drone",2,500,370);
  S.units=[atk,...foes,off,ally,air];
  API.fire(atk,{kind:"unit",ref:foes[0],x:foes[0].x,y:foes[0].y});
- assert.equal(foes[0].hp,420-55);
+ assert.equal(foes[0].hp,420-40);
  assert.equal(foes.slice(1,10).filter(v=>v.hp===387).length,9);
  assert.ok(foes.slice(10).every(v=>v.hp===420));
  assert.equal(off.hp,420);assert.equal(ally.hp,420);assert.equal(air.hp,120);
@@ -101,8 +101,10 @@ test("tripled pierce lane hits ground and air but not off-ray or allied targets"
  const ally=unit("engineer",1,500,340),air=unit("drone",2,500,320);
  S.units=[atk,main,near,outside,ahead,far,ally,air];
  assert.equal(API.CLASSES.piercer.pierceWidth,42);
+ assert.equal(API.CLASSES.piercer.pierceCount,10);
+ assert.equal(API.CLASSES.piercer.damage*API.CLASSES.piercer.pierceScale,33,"secondary damage stays 33 even after primary is reduced");
  API.fire(atk,{kind:"unit",ref:main,x:main.x,y:main.y});
- assert.equal(main.hp,365,"the primary still takes 55");
+ assert.equal(main.hp,380,"the primary takes 40 after approved balance patch");
  assert.equal(near.hp,387,"40px offset takes 33 pierce");
  assert.equal(outside.hp,420,"43px offset is excluded");
  assert.equal(ahead.hp,420,"targets before the primary cannot be pierced");
@@ -121,7 +123,7 @@ test("piercer hits flying primary and mixed airborne/ground secondaries",()=>{
   friendly=unit("drone",1,510,310);
  S.units.push(air,ground,before,off,friendly);
  API.fire(a,{kind:"unit",ref:main,x:main.x,y:main.y});
- assert.equal(main.hp,65,"55 airborne main damage");
+ assert.equal(main.hp,80,"40 airborne main damage");
  assert.equal(air.hp,87,"33 airborne secondary damage");
  assert.equal(ground.hp,387,"33 ground secondary damage");
  assert.equal(before.hp,120,"air before target is excluded");
