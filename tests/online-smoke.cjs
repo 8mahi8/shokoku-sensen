@@ -77,6 +77,13 @@ assert.ok(art.includes("function medic(")&&art.includes('key==="anti_air_missile
 }
 
 const schoolKeys=Object.keys(originalClasses).filter(id=>!originalClasses[id].internalOnly);
+assert.equal(originalClasses.piercer.damage,40,"approved primary piercer damage");
+assert.equal(originalClasses.piercer.damage*originalClasses.piercer.pierceScale,33,
+ "piercer's secondary damage stays at 33");
+assert.equal(originalClasses.piercer.pierceWidth,42,"approved unchanged pierce width");
+assert.equal(originalClasses.piercer.pierceCount,10,"approved unchanged pierce cap");
+assert.equal(originalClasses.piercer.cost,3,"piercer cost unchanged");
+assert.equal(originalClasses.piercer.cool,1.85,"piercer attack interval unchanged");
 assert.ok(!schoolKeys.includes("small_machine_elite")&&!schoolKeys.includes("small_machine"),
  "Summoned robot variants must never be standalone editable/deck cards");
 assert.ok(schoolKeys.includes("medic"),"new medic is a playable editable character");
@@ -199,7 +206,7 @@ for(const p of ["online.html","online-ipad.html","online-embed.html"]){
   assert.ok(!html.includes(stale),p+" contains stale UI instructions: "+stale);
 }
 const page=read("online.html");
-assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=25'),
+assert.ok(page.includes('./online-deck.js?v=3')&&page.includes('./online-net.js?v=15')&&page.includes('./online-game.js?v=26'),
  "online.html must load the current core game and network modules");
 assert.ok(!page.includes('online-research.js'),"obsolete research module must not be loaded");
 for(const p of ["online-ipad.html","online-embed.html"]){
