@@ -375,8 +375,10 @@ test("elite is internally spawned only, using the same collision and attack rule
 });
 test("three new cards use approved costs and low-touch effects",()=>{
  const med=API.CLASSES.medic,aa=API.SPELLS.anti_air_missile,bolt=API.SPELLS.small_lightning;
- assert.deepEqual([med.cost,med.limit,med.qty,med.hp,med.damage,med.cool,med.healRadius,med.healAmount,med.healInterval],[2,4,1,120,10,2,90,20,2]);
- assert.equal(med.behavior,"guard");assert.equal(med.capture,0);assert.equal(med.hitAir,false);
+ assert.deepEqual([med.cost,med.limit,med.qty,med.hp,med.damage,med.cool,med.healRadius,med.healAmount,med.healInterval],[2,4,1,120,0,2,90,20,2]);
+ assert.equal(med.behavior,"normal");assert.equal(med.range,90);assert.equal(med.speed,16);
+ assert.deepEqual(Object.values(med.targetPriority),[0,0,0]);
+ assert.equal(med.capture,0);assert.equal(med.hitAir,false);
  assert.deepEqual([aa.cost,aa.limit,aa.radius,aa.damage,aa.groundDamage,aa.delay],[2,3,100,200,25,.4]);
  assert.deepEqual([bolt.cost,bolt.limit,bolt.radius,bolt.damage,bolt.delay],[1,4,45,30,.3]);
 });
@@ -411,6 +413,37 @@ test("medic can heal allied flyer but not after its own death",()=>{
  ctx.hitUnit(med,120);drone.hp=55;
  API.unitStep(2);assert.equal(drone.hp,55,"dead medic cannot heal");
  assert.equal(S.capitals[0].hp,3000);
+});
+test("medic uses normal advance without patients and never attacks enemies",()=>{
+ const med=unit("medic",1,400,300),enemy=unit("sentinel",2,455,300);
+ enemy.attack=999;S.units=[med,enemy];
+ API.unitStep(1);
+ assert.ok(med.x>400,"healthy / absent allies let medic advance toward enemy castle");
+ assert.equal(enemy.hp,440,"medic cannot damage hostile units even at close range");
+ assert.equal(S.capitals[1].hp,3000,"medic cannot attack the enemy castle");
+ assert.equal(S.effects.some(x=>x.type==="heal"),false,"no injured ally means no heal");
+});
+test("medic heal replaces its attack, shows a projectile and never pursues allies",()=>{
+ const med=unit("medic",1,400,300),near=unit("sentinel",1,450,300),
+  farBehind=unit("sentinel",1,265,300),enemy=unit("sentinel",2,470,300);
+ near.hp=200;farBehind.hp=10;near.attack=999;farBehind.attack=999;enemy.attack=999;
+ S.units=[med,near,farBehind,enemy];
+ API.unitStep(1.99);
+ assert.equal(med.x,400,"injured friend in reach stops medic like an archer");
+ assert.equal(near.hp,200,"first heal has a 2-second warmup");
+ API.unitStep(.01);
+ assert.equal(near.hp,220,"healing attack restores 20 HP");
+ assert.equal(farBehind.hp,10,"medic does not run backward to heal an out-of-range ally");
+ assert.equal(enemy.hp,440,"healing attack never damages nearby enemy");
+ assert.ok(med.attackAnim>0,"healing fires the normal attack animation");
+ assert.equal(S.projectiles.at(-1)?.kind,"medic","healing shot has a visible projectile");
+ API.unitStep(1);
+ assert.equal(near.hp,220,"2-second attack interval remains unchanged");
+ API.unitStep(1);
+ assert.equal(near.hp,240,"next shot heals again");
+ near.hp=near.max;
+ const before=med.x;API.unitStep(.25);
+ assert.ok(med.x>before,"after allies recover the medic resumes normal forward advance");
 });
 test("AA guided missile: delayed host-owned single-target nearest flyer, ground fallback and miss",()=>{
  const far=unit("ground_bomber",2,490,300),near=unit("drone",2,450,300),
