@@ -37,7 +37,7 @@ const MOTION={
  attack:{infantry:.48,scout:.49,engineer:.64,archer:.56,
   sentinel:.70,suppress:.64,guardian:.98,drone:.54,tank:.84,
   duelist:.40,crusher:.92,ranger_engineer:.66,interceptor:.46,ground_bomber:.68,
-  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,small_machine_elite:.55,medic:.58,kaiju:.78},
+  piercer:.64,catapult:1.05,kamikaze:.55,mech_summoner:.69,small_machine:.42,small_machine_elite:.55,medic:.58,kaiju:.78,sky_cannon:.64},
  windup:.44
 };
 const CLASSES={
@@ -66,6 +66,7 @@ const CLASSES={
  // Internal child: never place in a deck, summon directly or display in the card gallery.
  small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:105,damage:18,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
  small_machine_elite:{name:"最終型機械兵",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:220,damage:35,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師の8体目だけに現れる最終型。直接召喚・デッキ選択不可"},
+ sky_cannon:{name:"晶砲翼竜",glyph:"✦",size:"medium",cost:4,limit:3,qty:1,hp:40,damage:110,cool:1.35,range:80,vision:165,speed:28,r:15,behavior:"normal",capture:0,hitAir:false,flying:true,projectile:true,siege:.2,targetPriority:{castle:1,fort:0,unit:0,largeUnit:3},note:"中型・飛行。地上大型のみ狙う単体高火力砲。城へのダメージ20%。対空不可・低耐久"},
  medic:{name:"衛生補助兵",glyph:"✚",size:"small",cost:2,limit:4,qty:1,hp:120,damage:0,cool:2,range:90,vision:115,speed:16,r:13,behavior:"normal",capture:0,hitAir:false,healRadius:90,healAmount:20,healInterval:2,targetPriority:{castle:0,fort:0,unit:0},note:"通常進軍型。敵には攻撃せず、射程90内の負傷した味方1体へ2秒ごとに20回復弾を撃つ。自分と施設は回復不可"},
 };
 // School-friendly Google Sites HTML: optional, single visible HP / base damage
@@ -2654,6 +2655,9 @@ function drawUnit(u,alreadyPresented=false){
   ctx.fillStyle="#e5d6aa";ctx.fillRect(-18,-8,15,18);break;
  case "guardian":
   rounded(ctx,-23,-24,46,48,10);ctx.fill();ctx.stroke();ctx.fillStyle="#f0dc9e";ctx.beginPath();ctx.arc(0,0,8,0,Math.PI*2);ctx.fill();break;
+ case "sky_cannon":
+  ctx.beginPath();ctx.moveTo(18,0);ctx.lineTo(-10,-15);ctx.lineTo(-18,-9);ctx.lineTo(-7,0);ctx.lineTo(-18,9);ctx.lineTo(-10,15);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.fillStyle="#bfffff";ctx.beginPath();ctx.arc(10,0,5,0,Math.PI*2);ctx.fill();break;
  case "drone":
   ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-10,-15);ctx.lineTo(-9,-4);ctx.lineTo(-9,4);ctx.lineTo(-10,15);ctx.closePath();ctx.fill();ctx.stroke();
   ctx.fillStyle="#f5d8a0";ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill();break;
@@ -3022,7 +3026,7 @@ function draw(){
   if(!visible(x,y,35,45,45))continue;
   const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="catapult"?28:shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
   ctx.save();ctx.globalAlpha=Math.min(1,remaining/.09);
-  ctx.strokeStyle=shot.kind==="catapult"?"#ffda90":shot.kind==="piercer"?"#b2e9ff":shot.kind==="archer"?"#cfbcff":shot.kind==="medic"?"#9dffd0":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
+  ctx.strokeStyle=shot.kind==="catapult"?"#ffda90":shot.kind==="piercer"?"#b2e9ff":shot.kind==="archer"?"#cfbcff":shot.kind==="medic"?"#9dffd0":shot.kind==="sky_cannon"?"#c5f6ff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
   ctx.lineWidth=shot.kind==="catapult"?9:shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
   ctx.shadowColor=ctx.strokeStyle;
   ctx.shadowBlur=guestSimplifyVisuals()?0:shot.kind==="tank"?15:10;
