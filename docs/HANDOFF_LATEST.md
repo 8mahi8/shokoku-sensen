@@ -1,5 +1,12 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-11-02｜【Drive配布完了】最新の小国戦線IIIを学校ゲームフォルダに2ファイル保存
+
+- 本人「最新版Googleドライブに保存しておいて」を受け、開発ブランチHEADの`online-embed.html`および`online-ipad.html`を、それぞれ**本文がGitHubソースと一致するもの**としてGoogle Driveの「学校ゲーム／小国戦線III」フォルダ `1brr7JaupWk_kHMKVoI9gIkei3XrJGY2S`へ**新しいファイルとして保存・Drive metadataで再確認**。
+- [Google Sitesへ貼り付け用・テキスト](https://drive.google.com/file/d/164AXkCxtr4-Wszk4ZeAroXanQgcESfRp/view)（405,663バイト、`text/plain`）、[学校試遊用の単体HTML](https://drive.google.com/file/d/1YE1IGf6Ad8Tjd1-2veyLIW3e99vZvU-v/view)（407,215バイト、`text/html`）。どちらも**2026-11-02の最新版**。
+- 内容にはドローン`limit:2`,`qty:2`／速度21、遠距離工兵射程100、貫通射手射程135、魔導射手射程130、晶砲翼竜速度25、衛生補助兵`qty:2`が入っている。今回Google DriveへコピーしただけでGitHubゲームコード、学校Google Sites上の既存埋込、Firebase Rulesは変更していない。
+- これは**Driveへの保存確認**であり、学校iPad Safariで実際に試遊した証明ではない。
+
 ## 2026-11-02｜【最優先のユーザー再訂正】浮遊ドローン使用上限は2回、遠距離工兵の射程100
 
 - 本人の明示：「**浮遊ドローンは使用上限が2**」。以前AIが1回と解釈したのは間違い。その後3回へ戻したのも間違い。**最終仕様は`drone.limit:2`, `drone.qty:2`。1回2体、試合中2回使用で延べ4体**。移動速度21はそのまま。余計な同時生存上限は導入しない。
