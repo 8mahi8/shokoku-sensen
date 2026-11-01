@@ -101,14 +101,44 @@ test("crystal flyer has no antiair attacks but has reduced castle chip",()=>{
  assert.equal(drone.hp,120,"enemy air never attacked");
  assert.ok(S.projectiles.some(x=>x.kind==="sky_cannon"),"unique light cannon projectile renders");
 });
-test("drone trial speed decreases to 30 without altering movement buff scaling",()=>{
+test("approved five-card tuning keeps all detection ranges unchanged",()=>{
+ const C=API.CLASSES;
+ assert.deepEqual([C.archer.range,C.archer.vision,C.archer.speed],[130,195,19]);
+ assert.deepEqual([C.piercer.range,C.piercer.vision,C.piercer.speed],[135,205,18]);
+ assert.deepEqual([C.drone.range,C.drone.vision,C.drone.speed],[98,153,21]);
+ assert.deepEqual([C.sky_cannon.range,C.sky_cannon.vision,C.sky_cannon.speed],[80,165,25]);
+ assert.deepEqual([C.medic.range,C.medic.vision,C.medic.speed],[90,115,16]);
+ assert.deepEqual([C.medic.qty,C.medic.limit],[2,4],"healers appear as pairs, four card uses");
+});
+test("drone deck card spawns exactly two once; medic card spawns a pair and cycles",()=>{
+ S.hand[1]=["drone"];S.activeDecks[1]=["drone"];
+ S.left[1].drone=1;
+ assert.equal(API.deploy(1,"drone",180,300),true);
+ assert.equal(S.units.filter(u=>u.key==="drone").length,2);
+ assert.equal(S.left[1].drone,0);
+ assert.equal(API.deploy(1,"drone",180,300),false,"second pair may not deploy");
+ S.hand[1]=["medic"];S.activeDecks[1]=["medic"];S.queue[1]=[];
+ S.left[1].medic=4;
+ assert.equal(API.deploy(1,"medic",185,330),true);
+ assert.equal(S.units.filter(u=>u.key==="medic").length,2);
+ assert.equal(S.left[1].medic,3);
+ assert.ok(S.queue[1].includes("medic"),"remaining heal pairs stay in rotation");
+});
+test("paired medics both heal using original independent heal timing",()=>{
+ const m1=unit("medic",1,420,285),m2=unit("medic",1,420,315);
+ const patient=unit("engineer",1,440,300);patient.hp=300;
+ S.units=[m1,m2,patient];
+ API.unitStep(2);
+ assert.equal(patient.hp,340,"two independent heals of 20");
+});
+test("approved drone speed 21 and two total summons retain gale scaling",()=>{
  const drone=unit("drone",1,420,300);
- assert.equal(API.CLASSES.drone.speed,30,"only the trial move-speed baseline changes");
+ assert.equal(API.CLASSES.drone.speed,21,"approved slower drone");
  assert.equal(API.CLASSES.drone.qty,2,"drone still summons a pair");
- assert.equal(API.CLASSES.drone.limit,3,"approved drone cap is 3 deployments / 6 bodies");
- assert.equal(API.effectiveMoveSpeed(drone),30);
+ assert.equal(API.CLASSES.drone.limit,1,"one deployment of two drones total");
+ assert.equal(API.effectiveMoveSpeed(drone),21);
  drone.statusEffects=[{key:"gale",stat:"moveSpeed",mult:1.5,remaining:4}];
- assert.equal(API.effectiveMoveSpeed(drone),45,"gale remains multiplicative");
+ assert.equal(API.effectiveMoveSpeed(drone),31.5,"gale remains multiplicative");
 });
 test("approved HP110 piercer is fragile to dual-swords at contact",()=>{
  const piercer=unit("piercer",1,420,300),dual=unit("duelist",2,442,300);
@@ -119,7 +149,7 @@ test("approved HP110 piercer is fragile to dual-swords at contact",()=>{
   "five sword strikes KO the long-range piercer");
  assert.equal(Math.ceil(dual.hp/API.CLASSES.piercer.damage),4,
   "piercer needs four primary hits to KO the dual-swords at 40 damage");
- assert.equal(API.CLASSES.piercer.range,165,"long range retained");
+ assert.equal(API.CLASSES.piercer.range,135,"approved 135 range retains pierce mechanics");
  assert.equal(API.CLASSES.piercer.hitAir,true,"antiair remains legal");
 });
 test("pierce hits 10 targets maximum, main 40 and behind targets 33",()=>{
