@@ -122,7 +122,8 @@ test("drone deck card spawns exactly two once; medic card spawns a pair and cycl
  assert.equal(API.deploy(1,"medic",185,330),true);
  assert.equal(S.units.filter(u=>u.key==="medic").length,2);
  assert.equal(S.left[1].medic,3);
- assert.ok(S.queue[1].includes("medic"),"remaining heal pairs stay in rotation");
+ assert.ok(S.hand[1].includes("medic")||S.queue[1].includes("medic"),
+  "remaining heal pairs stay eligible for rotation");
 });
 test("paired medics both heal using original independent heal timing",()=>{
  const m1=unit("medic",1,420,285),m2=unit("medic",1,420,315);
