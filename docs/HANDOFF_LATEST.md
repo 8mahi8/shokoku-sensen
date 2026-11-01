@@ -9,7 +9,7 @@
   - [単体試遊HTML](https://drive.google.com/file/d/1XCYa1-bIVmK2nSEz2dpt0u6RGosE5bZ_/view?usp=drivesdk) — `小国戦線III_衛生補助兵進軍ヒール_学校試遊_20261102.html`
 - 両ファイル各**403,768 bytes**、SHA256 `b6f9289ef9ead6d766f0cffd306e357a44f67d9ff2680943514c64ab3ee5fee4`。HTML/TXT内容をDriveからそれぞれ読み戻して**完全一致**確認。生成したHTML全体のgit blob SHA `09f1f86ac0879fdd094b0b97ad8979b58b18572b`は現行GitHub開発ブランチ`online-embed.html`と一致。貫通射手HP110/主40/貫通33・衛生補助兵normal/攻撃0/射程90/20回復2秒等の現在値を含む。
 - GitHub本体の最新コードは前回実装済み。`df0822501eb5353e003d5600b91687a209090574`は引き継ぎ文書追記コミット。今回**ゲーム本体の再変更・学校Google Sitesの編集・Firebase Rules/main/stable更新はしない**。
-- QA：前節のsmoke・学校Standalone・Stage-2 browser・iPad UIブラウザ・実Firebase2席など成功を再確認。学校の**物理iPadで新ヒーラーを試遊したわけではない**。
+- QA：前節のsmoke・学校Standalone・Stage-2 browser・iPad UIブラウザ・実Firebase2席など成功を再確認。追加で[最新BOT対BOTフル試合 #41327823053](https://github.com/8mahi8/shokoku-sensen/actions/runs/41327823053)、[One-shot本物の2ブラウザ通信 #41327823033](https://github.com/8mahi8/shokoku-sensen/actions/runs/41327823033)も**最終success**を確認。途中の古いfailed runは修正前の履歴。学校の**物理iPadで新ヒーラーを試遊したわけではない**。
 
 ### 過去記録と現行実装の照合：今後の新キャラ開発で守ること
 - 参照した主要資料：`UNIT_AND_AI_DESIGN_CONSOLIDATED_2026-10-28.md`、`UNIT_ARCHETYPE_DESIGN_STANDARD_2026-10-28.md`、`UNIT_ADDITION_EXTENSIBILITY_AUDIT_2026-10-29.md`、`UNIT_CHARACTER_STRUCTURE_AUDIT_2026-10-28.md`、`UNIT_BALANCE_WORKFLOW_STANDARD.md`（v1.2）、`NEW_UNIT_SHORTLIST_10_CONCEPTS_2026-10-29.md`、`STAGE1_IMPLEMENTATION_AND_DECK_HANDOFF_2026-10-29.md`、`DECK_IMPLEMENTATION_HANDOFF_2026-10-29.md`、`STAGE2_DESIGN_AND_BALANCE_DECISIONS_2026-10-29.md`、`STAGE3_FORT_KAIJU_AND_GALE_DESIGN_2026-10-30.md`、`USAGE_LIMIT_APPROVED_20261030.md`、`THREE_NEW_CARDS_DESIGN_V1_20261031.md`、`CHARACTER_PIPELINE.md`、`BATTLE_CARD_LIMIT_HUD_20261030.md`、現行`online-game.js`と過去の比較記録。
