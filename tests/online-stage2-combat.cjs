@@ -74,6 +74,33 @@ test("stage2 cards have user-approved parameters and child stays hidden",()=>{
  assert.equal(API.SPELLS.gravity.duration,2.5);
  assert.equal(API.SPELLS.gravity.cost,3);
 });
+test("crystal flyer focuses large ground units and ignores ordinary troops",()=>{
+ const flyer=unit("sky_cannon",1,450,300),small=unit("infantry",2,485,300);
+ const golem=unit("guardian",2,570,300);
+ S.units=[flyer,small,golem];
+ const d=API.CLASSES.sky_cannon;
+ assert.deepEqual([d.cost,d.hp,d.damage,d.cool,d.range,d.siege,d.flying,d.hitAir],
+  [4,40,110,1.35,80,.2,true,false]);
+ assert.deepEqual([d.targetPriority.castle,d.targetPriority.fort,d.targetPriority.unit,d.targetPriority.largeUnit],[1,0,0,3]);
+ assert.equal(API.selectPriorityTargets(flyer).attack,null,"small unit is not a valid attack target");
+ assert.equal(API.selectPriorityTargets(flyer).approach.ref,golem,"large unit is the advance target");
+ API.unitStep(.1);
+ assert.equal(small.hp,105,"normal unit never takes damage");
+ assert.ok(flyer.x>450,"flyer advances toward large target");
+ golem.x=500;flyer.attack=0;
+ API.unitStep(.1);
+ assert.equal(golem.hp,1190,"flyer damages large only");
+ assert.equal(small.hp,105,"the nearby small unit stays unharmed");
+});
+test("crystal flyer has no antiair attacks but has reduced castle chip",()=>{
+ const flyer=unit("sky_cannon",1,1085,330),drone=unit("drone",2,1100,330);
+ S.units=[flyer,drone];
+ assert.equal(API.selectPriorityTargets(flyer).attack.kind,"capital","flying drone is ignored");
+ API.unitStep(.1);
+ assert.equal(S.capitals[1].hp,2978,"castle damage is 110 times 0.2");
+ assert.equal(drone.hp,120,"enemy air never attacked");
+ assert.ok(S.projectiles.some(x=>x.kind==="sky_cannon"),"unique light cannon projectile renders");
+});
 test("drone trial speed decreases to 30 without altering movement buff scaling",()=>{
  const drone=unit("drone",1,420,300);
  assert.equal(API.CLASSES.drone.speed,30,"only the trial move-speed baseline changes");
