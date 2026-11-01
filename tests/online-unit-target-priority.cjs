@@ -392,4 +392,22 @@ test("kaiju fort priority 4 still overrides nearby enemy",()=>{
  S.units=[a,e];S.forts=[fort(1148,200,2)];
  assert.equal(chosen(a).attack.kind,"fort");
 });
-console.log("TARGET_PRIORITY_QA: 50 scenarios passed");
+test("large-only flyer ignores smaller targets and advances without new AI",()=>{
+ const flyer=actor("sky_cannon",1,300,200),small=actor("duelist",2,338,200,11),large=actor("guardian",2,445,200,12);
+ S.units=[flyer,small,large];
+ assert.equal(chosen(flyer).attack,null,"duelist is not a target");
+ assert.equal(chosen(flyer).approach.ref,large,"guardian is the only target");
+ assert.ok(moved(flyer)>0);
+ assert.equal(shots.length,0,"flyer does not fire at small units");
+ large.x=340;flyer.attack=0;
+ moved(flyer);assert.equal(shots[0].t.ref,large,"large target takes first shot");
+});
+test("large-only flyer ignores ground small and airborne targets when no large exists",()=>{
+ const flyer=actor("sky_cannon",1,310,200);
+ S.units=[flyer,actor("duelist",2,330,200,11),actor("drone",2,330,210,12)];
+ assert.equal(chosen(flyer).attack,null);
+ assert.equal(chosen(flyer).approach,null);
+ assert.ok(moved(flyer)>0,"normal advance toward enemy castle continues");
+ assert.equal(shots.length,0,"no attacks at other sizes");
+});
+console.log("TARGET_PRIORITY_QA: 52 scenarios passed");
