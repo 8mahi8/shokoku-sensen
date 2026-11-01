@@ -649,7 +649,9 @@ const deadline=async (f,label,timeout=18000)=>{
   // actively confirm its opening hand before preparation can begin.
   await deadline(async()=>host.evaluate(()=>{
    const s=window.__shokokuQa.snapshot();
-   return s.phase==="mulligan"&&s.mulligan?.done?.[2]===true;
+   const overlay=document.getElementById("mulliganOverlay");
+   return s.phase==="mulligan"&&overlay&&!overlay.classList.contains("hidden")&&
+    (document.getElementById("mulliganStatus")?.textContent||"").includes("相手は確定済み");
   }),"BOT room opens mulligan with auto-confirmed BOT",9000);
   await host.locator("#mulliganConfirm").click();
   await deadline(async()=>host.evaluate(()=>window.__shokokuQa.snapshot().phase==="prep"),
