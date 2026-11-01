@@ -108,15 +108,19 @@ test("approved five-card tuning keeps all detection ranges unchanged",()=>{
  assert.deepEqual([C.drone.range,C.drone.vision,C.drone.speed],[98,153,21]);
  assert.deepEqual([C.sky_cannon.range,C.sky_cannon.vision,C.sky_cannon.speed],[80,165,25]);
  assert.deepEqual([C.medic.range,C.medic.vision,C.medic.speed],[90,115,16]);
+ assert.equal(C.ranger_engineer.range,100,"approved engineer range increase");
  assert.deepEqual([C.medic.qty,C.medic.limit],[2,4],"healers appear as pairs, four card uses");
 });
-test("drone deck card spawns exactly two once; medic card spawns a pair and cycles",()=>{
+test("drone card spawns two units twice, then expires; medic card spawns a pair",()=>{
  S.hand[1]=["drone"];S.activeDecks[1]=["drone"];
- S.left[1].drone=1;
+ S.left[1].drone=2;
  assert.equal(API.deploy(1,"drone",180,300),true);
  assert.equal(S.units.filter(u=>u.key==="drone").length,2);
+ assert.equal(S.left[1].drone,1);
+ assert.equal(API.deploy(1,"drone",180,300),true,"second use must succeed");
+ assert.equal(S.units.filter(u=>u.key==="drone").length,4);
  assert.equal(S.left[1].drone,0);
- assert.equal(API.deploy(1,"drone",180,300),false,"second pair may not deploy");
+ assert.equal(API.deploy(1,"drone",180,300),false,"third pair may not deploy");
  S.hand[1]=["medic"];S.activeDecks[1]=["medic"];S.queue[1]=[];
  S.left[1].medic=4;
  assert.equal(API.deploy(1,"medic",185,330),true);
@@ -132,11 +136,11 @@ test("paired medics both heal using original independent heal timing",()=>{
  API.unitStep(2);
  assert.equal(patient.hp,340,"two independent heals of 20");
 });
-test("approved drone speed 21 and two total summons retain gale scaling",()=>{
+test("approved drone speed 21 and two uses of two units retain gale scaling",()=>{
  const drone=unit("drone",1,420,300);
  assert.equal(API.CLASSES.drone.speed,21,"approved slower drone");
  assert.equal(API.CLASSES.drone.qty,2,"drone still summons a pair");
- assert.equal(API.CLASSES.drone.limit,1,"one deployment of two drones total");
+ assert.equal(API.CLASSES.drone.limit,2,"two deployments of two drones total");
  assert.equal(API.effectiveMoveSpeed(drone),21);
  drone.statusEffects=[{key:"gale",stat:"moveSpeed",mult:1.5,remaining:4}];
  assert.equal(API.effectiveMoveSpeed(drone),31.5,"gale remains multiplicative");
