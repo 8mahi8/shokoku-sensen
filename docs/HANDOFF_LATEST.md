@@ -1,5 +1,17 @@
 # 小国戦線III — FORTRESS FRONT｜開発担当AIへの【唯一の最新入口】
 
+## 2026-11-02｜【最新版・引き継ぎ後の確認完了】弱体化配布HTMLをGoogle Driveへ保存、ブラウザE2E全面成功
+
+- 本人から「これからのプラン」「貫通射手弱体化版をDrive保存」と依頼。2026-10-31に承認済みの貫通射手`HP110 / 主攻撃40 / 後続33`を維持。その他のカード・AI・通信・Firebaseは一切再変更しない。
+- **配布ファイルDrive保存済み**：本人の既存フォルダ「学校ゲーム／小国戦線III」に次の2つを**新規追加**（10/31版を上書きしない）。
+  - [Google Sites直接貼り付け用 TXT](https://drive.google.com/file/d/1KOOC59-7vTaBmuhQyUR_BpV2zzmHU4kY/view) `小国戦線III_貫通射手HP110_主40貫通33_GoogleSites貼付用_20261102.txt`
+  - [単体試遊HTML](https://drive.google.com/file/d/12Nlk-r-a1nfy-SlEGfglb-6_KttLWgBZ/view) `小国戦線III_貫通射手HP110_主40貫通33_学校試遊_20261102.html`
+- 両方**403151 bytes**、同内容SHA256 `ac663160de568b26addce44bb6348516281606da36ad6cdf16f84d536a2a755f`。Drive保存後の本文をGitHub開発版コミット`c0663bfa`の`online-embed.html`と文字列レベルで**完全一致**確認。前の10/31配布物との差分は学校上部編集表の貫通射手`170/55→110/40`と本体クラス定義`170/55/倍率.6→110/40/倍率.825`の2行。後続ダメージは33、上限10、対空可。
+- **GitHubテスト確定**：貫通射手の旧期待55を修正した [Stage-2ブラウザ描画 #41323434204](https://github.com/8mahi8/shokoku-sensen/actions/runs/41323434204) **success**、[学校HTML検証 #41323434238](https://github.com/8mahi8/shokoku-sensen/actions/runs/41323434238) **success**。新マリガンのBOT/役割交代テスト手順を修正した[One-shot real Firebase two-browser live QA #41323604405](https://github.com/8mahi8/shokoku-sensen/actions/runs/41323604405) は3構成すべて **success**。失敗した古いrun #41323571622 は直後の追加修正版より前の結果であり、現行判定には使わない。
+- **ここからの計画**：① 既存の良好な学校iPad通信・描画を温存し、今回のHP110配布版で本人が実戦試遊（飛行/対空を重点確認） ② 問題がなければ新カード追加を小分けに継続、1カードごとに既存SOPに沿うコスト・飛行対空・追加ユニット数・iPad UXの確認 ③ 実戦で出た明確なバランス問題/UI（召喚上限の視認性等）だけ優先改善 ④ 必要なときのみ混戦・複数追加後のWebKit/実機描画診断。既にラグが目立たないゲームの基盤を無目的に再構築しない。
+- **境界**：GitHubのゲーム本体、学校Google Sitesの埋め込み済み稼働版、Firebase Security Rules、main/stable/Pagesの公開内容、既存Driveファイルは無変更。Driveへの**ファイル追加**だけ実施。GitHub CIの成功は学校物理iPadでの新HP110版の合格を証明しない。
+
+
 ## 2026-11-02｜【引き継ぎ直後のCI確認・テスト回帰修正】
 
 - チャット起動不能による新担当への引き継ぎ。最新実コードの正式値は2026-10-31承認済み`piercer` HP110 / 主ダメージ40 / 後続33 / 射程165 / 貫通幅42 / 最大10体 / 対空可。新カード3種、通常7体＋最終型1体の召喚師、初手4枚・20秒マリガンは既に実装済み。以前の未承認提案や履歴資料で上書きしない。
