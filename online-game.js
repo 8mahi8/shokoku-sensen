@@ -66,7 +66,7 @@ const CLASSES={
  // Internal child: never place in a deck, summon directly or display in the card gallery.
  small_machine:{name:"量産小型機",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:105,damage:18,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師が生み出す小型兵。カードにはならない"},
  small_machine_elite:{name:"最終型機械兵",glyph:"⚙",size:"small",cost:0,limit:0,qty:1,hp:220,damage:35,cool:1.5,range:25,vision:105,speed:28,r:11,behavior:"normal",capture:0,hitAir:false,deckEligible:false,internalOnly:true,targetPriority:{castle:2,fort:0,unit:2},note:"機械召喚師の8体目だけに現れる最終型。直接召喚・デッキ選択不可"},
- medic:{name:"衛生補助兵",glyph:"✚",size:"small",cost:2,limit:4,qty:1,hp:120,damage:10,cool:2,range:30,vision:115,speed:16,r:13,behavior:"guard",capture:0,hitAir:false,healRadius:90,healAmount:20,healInterval:2,targetPriority:{castle:0,fort:0,unit:2},note:"配置点付近で味方を支援。2秒ごとに範囲90内の負傷した味方1体へ20回復。自分と施設は回復不可"},
+ medic:{name:"衛生補助兵",glyph:"✚",size:"small",cost:2,limit:4,qty:1,hp:120,damage:0,cool:2,range:90,vision:115,speed:16,r:13,behavior:"normal",capture:0,hitAir:false,healRadius:90,healAmount:20,healInterval:2,targetPriority:{castle:0,fort:0,unit:0},note:"通常進軍型。敵には攻撃せず、射程90内の負傷した味方1体へ2秒ごとに20回復弾を撃つ。自分と施設は回復不可"},
 };
 // School-friendly Google Sites HTML: optional, single visible HP / base damage
 // table at the VERY TOP of the pasted document. Only host applies combat
@@ -792,22 +792,32 @@ function unitStep(dt){
    }
   }
   if(d.healInterval){
-   u.healElapsed=(u.healElapsed||0)+dt;
-   while(u.healElapsed+1e-8>=d.healInterval){
-    u.healElapsed-=d.healInterval;
-    let patient=null,ratio=Infinity;
-    for(const ally of S.units){
-     if(ally===u||ally.team!==u.team||ally.hp<=0||ally.hp>=ally.max)continue;
-     if(Math.hypot(ally.x-u.x,ally.y-u.y)>d.healRadius)continue;
-     const p=ally.hp/ally.max;
-     if(p<ratio-1e-9||(Math.abs(p-ratio)<=1e-9&&ally.uid<(patient?.uid??Infinity))){
-      patient=ally;ratio=p;
-     }
+   // Medic's attack action heals allies instead of damaging enemies.
+   // It uses the existing forward-only normal advance when no patient is in range.
+   u.healElapsed=Math.min(d.healInterval,(u.healElapsed||0)+dt);
+   let patient=null,ratio=Infinity;
+   for(const ally of S.units){
+    if(ally===u||ally.team!==u.team||ally.hp<=0||ally.hp>=ally.max)continue;
+    if(Math.hypot(ally.x-u.x,ally.y-u.y)>d.healRadius)continue;
+    const p=ally.hp/ally.max;
+    if(p<ratio-1e-9||(Math.abs(p-ratio)<=1e-9&&ally.uid<(patient?.uid??Infinity))){
+     patient=ally;ratio=p;
     }
-    if(patient){
+   }
+   if(patient){
+    u.facing=Math.atan2(patient.y-u.y,patient.x-u.x);
+    if(u.healElapsed+1e-8>=d.healInterval){
+     u.healElapsed=0;
+     u.attack=d.cool;
+     u.attackAnimMax=MOTION.attack[u.key];
+     u.attackAnim=u.attackAnimMax;
+     u.windup=0;
      patient.hp=Math.min(patient.max,patient.hp+d.healAmount);
      S.effects.push({x:patient.x,y:patient.y,t:.48,max:.48,r:24,team:u.team,type:"heal"});
+     S.projectiles.push({x:u.x,y:u.y-36,tx:patient.x,ty:patient.y-34,
+      t:.40,max:.40,team:u.team,kind:"medic"});
     }
+    continue; // A medic stands to fire its healing attack, as a ranged unit would.
    }
   }
   const targets=selectPriorityTargets(u);
@@ -3012,7 +3022,7 @@ function draw(){
   if(!visible(x,y,35,45,45))continue;
   const a=Math.atan2(shot.ty-shot.y,shot.tx-shot.x),len=shot.kind==="catapult"?28:shot.kind==="tank"?23:shot.kind==="suppress"?15:10;
   ctx.save();ctx.globalAlpha=Math.min(1,remaining/.09);
-  ctx.strokeStyle=shot.kind==="catapult"?"#ffda90":shot.kind==="piercer"?"#b2e9ff":shot.kind==="archer"?"#cfbcff":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
+  ctx.strokeStyle=shot.kind==="catapult"?"#ffda90":shot.kind==="piercer"?"#b2e9ff":shot.kind==="archer"?"#cfbcff":shot.kind==="medic"?"#9dffd0":shot.kind==="drone"?"#8cfce2":shot.kind==="tank"?"#ffcf78":TEAM[shot.team];
   ctx.lineWidth=shot.kind==="catapult"?9:shot.kind==="tank"?8:shot.kind==="suppress"?6:4;
   ctx.shadowColor=ctx.strokeStyle;
   ctx.shadowBlur=guestSimplifyVisuals()?0:shot.kind==="tank"?15:10;
@@ -3087,9 +3097,9 @@ function openCardInfo(id){
  const infos=isSpell(id)?
    [["消費資源",d.cost],["使用回数",remaining+" 回"],["効果半径",d.radius],["持続・着弾時間",d.delay!==undefined?d.delay+" 秒":d.duration+" 秒"]]:
    [["消費資源",d.cost],["残り召喚回数",remaining],["1回の召喚数",d.qty+" 体"],
-    ["HP",d.hp],["攻撃力",d.damage],["射程",d.range],["移動速度",d.speed],
+    ["HP",d.hp],["攻撃力",d.healInterval?"なし（回復専用）":d.damage],["射程",d.range],["移動速度",d.speed],
     ["攻撃間隔",d.cool+" 秒"],["砦占領力",d.capture||"なし"]];
- if(!isSpell(id)&&d.healInterval)infos.push(["回復量と周期",d.healAmount+" HP / "+d.healInterval+" 秒"],["回復半径",d.healRadius]);
+ if(!isSpell(id)&&d.healInterval)infos.push(["回復量と周期",d.healAmount+" HP / "+d.healInterval+" 秒"],["回復射程",d.healRadius]);
  if(!isSpell(id)&&d.splash){
   infos.push(["範囲攻撃半径",d.splash],["巻き込み攻撃力",Math.round(d.damage*(d.splashScale??.57))]);
  }
