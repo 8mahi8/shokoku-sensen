@@ -144,7 +144,7 @@ function verify(scene,o){
    ["piercer","catapult","kamikaze","mech_summoner","small_machine"])
    assert.ok(o.painted[team+":"+id]>0,"missing art "+team+":"+id);
  }else if(scene==="pierce"){
-  assert.equal(r.mainDamage,55);
+  assert.equal(r.mainDamage,40,"approved piercer primary damage remains 40");
   // Ten total: 1 ground main + 8 ground secondaries + 1 flying secondary.
   assert.deepEqual(r.secondary,[33,33,33,33,33,33,33,33,0,0]);
   assert.equal(r.airHp,87,"airborne unit in piercing lane receives 33");
