@@ -645,8 +645,15 @@ const deadline=async (f,label,timeout=18000)=>{
   await host.locator("#netReady").click();
   await deadline(async()=>host.locator("#netStart").isEnabled(),"ready host with BOT",9000);
   await host.locator("#netStart").click();
+  // The BOT auto-confirms the new 20s mulligan, but the human host must
+  // actively confirm its opening hand before preparation can begin.
+  await deadline(async()=>host.evaluate(()=>{
+   const s=window.__shokokuQa.snapshot();
+   return s.phase==="mulligan"&&s.mulligan?.done?.[2]===true;
+  }),"BOT room opens mulligan with auto-confirmed BOT",9000);
+  await host.locator("#mulliganConfirm").click();
   await deadline(async()=>host.evaluate(()=>window.__shokokuQa.snapshot().phase==="prep"),
-   "BOT room starts real game",9000);
+   "BOT room host confirms mulligan -> preparation",12000);
   console.log("LIVE HOST BOT ROOM",JSON.stringify({recordVideo:qaRecordVideo,
    matchedWebkit:qaMatchedWebkit,code:botCode,guestReady:botJoined.ready,
    phase:"prep",hostBot:true}));
@@ -719,6 +726,23 @@ const deadline=async (f,label,timeout=18000)=>{
    await deadline(async()=>page.locator("#overlay").evaluate(e=>e.classList.contains("hidden")),
     name+" enters gameplay",25000);
   }
+  // Role-swapped players also see the 20s mulligan. Confirm both sides
+  // before checking for a playable preparation phase or card selection.
+  for(const [name,page] of [["swapped blue host",guest],["swapped red guest",host]]){
+   await deadline(async()=>page.evaluate(()=>window.__shokokuQa.snapshot().phase==="mulligan"),
+    name+" receives mulligan",15000);
+   await deadline(async()=>page.locator("#mulliganConfirm").isVisible(),
+    name+" can confirm opening hand",10000);
+  }
+  await guest.locator("#mulliganConfirm").click();
+  await deadline(async()=>host.evaluate(()=>window.ShokokuNet.canSendCommand),
+   "swapped red guest can send mulligan command",18000);
+  await host.locator("#mulliganConfirm").click();
+  await deadline(async()=>{
+   const phases=await Promise.all([guest,host].map(p=>
+    p.evaluate(()=>window.__shokokuQa.snapshot().phase)));
+   return phases.every(phase=>phase==="prep"||phase==="battle");
+  },"role-swapped players both confirm and start placement",18000);
   // Manual red input must cross Firebase to the new host, and come back
   // through that same page's WebKit/Chromium receiver after roles invert.
   // The guest's game overlay may hide from the first state packet before
